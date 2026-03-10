@@ -1,0 +1,5 @@
+dashboard_component | data_sources | metrics
+---|---|---
+team_progress_overview | progress_tracking_service.ProgressSnapshot; enrollment_service.EnrollmentStatus; learning_path_service.CurriculumAssignment | team_assigned_learning_items; in_progress_items; overdue_items; average_completion_percent; on_track_vs_at_risk_ratio
+skill_gaps_dashboard | skills_service.SkillAssessment; skills_service.RoleSkillRequirement; course_catalog_service.SkillTagMapping; hris_integration.RoleProfile | required_skills_coverage_percent; average_proficiency_gap; critical_skill_gaps_count; gap_closure_rate_30d; top_missing_skills
+course_completion_monitor | completion_service.CompletionRecord; enrollment_service.Enrollment; due_date_policy_service.DueDateRule; notification_service.DeliveryReceipt | completion_rate_percent; mandatory_course_completion_percent; overdue_completion_count; median_time_to_completion; completion_trend_weekly
