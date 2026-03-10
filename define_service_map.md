@@ -1,4 +1,4 @@
-# Enterprise LMS Backend Service Map for EMS
+# Enterprise LMS Backend Service Map for LMS
 
 auth_identity_service  
 responsibility: Manages user authentication, SSO/OAuth2 integration, token issuance/validation, and credential lifecycle.  

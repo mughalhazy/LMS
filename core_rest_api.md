@@ -1,8 +1,8 @@
-# Core REST APIs for EMS
+# Core REST APIs for LMS
 
 endpoint | method | description
 --- | --- | ---
-`/users` | `POST` | Create a new EMS user profile (learner, instructor, or admin).
+`/users` | `POST` | Create a new LMS user profile (learner, instructor, or admin).
 `/users` | `GET` | List users with optional filters (role, status, department) and pagination.
 `/users/{userId}` | `GET` | Retrieve a specific user’s full profile and account metadata.
 `/users/{userId}` | `PATCH` | Update user attributes such as name, role, status, or department.

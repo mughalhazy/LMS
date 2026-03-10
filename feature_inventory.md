@@ -1,4 +1,4 @@
-# EMS Enterprise LMS Feature Inventory
+# LMS Enterprise LMS Feature Inventory
 
 | module | feature_name | description | primary_users |
 |---|---|---|---|
@@ -63,11 +63,11 @@
 | compliance | Exception & Waiver Management | Handles documented exemptions, approvals, and compensating controls workflows. | Compliance Admins, Managers |
 | compliance | Audit Evidence Repository | Stores completion records, attestations, and reports for inspection readiness. | Compliance Admins, Auditors |
 | compliance | Compliance Escalation Workflows | Escalates overdue mandatory items to managers and compliance leadership. | Compliance Admins, Managers |
-| integrations | HRIS Integration | Synchronizes worker profiles, org structures, and employment status from HR systems. | HR Admins, IT Admins |
-| integrations | CRM/ERP Integration | Exchanges training and certification data with operational enterprise systems. | IT Admins, Business Ops |
+| integrations | HRIS Integration | Synchronizes worker profiles, org structures, and employment status from HR systlms. | HR Admins, IT Admins |
+| integrations | CRM/ERP Integration | Exchanges training and certification data with operational enterprise systlms. | IT Admins, Business Ops |
 | integrations | Webinar/Virtual Classroom Integration | Connects with meeting platforms for session launch, attendance, and recording ingestion. | Instructors, L&D Admins |
 | integrations | Content Provider Integrations | Aggregates third-party content libraries and updates availability metadata. | L&D Admins, Learners |
-| integrations | API & Webhook Framework | Provides secure APIs/webhooks for event-driven integration with enterprise ecosystems. | IT Admins, Developers |
+| integrations | API & Webhook Framework | Provides secure APIs/webhooks for event-driven integration with enterprise ecosystlms. | IT Admins, Developers |
 | integrations | Data Warehouse Integration | Schedules reliable data pipelines for analytics and enterprise reporting environments. | Data Engineers, BI Teams |
 | mobile access | Native Mobile Apps | Delivers iOS/Android apps for training access, tracking, and notifications. | Learners, Managers |
 | mobile access | Responsive Web Experience | Ensures browser-based LMS usability across tablets and smartphones. | Learners, Instructors |

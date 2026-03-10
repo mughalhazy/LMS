@@ -20,7 +20,7 @@ Event-service misalignment
 Event architecture (`event_driven_architecture.md`, `define_event_domains.md`) vs LMS service map
 Event producers/consumers are mostly HRIS/payroll-oriented (`employee-service`, `payroll-service`, `leave-service`, `expense-service`) and do not map to defined LMS microservices (`enrollment_service`, `assessment_service`, `progress_tracking_service`, etc.).
 high
-Split event catalogs by domain (EMS-HR vs LMS) or replace producer/consumer names with canonical LMS services for this architecture package.
+Split event catalogs by domain (LMS-HR vs LMS) or replace producer/consumer names with canonical LMS services for this architecture package.
 
 Event ownership ambiguity
 `TrainingEnrollmentAssigned` / `TrainingCourseCompleted`

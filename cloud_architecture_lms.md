@@ -40,7 +40,7 @@ Caches static web assets and learning media globally, reducing latency and offlo
 
 Queue system - event bus
 Amazon EventBridge
-Distributes domain events (EnrollmentCreated, TrainingCompleted, CertificationIssued) between decoupled LMS and EMS services.
+Distributes domain events (EnrollmentCreated, TrainingCompleted, CertificationIssued) between decoupled LMS and LMS services.
 
 Queue system - reliable async processing
 Amazon SQS (standard + dead-letter queues)

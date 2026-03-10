@@ -1,4 +1,4 @@
-# Service Boundary Validation — EMS Backend Service Map
+# Service Boundary Validation — LMS Backend Service Map
 
 issue_type | affected_service | description | severity | suggested_fix
 --- | --- | --- | --- | ---

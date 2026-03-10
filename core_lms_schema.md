@@ -1,4 +1,4 @@
-# Core LMS Relational Schema (EMS LMS)
+# Core LMS Relational Schema (LMS LMS)
 
 | table_name | primary_key | relationships |
 | --- | --- | --- |
