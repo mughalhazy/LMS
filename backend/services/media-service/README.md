@@ -2,6 +2,8 @@
 
 Media Service implements LMS media lifecycle workflows aligned to the media pipeline and content storage model specifications.
 
+> Stage-3 structure note: the media pipeline implementation now lives under `modules/media_pipeline`.
+
 ## Scope
 
 - **Media upload pipeline**: validates upload policy (size, codec), stores raw source video under object storage `/videos/<tenant>/raw/<asset_id>/...`, and emits `video.uploaded`.
@@ -11,6 +13,7 @@ Media Service implements LMS media lifecycle workflows aligned to the media pipe
 
 ## Layout
 
+- `modules/media_pipeline/`: Stage-3 media pipeline module (intake, transcoding, thumbnails, publishing).
 - `src/media_service/models.py`: request/asset/metadata domain models.
 - `src/media_service/service.py`: orchestrates upload, processing, metadata build, and CDN publishing.
 - `src/media_service/integrations/`: object storage, transcoder, CDN, and event adapter stubs.

@@ -7,6 +7,8 @@ SCORM runtime service implementing:
 
 Aligned to `docs/specs/scorm_runtime_spec.md`.
 
+> Stage-3 structure note: the SCORM runtime implementation now lives under `modules/scorm_runtime`.
+
 ## Endpoints
 
 - `GET /health`
