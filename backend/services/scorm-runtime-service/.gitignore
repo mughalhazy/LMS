@@ -1,0 +1,3 @@
+node_modules/
+data/scorm-sessions.json
+test/.tmp-*.json
