@@ -1,0 +1,29 @@
+{
+  "event_name": "course_published",
+  "topic": "lms.course.published.v1",
+  "producer_service": "course-service",
+  "schema_version": 1,
+  "purpose": "Published when a course transitions to published status so enrollment and discovery channels can make it available to learners.",
+  "payload": {
+    "tenant_id": "string",
+    "course_id": "string",
+    "requested_by": "string",
+    "publish_notes": "string|null",
+    "scheduled_publish_at": "date-time|null",
+    "audience_rules": {
+      "additionalProperties": true
+    },
+    "status": "published",
+    "published_version": "number",
+    "published_at": "date-time",
+    "effective_from": "date-time"
+  },
+  "consumers": [
+    "catalog-service",
+    "enrollment-service",
+    "notification-service",
+    "analytics-reporting-service",
+    "audit-compliance-service",
+    "integration-gateway-service"
+  ]
+}

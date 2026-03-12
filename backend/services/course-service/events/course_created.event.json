@@ -1,0 +1,38 @@
+{
+  "event_name": "course_created",
+  "topic": "lms.course.created.v1",
+  "producer_service": "course-service",
+  "schema_version": 1,
+  "purpose": "Published when a new course record is created in draft state so downstream services can index metadata, prepare analytics dimensions, and register audit evidence.",
+  "payload": {
+    "tenant_id": "string",
+    "course_id": "string",
+    "title": "string",
+    "description": "string",
+    "category_id": "string",
+    "language": "string",
+    "delivery_mode": "string",
+    "duration_minutes": "number",
+    "tags": [
+      "string"
+    ],
+    "objectives": [
+      "string"
+    ],
+    "metadata": {
+      "additionalProperties": true
+    },
+    "status": "draft",
+    "version": 1,
+    "created_by": "string",
+    "created_at": "date-time",
+    "updated_at": "date-time"
+  },
+  "consumers": [
+    "search-index-service",
+    "learning-path-service",
+    "analytics-reporting-service",
+    "audit-compliance-service",
+    "integration-gateway-service"
+  ]
+}
