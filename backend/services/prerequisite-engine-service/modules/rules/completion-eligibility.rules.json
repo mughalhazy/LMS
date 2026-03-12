@@ -1,0 +1,78 @@
+{
+  "rule_set_id": "completion_eligibility_rules_v1",
+  "service": "prerequisite_engine_service",
+  "rule_type": "completion_based_eligibility",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "eligibility_cert_data_analyst",
+      "target_type": "certificate",
+      "target_id": "cert_data_analyst_level_1",
+      "eligibility_logic": "all",
+      "conditions": [
+        {
+          "condition_id": "path_completion_required",
+          "metric": "learning_path_completion",
+          "subject_ref": "path_digital_analyst",
+          "operator": "equals",
+          "expected_value": "completed"
+        },
+        {
+          "condition_id": "capstone_min_score",
+          "metric": "assessment_score",
+          "subject_ref": "assessment_data_validation",
+          "operator": "greater_than_or_equal",
+          "expected_value": 85
+        },
+        {
+          "condition_id": "completion_freshness",
+          "metric": "completion_age_days",
+          "subject_ref": "path_digital_analyst",
+          "operator": "less_than_or_equal",
+          "expected_value": 365
+        }
+      ],
+      "decision": {
+        "eligible_when": "all_conditions_met",
+        "if_not_eligible": {
+          "status": "pending_requirements",
+          "next_actions": [
+            "retake_capstone",
+            "complete_missing_nodes"
+          ]
+        }
+      }
+    },
+    {
+      "rule_id": "eligibility_program_enrollment_advanced_security",
+      "target_type": "program_enrollment",
+      "target_id": "program_security_lead_track",
+      "eligibility_logic": "any",
+      "conditions": [
+        {
+          "condition_id": "completed_security_path",
+          "metric": "learning_path_completion",
+          "subject_ref": "path_security_engineer",
+          "operator": "equals",
+          "expected_value": "completed"
+        },
+        {
+          "condition_id": "completed_equivalent_courses",
+          "metric": "completed_courses_count",
+          "subject_ref": "security_core_course_group",
+          "operator": "greater_than_or_equal",
+          "expected_value": 4
+        }
+      ],
+      "decision": {
+        "eligible_when": "any_condition_met",
+        "if_not_eligible": {
+          "status": "ineligible",
+          "next_actions": [
+            "assign_bridge_path_security_fundamentals"
+          ]
+        }
+      }
+    }
+  ]
+}

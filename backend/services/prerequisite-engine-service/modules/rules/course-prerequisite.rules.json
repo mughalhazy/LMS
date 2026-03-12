@@ -1,0 +1,104 @@
+{
+  "rule_set_id": "course_prerequisite_rules_v1",
+  "service": "prerequisite_engine_service",
+  "rule_type": "course_prerequisite",
+  "version": "1.0.0",
+  "evaluation_mode": "all_required_rule_groups",
+  "rules": [
+    {
+      "rule_id": "course_pre_req_data_foundations",
+      "target_course_id": "course_data_science_intermediate",
+      "tenant_scope": "*",
+      "requirements_logic": "all",
+      "requirement_groups": [
+        {
+          "group_id": "foundational_courses",
+          "logic": "any",
+          "courses": [
+            {
+              "course_id": "course_intro_to_statistics",
+              "minimum_grade": 70,
+              "validity_window_days": 730
+            },
+            {
+              "course_id": "course_data_literacy_bootcamp",
+              "minimum_grade": 75,
+              "validity_window_days": 365
+            }
+          ]
+        },
+        {
+          "group_id": "required_python_basics",
+          "logic": "all",
+          "courses": [
+            {
+              "course_id": "course_python_basics",
+              "minimum_grade": 80,
+              "validity_window_days": null,
+              "accepted_equivalencies": [
+                "ext_cert_python_associate"
+              ]
+            }
+          ]
+        }
+      ],
+      "on_fail": {
+        "enrollment_decision": "blocked",
+        "return_unmet_prerequisites": true,
+        "recommendation_group": "bridge_learning_data_science"
+      },
+      "override_policy": {
+        "allow_admin_override": true,
+        "allowed_roles": [
+          "instructor",
+          "tenant_admin"
+        ],
+        "required_reason_codes": [
+          "prior_experience",
+          "manager_approval",
+          "manual_exception"
+        ],
+        "audit_required": true
+      }
+    },
+    {
+      "rule_id": "course_pre_req_security_advanced",
+      "target_course_id": "course_security_architecture_advanced",
+      "tenant_scope": "*",
+      "requirements_logic": "all",
+      "requirement_groups": [
+        {
+          "group_id": "required_security_track",
+          "logic": "all",
+          "courses": [
+            {
+              "course_id": "course_security_fundamentals",
+              "minimum_grade": 75,
+              "validity_window_days": null
+            },
+            {
+              "course_id": "course_network_basics",
+              "minimum_grade": 70,
+              "validity_window_days": 1095
+            }
+          ]
+        }
+      ],
+      "on_fail": {
+        "enrollment_decision": "blocked",
+        "return_unmet_prerequisites": true,
+        "recommendation_group": "bridge_learning_security"
+      },
+      "override_policy": {
+        "allow_admin_override": true,
+        "allowed_roles": [
+          "tenant_admin"
+        ],
+        "required_reason_codes": [
+          "compliance_deadline_exception"
+        ],
+        "audit_required": true
+      }
+    }
+  ]
+}
