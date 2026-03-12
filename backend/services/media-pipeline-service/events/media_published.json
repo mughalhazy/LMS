@@ -1,0 +1,56 @@
+{
+  "event_name": "media_published",
+  "topic": "lms.media.published.v1",
+  "producer_service": "media-pipeline-service",
+  "consumer_services": [
+    "content-management-service",
+    "course-catalog-service",
+    "integration-gateway-service",
+    "audit-compliance-service"
+  ],
+  "purpose": "Emitted when processed media assets are published to CDN and playback URLs are ready for learners.",
+  "schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "occurred_at",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "media_published" },
+      "occurred_at": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "media_asset_id",
+          "cdn_playback_urls",
+          "cdn_thumbnail_urls",
+          "cache_ttl_seconds",
+          "access_policy"
+        ],
+        "properties": {
+          "media_asset_id": { "type": "string" },
+          "cdn_playback_urls": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "cdn_thumbnail_urls": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "cache_ttl_seconds": { "type": "integer", "minimum": 0 },
+          "access_policy": { "type": "string", "enum": ["signed_url", "token", "public"] },
+          "edge_cache_status": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

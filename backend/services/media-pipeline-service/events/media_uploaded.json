@@ -1,0 +1,54 @@
+{
+  "event_name": "media_uploaded",
+  "topic": "lms.media.uploaded.v1",
+  "producer_service": "media-pipeline-service",
+  "consumer_services": [
+    "content-management-service",
+    "transcoding-worker-service",
+    "audit-compliance-service"
+  ],
+  "purpose": "Emitted when a media source file upload is completed and persisted so downstream processing can begin.",
+  "schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "occurred_at",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "media_uploaded" },
+      "occurred_at": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "media_asset_id",
+          "object_storage_uri",
+          "upload_checksum",
+          "source_file_name",
+          "source_file_type",
+          "source_file_size_bytes",
+          "uploader_id",
+          "course_id",
+          "title"
+        ],
+        "properties": {
+          "media_asset_id": { "type": "string" },
+          "object_storage_uri": { "type": "string" },
+          "upload_checksum": { "type": "string" },
+          "source_file_name": { "type": "string" },
+          "source_file_type": { "type": "string" },
+          "source_file_size_bytes": { "type": "integer", "minimum": 1 },
+          "uploader_id": { "type": "string" },
+          "course_id": { "type": "string" },
+          "title": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}
