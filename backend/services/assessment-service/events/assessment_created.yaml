@@ -1,0 +1,8 @@
+event: AssessmentCreated
+owner: assessment-service
+description: Fired when a draft assessment is created.
+payload:
+  tenant_id: string
+  assessment_id: uuid
+  course_id: string
+  created_at: datetime
