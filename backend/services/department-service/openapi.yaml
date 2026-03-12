@@ -1,0 +1,246 @@
+openapi: 3.0.3
+info:
+  title: Department Service API
+  version: 1.0.0
+  description: Department creation, hierarchy management, and membership mapping APIs.
+servers:
+  - url: /api/v1
+paths:
+  /departments:
+    post:
+      summary: Create a department
+      operationId: createDepartment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+      responses:
+        '201':
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+    get:
+      summary: List departments within an organization
+      operationId: listDepartments
+      parameters:
+        - in: query
+          name: tenantId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Departments returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+  /departments/{departmentId}:
+    get:
+      summary: Get department details
+      operationId: getDepartment
+      parameters:
+        - in: path
+          name: departmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Department returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+  /departments/{departmentId}/children:
+    get:
+      summary: List child departments
+      operationId: listDepartmentChildren
+      parameters:
+        - in: path
+          name: departmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Child departments returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+  /departments/{departmentId}/parent:
+    patch:
+      summary: Re-parent department in hierarchy
+      operationId: reparentDepartment
+      parameters:
+        - in: path
+          name: departmentId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newParentDepartmentId
+              properties:
+                newParentDepartmentId:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Department hierarchy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+  /departments/{departmentId}/memberships:
+    post:
+      summary: Map user to department membership
+      operationId: createDepartmentMembership
+      parameters:
+        - in: path
+          name: departmentId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentMembershipRequest'
+      responses:
+        '201':
+          description: Membership mapping created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentMembership'
+    get:
+      summary: List department memberships
+      operationId: listDepartmentMemberships
+      parameters:
+        - in: path
+          name: departmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Membership mappings returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepartmentMembership'
+components:
+  schemas:
+    Department:
+      type: object
+      properties:
+        departmentId:
+          type: string
+        tenantId:
+          type: string
+        organizationId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        parentDepartmentId:
+          type: string
+          nullable: true
+        departmentHeadUserId:
+          type: string
+          nullable: true
+        costCenter:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateDepartmentRequest:
+      type: object
+      required:
+        - tenantId
+        - organizationId
+        - name
+        - code
+      properties:
+        tenantId:
+          type: string
+        organizationId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        parentDepartmentId:
+          type: string
+          nullable: true
+        departmentHeadUserId:
+          type: string
+          nullable: true
+        costCenter:
+          type: string
+          nullable: true
+    DepartmentMembership:
+      type: object
+      properties:
+        membershipId:
+          type: string
+        tenantId:
+          type: string
+        organizationId:
+          type: string
+        departmentId:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    CreateDepartmentMembershipRequest:
+      type: object
+      required:
+        - tenantId
+        - organizationId
+        - userId
+        - role
+      properties:
+        tenantId:
+          type: string
+        organizationId:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
