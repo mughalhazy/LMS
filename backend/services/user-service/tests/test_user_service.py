@@ -110,3 +110,30 @@ def test_identity_mapping_uniqueness_within_tenant() -> None:
         },
     )
     assert conflict.status_code == 409
+
+
+def test_core_user_endpoints_patch_and_delete() -> None:
+    user_id = create_user("tenant-core")
+
+    patch_response = client.patch(
+        f"/users/{user_id}",
+        json={
+            "tenant_id": "tenant-core",
+            "updated_by": "admin",
+            "username": "renamed-user",
+            "role_set": ["admin"],
+            "department": "Platform",
+            "status": "active",
+        },
+    )
+    assert patch_response.status_code == 200
+    patched_user = patch_response.json()["user"]
+    assert patched_user["username"] == "renamed-user"
+    assert patched_user["role_set"] == ["admin"]
+    assert patched_user["profile"]["department"] == "Platform"
+
+    delete_response = client.delete(f"/users/{user_id}?tenant_id=tenant-core")
+    assert delete_response.status_code == 204
+
+    get_deleted = client.get(f"/users/{user_id}?tenant_id=tenant-core")
+    assert get_deleted.status_code == 404

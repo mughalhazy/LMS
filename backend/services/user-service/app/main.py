@@ -14,6 +14,7 @@ from .schemas import (
     TimelineResponse,
     UnmapIdentityRequest,
     UpdateProfileRequest,
+    UpdateUserRequest,
     UserListResponse,
     UserResponse,
 )
@@ -36,6 +37,16 @@ def list_users(tenant_id: str = Query(...), status: AccountStatus | None = Query
 @app.get("/users/{user_id}", response_model=UserResponse)
 def get_user(user_id: str, tenant_id: str = Query(...)):
     return UserResponse(user=service.get_user(tenant_id=tenant_id, user_id=user_id))
+
+
+@app.patch("/users/{user_id}", response_model=UserResponse)
+def update_user(user_id: str, request: UpdateUserRequest):
+    return UserResponse(user=service.update_user(user_id=user_id, req=request))
+
+
+@app.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: str, tenant_id: str = Query(...)):
+    service.delete_user(tenant_id=tenant_id, user_id=user_id)
 
 
 @app.post("/users/{user_id}/activate", response_model=UserResponse)

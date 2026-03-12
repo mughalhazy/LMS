@@ -16,6 +16,7 @@ from .schemas import (
     TerminateReinstateRequest,
     UnmapIdentityRequest,
     UpdateProfileRequest,
+    UpdateUserRequest,
 )
 
 
@@ -73,6 +74,24 @@ class UserService:
         user.activated_at = datetime.now(timezone.utc)
         self._add_event(user, LifecycleEventType.ACTIVATED, req.activated_by, {"status": user.status.value})
         return user
+
+
+    def update_user(self, user_id: str, req: UpdateUserRequest) -> User:
+        user = self._get_tenant_user(req.tenant_id, user_id)
+        if req.username is not None:
+            user.username = req.username
+        if req.role_set is not None:
+            user.role_set = req.role_set
+        if req.status is not None:
+            user.status = req.status
+        if req.department is not None:
+            user.profile.department = req.department
+        self._add_event(user, LifecycleEventType.PROFILE_UPDATED, req.updated_by, {"update_scope": "user"})
+        return user
+
+    def delete_user(self, tenant_id: str, user_id: str) -> None:
+        _ = self._get_tenant_user(tenant_id, user_id)
+        del self.users[user_id]
 
     def update_profile(self, user_id: str, req: UpdateProfileRequest) -> User:
         user = self._get_tenant_user(req.tenant_id, user_id)
