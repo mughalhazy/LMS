@@ -33,7 +33,7 @@ def test_transactional_delivery_queue_and_processing() -> None:
     assert processed.status_code == 200
     assert processed.json() == {"processed_count": 1, "sent_count": 1, "failed_count": 0}
 
-    delivery = client.get(f"/emails/{delivery_id}")
+    delivery = client.get(f"/emails/{delivery_id}", params={"tenant_id": "tenant-1"})
     assert delivery.status_code == 200
     assert delivery.json()["status"] == "sent"
 
@@ -79,7 +79,24 @@ def test_queue_processing_handles_failures() -> None:
     assert processed.status_code == 200
     assert processed.json()["failed_count"] == 1
 
-    delivery = client.get(f"/emails/{delivery_id}")
+    delivery = client.get(f"/emails/{delivery_id}", params={"tenant_id": "tenant-3"})
     assert delivery.status_code == 200
     assert delivery.json()["status"] == "failed"
     assert delivery.json()["error_message"] == "Simulated provider rejection"
+
+
+def test_delivery_lookup_is_tenant_scoped() -> None:
+    queued = client.post(
+        "/emails/transactional",
+        json={
+            "tenant_id": "tenant-4",
+            "template_key": "welcome_email",
+            "recipient_email": "tenant4@example.com",
+            "payload": {"first_name": "T4", "tenant_name": "Tenant Four"},
+        },
+    )
+    assert queued.status_code == 200
+    delivery_id = queued.json()["delivery_id"]
+
+    wrong_tenant = client.get(f"/emails/{delivery_id}", params={"tenant_id": "tenant-5"})
+    assert wrong_tenant.status_code == 404
