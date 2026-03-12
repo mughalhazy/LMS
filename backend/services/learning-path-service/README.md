@@ -6,8 +6,24 @@ This service implements the **learning_path_service** bounded context and owns c
 
 - Learning path creation (draft-first lifecycle).
 - Course sequencing through DAG-based path nodes/edges.
+- Completion rules configuration and evaluation.
 - Learning path publishing with validation gates.
 - Tenant-scoped paths and tenant-bound operations.
+
+## Python domain service
+
+A lightweight in-memory reference implementation lives in `src/`:
+
+- `src/models.py`: core entities (`LearningPath`, `PathNode`, `PathEdge`, `CompletionRules`, `NodeProgress`).
+- `src/service.py`: service logic for creation, sequencing validation, completion evaluation, tenant checks, and publish validation.
+- `tests/test_learning_path_service.py`: unit tests covering tenant isolation, cycle checks, publish checks, and completion rules.
+
+Run tests:
+
+```bash
+cd backend/services/learning-path-service
+python -m unittest discover -s tests
+```
 
 ## Responsibilities
 
