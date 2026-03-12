@@ -11,7 +11,7 @@ Implements a media processing pipeline for LMS video assets:
 ## Run tests
 
 ```bash
-cd backend/services/media-pipeline-service
+cd backend/services/media-service/modules/media_pipeline
 PYTHONPATH=src python -m pytest -q tests/test_pipeline.py
 ```
 

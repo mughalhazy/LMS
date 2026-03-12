@@ -1,4 +1,4 @@
-# SCORM Runtime Service
+# SCORM Runtime Module
 
 Implements tenant-scoped SCORM launch and runtime tracking aligned to:
 - `docs/specs/scorm_runtime_spec.md`
@@ -16,6 +16,7 @@ Implements tenant-scoped SCORM launch and runtime tracking aligned to:
 ## Run
 
 ```bash
+cd backend/services/scorm-service/modules/scorm_runtime
 npm install
 npm start
 ```
