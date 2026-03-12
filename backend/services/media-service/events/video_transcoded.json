@@ -1,0 +1,6 @@
+{
+  "event": "video.transcoded",
+  "media_asset_id": "asset_123",
+  "transcoding_job_status": "completed",
+  "encoding_preset": "h264/aac"
+}

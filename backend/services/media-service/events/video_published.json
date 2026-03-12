@@ -1,0 +1,6 @@
+{
+  "event": "video.published",
+  "media_asset_id": "asset_123",
+  "edge_cache_status": "warm",
+  "access_policy": "signed_url"
+}
