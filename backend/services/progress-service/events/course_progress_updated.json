@@ -1,0 +1,36 @@
+{
+  "event_name": "course_progress_updated",
+  "event_version": "v1",
+  "topic": "lms.progress.course_progress_updated.v1",
+  "producer_service": "progress-service",
+  "description": "Published whenever learner course progress changes due to lesson activity, pacing updates, or recalculated completion percentage.",
+  "consumers": [
+    "analytics-service",
+    "recommendation-service",
+    "learner-profile-service",
+    "manager-dashboard-service",
+    "notification-service"
+  ],
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "learner_id": "uuid",
+    "course_id": "uuid",
+    "enrollment_id": "uuid",
+    "progress_percentage": "number",
+    "completed_lessons": "integer",
+    "total_lessons": "integer",
+    "current_lesson_id": "uuid|null",
+    "status": "string",
+    "last_activity_at": "date-time",
+    "updated_at": "date-time"
+  },
+  "required_fields": [
+    "tenant_id",
+    "learner_id",
+    "course_id",
+    "enrollment_id",
+    "progress_percentage",
+    "status",
+    "updated_at"
+  ]
+}

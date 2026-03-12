@@ -1,0 +1,35 @@
+{
+  "event_name": "course_completed",
+  "event_version": "v1",
+  "topic": "lms.progress.course_completed.v1",
+  "producer_service": "progress-service",
+  "description": "Published when a learner completes a course and completion criteria are satisfied.",
+  "consumers": [
+    "analytics-service",
+    "certification-service",
+    "recommendation-service",
+    "learner-profile-service",
+    "compliance-reporting-service",
+    "notification-service"
+  ],
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "learner_id": "uuid",
+    "course_id": "uuid",
+    "enrollment_id": "uuid",
+    "completion_status": "string",
+    "final_score": "number",
+    "started_at": "date-time",
+    "completed_at": "date-time",
+    "total_time_spent_seconds": "integer",
+    "certificate_id": "uuid|null"
+  },
+  "required_fields": [
+    "tenant_id",
+    "learner_id",
+    "course_id",
+    "enrollment_id",
+    "completion_status",
+    "completed_at"
+  ]
+}
