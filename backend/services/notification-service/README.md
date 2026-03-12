@@ -1,14 +1,21 @@
 # Notification Service
 
-Tenant-scoped notification orchestration service for LMS workflows.
+Provides tenant-scoped notification orchestration for LMS workflows.
 
 ## Capabilities
-- Event-based notification triggers
+
+- Event-based notification generation
 - Notification preference management
 - Delivery queue processing
-- Multi-channel delivery
+- Multi-channel notification dispatch
 
-## Channels
-- Email
-- Push notifications
-- In-app notifications
+## Events Consumed
+- course_completed
+- enrollment_created
+- certificate_issued
+- assessment_passed
+
+## Delivery Channels
+- email
+- push notifications
+- in-app notifications
