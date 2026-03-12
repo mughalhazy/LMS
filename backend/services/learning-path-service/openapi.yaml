@@ -1,0 +1,347 @@
+openapi: 3.0.3
+info:
+  title: Learning Path Service API
+  version: 1.0.0
+  description: API for tenant-scoped learning path authoring, sequencing, and publishing.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: LearningPaths
+paths:
+  /learning-paths:
+    post:
+      tags: [LearningPaths]
+      summary: Create a learning path in draft state
+      operationId: createLearningPath
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLearningPathRequest'
+      responses:
+        '201':
+          description: Learning path created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPath'
+    get:
+      tags: [LearningPaths]
+      summary: List tenant learning paths
+      operationId: listLearningPaths
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - in: query
+          name: ownerId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Path list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LearningPath'
+
+  /learning-paths/{pathId}:
+    get:
+      tags: [LearningPaths]
+      summary: Get a learning path
+      operationId: getLearningPath
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Learning path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPathDetail'
+    patch:
+      tags: [LearningPaths]
+      summary: Update mutable fields on a draft path
+      operationId: updateLearningPath
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLearningPathRequest'
+      responses:
+        '200':
+          description: Updated path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPath'
+
+  /learning-paths/{pathId}/nodes:
+    put:
+      tags: [LearningPaths]
+      summary: Replace node list for path sequencing
+      operationId: upsertPathNodes
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodes]
+              properties:
+                nodes:
+                  type: array
+                  minItems: 1
+                  items:
+                    $ref: '#/components/schemas/PathNode'
+      responses:
+        '200':
+          description: Nodes accepted
+
+  /learning-paths/{pathId}/edges:
+    put:
+      tags: [LearningPaths]
+      summary: Replace edge graph for path sequencing
+      operationId: upsertPathEdges
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [edges]
+              properties:
+                edges:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PathEdge'
+      responses:
+        '200':
+          description: Edges accepted
+
+  /learning-paths/{pathId}/publish:
+    post:
+      tags: [LearningPaths]
+      summary: Publish a learning path after validation
+      operationId: publishLearningPath
+      parameters:
+        - $ref: '#/components/parameters/TenantIdHeader'
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [changeReason]
+              properties:
+                changeReason:
+                  type: string
+                  minLength: 3
+      responses:
+        '200':
+          description: Published path snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPath'
+        '409':
+          description: Publish validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantIdHeader:
+      in: header
+      name: X-Tenant-Id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PathId:
+      in: path
+      name: pathId
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    LearningPath:
+      type: object
+      required: [pathId, tenantId, title, status, ownerId, version]
+      properties:
+        pathId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        audience:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [draft, published, archived]
+        version:
+          type: integer
+          minimum: 1
+    LearningPathDetail:
+      allOf:
+        - $ref: '#/components/schemas/LearningPath'
+        - type: object
+          properties:
+            completionMode:
+              type: string
+              enum: [all_required_complete, required_plus_n_electives, milestone_based, score_threshold]
+            requiredElectiveCount:
+              type: integer
+              minimum: 0
+            strictDueDate:
+              type: boolean
+            recertificationIntervalDays:
+              type: integer
+              minimum: 1
+            nodes:
+              type: array
+              items:
+                $ref: '#/components/schemas/PathNode'
+            edges:
+              type: array
+              items:
+                $ref: '#/components/schemas/PathEdge'
+    CreateLearningPathRequest:
+      type: object
+      required: [title, ownerId]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        audience:
+          type: object
+          additionalProperties: true
+        completionMode:
+          type: string
+          enum: [all_required_complete, required_plus_n_electives, milestone_based, score_threshold]
+    UpdateLearningPathRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        audience:
+          type: object
+          additionalProperties: true
+        completionMode:
+          type: string
+          enum: [all_required_complete, required_plus_n_electives, milestone_based, score_threshold]
+        requiredElectiveCount:
+          type: integer
+          minimum: 0
+        strictDueDate:
+          type: boolean
+        recertificationIntervalDays:
+          type: integer
+          minimum: 1
+    PathNode:
+      type: object
+      required: [nodeId, nodeType, refId, sequenceIndex, isRequired]
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        nodeType:
+          type: string
+          enum: [course, assessment, milestone]
+        refId:
+          type: string
+          format: uuid
+        sequenceIndex:
+          type: integer
+          minimum: 0
+        isRequired:
+          type: boolean
+        minScore:
+          type: number
+          minimum: 0
+          maximum: 100
+        estimatedDurationMins:
+          type: integer
+          minimum: 0
+        electiveGroupId:
+          type: string
+          format: uuid
+    PathEdge:
+      type: object
+      required: [edgeId, fromNodeId, toNodeId, relation]
+      properties:
+        edgeId:
+          type: string
+          format: uuid
+        fromNodeId:
+          type: string
+          format: uuid
+        toNodeId:
+          type: string
+          format: uuid
+        relation:
+          type: string
+          enum: [prerequisite, next, branch, branch_merge]
+        condition:
+          type: object
+          additionalProperties: true
+    ValidationError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
