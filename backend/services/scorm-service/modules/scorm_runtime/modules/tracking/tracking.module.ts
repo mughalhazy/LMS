@@ -10,21 +10,11 @@ import {
   LessonCompletionTrackedEvent,
   LessonStatusTrackedEvent,
   ScoreTrackedEvent,
-  ScormTrackingEvent,
   SessionTimeTrackedEvent,
   TrackingEvents,
 } from './tracking.events';
+import { EventBus, InMemoryEventBus } from './event-bus';
 import { NoopProgressServiceClient, ProgressServiceClient } from './progress-service.client';
-
-interface EventBus {
-  emit<TEvent extends ScormTrackingEvent>(event: TEvent): Promise<void> | void;
-}
-
-class InMemoryEventBus implements EventBus {
-  async emit<TEvent extends ScormTrackingEvent>(_event: TEvent): Promise<void> {
-    return;
-  }
-}
 
 const DEFAULT_SCORE: Required<ScoreTracking> = {
   raw: 0,
@@ -44,6 +34,9 @@ export class ScormTrackingModule {
   initialize(context: TrackingContext): ScormTrackingState {
     const state: ScormTrackingState = {
       ...context,
+      sessionId: context.sessionId ?? context.registrationId,
+      scoId: context.scoId ?? context.lessonId,
+      commitSequence: 0,
       lessonStatus: LessonStatus.NotAttempted,
       completionStatus: CompletionStatus.Unknown,
       score: { ...DEFAULT_SCORE },
@@ -64,6 +57,7 @@ export class ScormTrackingModule {
     state.lessonStatus = lessonStatus;
     state.completionStatus = this.deriveCompletionStatus(state);
     state.progressPercentage = this.deriveProgressPercentage(state);
+    state.commitSequence += 1;
     state.updatedAt = new Date().toISOString();
 
     await this.progressService.upsertLessonProgress(state);
@@ -74,7 +68,7 @@ export class ScormTrackingModule {
       lessonStatus,
     };
 
-    await this.eventBus.emit(event);
+    await this.eventBus.publish({ eventName: event.eventName, payload: event });
     return state;
   }
 
@@ -90,6 +84,7 @@ export class ScormTrackingModule {
 
     state.completionStatus = this.deriveCompletionStatus(state);
     state.progressPercentage = this.deriveProgressPercentage(state);
+    state.commitSequence += 1;
     state.updatedAt = new Date().toISOString();
 
     await this.progressService.upsertLessonProgress(state);
@@ -98,9 +93,12 @@ export class ScormTrackingModule {
       eventName: TrackingEvents.ScoreTracked,
       ...this.eventBase(state),
       score: state.score,
+      masteryScore: null,
+      successStatus: this.toSuccessStatus(state.completionStatus),
+      isMasteryAchieved: null,
     };
 
-    await this.eventBus.emit(event);
+    await this.eventBus.publish({ eventName: event.eventName, payload: event });
     return state;
   }
 
@@ -109,6 +107,7 @@ export class ScormTrackingModule {
     const increment = this.parseScormDurationToSeconds(sessionTime);
     state.sessionTime.sessionSeconds = increment;
     state.sessionTime.totalSeconds += increment;
+    state.commitSequence += 1;
     state.updatedAt = new Date().toISOString();
 
     await this.progressService.upsertLessonProgress(state);
@@ -117,9 +116,14 @@ export class ScormTrackingModule {
       eventName: TrackingEvents.SessionTimeTracked,
       ...this.eventBase(state),
       sessionTime: state.sessionTime,
+      progress: {
+        completionPercent: state.progressPercentage,
+        status: this.toProgressStatus(state.completionStatus),
+      },
+      commitSequence: state.commitSequence,
     };
 
-    await this.eventBus.emit(event);
+    await this.eventBus.publish({ eventName: event.eventName, payload: event });
     return state;
   }
 
@@ -132,6 +136,7 @@ export class ScormTrackingModule {
       state.completedAt = state.completedAt ?? new Date().toISOString();
     }
 
+    state.commitSequence += 1;
     state.updatedAt = new Date().toISOString();
 
     await this.progressService.updateCompletionStatus({
@@ -150,23 +155,30 @@ export class ScormTrackingModule {
     const completionEvent: CompletionStatusUpdatedEvent = {
       eventName: TrackingEvents.CompletionStatusUpdated,
       ...this.eventBase(state),
+      progress: {
+        completionPercent: state.progressPercentage,
+        status: this.toProgressStatus(state.completionStatus),
+      },
       completionStatus: state.completionStatus,
-      progressPercentage: state.progressPercentage,
       completedAt: state.completedAt,
+      commitSequence: state.commitSequence,
     };
 
-    await this.eventBus.emit(completionEvent);
+    await this.eventBus.publish({ eventName: completionEvent.eventName, payload: completionEvent });
 
     const lessonCompletionEvent: LessonCompletionTrackedEvent = {
       eventName: TrackingEvents.LessonCompletionTracked,
       ...this.eventBase(state),
+      finalOutcome: this.toFinalOutcome(state.completionStatus),
       completionStatus: state.completionStatus,
-      score: state.score.raw,
-      timeSpentSeconds: state.sessionTime.totalSeconds,
+      successStatus: this.toSuccessStatus(state.completionStatus),
+      scoreScaled: state.score.scaled,
+      totalTimeSeconds: state.sessionTime.totalSeconds,
       completedAt: state.completedAt,
+      attemptLimitReached: false,
     };
 
-    await this.eventBus.emit(lessonCompletionEvent);
+    await this.eventBus.publish({ eventName: lessonCompletionEvent.eventName, payload: lessonCompletionEvent });
 
     return state;
   }
@@ -260,16 +272,65 @@ export class ScormTrackingModule {
     throw new Error(`Unsupported SCORM session_time format: ${duration}`);
   }
 
+  private toProgressStatus(completionStatus: CompletionStatus): 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed' {
+    if (completionStatus === CompletionStatus.Completed) {
+      return 'completed';
+    }
+
+    if (completionStatus === CompletionStatus.Passed) {
+      return 'passed';
+    }
+
+    if (completionStatus === CompletionStatus.Failed) {
+      return 'failed';
+    }
+
+    if (completionStatus === CompletionStatus.Incomplete) {
+      return 'in_progress';
+    }
+
+    return 'not_started';
+  }
+
+  private toSuccessStatus(completionStatus: CompletionStatus): 'passed' | 'failed' | 'unknown' {
+    if (completionStatus === CompletionStatus.Passed || completionStatus === CompletionStatus.Completed) {
+      return 'passed';
+    }
+
+    if (completionStatus === CompletionStatus.Failed) {
+      return 'failed';
+    }
+
+    return 'unknown';
+  }
+
+  private toFinalOutcome(completionStatus: CompletionStatus): 'completed' | 'passed' | 'failed' | 'incomplete' {
+    if (completionStatus === CompletionStatus.Completed) {
+      return 'completed';
+    }
+
+    if (completionStatus === CompletionStatus.Passed) {
+      return 'passed';
+    }
+
+    if (completionStatus === CompletionStatus.Failed) {
+      return 'failed';
+    }
+
+    return 'incomplete';
+  }
+
   private eventBase(state: ScormTrackingState) {
     return {
+      eventId: `${state.registrationId}-${state.commitSequence}`,
+      occurredAt: new Date().toISOString(),
       tenantId: state.tenantId,
       learnerId: state.learnerId,
       courseId: state.courseId,
-      lessonId: state.lessonId,
-      enrollmentId: state.enrollmentId,
       registrationId: state.registrationId,
+      sessionId: state.sessionId,
       attemptNumber: state.attemptNumber,
-      emittedAt: new Date().toISOString(),
+      scoId: state.scoId,
     };
   }
 }
