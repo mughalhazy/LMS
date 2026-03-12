@@ -1,0 +1,8 @@
+event: QuestionBankItemAdded
+owner: assessment-service
+description: Fired when a question is appended to a tenant question bank.
+payload:
+  tenant_id: string
+  question_bank_id: uuid
+  question_id: uuid
+  created_at: datetime

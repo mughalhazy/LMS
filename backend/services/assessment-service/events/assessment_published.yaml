@@ -1,0 +1,8 @@
+event: AssessmentPublished
+owner: assessment-service
+description: Fired when an assessment transitions from draft to published.
+payload:
+  tenant_id: string
+  assessment_id: uuid
+  published_by: string
+  published_at: datetime
