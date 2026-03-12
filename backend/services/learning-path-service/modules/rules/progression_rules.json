@@ -1,0 +1,197 @@
+{
+  "module": "learning-path-progression-rules",
+  "version": "1.0.0",
+  "status": "active",
+  "derived_from": [
+    "docs/specs/learning_path_spec.md",
+    "docs/specs/prerequisite_engine_spec.md"
+  ],
+  "rules": [
+    {
+      "rule_id": "LP-SEQ-001",
+      "name": "sequential_progression_strict_unlock",
+      "category": "sequential_progression",
+      "description": "Learners can unlock the next required node only after all strict upstream prerequisite edges are satisfied.",
+      "applies_to": [
+        "path_node"
+      ],
+      "conditions": {
+        "edge_relations_considered": [
+          "prerequisite",
+          "next"
+        ],
+        "dependency_mode": "strict",
+        "node_types": [
+          "course",
+          "assessment",
+          "milestone"
+        ]
+      },
+      "evaluation": {
+        "operator": "all_of",
+        "checks": [
+          {
+            "check_id": "upstream_completed",
+            "type": "completion_status",
+            "expected": "completed"
+          },
+          {
+            "check_id": "minimum_score_gate",
+            "type": "score_threshold",
+            "expected": "score >= min_score_when_defined"
+          }
+        ]
+      },
+      "actions": {
+        "on_pass": [
+          "unlock_node",
+          "emit_learning_path_progress_updated"
+        ],
+        "on_fail": [
+          "keep_node_locked",
+          "record_unmet_dependencies"
+        ]
+      },
+      "audit": {
+        "enabled": true,
+        "fields": [
+          "tenant_id",
+          "learner_id",
+          "learning_path_id",
+          "node_id",
+          "rule_id",
+          "evaluation_result",
+          "evaluated_at",
+          "policy_version"
+        ]
+      }
+    },
+    {
+      "rule_id": "LP-BR-001",
+      "name": "optional_branching_with_elective_constraints",
+      "category": "optional_branching",
+      "description": "Optional branches can be taken in parallel when branch entry conditions are met, while path completion still enforces elective minimum and maximum constraints.",
+      "applies_to": [
+        "path_edge",
+        "elective_group"
+      ],
+      "conditions": {
+        "edge_relation": "branch",
+        "branch_type": "optional",
+        "group_constraints": {
+          "min_select": "required",
+          "max_select": "required"
+        }
+      },
+      "evaluation": {
+        "operator": "all_of",
+        "checks": [
+          {
+            "check_id": "branch_condition",
+            "type": "expression",
+            "expected": "true_when_condition_is_empty_or_satisfied"
+          },
+          {
+            "check_id": "group_selection_window",
+            "type": "range",
+            "expected": "selected_count >= min_select and selected_count <= max_select"
+          }
+        ]
+      },
+      "actions": {
+        "on_pass": [
+          "unlock_branch_nodes",
+          "mark_branch_as_available"
+        ],
+        "on_fail": [
+          "retain_lock_or_warn_based_on_dependency_mode",
+          "emit_risk_warning_for_advisory_dependencies"
+        ]
+      },
+      "completion_impact": {
+        "required_nodes": "must_complete_all",
+        "electives": "must_meet_minimum_selection",
+        "completion_modes_supported": [
+          "all_required_complete",
+          "required_plus_n_electives",
+          "milestone_based"
+        ]
+      },
+      "validation": {
+        "publish_time_checks": [
+          "acyclic_graph_required",
+          "explicit_branch_merge_points_required"
+        ]
+      }
+    },
+    {
+      "rule_id": "LP-PR-001",
+      "name": "prerequisite_validation_and_enforcement",
+      "category": "prerequisite_validation",
+      "description": "Evaluates prerequisite dependencies and equivalencies on each progression event and enforces strict or advisory behavior.",
+      "applies_to": [
+        "path_node",
+        "path_edge"
+      ],
+      "conditions": {
+        "trigger_events": [
+          "path_started",
+          "node_attempted",
+          "node_completed",
+          "score_posted",
+          "path_resumed"
+        ],
+        "dependency_types": [
+          "sequential_unlock",
+          "milestone_gate",
+          "co-requisite",
+          "score_threshold"
+        ],
+        "enforcement_modes": [
+          "strict",
+          "advisory"
+        ]
+      },
+      "evaluation": {
+        "steps": [
+          "build_or_refresh_dag",
+          "resolve_equivalency_mappings",
+          "evaluate_completion_status",
+          "evaluate_minimum_grade_or_score",
+          "evaluate_validity_window"
+        ],
+        "decision_table": {
+          "strict_and_unmet": "blocked",
+          "strict_and_met": "approved",
+          "advisory_and_unmet": "approved_with_warning",
+          "advisory_and_met": "approved"
+        }
+      },
+      "actions": {
+        "on_blocked": [
+          "deny_unlock",
+          "return_unmet_prerequisites",
+          "attach_remedial_recommendations"
+        ],
+        "on_approved": [
+          "unlock_or_keep_available",
+          "persist_evaluation_audit"
+        ],
+        "on_override": [
+          "allow_instructor_admin_override_with_reason_code",
+          "audit_override_with_actor_and_timestamp"
+        ]
+      },
+      "quality_gates": {
+        "config_time": [
+          "reject_cycles",
+          "ensure_non_entry_required_nodes_have_upstream_dependency"
+        ],
+        "runtime": [
+          "idempotent_transition_recording",
+          "versioned_policy_reference"
+        ]
+      }
+    }
+  ]
+}
