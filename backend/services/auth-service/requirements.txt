@@ -1,0 +1,3 @@
+# No external runtime dependencies.
+# Optional for local testing:
+pytest>=7.0.0
