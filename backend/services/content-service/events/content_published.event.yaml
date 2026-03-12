@@ -1,0 +1,35 @@
+event_name: content_published
+event_topic: lms.content.published.v1
+producer_service: content-service
+consumer_services:
+  - course-service
+  - lesson-service
+  - content-delivery-service
+  - search-index-service
+  - cache-service
+  - analytics-service
+  - webhook-service
+  - audit-service
+purpose: >-
+  Published when a content version is promoted to published/live so delivery layers,
+  indexing, and integration subscribers can synchronize to the new canonical version.
+envelope_schema:
+  event_id: uuid
+  event_type: content_published
+  source_system: content-service
+  tenant_id: uuid
+  actor_id: uuid
+  occurred_at: datetime
+  schema_version: v1
+payload_schema:
+  content_id: uuid
+  version_id: uuid
+  version_number: integer
+  publish_scope: enum[course,module,global]
+  release_notes: string
+  previous_live_version_number: integer|null
+  published_at: datetime
+  propagation_targets:
+    invalidate_cache: boolean
+    reindex_search: boolean
+    notify_subscribers: boolean
