@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Dict, List, Optional
 
-from .models import AuditEvent, Cohort, CohortMembership
+from .models import AuditEvent, Cohort, CohortMembership, CohortSchedule
 
 
 class InMemoryCohortRepository:
@@ -11,6 +11,7 @@ class InMemoryCohortRepository:
         self._cohorts: Dict[str, Cohort] = {}
         self._memberships: Dict[str, CohortMembership] = {}
         self._events: List[AuditEvent] = []
+        self._schedules: Dict[str, CohortSchedule] = {}
 
     def create_cohort(self, cohort: Cohort) -> Cohort:
         self._cohorts[cohort.cohort_id] = cohort
@@ -49,6 +50,16 @@ class InMemoryCohortRepository:
 
     def active_membership_count(self, cohort_id: str) -> int:
         return len([m for m in self._memberships.values() if m.cohort_id == cohort_id and m.state.value == "active"])
+
+
+
+    def upsert_schedule(self, schedule: CohortSchedule) -> CohortSchedule:
+        self._schedules[schedule.cohort_id] = schedule
+        return schedule
+
+    def get_schedule(self, cohort_id: str) -> Optional[CohortSchedule]:
+        schedule = self._schedules.get(cohort_id)
+        return replace(schedule) if schedule else None
 
     def append_event(self, event: AuditEvent) -> None:
         self._events.append(event)

@@ -26,6 +26,12 @@ class MembershipState(str, Enum):
     REMOVED = "removed"
 
 
+class SessionModality(str, Enum):
+    IN_PERSON = "in_person"
+    VIRTUAL = "virtual"
+    HYBRID = "hybrid"
+
+
 @dataclass
 class Cohort:
     cohort_id: str
@@ -56,6 +62,35 @@ class CohortMembership:
     assigned_by: str
     effective_date: datetime
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class CohortSession:
+    session_id: str
+    title: str
+    start_at: datetime
+    end_at: datetime
+    instructor_id: str
+    modality: SessionModality
+
+
+@dataclass
+class CohortMilestoneDates:
+    enrollment_cutoff: Optional[datetime] = None
+    assignment_due_dates: Dict[str, datetime] = field(default_factory=dict)
+    assessments: Dict[str, datetime] = field(default_factory=dict)
+
+
+@dataclass
+class CohortSchedule:
+    cohort_id: str
+    tenant_id: str
+    session_plan: List[CohortSession] = field(default_factory=list)
+    milestone_dates: CohortMilestoneDates = field(default_factory=CohortMilestoneDates)
+    recurrence_rules: Optional[Dict] = None
+    holiday_blackouts: List[str] = field(default_factory=list)
+    schedule_version: int = 1
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
 
 @dataclass
