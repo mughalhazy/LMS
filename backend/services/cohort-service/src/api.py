@@ -48,6 +48,15 @@ class MembershipRemoveRequest(BaseModel):
     removed_by: str
 
 
+class ScheduleManagementRequest(BaseModel):
+    tenant_id: str
+    session_plan: List[Dict]
+    milestone_dates: Optional[Dict] = None
+    recurrence_rules: Optional[Dict] = None
+    holiday_blackouts: Optional[List[str]] = None
+    update_reason: str
+
+
 # Endpoint handlers designed for framework adapters
 
 def create_cohort(payload: CohortCreateRequest) -> Dict:
@@ -68,3 +77,7 @@ def remove_cohort_member(cohort_id: str, payload: MembershipRemoveRequest) -> Di
 
 def list_cohorts(tenant_id: str) -> List[Dict]:
     return service.list_tenant_cohorts(tenant_id=tenant_id)
+
+
+def update_cohort_schedule(cohort_id: str, payload: ScheduleManagementRequest) -> Dict:
+    return service.update_schedule(cohort_id=cohort_id, **payload.model_dump())

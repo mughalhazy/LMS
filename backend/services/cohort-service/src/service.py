@@ -9,9 +9,13 @@ from .models import (
     AuditEvent,
     Cohort,
     CohortMembership,
+    CohortMilestoneDates,
+    CohortSchedule,
+    CohortSession,
     CohortStatus,
     DeliveryMode,
     MembershipState,
+    SessionModality,
 )
 from .repository import InMemoryCohortRepository
 
@@ -128,7 +132,7 @@ class CohortService:
         effective_date: datetime,
         override_flags: Optional[Dict[str, bool]] = None,
     ) -> Dict:
-        cohort = self._get_tenant_cohort(tenant_id=tenant_id, cohort_id=cohort_id)
+        self._get_tenant_cohort(tenant_id=tenant_id, cohort_id=cohort_id)
         override_flags = override_flags or {}
 
         assigned, skipped, failed = [], [], []
@@ -136,13 +140,13 @@ class CohortService:
 
         for learner_id in learner_ids:
             existing = self.repository.find_membership(cohort_id, learner_id)
-            if existing and not override_flags.get("allow_duplicates", False):
+            if existing and existing.state != MembershipState.REMOVED and not override_flags.get("allow_duplicates", False):
                 skipped.append({"learner_id": learner_id, "reason": "duplicate_membership"})
                 continue
 
             current_active_count = self.repository.active_membership_count(cohort_id)
             state = MembershipState.ACTIVE
-            if current_active_count >= cohort.capacity:
+            if current_active_count >= self._get_tenant_cohort(tenant_id=tenant_id, cohort_id=cohort_id).capacity:
                 state = MembershipState.WAITLISTED
                 waitlist_entries.append({"learner_id": learner_id})
 
@@ -195,6 +199,7 @@ class CohortService:
 
         membership = replace(membership, state=MembershipState.REMOVED)
         self.repository.update_membership(membership)
+        self._promote_waitlisted_member(cohort_id=cohort_id, tenant_id=tenant_id)
         self._audit(
             "CohortMemberRemoved",
             cohort_id,
@@ -202,6 +207,72 @@ class CohortService:
             {"learner_id": learner_id, "removed_by": removed_by},
         )
         return {"cohort_membership_id": membership.cohort_membership_id, "state": membership.state.value}
+
+    def update_schedule(
+        self,
+        *,
+        tenant_id: str,
+        cohort_id: str,
+        session_plan: List[Dict],
+        milestone_dates: Optional[Dict] = None,
+        recurrence_rules: Optional[Dict] = None,
+        holiday_blackouts: Optional[List[str]] = None,
+        update_reason: str,
+    ) -> Dict:
+        cohort = self._get_tenant_cohort(tenant_id=tenant_id, cohort_id=cohort_id)
+        if cohort.status == CohortStatus.ARCHIVED:
+            raise CohortServiceError("cannot update schedule for archived cohort")
+
+        parsed_sessions = self._parse_and_validate_sessions(
+            session_plan=session_plan,
+            cohort_start=cohort.start_date,
+            cohort_end=cohort.end_date,
+        )
+        schedule = self.repository.get_schedule(cohort_id)
+        version = 1 if schedule is None else schedule.schedule_version + 1
+
+        new_schedule = CohortSchedule(
+            cohort_id=cohort_id,
+            tenant_id=tenant_id,
+            session_plan=parsed_sessions,
+            milestone_dates=self._parse_milestones(milestone_dates or {}),
+            recurrence_rules=recurrence_rules,
+            holiday_blackouts=holiday_blackouts or [],
+            schedule_version=version,
+            updated_at=datetime.utcnow(),
+        )
+        self.repository.upsert_schedule(new_schedule)
+
+        conflict_warnings = self._build_schedule_conflicts(parsed_sessions)
+        self._audit(
+            "CohortScheduleUpdated",
+            cohort_id,
+            tenant_id,
+            {"schedule_version": version, "update_reason": update_reason},
+        )
+        return {
+            "published_cohort_calendar": {
+                "cohort_id": cohort_id,
+                "session_plan": [self._session_to_payload(s) for s in parsed_sessions],
+                "milestone_dates": self._milestones_to_payload(new_schedule.milestone_dates),
+                "recurrence_rules": new_schedule.recurrence_rules,
+                "holiday_blackouts": new_schedule.holiday_blackouts,
+            },
+            "learner_notifications_queue": [
+                {
+                    "topic": "cohort.schedule.updated",
+                    "cohort_id": cohort_id,
+                    "schedule_version": version,
+                }
+            ],
+            "updated_deadlines_by_member": {
+                m.learner_id: self._milestones_to_payload(new_schedule.milestone_dates)
+                for m in self.repository.list_memberships(cohort_id=cohort_id, state=MembershipState.ACTIVE.value)
+            },
+            "schedule_version": version,
+            "conflict_warnings": conflict_warnings,
+            "audit_event": "CohortScheduleUpdated",
+        }
 
     def list_tenant_cohorts(self, tenant_id: str) -> List[Dict]:
         return [
@@ -228,3 +299,99 @@ class CohortService:
         self.repository.append_event(
             AuditEvent(event_type=event_type, entity_id=entity_id, tenant_id=tenant_id, payload=payload)
         )
+
+    def _promote_waitlisted_member(self, *, cohort_id: str, tenant_id: str) -> None:
+        if self.repository.active_membership_count(cohort_id) >= self._get_tenant_cohort(tenant_id=tenant_id, cohort_id=cohort_id).capacity:
+            return
+
+        for membership in self.repository.list_memberships(cohort_id=cohort_id, state=MembershipState.WAITLISTED.value):
+            promoted = replace(membership, state=MembershipState.ACTIVE)
+            self.repository.update_membership(promoted)
+            self._audit(
+                "CohortMemberPromotedFromWaitlist",
+                cohort_id,
+                tenant_id,
+                {"learner_id": promoted.learner_id},
+            )
+            return
+
+    def _parse_and_validate_sessions(
+        self,
+        *,
+        session_plan: List[Dict],
+        cohort_start: datetime,
+        cohort_end: datetime,
+    ) -> List[CohortSession]:
+        sessions = []
+        seen_ids = set()
+        for raw in sorted(session_plan, key=lambda value: value["start_at"]):
+            start_at = raw["start_at"]
+            end_at = raw["end_at"]
+            if end_at <= start_at:
+                raise CohortServiceError("session end_at must be after start_at")
+            if start_at < cohort_start or end_at > cohort_end:
+                raise CohortServiceError("session must be within cohort start/end")
+            if raw["session_id"] in seen_ids:
+                raise CohortServiceError(f"duplicate session_id: {raw['session_id']}")
+            seen_ids.add(raw["session_id"])
+            sessions.append(
+                CohortSession(
+                    session_id=raw["session_id"],
+                    title=raw["title"],
+                    start_at=start_at,
+                    end_at=end_at,
+                    instructor_id=raw["instructor_id"],
+                    modality=SessionModality(raw["modality"]),
+                )
+            )
+        return sessions
+
+    def _build_schedule_conflicts(self, sessions: List[CohortSession]) -> List[Dict]:
+        warnings = []
+        for index, current in enumerate(sessions):
+            for compare in sessions[index + 1 :]:
+                overlaps = current.start_at < compare.end_at and current.end_at > compare.start_at
+                if overlaps and current.instructor_id == compare.instructor_id:
+                    warnings.append(
+                        {
+                            "type": "instructor_overlap",
+                            "session_id": current.session_id,
+                            "conflicts_with": compare.session_id,
+                            "instructor_id": current.instructor_id,
+                        }
+                    )
+                if overlaps and current.start_at.tzinfo != compare.start_at.tzinfo:
+                    warnings.append(
+                        {
+                            "type": "timezone_collision",
+                            "session_id": current.session_id,
+                            "conflicts_with": compare.session_id,
+                        }
+                    )
+        return warnings
+
+    def _parse_milestones(self, milestone_dates: Dict) -> CohortMilestoneDates:
+        return CohortMilestoneDates(
+            enrollment_cutoff=milestone_dates.get("enrollment_cutoff"),
+            assignment_due_dates=milestone_dates.get("assignment_due_dates", {}),
+            assessments=milestone_dates.get("assessments", {}),
+        )
+
+    def _session_to_payload(self, session: CohortSession) -> Dict:
+        return {
+            "session_id": session.session_id,
+            "title": session.title,
+            "start_at": session.start_at.isoformat(),
+            "end_at": session.end_at.isoformat(),
+            "instructor_id": session.instructor_id,
+            "modality": session.modality.value,
+        }
+
+    def _milestones_to_payload(self, milestones: CohortMilestoneDates) -> Dict:
+        return {
+            "enrollment_cutoff": milestones.enrollment_cutoff.isoformat() if milestones.enrollment_cutoff else None,
+            "assignment_due_dates": {
+                key: value.isoformat() for key, value in milestones.assignment_due_dates.items()
+            },
+            "assessments": {key: value.isoformat() for key, value in milestones.assessments.items()},
+        }
