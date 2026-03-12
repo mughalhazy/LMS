@@ -1,0 +1,5 @@
+[project]
+name = "tenant-service"
+version = "0.1.0"
+description = "LMS Tenant Service"
+requires-python = ">=3.11"
