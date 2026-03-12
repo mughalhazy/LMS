@@ -1,0 +1,56 @@
+{
+  "event_name": "lesson_completed",
+  "event_version": "v1",
+  "topic": "lms.lesson.completed.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when a learner completes a lesson.",
+  "payload_schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "occurred_at",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "lesson_completed" },
+      "occurred_at": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "lesson_id",
+          "course_id",
+          "learner_id",
+          "completed_at",
+          "completion_status"
+        ],
+        "properties": {
+          "lesson_id": { "type": "string" },
+          "course_id": { "type": "string" },
+          "learner_id": { "type": "string" },
+          "completed_at": { "type": "string", "format": "date-time" },
+          "completion_status": {
+            "type": "string",
+            "enum": ["completed", "passed", "failed"]
+          },
+          "score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}
