@@ -1,0 +1,286 @@
+openapi: 3.0.3
+info:
+  title: Group Service API
+  version: 1.0.0
+  description: Group lifecycle, membership, and group-based learning assignment APIs.
+servers:
+  - url: /api/v1
+paths:
+  /groups:
+    post:
+      summary: Create a group
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+  /groups/{groupId}:
+    patch:
+      summary: Transition group lifecycle status
+      operationId: transitionGroupStatus
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/GroupStatus'
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+  /groups/{groupId}/members:
+    post:
+      summary: Add member to a group
+      operationId: addGroupMember
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        '201':
+          description: Membership created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+    get:
+      summary: List active group members
+      operationId: listGroupMembers
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Active memberships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMembership'
+  /groups/{groupId}/members/{userId}:
+    delete:
+      summary: Remove member from group
+      operationId: removeGroupMember
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Membership removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMembership'
+  /groups/{groupId}/assignments:
+    post:
+      summary: Assign learning object to a group
+      operationId: assignGroupLearning
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssignmentRequest'
+      responses:
+        '201':
+          description: Group assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningAssignment'
+    get:
+      summary: List group learning assignments
+      operationId: listGroupAssignments
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LearningAssignment'
+components:
+  parameters:
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    GroupStatus:
+      type: string
+      enum: [draft, active, inactive, archived]
+    AssignmentType:
+      type: string
+      enum: [course, learning_path]
+    AssignmentTarget:
+      type: string
+      enum: [current_members, current_and_future_members]
+    Group:
+      type: object
+      properties:
+        group_id:
+          type: string
+        tenant_id:
+          type: string
+        organization_id:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/GroupStatus'
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    GroupMembership:
+      type: object
+      properties:
+        membership_id:
+          type: string
+        tenant_id:
+          type: string
+        group_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+          enum: [active, removed]
+        added_by:
+          type: string
+        added_at:
+          type: string
+          format: date-time
+        removed_at:
+          type: string
+          format: date-time
+          nullable: true
+    LearningAssignment:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+        tenant_id:
+          type: string
+        group_id:
+          type: string
+        assignment_type:
+          $ref: '#/components/schemas/AssignmentType'
+        learning_object_id:
+          type: string
+        target:
+          $ref: '#/components/schemas/AssignmentTarget'
+        assigned_by:
+          type: string
+        assigned_at:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CreateGroupRequest:
+      type: object
+      required: [tenant_id, organization_id, name, code, created_by]
+      properties:
+        tenant_id:
+          type: string
+        organization_id:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        created_by:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    AddMemberRequest:
+      type: object
+      required: [tenant_id, user_id, role, added_by]
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          type: string
+        added_by:
+          type: string
+    CreateAssignmentRequest:
+      type: object
+      required: [tenant_id, assignment_type, learning_object_id, target, assigned_by]
+      properties:
+        tenant_id:
+          type: string
+        assignment_type:
+          $ref: '#/components/schemas/AssignmentType'
+        learning_object_id:
+          type: string
+        target:
+          $ref: '#/components/schemas/AssignmentTarget'
+        assigned_by:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
