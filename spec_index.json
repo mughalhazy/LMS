@@ -1,0 +1,635 @@
+{
+  "anchor_rule": "root_markdown_only",
+  "authoritative_domains": [
+    "architecture",
+    "service_definitions",
+    "api_contracts",
+    "data_models",
+    "integration_specs",
+    "qc_reports"
+  ],
+  "documents": [
+    {
+      "file": "adaptive_learning_engine.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 3026,
+      "chars": 3026
+    },
+    {
+      "file": "agi_ready_architecture.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 4395,
+      "chars": 4395
+    },
+    {
+      "file": "ai_course_generation.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1462,
+      "chars": 1462
+    },
+    {
+      "file": "ai_learning_copilot.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1128,
+      "chars": 1128
+    },
+    {
+      "file": "analytics_api.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 935,
+      "chars": 935
+    },
+    {
+      "file": "analytics_data_model.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 3503,
+      "chars": 3503
+    },
+    {
+      "file": "api_contract_validation_qc_gate_2.md",
+      "categories": [
+        "api_contracts",
+        "qc_reports"
+      ],
+      "bytes": 3859,
+      "chars": 3859
+    },
+    {
+      "file": "api_gateway_design.md",
+      "categories": [
+        "architecture",
+        "api_contracts"
+      ],
+      "bytes": 1631,
+      "chars": 1631
+    },
+    {
+      "file": "api_spec_validation_qc_gate_1.md",
+      "categories": [
+        "api_contracts",
+        "qc_reports"
+      ],
+      "bytes": 3552,
+      "chars": 3552
+    },
+    {
+      "file": "architecture_consistency_check_qc_gate1.md",
+      "categories": [
+        "architecture",
+        "qc_reports"
+      ],
+      "bytes": 2789,
+      "chars": 2789
+    },
+    {
+      "file": "audit_logging.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1157,
+      "chars": 1157
+    },
+    {
+      "file": "auth_service_spec.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 740,
+      "chars": 740
+    },
+    {
+      "file": "cloud_architecture_ems_lms.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 2283,
+      "chars": 2283
+    },
+    {
+      "file": "cloud_architecture_lms.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 2283,
+      "chars": 2283
+    },
+    {
+      "file": "cohort_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1434,
+      "chars": 1434
+    },
+    {
+      "file": "compliance_reporting_spec.md",
+      "categories": [
+        "qc_reports"
+      ],
+      "bytes": 1167,
+      "chars": 1167
+    },
+    {
+      "file": "config_service.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 1857,
+      "chars": 1857
+    },
+    {
+      "file": "content_api.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 532,
+      "chars": 532
+    },
+    {
+      "file": "content_service_spec.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 661,
+      "chars": 661
+    },
+    {
+      "file": "content_storage_model.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 1793,
+      "chars": 1793
+    },
+    {
+      "file": "content_versioning_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1041,
+      "chars": 1041
+    },
+    {
+      "file": "core_lms_schema.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 1039,
+      "chars": 1039
+    },
+    {
+      "file": "core_rest_api.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 2721,
+      "chars": 2719
+    },
+    {
+      "file": "core_system_architecture.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 4480,
+      "chars": 4480
+    },
+    {
+      "file": "course_service_spec.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 872,
+      "chars": 872
+    },
+    {
+      "file": "data_model_validation.md",
+      "categories": [
+        "data_models",
+        "qc_reports"
+      ],
+      "bytes": 3237,
+      "chars": 3237
+    },
+    {
+      "file": "define_event_domains.md",
+      "categories": [
+        "service_definitions",
+        "integration_specs"
+      ],
+      "bytes": 4224,
+      "chars": 4224
+    },
+    {
+      "file": "define_lms_security_architecture.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1932,
+      "chars": 1932
+    },
+    {
+      "file": "define_service_map.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 2757,
+      "chars": 2757
+    },
+    {
+      "file": "detect_duplicate_domains.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 4370,
+      "chars": 4370
+    },
+    {
+      "file": "domain_boundaries_lms_backend.md",
+      "categories": [
+        "architecture",
+        "service_definitions"
+      ],
+      "bytes": 2470,
+      "chars": 2470
+    },
+    {
+      "file": "enterprise_admin_model.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 1668,
+      "chars": 1668
+    },
+    {
+      "file": "event_bus_design.md",
+      "categories": [
+        "architecture",
+        "integration_specs"
+      ],
+      "bytes": 2626,
+      "chars": 2626
+    },
+    {
+      "file": "event_driven_architecture.md",
+      "categories": [
+        "architecture",
+        "integration_specs"
+      ],
+      "bytes": 4714,
+      "chars": 4714
+    },
+    {
+      "file": "event_ingestion_spec.md",
+      "categories": [
+        "integration_specs"
+      ],
+      "bytes": 951,
+      "chars": 951
+    },
+    {
+      "file": "feature_flags_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1823,
+      "chars": 1823
+    },
+    {
+      "file": "feature_inventory.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 12052,
+      "chars": 12052
+    },
+    {
+      "file": "file_storage_design.md",
+      "categories": [
+        "architecture",
+        "data_models"
+      ],
+      "bytes": 732,
+      "chars": 732
+    },
+    {
+      "file": "hris_sync_spec.md",
+      "categories": [
+        "integration_specs"
+      ],
+      "bytes": 936,
+      "chars": 936
+    },
+    {
+      "file": "integration_api.md",
+      "categories": [
+        "api_contracts",
+        "integration_specs"
+      ],
+      "bytes": 505,
+      "chars": 505
+    },
+    {
+      "file": "learning_analytics_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1445,
+      "chars": 1445
+    },
+    {
+      "file": "learning_path_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 2408,
+      "chars": 2408
+    },
+    {
+      "file": "lesson_service_spec.md",
+      "categories": [
+        "service_definitions",
+        "api_contracts"
+      ],
+      "bytes": 598,
+      "chars": 598
+    },
+    {
+      "file": "lms_data_ownership_rules.md",
+      "categories": [
+        "service_definitions",
+        "data_models"
+      ],
+      "bytes": 1570,
+      "chars": 1570
+    },
+    {
+      "file": "localization_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1764,
+      "chars": 1764
+    },
+    {
+      "file": "lti_consumer_spec.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 1808,
+      "chars": 1808
+    },
+    {
+      "file": "lti_provider_spec.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 2733,
+      "chars": 2733
+    },
+    {
+      "file": "manager_dashboard_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 927,
+      "chars": 927
+    },
+    {
+      "file": "media_pipeline_spec.md",
+      "categories": [
+        "integration_specs"
+      ],
+      "bytes": 1151,
+      "chars": 1151
+    },
+    {
+      "file": "microservice_boundaries.md",
+      "categories": [
+        "architecture",
+        "service_definitions"
+      ],
+      "bytes": 3247,
+      "chars": 3247
+    },
+    {
+      "file": "observability_design.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1097,
+      "chars": 1097
+    },
+    {
+      "file": "org_hierarchy_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1961,
+      "chars": 1961
+    },
+    {
+      "file": "prerequisite_engine_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1999,
+      "chars": 1999
+    },
+    {
+      "file": "progress_tracking_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 957,
+      "chars": 957
+    },
+    {
+      "file": "qc_gate_1_feature_completeness_check.md",
+      "categories": [
+        "qc_reports"
+      ],
+      "bytes": 1734,
+      "chars": 1734
+    },
+    {
+      "file": "qc_gate_2_database_schema_validation.md",
+      "categories": [
+        "data_models",
+        "qc_reports"
+      ],
+      "bytes": 3080,
+      "chars": 3080
+    },
+    {
+      "file": "qc_gate_2_event_architecture_validation.md",
+      "categories": [
+        "architecture",
+        "integration_specs",
+        "qc_reports"
+      ],
+      "bytes": 5144,
+      "chars": 5144
+    },
+    {
+      "file": "qc_gate_2_service_boundary_validation.md",
+      "categories": [
+        "service_definitions",
+        "qc_reports"
+      ],
+      "bytes": 4073,
+      "chars": 4073
+    },
+    {
+      "file": "rbac_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 4436,
+      "chars": 4434
+    },
+    {
+      "file": "reporting_spec.md",
+      "categories": [
+        "qc_reports"
+      ],
+      "bytes": 964,
+      "chars": 964
+    },
+    {
+      "file": "scalability_strategy.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 968,
+      "chars": 968
+    },
+    {
+      "file": "scorm_runtime_spec.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 1181,
+      "chars": 1181
+    },
+    {
+      "file": "skill_analytics_spec.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1946,
+      "chars": 1944
+    },
+    {
+      "file": "skills_graph_model.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 3754,
+      "chars": 3748
+    },
+    {
+      "file": "sso_spec.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 1578,
+      "chars": 1578
+    },
+    {
+      "file": "standards_support.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 1613,
+      "chars": 1613
+    },
+    {
+      "file": "tenant_customization.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 3474,
+      "chars": 3474
+    },
+    {
+      "file": "tenant_isolation_strategy.md",
+      "categories": [
+        "architecture"
+      ],
+      "bytes": 3065,
+      "chars": 3065
+    },
+    {
+      "file": "tenant_model_validation_qc_gate2.md",
+      "categories": [
+        "data_models",
+        "qc_reports"
+      ],
+      "bytes": 2922,
+      "chars": 2922
+    },
+    {
+      "file": "tenant_service_spec.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 2340,
+      "chars": 2340
+    },
+    {
+      "file": "user_service_spec.md",
+      "categories": [
+        "service_definitions"
+      ],
+      "bytes": 2825,
+      "chars": 2825
+    },
+    {
+      "file": "validate_data_isolation.md",
+      "categories": [
+        "data_models"
+      ],
+      "bytes": 2093,
+      "chars": 2093
+    },
+    {
+      "file": "validate_event_ownership_report.md",
+      "categories": [
+        "service_definitions",
+        "integration_specs",
+        "qc_reports"
+      ],
+      "bytes": 4773,
+      "chars": 4773
+    },
+    {
+      "file": "validate_service_boundaries.md",
+      "categories": [
+        "architecture",
+        "service_definitions"
+      ],
+      "bytes": 3369,
+      "chars": 3367
+    },
+    {
+      "file": "webhook_system_spec.md",
+      "categories": [
+        "api_contracts"
+      ],
+      "bytes": 3464,
+      "chars": 3464
+    }
+  ]
+}
