@@ -1,0 +1,57 @@
+{
+  "event_name": "learning_path_updated",
+  "version": "1.0.0",
+  "producer_service": "learning_path_service",
+  "topic": "lms.learning_path.v1.learning_path_updated",
+  "purpose": "Published when path metadata, sequencing graph, completion rules, or publish state changes.",
+  "payload_schema": {
+    "tenant_id": "string",
+    "path_id": "string",
+    "version": "integer",
+    "status": "draft|published|archived",
+    "updated_at": "RFC3339 timestamp",
+    "updated_by": "string",
+    "change_reason": "string",
+    "change_set": {
+      "metadata_changed": "boolean",
+      "nodes_changed": "boolean",
+      "edges_changed": "boolean",
+      "electives_changed": "boolean",
+      "completion_rules_changed": "boolean"
+    },
+    "required_node_count": "integer",
+    "elective_group_count": "integer"
+  },
+  "required_fields": [
+    "tenant_id",
+    "path_id",
+    "version",
+    "status",
+    "updated_at",
+    "updated_by",
+    "change_reason",
+    "change_set"
+  ],
+  "consumers": [
+    {
+      "service": "enrollment_service",
+      "usage": "Re-evaluates enrollment eligibility and due-date policy impacts."
+    },
+    {
+      "service": "progress_tracking_service",
+      "usage": "Recomputes unlock logic and completion state against updated topology/rules."
+    },
+    {
+      "service": "notification_service",
+      "usage": "Sends path-update notices to impacted learners/managers when configured."
+    },
+    {
+      "service": "analytics_reporting_service",
+      "usage": "Tracks curriculum change velocity and structural complexity over time."
+    },
+    {
+      "service": "audit_compliance_service",
+      "usage": "Persists versioned evidence for who changed what and why."
+    }
+  ]
+}

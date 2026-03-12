@@ -1,0 +1,55 @@
+{
+  "event_name": "learning_path_assigned",
+  "version": "1.0.0",
+  "producer_service": "learning_path_service",
+  "topic": "lms.learning_path.v1.learning_path_assigned",
+  "purpose": "Published when a learning path is assigned to a learner or target scope so enrollment orchestration can activate it.",
+  "payload_schema": {
+    "tenant_id": "string",
+    "path_id": "string",
+    "assignment_id": "string",
+    "assignment_type": "role|department|location|manual",
+    "target_ref": "string",
+    "assigned_by": "string",
+    "assigned_at": "RFC3339 timestamp",
+    "effective_from": "RFC3339 timestamp|null",
+    "effective_to": "RFC3339 timestamp|null",
+    "due_date": "RFC3339 timestamp|null",
+    "strict_due_date": "boolean"
+  },
+  "required_fields": [
+    "tenant_id",
+    "path_id",
+    "assignment_id",
+    "assignment_type",
+    "target_ref",
+    "assigned_by",
+    "assigned_at"
+  ],
+  "consumers": [
+    {
+      "service": "enrollment_service",
+      "usage": "Creates/updates learner enrollments and assignment lifecycle state."
+    },
+    {
+      "service": "notification_service",
+      "usage": "Dispatches assignment and due-date notifications to learners/managers."
+    },
+    {
+      "service": "progress_tracking_service",
+      "usage": "Bootstraps learner path snapshots and expected completion timelines."
+    },
+    {
+      "service": "analytics_reporting_service",
+      "usage": "Measures assignment coverage and audience targeting effectiveness."
+    },
+    {
+      "service": "integration_gateway_service",
+      "usage": "Forwards assignment events to external HRIS/LXP systems when configured."
+    },
+    {
+      "service": "audit_compliance_service",
+      "usage": "Retains assignment evidence for policy and compliance audits."
+    }
+  ]
+}

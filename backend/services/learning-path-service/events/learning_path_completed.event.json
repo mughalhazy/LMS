@@ -1,0 +1,59 @@
+{
+  "event_name": "learning_path_completed",
+  "version": "1.0.0",
+  "producer_service": "learning_path_service",
+  "topic": "lms.learning_path.v1.learning_path_completed",
+  "purpose": "Published when completion criteria for a learner on a path are satisfied.",
+  "payload_schema": {
+    "tenant_id": "string",
+    "path_id": "string",
+    "learner_id": "string",
+    "completion_id": "string",
+    "completion_mode": "all_required_complete|required_plus_n_electives|milestone_based|score_threshold",
+    "completed_required_nodes": "integer",
+    "completed_elective_nodes": "integer",
+    "progress_percentage": "number",
+    "final_score": "number|null",
+    "completed_at": "RFC3339 timestamp",
+    "due_date": "RFC3339 timestamp|null",
+    "overdue": "boolean",
+    "recertification_interval_days": "integer|null",
+    "expires_at": "RFC3339 timestamp|null"
+  },
+  "required_fields": [
+    "tenant_id",
+    "path_id",
+    "learner_id",
+    "completion_id",
+    "completion_mode",
+    "progress_percentage",
+    "completed_at",
+    "overdue"
+  ],
+  "consumers": [
+    {
+      "service": "progress_tracking_service",
+      "usage": "Marks authoritative path completion state and downstream learner progress rollups."
+    },
+    {
+      "service": "certification_service",
+      "usage": "Evaluates issuance/renewal rules for credentials tied to the path."
+    },
+    {
+      "service": "notification_service",
+      "usage": "Sends completion confirmations and next-step guidance."
+    },
+    {
+      "service": "analytics_reporting_service",
+      "usage": "Feeds completion KPIs, SLA adherence, and compliance dashboards."
+    },
+    {
+      "service": "user_profile_service",
+      "usage": "Updates learner development profile and skill attainment markers."
+    },
+    {
+      "service": "audit_compliance_service",
+      "usage": "Stores immutable completion records for evidence and audits."
+    }
+  ]
+}
