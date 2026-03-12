@@ -1,0 +1,38 @@
+event_name: cohort_updated
+version: 1
+producer_service: cohort-service
+topic: lms.cohort.cohort_updated.v1
+purpose: >-
+  Published when cohort attributes or schedule metadata change so dependent
+  services can reconcile calendars, enrollment windows, and reporting dimensions.
+payload:
+  cohort_id: uuid
+  tenant_id: uuid
+  updated_fields:
+    type: array
+    items: string
+  cohort_name: string
+  description: string|null
+  cohort_status: enum[draft, scheduled, active, completed, archived]
+  delivery_mode: enum[self_paced, instructor_led, blended]
+  timezone: iana_timezone
+  start_date: date
+  end_date: date
+  capacity: integer
+  facilitator_ids:
+    type: array
+    items: uuid
+  enrollment_rule_set_id: uuid|null
+  metadata:
+    type: object
+    additional_properties: string|number|boolean
+  schedule_version: integer
+  update_reason: string
+  updated_by: uuid
+  updated_at: datetime
+consumers:
+  - enrollment-service
+  - scheduling-service
+  - notification-service
+  - analytics-service
+  - audit-service

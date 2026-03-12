@@ -1,0 +1,37 @@
+event_name: cohort_created
+version: 1
+producer_service: cohort-service
+topic: lms.cohort.cohort_created.v1
+purpose: >-
+  Published when a new cohort is created so enrollment, scheduling, notifications,
+  and analytics services can initialize cohort-linked workflows.
+payload:
+  cohort_id: uuid
+  tenant_id: uuid
+  program_id: uuid
+  cohort_name: string
+  description: string|null
+  cohort_status: enum[draft, scheduled, active]
+  delivery_mode: enum[self_paced, instructor_led, blended]
+  timezone: iana_timezone
+  start_date: date
+  end_date: date
+  capacity: integer
+  facilitator_ids:
+    type: array
+    items: uuid
+  enrollment_rule_set_id: uuid|null
+  metadata:
+    type: object
+    additional_properties: string|number|boolean
+  normalized_schedule_window:
+    start_at: datetime
+    end_at: datetime
+  created_by: uuid
+  created_at: datetime
+consumers:
+  - enrollment-service
+  - scheduling-service
+  - notification-service
+  - analytics-service
+  - audit-service
