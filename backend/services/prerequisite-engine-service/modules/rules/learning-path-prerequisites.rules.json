@@ -1,0 +1,85 @@
+{
+  "rule_set_id": "learning_path_prerequisite_rules_v1",
+  "service": "prerequisite_engine_service",
+  "rule_type": "learning_path_dependency",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "path_dependency_digital_analyst",
+      "target_path_id": "path_digital_analyst",
+      "dependency_policy": {
+        "graph_validation": {
+          "requires_dag": true,
+          "reject_cycles_on_publish": true
+        },
+        "lock_policy": {
+          "strict_dependencies_lock": true,
+          "advisory_dependencies_warn_only": true
+        }
+      },
+      "nodes": [
+        {
+          "node_id": "n1",
+          "node_type": "course",
+          "ref_id": "course_data_literacy_bootcamp",
+          "completion_criteria": {
+            "completion_state": "completed",
+            "min_score": 70
+          }
+        },
+        {
+          "node_id": "n2",
+          "node_type": "course",
+          "ref_id": "course_sql_foundations",
+          "completion_criteria": {
+            "completion_state": "completed",
+            "min_score": 75
+          }
+        },
+        {
+          "node_id": "n3",
+          "node_type": "assessment",
+          "ref_id": "assessment_data_validation",
+          "completion_criteria": {
+            "completion_state": "passed",
+            "min_score": 80
+          }
+        },
+        {
+          "node_id": "n4",
+          "node_type": "course",
+          "ref_id": "course_tableau_reporting",
+          "completion_criteria": {
+            "completion_state": "completed",
+            "min_score": null
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "n1",
+          "to": "n2",
+          "dependency_type": "sequential_unlock",
+          "strictness": "strict"
+        },
+        {
+          "from": "n2",
+          "to": "n3",
+          "dependency_type": "score_threshold",
+          "strictness": "strict"
+        },
+        {
+          "from": "n2",
+          "to": "n4",
+          "dependency_type": "co_requisite",
+          "strictness": "advisory"
+        }
+      ],
+      "audit": {
+        "record_lock_unlock_transitions": true,
+        "capture_policy_version": true,
+        "capture_reason": true
+      }
+    }
+  ]
+}

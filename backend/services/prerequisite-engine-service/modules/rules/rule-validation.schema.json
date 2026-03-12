@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lms.local/schemas/prerequisite-rule-validation.schema.json",
+  "title": "Prerequisite Rule Module Validation",
+  "description": "Shared structural validation for prerequisite rule set files.",
+  "type": "object",
+  "required": [
+    "rule_set_id",
+    "service",
+    "rule_type",
+    "version",
+    "rules"
+  ],
+  "properties": {
+    "rule_set_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "service": {
+      "type": "string",
+      "const": "prerequisite_engine_service"
+    },
+    "rule_type": {
+      "type": "string",
+      "enum": [
+        "course_prerequisite",
+        "learning_path_dependency",
+        "completion_based_eligibility"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "rule_id"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "minLength": 3
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
