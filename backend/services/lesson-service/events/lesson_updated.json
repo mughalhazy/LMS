@@ -1,0 +1,52 @@
+{
+  "event_name": "lesson_updated",
+  "event_version": "v1",
+  "topic": "lms.lesson.updated.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when lesson content or metadata is modified.",
+  "payload_schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "occurred_at",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "lesson_updated" },
+      "occurred_at": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "lesson_id",
+          "course_id",
+          "updated_by",
+          "updated_at",
+          "changes"
+        ],
+        "properties": {
+          "lesson_id": { "type": "string" },
+          "course_id": { "type": "string" },
+          "updated_by": { "type": "string" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "changes": {
+            "type": "array",
+            "description": "List of modified fields with previous and current values.",
+            "items": {
+              "type": "object",
+              "required": ["field", "before", "after"],
+              "properties": {
+                "field": { "type": "string" },
+                "before": {},
+                "after": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
