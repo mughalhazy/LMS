@@ -1,0 +1,44 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: ${SERVICE_NAME}-secrets
+  namespace: lms
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: lms-vault
+  target:
+    name: ${SERVICE_NAME}-runtime-secrets
+    creationPolicy: Owner
+  data:
+    - secretKey: JWT_SHARED_SECRET
+      remoteRef:
+        key: secret/data/lms/global/jwt
+        property: shared_secret
+    - secretKey: DATABASE_URL
+      remoteRef:
+        key: secret/data/lms/services/${SERVICE_NAME}/database
+        property: url
+    - secretKey: SERVICE_API_KEY
+      remoteRef:
+        key: secret/data/lms/services/${SERVICE_NAME}/api
+        property: api_key
+    - secretKey: ENCRYPTION_KEY
+      remoteRef:
+        key: secret/data/lms/services/${SERVICE_NAME}/crypto
+        property: encryption_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${SERVICE_NAME}
+  namespace: lms
+spec:
+  template:
+    spec:
+      containers:
+        - name: ${SERVICE_NAME}
+          envFrom:
+            - secretRef:
+                name: ${SERVICE_NAME}-runtime-secrets
