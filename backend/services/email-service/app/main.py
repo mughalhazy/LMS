@@ -78,13 +78,13 @@ def get_queue_state():
 
 
 @app.get("/emails", response_model=DeliveryListResponse)
-def list_deliveries(tenant_id: str | None = Query(default=None), status: DeliveryStatus | None = Query(default=None)):
+def list_deliveries(tenant_id: str = Query(...), status: DeliveryStatus | None = Query(default=None)):
     return DeliveryListResponse(
         items=[DeliveryOut(**item.model_dump()) for item in service.list_deliveries(tenant_id=tenant_id, status=status)]
     )
 
 
 @app.get("/emails/{delivery_id}", response_model=DeliveryOut)
-def get_delivery(delivery_id: str):
-    delivery = service.get_delivery(delivery_id)
+def get_delivery(delivery_id: str, tenant_id: str = Query(...)):
+    delivery = service.get_delivery(tenant_id, delivery_id)
     return DeliveryOut(**delivery.model_dump())

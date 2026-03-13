@@ -129,16 +129,15 @@ class EmailService:
 
         return delivery
 
-    def get_delivery(self, delivery_id: str) -> DeliveryRecord:
+    def get_delivery(self, tenant_id: str, delivery_id: str) -> DeliveryRecord:
         delivery = self.deliveries.get(delivery_id)
-        if not delivery:
+        if not delivery or delivery.tenant_id != tenant_id:
             raise HTTPException(status_code=404, detail="Delivery record not found")
         return delivery
 
-    def list_deliveries(self, tenant_id: str | None = None, status: DeliveryStatus | None = None) -> list[DeliveryRecord]:
+    def list_deliveries(self, tenant_id: str, status: DeliveryStatus | None = None) -> list[DeliveryRecord]:
         items = list(self.deliveries.values())
-        if tenant_id:
-            items = [d for d in items if d.tenant_id == tenant_id]
+        items = [d for d in items if d.tenant_id == tenant_id]
         if status:
             items = [d for d in items if d.status == status]
         return items
