@@ -26,6 +26,15 @@ class ActivateUserRequest(BaseModel):
     activated_by: str
 
 
+class UpdateUserRequest(BaseModel):
+    tenant_id: str
+    updated_by: str
+    username: Optional[str] = None
+    role_set: Optional[List[str]] = None
+    status: Optional[AccountStatus] = None
+    department: Optional[str] = None
+
+
 class UpdateProfileRequest(BaseModel):
     tenant_id: str
     updated_by: str

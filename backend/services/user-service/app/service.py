@@ -17,6 +17,7 @@ from .schemas import (
     TerminateReinstateRequest,
     UnmapIdentityRequest,
     UpdateProfileRequest,
+    UpdateUserRequest,
 )
 
 

@@ -22,7 +22,7 @@ def test_course_lifecycle_with_versioning_and_publish() -> None:
     }
 
     create_response = client.post("/courses", json=create_payload)
-    assert create_response.status_code == 200
+    assert create_response.status_code == 201
     created = create_response.json()
     assert created["status"] == "draft"
     assert created["version"] == 1
@@ -71,3 +71,17 @@ def test_tenant_scoping_enforced() -> None:
 
     unauthorized_response = client.get(f"/courses/{course_id}?tenant_id=wrong-tenant")
     assert unauthorized_response.status_code == 404
+
+
+def test_delete_course_endpoint_matches_core_rest_api() -> None:
+    create_response = client.post(
+        "/courses",
+        json={"tenant_id": "tenant-del", "created_by": "owner", "title": "Disposable"},
+    )
+    course_id = create_response.json()["course_id"]
+
+    delete_response = client.delete(f"/courses/{course_id}?tenant_id=tenant-del")
+    assert delete_response.status_code == 204
+
+    not_found_response = client.get(f"/courses/{course_id}?tenant_id=tenant-del")
+    assert not_found_response.status_code == 404
