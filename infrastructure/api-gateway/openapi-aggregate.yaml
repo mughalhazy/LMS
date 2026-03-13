@@ -1,0 +1,196 @@
+openapi: 3.0.3
+info:
+  title: LMS Gateway Aggregated API
+  version: 1.0.0
+  description: |
+    Aggregated OpenAPI surface exposed by the centralized LMS API Gateway.
+    Paths are merged from docs/api/core_rest_api.md, docs/api/content_api.md,
+    docs/api/integration_api.md, and docs/api/analytics_api.md.
+servers:
+  - url: https://api.lms.example.com
+
+paths:
+  /api/v1/users:
+    x-lms-service: user-service
+    x-lms-upstream: http://user-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/users/{userId}:
+    x-lms-service: user-service
+    x-lms-upstream: http://user-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/courses:
+    x-lms-service: course-service
+    x-lms-upstream: http://course-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/courses/{courseId}:
+    x-lms-service: course-service
+    x-lms-upstream: http://course-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/lessons:
+    x-lms-service: lesson-service
+    x-lms-upstream: http://lesson-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/lessons/{lessonId}:
+    x-lms-service: lesson-service
+    x-lms-upstream: http://lesson-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/enrollments:
+    x-lms-service: enrollment-service
+    x-lms-upstream: http://enrollment-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/enrollments/{enrollmentId}:
+    x-lms-service: enrollment-service
+    x-lms-upstream: http://enrollment-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/assessments:
+    x-lms-service: assessment-service
+    x-lms-upstream: http://assessment-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/assessments/{assessmentId}:
+    x-lms-service: assessment-service
+    x-lms-upstream: http://assessment-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/certificates:
+    x-lms-service: certificate-service
+    x-lms-upstream: http://certificate-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/certificates/{certificateId}:
+    x-lms-service: certificate-service
+    x-lms-upstream: http://certificate-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/content/uploads:
+    x-lms-service: content-service
+    x-lms-upstream: http://content-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/courses/{courseId}/lessons:
+    x-lms-service: lesson-service
+    x-lms-upstream: http://lesson-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/courses/{courseId}/publish:
+    x-lms-service: course-service
+    x-lms-upstream: http://course-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/integrations/hris/employees/sync:
+    x-lms-service: hris-sync-service
+    x-lms-upstream: http://hris-sync-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/integrations/crm/contacts/upsert:
+    x-lms-service: org-service
+    x-lms-upstream: http://org-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/integrations/lti/launch:
+    x-lms-service: lti-service
+    x-lms-upstream: http://lti-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/integrations/webhooks/events:
+    x-lms-service: webhook-service
+    x-lms-upstream: http://webhook-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/analytics/learners/{learnerId}/progress:
+    x-lms-service: learning-analytics-service
+    x-lms-upstream: http://learning-analytics-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/analytics/courses/{courseId}/performance:
+    x-lms-service: learning-analytics-service
+    x-lms-upstream: http://learning-analytics-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/analytics/skills:
+    x-lms-service: skill-analytics-service
+    x-lms-upstream: http://skill-analytics-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
+  /api/v1/analytics/compliance/reports:
+    x-lms-service: reporting-service
+    x-lms-upstream: http://reporting-service
+    get:
+      summary: Routed by API gateway
+      responses:
+        '200':
+          description: Success
