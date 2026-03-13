@@ -1,0 +1,32 @@
+name: Deploy LMS Backend
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/services/**"
+      - "infrastructure/deployment/**"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment config
+        run: python infrastructure/deployment/scripts/verify-deployment.py
+
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ai-tutor-service, api-key-service, assessment-service, attempt-service, auth-service, badge-service, certificate-service, cohort-service, content-service, course-generation-service, course-service, department-service, email-service, enrollment-service, event-ingestion-service, group-service, hris-sync-service, learning-analytics-service, learning-path-service, lesson-service, lti-service, media-service, notification-service, org-service, prerequisite-engine-service, progress-service, push-service, quiz-engine, rbac-service, recommendation-service, reporting-service, scorm-service, skill-analytics-service, skill-inference-service, sso-service, tenant-service, user-service, webhook-service]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build service image
+        run: |
+          docker compose -f infrastructure/deployment/docker-compose.yml build ${{ matrix.service }}
+      - name: Push image (placeholder)
+        run: echo "Push ${{ matrix.service }} image to registry from this step"

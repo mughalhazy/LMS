@@ -1,0 +1,947 @@
+name: lms-backend
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lms
+      POSTGRES_USER: lms
+      POSTGRES_PASSWORD: lms
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - lms-backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms -d lms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - lms-backend-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  ai-tutor-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/ai-tutor-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: ai-tutor-service
+      SERVICE_PORT: "8100"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8100:8100"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  api-key-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/api-key-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: api-key-service
+      SERVICE_PORT: "8101"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8101:8101"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  assessment-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/assessment-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: assessment-service
+      SERVICE_PORT: "8102"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8102:8102"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  attempt-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/attempt-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: attempt-service
+      SERVICE_PORT: "8103"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8103:8103"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  auth-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/auth-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: auth-service
+      SERVICE_PORT: "8104"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8104:8104"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  badge-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/badge-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: badge-service
+      SERVICE_PORT: "8105"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8105:8105"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  certificate-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/certificate-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: certificate-service
+      SERVICE_PORT: "8106"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8106:8106"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  cohort-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/cohort-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: cohort-service
+      SERVICE_PORT: "8107"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8107:8107"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  content-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/content-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: content-service
+      SERVICE_PORT: "8108"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8108:8108"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  course-generation-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/course-generation-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: course-generation-service
+      SERVICE_PORT: "8109"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8109:8109"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  course-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/course-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: course-service
+      SERVICE_PORT: "8110"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8110:8110"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  department-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/department-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: department-service
+      SERVICE_PORT: "8111"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8111:8111"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  email-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/email-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: email-service
+      SERVICE_PORT: "8112"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8112:8112"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  enrollment-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/enrollment-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: enrollment-service
+      SERVICE_PORT: "8113"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8113:8113"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  event-ingestion-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/event-ingestion-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: event-ingestion-service
+      SERVICE_PORT: "8114"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8114:8114"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  group-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/group-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: group-service
+      SERVICE_PORT: "8115"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8115:8115"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  hris-sync-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/hris-sync-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: hris-sync-service
+      SERVICE_PORT: "8116"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8116:8116"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  learning-analytics-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/learning-analytics-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: learning-analytics-service
+      SERVICE_PORT: "8117"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8117:8117"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  learning-path-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/learning-path-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: learning-path-service
+      SERVICE_PORT: "8118"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8118:8118"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  lesson-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/lesson-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: lesson-service
+      SERVICE_PORT: "8119"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8119:8119"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  lti-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/lti-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: lti-service
+      SERVICE_PORT: "8120"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8120:8120"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  media-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/media-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: media-service
+      SERVICE_PORT: "8121"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8121:8121"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/notification-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: notification-service
+      SERVICE_PORT: "8122"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8122:8122"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  org-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/org-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: org-service
+      SERVICE_PORT: "8123"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8123:8123"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  prerequisite-engine-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.node
+      args:
+        SERVICE_PATH: backend/services/prerequisite-engine-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: prerequisite-engine-service
+      SERVICE_PORT: "8124"
+      APP_MODULE: ""
+      START_COMMAND: "npm run start"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8124:8124"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  progress-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/progress-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: progress-service
+      SERVICE_PORT: "8125"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8125:8125"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  push-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/push-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: push-service
+      SERVICE_PORT: "8126"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8126:8126"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  quiz-engine:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/quiz-engine
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: quiz-engine
+      SERVICE_PORT: "8127"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8127:8127"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  rbac-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/rbac-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: rbac-service
+      SERVICE_PORT: "8128"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8128:8128"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  recommendation-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/recommendation-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: recommendation-service
+      SERVICE_PORT: "8129"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8129:8129"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  reporting-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/reporting-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: reporting-service
+      SERVICE_PORT: "8130"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8130:8130"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  scorm-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.node
+      args:
+        SERVICE_PATH: backend/services/scorm-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: scorm-service
+      SERVICE_PORT: "8131"
+      APP_MODULE: ""
+      START_COMMAND: "npm run start"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8131:8131"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  skill-analytics-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/skill-analytics-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: skill-analytics-service
+      SERVICE_PORT: "8132"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8132:8132"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  skill-inference-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/skill-inference-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: skill-inference-service
+      SERVICE_PORT: "8133"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8133:8133"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  sso-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/sso-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: sso-service
+      SERVICE_PORT: "8134"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8134:8134"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  tenant-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/tenant-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: tenant-service
+      SERVICE_PORT: "8135"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8135:8135"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  user-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/user-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: user-service
+      SERVICE_PORT: "8136"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8136:8136"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+  webhook-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/webhook-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: webhook-service
+      SERVICE_PORT: "8137"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8137:8137"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
+networks:
+  lms-backend-net:
+    driver: bridge
+volumes:
+  postgres_data:
