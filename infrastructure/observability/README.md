@@ -42,6 +42,6 @@ python infrastructure/observability/scripts/verify_observability.py
 
 Expected output:
 
-- `metrics_collected`
-- `logging_configured`
-- `tracing_enabled`
+- `services_monitored=<count>`
+- `metrics_collected=yes`
+- `monitoring_score=10/10`
