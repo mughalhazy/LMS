@@ -1,0 +1,236 @@
+{
+  "adaptive-learning-engine-service": [
+    "lms.progress.lesson_completed.v1"
+  ],
+  "advising-service": [
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1"
+  ],
+  "analytics-reporting-service": [
+    "lms.course.created.v1",
+    "lms.course.enrolled.v1",
+    "lms.course.published.v1",
+    "lms.course.updated.v1",
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1"
+  ],
+  "analytics-service": [
+    "lms.assessment.assessmentcreated.v1",
+    "lms.assessment.assessmentpublished.v1",
+    "lms.assessment.questionbankitemadded.v1",
+    "lms.cohort.cohort_completed.v1",
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_member_added.v1",
+    "lms.cohort.cohort_updated.v1",
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1",
+    "lms.lesson.completed.v1",
+    "lms.lesson.created.v1",
+    "lms.lesson.published.v1",
+    "lms.lesson.updated.v1",
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1",
+    "lms.progress.course_completed.v1",
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1",
+    "lms.progress.lesson_completed.v1"
+  ],
+  "assessment-service": [
+    "lms.course.enrolled.v1"
+  ],
+  "audit-compliance-service": [
+    "lms.course.created.v1",
+    "lms.course.enrolled.v1",
+    "lms.course.published.v1",
+    "lms.course.updated.v1",
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1"
+  ],
+  "audit-service": [
+    "lms.cohort.cohort_completed.v1",
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_member_added.v1",
+    "lms.cohort.cohort_updated.v1",
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1",
+    "lms.prerequisite_engine.prerequisite_rule_created.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1"
+  ],
+  "cache-service": [
+    "lms.content.deleted.v1",
+    "lms.content.published.v1"
+  ],
+  "catalog-service": [
+    "lms.course.published.v1"
+  ],
+  "certification-service": [
+    "lms.cohort.cohort_completed.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.progress.course_completed.v1"
+  ],
+  "compliance-reporting-service": [
+    "lms.course.enrolled.v1",
+    "lms.progress.course_completed.v1"
+  ],
+  "content-delivery-service": [
+    "lms.content.published.v1"
+  ],
+  "content-service": [
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1"
+  ],
+  "course-service": [
+    "lms.assessment.assessmentcreated.v1",
+    "lms.assessment.assessmentpublished.v1",
+    "lms.assessment.questionbankitemadded.v1",
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1",
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1",
+    "lms.prerequisite_engine.prerequisite_rule_created.v1"
+  ],
+  "enrollment-service": [
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_member_added.v1",
+    "lms.cohort.cohort_updated.v1",
+    "lms.course.published.v1",
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1",
+    "lms.prerequisite_engine.prerequisite_rule_created.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1"
+  ],
+  "integration-gateway-service": [
+    "lms.course.created.v1",
+    "lms.course.published.v1",
+    "lms.learning_path.learning_path_assigned.v1"
+  ],
+  "learner-profile-service": [
+    "lms.progress.course_completed.v1",
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1",
+    "lms.progress.lesson_completed.v1"
+  ],
+  "learning-path-service": [
+    "lms.course.created.v1",
+    "lms.course.updated.v1",
+    "lms.prerequisite_engine.prerequisite_rule_created.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1"
+  ],
+  "lesson-service": [
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1",
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1"
+  ],
+  "manager-dashboard-service": [
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1"
+  ],
+  "media-pipeline-service": [
+    "lms.content.uploaded.v1"
+  ],
+  "notification-service": [
+    "lms.assessment.assessmentcreated.v1",
+    "lms.assessment.assessmentpublished.v1",
+    "lms.assessment.questionbankitemadded.v1",
+    "lms.cohort.cohort_completed.v1",
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_member_added.v1",
+    "lms.cohort.cohort_updated.v1",
+    "lms.content.updated.v1",
+    "lms.course.enrolled.v1",
+    "lms.course.published.v1",
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1",
+    "lms.lesson.completed.v1",
+    "lms.lesson.created.v1",
+    "lms.lesson.published.v1",
+    "lms.lesson.updated.v1",
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1",
+    "lms.progress.course_completed.v1",
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1",
+    "lms.progress.lesson_completed.v1"
+  ],
+  "progress-service": [
+    "lms.assessment.assessmentcreated.v1",
+    "lms.assessment.assessmentpublished.v1",
+    "lms.assessment.questionbankitemadded.v1",
+    "lms.lesson.completed.v1",
+    "lms.lesson.created.v1",
+    "lms.lesson.published.v1",
+    "lms.lesson.updated.v1"
+  ],
+  "progress-tracking-service": [
+    "lms.cohort.cohort_member_added.v1",
+    "lms.course.enrolled.v1",
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1"
+  ],
+  "recommendation-service": [
+    "lms.course.updated.v1",
+    "lms.lesson.completed.v1",
+    "lms.lesson.created.v1",
+    "lms.lesson.published.v1",
+    "lms.lesson.updated.v1",
+    "lms.progress.course_completed.v1",
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1",
+    "lms.progress.lesson_completed.v1"
+  ],
+  "reporting-service": [
+    "lms.cohort.cohort_completed.v1"
+  ],
+  "scheduling-service": [
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_updated.v1"
+  ],
+  "search-index-service": [
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1",
+    "lms.course.created.v1",
+    "lms.course.updated.v1"
+  ],
+  "user-profile-service": [
+    "lms.learning_path.learning_path_completed.v1"
+  ],
+  "webhook-service": [
+    "lms.content.published.v1"
+  ]
+}
