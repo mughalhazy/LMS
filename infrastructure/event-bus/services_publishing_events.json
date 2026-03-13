@@ -1,0 +1,54 @@
+{
+  "assessment-service": [
+    "lms.assessment.assessmentcreated.v1",
+    "lms.assessment.assessmentpublished.v1",
+    "lms.assessment.questionbankitemadded.v1"
+  ],
+  "cohort-service": [
+    "lms.cohort.cohort_completed.v1",
+    "lms.cohort.cohort_created.v1",
+    "lms.cohort.cohort_member_added.v1",
+    "lms.cohort.cohort_updated.v1"
+  ],
+  "content-service": [
+    "lms.content.deleted.v1",
+    "lms.content.published.v1",
+    "lms.content.updated.v1",
+    "lms.content.uploaded.v1"
+  ],
+  "course-service": [
+    "lms.course.created.v1",
+    "lms.course.enrolled.v1",
+    "lms.course.published.v1",
+    "lms.course.updated.v1"
+  ],
+  "learning-path-service": [
+    "lms.learning_path.learning_path_assigned.v1",
+    "lms.learning_path.learning_path_completed.v1",
+    "lms.learning_path.learning_path_created.v1",
+    "lms.learning_path.learning_path_updated.v1"
+  ],
+  "lesson-service": [
+    "lms.lesson.completed.v1",
+    "lms.lesson.created.v1",
+    "lms.lesson.published.v1",
+    "lms.lesson.updated.v1"
+  ],
+  "media-service": [
+    "lms.media.video_published.v1",
+    "lms.media.video_thumbnails_generated.v1",
+    "lms.media.video_transcoded.v1",
+    "lms.media.video_uploaded.v1"
+  ],
+  "prerequisite-engine-service": [
+    "lms.prerequisite_engine.prerequisite_rule_created.v1",
+    "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "lms.prerequisite_engine.prerequisite_validation_passed.v1"
+  ],
+  "progress-service": [
+    "lms.progress.course_completed.v1",
+    "lms.progress.course_progress_updated.v1",
+    "lms.progress.learning_path_progress_updated.v1",
+    "lms.progress.lesson_completed.v1"
+  ]
+}

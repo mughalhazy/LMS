@@ -1,0 +1,482 @@
+[
+  {
+    "event_name": "AssessmentCreated",
+    "topic": "lms.assessment.assessmentcreated.v1",
+    "producer_service": "assessment-service",
+    "consumer_services": [
+      "course-service",
+      "progress-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/assessment-service/events/assessment_created.yaml",
+    "schema_ref": "schemas/AssessmentCreated.schema.json"
+  },
+  {
+    "event_name": "AssessmentPublished",
+    "topic": "lms.assessment.assessmentpublished.v1",
+    "producer_service": "assessment-service",
+    "consumer_services": [
+      "course-service",
+      "progress-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/assessment-service/events/assessment_published.yaml",
+    "schema_ref": "schemas/AssessmentPublished.schema.json"
+  },
+  {
+    "event_name": "QuestionBankItemAdded",
+    "topic": "lms.assessment.questionbankitemadded.v1",
+    "producer_service": "assessment-service",
+    "consumer_services": [
+      "course-service",
+      "progress-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/assessment-service/events/question_bank_item_added.yaml",
+    "schema_ref": "schemas/QuestionBankItemAdded.schema.json"
+  },
+  {
+    "event_name": "cohort_completed",
+    "topic": "lms.cohort.cohort_completed.v1",
+    "producer_service": "cohort-service",
+    "consumer_services": [
+      "certification-service",
+      "reporting-service",
+      "notification-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/cohort-service/events/cohort_completed.yaml",
+    "schema_ref": "schemas/cohort_completed.schema.json"
+  },
+  {
+    "event_name": "cohort_created",
+    "topic": "lms.cohort.cohort_created.v1",
+    "producer_service": "cohort-service",
+    "consumer_services": [
+      "enrollment-service",
+      "scheduling-service",
+      "notification-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/cohort-service/events/cohort_created.yaml",
+    "schema_ref": "schemas/cohort_created.schema.json"
+  },
+  {
+    "event_name": "cohort_member_added",
+    "topic": "lms.cohort.cohort_member_added.v1",
+    "producer_service": "cohort-service",
+    "consumer_services": [
+      "enrollment-service",
+      "progress-tracking-service",
+      "notification-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/cohort-service/events/cohort_member_added.yaml",
+    "schema_ref": "schemas/cohort_member_added.schema.json"
+  },
+  {
+    "event_name": "cohort_updated",
+    "topic": "lms.cohort.cohort_updated.v1",
+    "producer_service": "cohort-service",
+    "consumer_services": [
+      "enrollment-service",
+      "scheduling-service",
+      "notification-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/cohort-service/events/cohort_updated.yaml",
+    "schema_ref": "schemas/cohort_updated.schema.json"
+  },
+  {
+    "event_name": "content_deleted",
+    "topic": "lms.content.deleted.v1",
+    "producer_service": "content-service",
+    "consumer_services": [
+      "course-service",
+      "lesson-service",
+      "search-index-service",
+      "cache-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/content-service/events/content_deleted.event.yaml",
+    "schema_ref": "schemas/content_deleted.schema.json"
+  },
+  {
+    "event_name": "content_published",
+    "topic": "lms.content.published.v1",
+    "producer_service": "content-service",
+    "consumer_services": [
+      "course-service",
+      "lesson-service",
+      "content-delivery-service",
+      "search-index-service",
+      "cache-service",
+      "analytics-service",
+      "webhook-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/content-service/events/content_published.event.yaml",
+    "schema_ref": "schemas/content_published.schema.json"
+  },
+  {
+    "event_name": "content_updated",
+    "topic": "lms.content.updated.v1",
+    "producer_service": "content-service",
+    "consumer_services": [
+      "course-service",
+      "lesson-service",
+      "search-index-service",
+      "analytics-service",
+      "notification-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/content-service/events/content_updated.event.yaml",
+    "schema_ref": "schemas/content_updated.schema.json"
+  },
+  {
+    "event_name": "content_uploaded",
+    "topic": "lms.content.uploaded.v1",
+    "producer_service": "content-service",
+    "consumer_services": [
+      "course-service",
+      "lesson-service",
+      "media-pipeline-service",
+      "search-index-service",
+      "analytics-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/content-service/events/content_uploaded.event.yaml",
+    "schema_ref": "schemas/content_uploaded.schema.json"
+  },
+  {
+    "event_name": "course_created",
+    "topic": "lms.course.created.v1",
+    "producer_service": "course-service",
+    "consumer_services": [
+      "search-index-service",
+      "learning-path-service",
+      "analytics-reporting-service",
+      "audit-compliance-service",
+      "integration-gateway-service"
+    ],
+    "contract_file": "backend/services/course-service/events/course_created.event.json",
+    "schema_ref": "schemas/course_created.schema.json"
+  },
+  {
+    "event_name": "course_enrolled",
+    "topic": "lms.course.enrolled.v1",
+    "producer_service": "course-service",
+    "consumer_services": [
+      "progress-tracking-service",
+      "notification-service",
+      "assessment-service",
+      "analytics-reporting-service",
+      "compliance-reporting-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/course-service/events/course_enrolled.event.json",
+    "schema_ref": "schemas/course_enrolled.schema.json"
+  },
+  {
+    "event_name": "course_published",
+    "topic": "lms.course.published.v1",
+    "producer_service": "course-service",
+    "consumer_services": [
+      "catalog-service",
+      "enrollment-service",
+      "notification-service",
+      "analytics-reporting-service",
+      "audit-compliance-service",
+      "integration-gateway-service"
+    ],
+    "contract_file": "backend/services/course-service/events/course_published.event.json",
+    "schema_ref": "schemas/course_published.schema.json"
+  },
+  {
+    "event_name": "course_updated",
+    "topic": "lms.course.updated.v1",
+    "producer_service": "course-service",
+    "consumer_services": [
+      "search-index-service",
+      "learning-path-service",
+      "recommendation-service",
+      "analytics-reporting-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/course-service/events/course_updated.event.json",
+    "schema_ref": "schemas/course_updated.schema.json"
+  },
+  {
+    "event_name": "learning_path_assigned",
+    "topic": "lms.learning_path.learning_path_assigned.v1",
+    "producer_service": "learning-path-service",
+    "consumer_services": [
+      "enrollment-service",
+      "notification-service",
+      "progress-tracking-service",
+      "analytics-reporting-service",
+      "integration-gateway-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/learning-path-service/events/learning_path_assigned.event.json",
+    "schema_ref": "schemas/learning_path_assigned.schema.json"
+  },
+  {
+    "event_name": "learning_path_completed",
+    "topic": "lms.learning_path.learning_path_completed.v1",
+    "producer_service": "learning-path-service",
+    "consumer_services": [
+      "progress-tracking-service",
+      "certification-service",
+      "notification-service",
+      "analytics-reporting-service",
+      "user-profile-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/learning-path-service/events/learning_path_completed.event.json",
+    "schema_ref": "schemas/learning_path_completed.schema.json"
+  },
+  {
+    "event_name": "learning_path_created",
+    "topic": "lms.learning_path.learning_path_created.v1",
+    "producer_service": "learning-path-service",
+    "consumer_services": [
+      "enrollment-service",
+      "progress-tracking-service",
+      "notification-service",
+      "analytics-reporting-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/learning-path-service/events/learning_path_created.event.json",
+    "schema_ref": "schemas/learning_path_created.schema.json"
+  },
+  {
+    "event_name": "learning_path_updated",
+    "topic": "lms.learning_path.learning_path_updated.v1",
+    "producer_service": "learning-path-service",
+    "consumer_services": [
+      "enrollment-service",
+      "progress-tracking-service",
+      "notification-service",
+      "analytics-reporting-service",
+      "audit-compliance-service"
+    ],
+    "contract_file": "backend/services/learning-path-service/events/learning_path_updated.event.json",
+    "schema_ref": "schemas/learning_path_updated.schema.json"
+  },
+  {
+    "event_name": "lesson_completed",
+    "topic": "lms.lesson.completed.v1",
+    "producer_service": "lesson-service",
+    "consumer_services": [
+      "progress-service",
+      "analytics-service",
+      "notification-service",
+      "recommendation-service"
+    ],
+    "contract_file": "backend/services/lesson-service/events/lesson_completed.json",
+    "schema_ref": "schemas/lesson_completed.schema.json"
+  },
+  {
+    "event_name": "lesson_created",
+    "topic": "lms.lesson.created.v1",
+    "producer_service": "lesson-service",
+    "consumer_services": [
+      "progress-service",
+      "analytics-service",
+      "notification-service",
+      "recommendation-service"
+    ],
+    "contract_file": "backend/services/lesson-service/events/lesson_created.json",
+    "schema_ref": "schemas/lesson_created.schema.json"
+  },
+  {
+    "event_name": "lesson_published",
+    "topic": "lms.lesson.published.v1",
+    "producer_service": "lesson-service",
+    "consumer_services": [
+      "progress-service",
+      "analytics-service",
+      "notification-service",
+      "recommendation-service"
+    ],
+    "contract_file": "backend/services/lesson-service/events/lesson_published.json",
+    "schema_ref": "schemas/lesson_published.schema.json"
+  },
+  {
+    "event_name": "lesson_updated",
+    "topic": "lms.lesson.updated.v1",
+    "producer_service": "lesson-service",
+    "consumer_services": [
+      "progress-service",
+      "analytics-service",
+      "notification-service",
+      "recommendation-service"
+    ],
+    "contract_file": "backend/services/lesson-service/events/lesson_updated.json",
+    "schema_ref": "schemas/lesson_updated.schema.json"
+  },
+  {
+    "event_name": "video.published",
+    "topic": "lms.media.video_published.v1",
+    "producer_service": "media-service",
+    "consumer_services": [
+      "content-service",
+      "course-service",
+      "lesson-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/media-service/events/video_published.json",
+    "schema_ref": "schemas/video_published.schema.json"
+  },
+  {
+    "event_name": "video.thumbnails_generated",
+    "topic": "lms.media.video_thumbnails_generated.v1",
+    "producer_service": "media-service",
+    "consumer_services": [
+      "content-service",
+      "course-service",
+      "lesson-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/media-service/events/video_thumbnails_generated.json",
+    "schema_ref": "schemas/video_thumbnails_generated.schema.json"
+  },
+  {
+    "event_name": "video.transcoded",
+    "topic": "lms.media.video_transcoded.v1",
+    "producer_service": "media-service",
+    "consumer_services": [
+      "content-service",
+      "course-service",
+      "lesson-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/media-service/events/video_transcoded.json",
+    "schema_ref": "schemas/video_transcoded.schema.json"
+  },
+  {
+    "event_name": "video.uploaded",
+    "topic": "lms.media.video_uploaded.v1",
+    "producer_service": "media-service",
+    "consumer_services": [
+      "content-service",
+      "course-service",
+      "lesson-service",
+      "analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/media-service/events/video_uploaded.json",
+    "schema_ref": "schemas/video_uploaded.schema.json"
+  },
+  {
+    "event_name": "prerequisite_rule_created",
+    "topic": "lms.prerequisite_engine.prerequisite_rule_created.v1",
+    "producer_service": "prerequisite-engine-service",
+    "consumer_services": [
+      "course-service",
+      "learning-path-service",
+      "enrollment-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/prerequisite-engine-service/events/prerequisite_rule_created.json",
+    "schema_ref": "schemas/prerequisite_rule_created.schema.json"
+  },
+  {
+    "event_name": "prerequisite_validation_failed",
+    "topic": "lms.prerequisite_engine.prerequisite_validation_failed.v1",
+    "producer_service": "prerequisite-engine-service",
+    "consumer_services": [
+      "enrollment-service",
+      "learning-path-service",
+      "notification-service",
+      "advising-service",
+      "audit-service",
+      "analytics-service"
+    ],
+    "contract_file": "backend/services/prerequisite-engine-service/events/prerequisite_validation_failed.json",
+    "schema_ref": "schemas/prerequisite_validation_failed.schema.json"
+  },
+  {
+    "event_name": "prerequisite_validation_passed",
+    "topic": "lms.prerequisite_engine.prerequisite_validation_passed.v1",
+    "producer_service": "prerequisite-engine-service",
+    "consumer_services": [
+      "enrollment-service",
+      "learning-path-service",
+      "notification-service",
+      "audit-service",
+      "analytics-service"
+    ],
+    "contract_file": "backend/services/prerequisite-engine-service/events/prerequisite_validation_passed.json",
+    "schema_ref": "schemas/prerequisite_validation_passed.schema.json"
+  },
+  {
+    "event_name": "course_completed",
+    "topic": "lms.progress.course_completed.v1",
+    "producer_service": "progress-service",
+    "consumer_services": [
+      "analytics-service",
+      "certification-service",
+      "recommendation-service",
+      "learner-profile-service",
+      "compliance-reporting-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/progress-service/events/course_completed.json",
+    "schema_ref": "schemas/course_completed.schema.json"
+  },
+  {
+    "event_name": "course_progress_updated",
+    "topic": "lms.progress.course_progress_updated.v1",
+    "producer_service": "progress-service",
+    "consumer_services": [
+      "analytics-service",
+      "recommendation-service",
+      "learner-profile-service",
+      "manager-dashboard-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/progress-service/events/course_progress_updated.json",
+    "schema_ref": "schemas/course_progress_updated.schema.json"
+  },
+  {
+    "event_name": "learning_path_progress_updated",
+    "topic": "lms.progress.learning_path_progress_updated.v1",
+    "producer_service": "progress-service",
+    "consumer_services": [
+      "analytics-service",
+      "recommendation-service",
+      "learner-profile-service",
+      "manager-dashboard-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/progress-service/events/learning_path_progress_updated.json",
+    "schema_ref": "schemas/learning_path_progress_updated.schema.json"
+  },
+  {
+    "event_name": "lesson_completed",
+    "topic": "lms.progress.lesson_completed.v1",
+    "producer_service": "progress-service",
+    "consumer_services": [
+      "analytics-service",
+      "recommendation-service",
+      "adaptive-learning-engine-service",
+      "learner-profile-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/progress-service/events/lesson_completed.json",
+    "schema_ref": "schemas/lesson_completed.schema.json"
+  }
+]

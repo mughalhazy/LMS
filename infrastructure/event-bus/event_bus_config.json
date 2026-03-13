@@ -1,0 +1,12 @@
+{
+  "platform": "kafka",
+  "cluster": "lms-domain-events",
+  "bootstrap_servers": [
+    "kafka-0.lms.svc.cluster.local:9092",
+    "kafka-1.lms.svc.cluster.local:9092",
+    "kafka-2.lms.svc.cluster.local:9092"
+  ],
+  "schema_registry_url": "http://schema-registry.lms.svc.cluster.local:8081",
+  "delivery_guarantee": "at-least-once",
+  "dead_letter_topic": "lms.platform.events_dlq.v1"
+}
