@@ -1,5 +1,11 @@
-event: AssessmentPublished
-owner: assessment-service
+event_name: assessment_published
+producer_service: assessment-service
+topic: lms.assessment.assessment_published.v1
+consumer_services:
+  - course-service
+  - progress-service
+  - learning-analytics-service
+  - notification-service
 description: Fired when an assessment transitions from draft to published.
 payload:
   tenant_id: string

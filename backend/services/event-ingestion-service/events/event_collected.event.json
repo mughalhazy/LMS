@@ -1,0 +1,24 @@
+{
+  "event_name": "event_collected",
+  "producer_service": "event-ingestion-service",
+  "topic": "lms.analytics_ingestion.event_collected.v1",
+  "consumer_services": [
+    "learning-analytics-service",
+    "reporting-service",
+    "audit-service"
+  ],
+  "payload": {
+    "collection_id": "string",
+    "event_id": "string",
+    "event_type": "string",
+    "source_system": "string",
+    "tenant_id": "string",
+    "actor_id": "string",
+    "session_id": "string",
+    "occurred_at": "datetime",
+    "received_at": "datetime",
+    "schema_version": "string",
+    "payload": "object",
+    "ingestion_channel": "string"
+  }
+}

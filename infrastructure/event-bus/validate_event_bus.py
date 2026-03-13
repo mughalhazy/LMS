@@ -31,9 +31,16 @@ def _normalize_service_name(name: str, fallback: str) -> str:
     return normalized
 
 
+def _to_snake_case(value: str) -> str:
+    value = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", value)
+    value = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value)
+    value = re.sub(r"[^a-zA-Z0-9_]+", "_", value)
+    return value.strip("_").lower()
+
+
 def _normalize_topic(event_name: str, service_name: str) -> str:
     domain = service_name.replace("-service", "").replace("-", "_")
-    return f"lms.{domain}.{event_name.replace('.', '_')}.v1"
+    return f"lms.{domain}.{_to_snake_case(event_name)}.v1"
 
 
 def _default_consumers(service_name: str) -> list[str]:
@@ -70,8 +77,7 @@ def build_catalog() -> tuple[dict[str, Any], list[str]]:
             warnings.append(f"{event_file}: no consumers configured")
             continue
         if not TOPIC_RE.match(topic):
-            normalized_event = re.sub(r"[^a-z0-9_]+", "_", event_name.lower())
-            topic = _normalize_topic(normalized_event, service_name)
+            topic = _normalize_topic(event_name, service_name)
             warnings.append(f"{event_file}: normalized topic to {topic}")
 
         entry = {
@@ -80,7 +86,7 @@ def build_catalog() -> tuple[dict[str, Any], list[str]]:
             "producer_service": producer,
             "consumer_services": consumers,
             "contract_file": str(event_file.relative_to(ROOT)),
-            "schema_ref": f"schemas/{event_name.replace('.', '_')}.schema.json",
+            "schema_ref": f"schemas/{_to_snake_case(event_name)}.schema.json",
         }
         topics.append(entry)
         publishing.setdefault(producer, []).append(topic)

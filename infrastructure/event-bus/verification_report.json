@@ -5,9 +5,6 @@
     "event_subscriptions_configured": "passed"
   },
   "warnings": [
-    "/workspace/LMS/backend/services/assessment-service/events/assessment_created.yaml: normalized topic to lms.assessment.assessmentcreated.v1",
-    "/workspace/LMS/backend/services/assessment-service/events/assessment_published.yaml: normalized topic to lms.assessment.assessmentpublished.v1",
-    "/workspace/LMS/backend/services/assessment-service/events/question_bank_item_added.yaml: normalized topic to lms.assessment.questionbankitemadded.v1",
     "/workspace/LMS/backend/services/learning-path-service/events/learning_path_assigned.event.json: normalized topic to lms.learning_path.learning_path_assigned.v1",
     "/workspace/LMS/backend/services/learning-path-service/events/learning_path_completed.event.json: normalized topic to lms.learning_path.learning_path_completed.v1",
     "/workspace/LMS/backend/services/learning-path-service/events/learning_path_created.event.json: normalized topic to lms.learning_path.learning_path_created.v1",
