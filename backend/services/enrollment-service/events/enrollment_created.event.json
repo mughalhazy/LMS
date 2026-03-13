@@ -1,0 +1,19 @@
+{
+  "event_name": "enrollment_created",
+  "producer_service": "enrollment-service",
+  "topic": "lms.enrollment.enrollment_created.v1",
+  "consumer_services": [
+    "course-service",
+    "progress-service",
+    "learning-analytics-service",
+    "notification-service"
+  ],
+  "payload": {
+    "tenant_id": "string",
+    "enrollment_id": "uuid",
+    "learner_id": "string",
+    "learning_object_id": "string",
+    "status": "string",
+    "created_at": "datetime"
+  }
+}

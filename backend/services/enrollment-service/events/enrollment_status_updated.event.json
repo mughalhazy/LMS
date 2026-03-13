@@ -1,0 +1,18 @@
+{
+  "event_name": "enrollment_status_updated",
+  "producer_service": "enrollment-service",
+  "topic": "lms.enrollment.enrollment_status_updated.v1",
+  "consumer_services": [
+    "course-service",
+    "progress-service",
+    "learning-analytics-service",
+    "notification-service"
+  ],
+  "payload": {
+    "tenant_id": "string",
+    "enrollment_id": "uuid",
+    "status": "string",
+    "updated_at": "datetime",
+    "updated_by": "string"
+  }
+}

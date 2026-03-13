@@ -1,42 +1,77 @@
 [
   {
-    "event_name": "AssessmentCreated",
-    "topic": "lms.assessment.assessmentcreated.v1",
+    "event_name": "event_collected",
+    "topic": "lms.analytics_ingestion.event_collected.v1",
+    "producer_service": "event-ingestion-service",
+    "consumer_services": [
+      "learning-analytics-service",
+      "reporting-service",
+      "audit-service"
+    ],
+    "contract_file": "backend/services/event-ingestion-service/events/event_collected.event.json",
+    "schema_ref": "schemas/event_collected.schema.json"
+  },
+  {
+    "event_name": "event_rejected",
+    "topic": "lms.analytics_ingestion.event_rejected.v1",
+    "producer_service": "event-ingestion-service",
+    "consumer_services": [
+      "operations-service",
+      "audit-service",
+      "learning-analytics-service"
+    ],
+    "contract_file": "backend/services/event-ingestion-service/events/event_rejected.event.json",
+    "schema_ref": "schemas/event_rejected.schema.json"
+  },
+  {
+    "event_name": "event_validated",
+    "topic": "lms.analytics_ingestion.event_validated.v1",
+    "producer_service": "event-ingestion-service",
+    "consumer_services": [
+      "learning-analytics-service",
+      "reporting-service",
+      "feature-store-service"
+    ],
+    "contract_file": "backend/services/event-ingestion-service/events/event_validated.event.json",
+    "schema_ref": "schemas/event_validated.schema.json"
+  },
+  {
+    "event_name": "assessment_created",
+    "topic": "lms.assessment.assessment_created.v1",
     "producer_service": "assessment-service",
     "consumer_services": [
       "course-service",
       "progress-service",
-      "analytics-service",
+      "learning-analytics-service",
       "notification-service"
     ],
     "contract_file": "backend/services/assessment-service/events/assessment_created.yaml",
-    "schema_ref": "schemas/AssessmentCreated.schema.json"
+    "schema_ref": "schemas/assessment_created.schema.json"
   },
   {
-    "event_name": "AssessmentPublished",
-    "topic": "lms.assessment.assessmentpublished.v1",
+    "event_name": "assessment_published",
+    "topic": "lms.assessment.assessment_published.v1",
     "producer_service": "assessment-service",
     "consumer_services": [
       "course-service",
       "progress-service",
-      "analytics-service",
+      "learning-analytics-service",
       "notification-service"
     ],
     "contract_file": "backend/services/assessment-service/events/assessment_published.yaml",
-    "schema_ref": "schemas/AssessmentPublished.schema.json"
+    "schema_ref": "schemas/assessment_published.schema.json"
   },
   {
-    "event_name": "QuestionBankItemAdded",
-    "topic": "lms.assessment.questionbankitemadded.v1",
+    "event_name": "question_bank_item_added",
+    "topic": "lms.assessment.question_bank_item_added.v1",
     "producer_service": "assessment-service",
     "consumer_services": [
-      "course-service",
-      "progress-service",
-      "analytics-service",
+      "assessment-service",
+      "learning-analytics-service",
       "notification-service"
     ],
     "contract_file": "backend/services/assessment-service/events/question_bank_item_added.yaml",
-    "schema_ref": "schemas/QuestionBankItemAdded.schema.json"
+    "schema_ref": "schemas/question_bank_item_added.schema.json"
   },
   {
     "event_name": "cohort_completed",
@@ -213,6 +248,32 @@
     ],
     "contract_file": "backend/services/course-service/events/course_updated.event.json",
     "schema_ref": "schemas/course_updated.schema.json"
+  },
+  {
+    "event_name": "enrollment_created",
+    "topic": "lms.enrollment.enrollment_created.v1",
+    "producer_service": "enrollment-service",
+    "consumer_services": [
+      "course-service",
+      "progress-service",
+      "learning-analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/enrollment-service/events/enrollment_created.event.json",
+    "schema_ref": "schemas/enrollment_created.schema.json"
+  },
+  {
+    "event_name": "enrollment_status_updated",
+    "topic": "lms.enrollment.enrollment_status_updated.v1",
+    "producer_service": "enrollment-service",
+    "consumer_services": [
+      "course-service",
+      "progress-service",
+      "learning-analytics-service",
+      "notification-service"
+    ],
+    "contract_file": "backend/services/enrollment-service/events/enrollment_status_updated.event.json",
+    "schema_ref": "schemas/enrollment_status_updated.schema.json"
   },
   {
     "event_name": "learning_path_assigned",

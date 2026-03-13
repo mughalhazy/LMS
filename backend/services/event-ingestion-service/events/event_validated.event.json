@@ -1,0 +1,24 @@
+{
+  "event_name": "event_validated",
+  "producer_service": "event-ingestion-service",
+  "topic": "lms.analytics_ingestion.event_validated.v1",
+  "consumer_services": [
+    "learning-analytics-service",
+    "reporting-service",
+    "feature-store-service"
+  ],
+  "payload": {
+    "validation_id": "string",
+    "event_id": "string",
+    "event_type": "string",
+    "tenant_id": "string",
+    "schema_version": "string",
+    "required_fields_present": "boolean",
+    "pii_policy_passed": "boolean",
+    "signature_verified": "boolean",
+    "validation_status": "string",
+    "validated_at": "datetime",
+    "validator_version": "string",
+    "normalized_payload": "object"
+  }
+}

@@ -15,9 +15,9 @@ The Event Ingestion Service provides high-volume, tenant-scoped ingestion of LMS
 - `GET /api/v1/events/metrics`
 
 ## Event Topics
-- `analytics.events.raw`
-- `analytics.events.validated`
-- `analytics.events.rejected`
+- `lms.analytics_ingestion.event_collected.v1`
+- `lms.analytics_ingestion.event_validated.v1`
+- `lms.analytics_ingestion.event_rejected.v1`
 
 ## Run
 ```bash

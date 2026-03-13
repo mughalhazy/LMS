@@ -1,8 +1,8 @@
 {
   "assessment-service": [
-    "lms.assessment.assessmentcreated.v1",
-    "lms.assessment.assessmentpublished.v1",
-    "lms.assessment.questionbankitemadded.v1"
+    "lms.assessment.assessment_created.v1",
+    "lms.assessment.assessment_published.v1",
+    "lms.assessment.question_bank_item_added.v1"
   ],
   "cohort-service": [
     "lms.cohort.cohort_completed.v1",
@@ -21,6 +21,15 @@
     "lms.course.enrolled.v1",
     "lms.course.published.v1",
     "lms.course.updated.v1"
+  ],
+  "enrollment-service": [
+    "lms.enrollment.enrollment_created.v1",
+    "lms.enrollment.enrollment_status_updated.v1"
+  ],
+  "event-ingestion-service": [
+    "lms.analytics_ingestion.event_collected.v1",
+    "lms.analytics_ingestion.event_rejected.v1",
+    "lms.analytics_ingestion.event_validated.v1"
   ],
   "learning-path-service": [
     "lms.learning_path.learning_path_assigned.v1",
