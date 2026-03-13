@@ -1,0 +1,189 @@
+routes:
+  # Explicit routes sourced from docs/api/* specs.
+  api_spec_routes:
+  - path: /api/v1/users
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: user-service
+  - path: /api/v1/users/{userId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: user-service
+  - path: /api/v1/courses
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: course-service
+  - path: /api/v1/courses/{courseId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: course-service
+  - path: /api/v1/lessons
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: lesson-service
+  - path: /api/v1/lessons/{lessonId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: lesson-service
+  - path: /api/v1/enrollments
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: enrollment-service
+  - path: /api/v1/enrollments/{enrollmentId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: enrollment-service
+  - path: /api/v1/assessments
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: assessment-service
+  - path: /api/v1/assessments/{assessmentId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: assessment-service
+  - path: /api/v1/certificates
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: certificate-service
+  - path: /api/v1/certificates/{certificateId}
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: certificate-service
+  - path: /api/v1/content/uploads
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: content-service
+  - path: /api/v1/courses/{courseId}/lessons
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: lesson-service
+  - path: /api/v1/courses/{courseId}/publish
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: course-service
+  - path: /api/v1/integrations/hris/employees/sync
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: hris-sync-service
+  - path: /api/v1/integrations/crm/contacts/upsert
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: org-service
+  - path: /api/v1/integrations/lti/launch
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: lti-service
+  - path: /api/v1/integrations/webhooks/events
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: webhook-service
+  - path: /api/v1/analytics/learners/{learnerId}/progress
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: learning-analytics-service
+  - path: /api/v1/analytics/courses/{courseId}/performance
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: learning-analytics-service
+  - path: /api/v1/analytics/skills
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: skill-analytics-service
+  - path: /api/v1/analytics/compliance/reports
+    methods: [GET, POST, PATCH, PUT, DELETE]
+    service: reporting-service
+
+  # Catch-all service routes to expose every backend service through the gateway.
+  service_prefix_routes:
+  - path_prefix: /api/v1/ai-tutor
+    service: ai-tutor-service
+    strip_prefix: false
+  - path_prefix: /api/v1/api-key
+    service: api-key-service
+    strip_prefix: false
+  - path_prefix: /api/v1/assessment
+    service: assessment-service
+    strip_prefix: false
+  - path_prefix: /api/v1/attempt
+    service: attempt-service
+    strip_prefix: false
+  - path_prefix: /api/v1/auth
+    service: auth-service
+    strip_prefix: false
+  - path_prefix: /api/v1/badge
+    service: badge-service
+    strip_prefix: false
+  - path_prefix: /api/v1/certificate
+    service: certificate-service
+    strip_prefix: false
+  - path_prefix: /api/v1/cohort
+    service: cohort-service
+    strip_prefix: false
+  - path_prefix: /api/v1/content
+    service: content-service
+    strip_prefix: false
+  - path_prefix: /api/v1/course-generation
+    service: course-generation-service
+    strip_prefix: false
+  - path_prefix: /api/v1/course
+    service: course-service
+    strip_prefix: false
+  - path_prefix: /api/v1/department
+    service: department-service
+    strip_prefix: false
+  - path_prefix: /api/v1/email
+    service: email-service
+    strip_prefix: false
+  - path_prefix: /api/v1/enrollment
+    service: enrollment-service
+    strip_prefix: false
+  - path_prefix: /api/v1/event-ingestion
+    service: event-ingestion-service
+    strip_prefix: false
+  - path_prefix: /api/v1/group
+    service: group-service
+    strip_prefix: false
+  - path_prefix: /api/v1/hris-sync
+    service: hris-sync-service
+    strip_prefix: false
+  - path_prefix: /api/v1/learning-analytics
+    service: learning-analytics-service
+    strip_prefix: false
+  - path_prefix: /api/v1/learning-path
+    service: learning-path-service
+    strip_prefix: false
+  - path_prefix: /api/v1/lesson
+    service: lesson-service
+    strip_prefix: false
+  - path_prefix: /api/v1/lti
+    service: lti-service
+    strip_prefix: false
+  - path_prefix: /api/v1/media
+    service: media-service
+    strip_prefix: false
+  - path_prefix: /api/v1/notification
+    service: notification-service
+    strip_prefix: false
+  - path_prefix: /api/v1/org
+    service: org-service
+    strip_prefix: false
+  - path_prefix: /api/v1/prerequisite-engine
+    service: prerequisite-engine-service
+    strip_prefix: false
+  - path_prefix: /api/v1/progress
+    service: progress-service
+    strip_prefix: false
+  - path_prefix: /api/v1/push
+    service: push-service
+    strip_prefix: false
+  - path_prefix: /api/v1/quiz-engine
+    service: quiz-engine
+    strip_prefix: false
+  - path_prefix: /api/v1/rbac
+    service: rbac-service
+    strip_prefix: false
+  - path_prefix: /api/v1/recommendation
+    service: recommendation-service
+    strip_prefix: false
+  - path_prefix: /api/v1/reporting
+    service: reporting-service
+    strip_prefix: false
+  - path_prefix: /api/v1/scorm
+    service: scorm-service
+    strip_prefix: false
+  - path_prefix: /api/v1/skill-analytics
+    service: skill-analytics-service
+    strip_prefix: false
+  - path_prefix: /api/v1/skill-inference
+    service: skill-inference-service
+    strip_prefix: false
+  - path_prefix: /api/v1/sso
+    service: sso-service
+    strip_prefix: false
+  - path_prefix: /api/v1/tenant
+    service: tenant-service
+    strip_prefix: false
+  - path_prefix: /api/v1/user
+    service: user-service
+    strip_prefix: false
+  - path_prefix: /api/v1/webhook
+    service: webhook-service
+    strip_prefix: false

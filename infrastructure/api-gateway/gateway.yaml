@@ -1,0 +1,391 @@
+gateway:
+  name: lms-api-gateway
+  listen_port: 8080
+  base_path: /api
+  versioning:
+    default: v1
+    supported:
+      - v1
+
+middleware:
+  authentication:
+    type: jwt
+    issuer: https://auth.lms.internal
+    jwks_uri: http://auth-service:8005/.well-known/jwks.json
+    required_claims:
+      - sub
+      - tenant_id
+      - scope
+    exclude_paths:
+      - /api/v1/auth/login
+      - /api/v1/auth/refresh
+      - /api/v1/integrations/webhooks/events
+  rate_limiting:
+    algorithm: token_bucket
+    defaults:
+      requests_per_minute: 600
+      burst: 120
+    by_tenant:
+      enabled: true
+      header: X-Tenant-ID
+    by_client:
+      enabled: true
+      header: X-API-Key
+  request_logging:
+    format: json
+    include:
+      - trace_id
+      - tenant_id
+      - user_id
+      - method
+      - path
+      - status
+      - latency_ms
+    propagate_headers:
+      - X-Trace-ID
+      - X-Request-ID
+      - X-Tenant-ID
+
+service_registry:
+  - name: ai-tutor-service
+    upstream:
+      host: ai-tutor-service
+      port: 8001
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: api-key-service
+    upstream:
+      host: api-key-service
+      port: 8002
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: assessment-service
+    upstream:
+      host: assessment-service
+      port: 8003
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: attempt-service
+    upstream:
+      host: attempt-service
+      port: 8004
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: auth-service
+    upstream:
+      host: auth-service
+      port: 8005
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: badge-service
+    upstream:
+      host: badge-service
+      port: 8006
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: certificate-service
+    upstream:
+      host: certificate-service
+      port: 8007
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: cohort-service
+    upstream:
+      host: cohort-service
+      port: 8008
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: content-service
+    upstream:
+      host: content-service
+      port: 8009
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: course-generation-service
+    upstream:
+      host: course-generation-service
+      port: 8010
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: course-service
+    upstream:
+      host: course-service
+      port: 8011
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: department-service
+    upstream:
+      host: department-service
+      port: 8012
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: email-service
+    upstream:
+      host: email-service
+      port: 8013
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: enrollment-service
+    upstream:
+      host: enrollment-service
+      port: 8014
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: event-ingestion-service
+    upstream:
+      host: event-ingestion-service
+      port: 8015
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: group-service
+    upstream:
+      host: group-service
+      port: 8016
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: hris-sync-service
+    upstream:
+      host: hris-sync-service
+      port: 8017
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: learning-analytics-service
+    upstream:
+      host: learning-analytics-service
+      port: 8018
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: learning-path-service
+    upstream:
+      host: learning-path-service
+      port: 8019
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: lesson-service
+    upstream:
+      host: lesson-service
+      port: 8020
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: lti-service
+    upstream:
+      host: lti-service
+      port: 8021
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: media-service
+    upstream:
+      host: media-service
+      port: 8022
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: notification-service
+    upstream:
+      host: notification-service
+      port: 8023
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: org-service
+    upstream:
+      host: org-service
+      port: 8024
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: prerequisite-engine-service
+    upstream:
+      host: prerequisite-engine-service
+      port: 8025
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: progress-service
+    upstream:
+      host: progress-service
+      port: 8026
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: push-service
+    upstream:
+      host: push-service
+      port: 8027
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: quiz-engine
+    upstream:
+      host: quiz-engine
+      port: 8028
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: rbac-service
+    upstream:
+      host: rbac-service
+      port: 8029
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: recommendation-service
+    upstream:
+      host: recommendation-service
+      port: 8030
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: reporting-service
+    upstream:
+      host: reporting-service
+      port: 8031
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: scorm-service
+    upstream:
+      host: scorm-service
+      port: 8032
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: skill-analytics-service
+    upstream:
+      host: skill-analytics-service
+      port: 8033
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: skill-inference-service
+    upstream:
+      host: skill-inference-service
+      port: 8034
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: sso-service
+    upstream:
+      host: sso-service
+      port: 8035
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: tenant-service
+    upstream:
+      host: tenant-service
+      port: 8036
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: user-service
+    upstream:
+      host: user-service
+      port: 8037
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
+  - name: webhook-service
+    upstream:
+      host: webhook-service
+      port: 8038
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2
