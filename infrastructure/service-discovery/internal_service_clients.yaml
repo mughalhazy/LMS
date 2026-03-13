@@ -1,0 +1,118 @@
+version: 1
+client_defaults:
+  discovery_scheme: discovery://
+  transport: http
+  timeout_ms: 2000
+  retry_policy:
+    max_attempts: 3
+    backoff_ms: 250
+    jitter: true
+
+services:
+  auth-service:
+    outbound_clients:
+      - target_service: user-service
+        base_uri: discovery://user-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: enrollment-service
+        base_uri: discovery://enrollment-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+
+  user-service:
+    outbound_clients:
+      - target_service: auth-service
+        base_uri: discovery://auth-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: course-service
+        base_uri: discovery://course-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+
+  course-service:
+    outbound_clients:
+      - target_service: assessment-service
+        base_uri: discovery://assessment-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: enrollment-service
+        base_uri: discovery://enrollment-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: learning-analytics-service
+        base_uri: discovery://learning-analytics-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+
+  assessment-service:
+    outbound_clients:
+      - target_service: course-service
+        base_uri: discovery://course-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: learning-analytics-service
+        base_uri: discovery://learning-analytics-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+
+  enrollment-service:
+    outbound_clients:
+      - target_service: auth-service
+        base_uri: discovery://auth-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: user-service
+        base_uri: discovery://user-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: course-service
+        base_uri: discovery://course-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+
+  learning-analytics-service:
+    outbound_clients:
+      - target_service: enrollment-service
+        base_uri: discovery://enrollment-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: course-service
+        base_uri: discovery://course-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: assessment-service
+        base_uri: discovery://assessment-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250

@@ -13,6 +13,7 @@ This directory configures service discovery for all microservices under `backend
 
 - `service_registry.yaml`: Shared registry + lookup defaults.
 - `discovery_configuration.json`: Generated per-service registration + health configuration.
+- `internal_service_clients.yaml`: Canonical internal client contract (discovery URI + retry + timeout) for core service-to-service calls.
 - `templates/service_startup.env.template`: Startup env contract used by each microservice.
 - `scripts/generate_config.py`: Generates discovery config for all services.
 - `scripts/verify_config.py`: Verifies registration and discovery requirements.
