@@ -1,0 +1,40 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Service Up Status",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "up{job='lms-services-metrics'}", "legendFormat": "{{service}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Health Probe Success",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "probe_success{job='lms-services-health'}", "legendFormat": "{{service}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Log Ingestion Rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "sum(rate({job=\"lms-containers\"}[5m]))"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Trace Ingestion Rate",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(rate(otelcol_receiver_accepted_spans[5m]))"}]
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["lms", "observability"],
+  "title": "LMS Service Observability Overview",
+  "uid": "lms-observability-overview",
+  "version": 1
+}

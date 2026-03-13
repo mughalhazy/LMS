@@ -1,0 +1,344 @@
+[
+  {
+    "labels": {
+      "service": "ai-tutor-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://ai-tutor-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "api-key-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://api-key-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "assessment-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://assessment-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "attempt-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://attempt-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "auth-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://auth-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "badge-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://badge-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "certificate-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://certificate-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "cohort-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://cohort-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "content-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://content-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "course-generation-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://course-generation-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "course-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://course-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "department-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://department-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "email-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://email-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "enrollment-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://enrollment-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "event-ingestion-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://event-ingestion-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "group-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://group-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "hris-sync-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://hris-sync-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "learning-analytics-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://learning-analytics-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "learning-path-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://learning-path-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "lesson-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://lesson-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "lti-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://lti-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "media-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://media-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "notification-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://notification-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "org-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://org-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "prerequisite-engine-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://prerequisite-engine-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "progress-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://progress-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "push-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://push-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "quiz-engine",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://quiz-engine.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "rbac-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://rbac-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "recommendation-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://recommendation-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "reporting-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://reporting-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "scorm-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://scorm-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "skill-analytics-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://skill-analytics-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "skill-inference-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://skill-inference-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "sso-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://sso-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "tenant-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://tenant-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "user-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://user-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
+      "service": "webhook-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://webhook-service.lms.svc.cluster.local/health"
+    ]
+  }
+]

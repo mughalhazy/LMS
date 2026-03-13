@@ -1,0 +1,20 @@
+groups:
+  - name: lms-service-health
+    rules:
+      - alert: LMSServiceHealthEndpointDown
+        expr: probe_success{job="lms-services-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Health check failing for {{ $labels.service }}"
+          description: "Blackbox probe to {{ $labels.instance }} has failed for more than 2 minutes."
+
+      - alert: LMSServiceMetricsMissing
+        expr: absent(up{job="lms-services-metrics"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Metrics are not being scraped"
+          description: "Prometheus is not receiving metrics from LMS service targets."
