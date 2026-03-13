@@ -21,8 +21,10 @@ from .schemas import (
 from .security import AuthorizationContext, require_roles
 from .service import UserService
 
-app = FastAPI(title="User Management Service", version="1.0.0")
+app = FastAPI(title="User Management Service", version="1.0.0", dependencies=[Depends(require_jwt)])
 service = UserService()
+
+apply_security_headers(app)
 
 
 @app.post("/users", response_model=UserResponse)

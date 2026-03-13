@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
+from .security import apply_security_headers, require_jwt
 
 from .models import DeliveryStatus, EmailTemplate, TriggerRule
 from .schemas import (
@@ -14,7 +15,9 @@ from .schemas import (
 )
 from .service import EmailService
 
-app = FastAPI(title="Email Delivery Service", version="1.0.0")
+app = FastAPI(title="Email Delivery Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = EmailService()
 
 

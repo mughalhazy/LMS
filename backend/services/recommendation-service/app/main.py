@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
+from .security import apply_security_headers, require_jwt
 
 from .schemas import (
     BehavioralRecommendationRequest,
@@ -13,7 +14,9 @@ from .schemas import (
 )
 from .service import RecommendationService
 
-app = FastAPI(title="Recommendation Service", version="1.0.0")
+app = FastAPI(title="Recommendation Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = RecommendationService()
 
 

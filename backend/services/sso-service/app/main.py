@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from .security import apply_security_headers, require_jwt
 
 from app.models import CallbackRequest, InitiateSSORequest
 from app.service import SSOService
 
-app = FastAPI(title="sso-service", version="0.1.0")
+app = FastAPI(title="sso-service", version="0.1.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = SSOService()
 
 

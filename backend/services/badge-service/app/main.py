@@ -13,7 +13,9 @@ from .schemas import (
 )
 from .service import BadgeService
 
-app = FastAPI(title="Badge Service", version="1.0.0")
+app = FastAPI(title="Badge Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 repository = InMemoryBadgeRepository()
 service = BadgeService(repository)
 

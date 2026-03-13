@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from .security import apply_security_headers, require_jwt
 
 from app.models import (
     ConsumerLaunchCompleteRequest,
@@ -19,7 +20,9 @@ from app.models import (
 )
 from app.service import LTIService
 
-app = FastAPI(title="lti-service", version="0.1.0")
+app = FastAPI(title="lti-service", version="0.1.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = LTIService()
 
 

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, HTTPException
+from .security import apply_security_headers, require_jwt
 
 from .middleware import build_authorization_dependency
 from .models import Assignment, AssignmentCreate, AuthorizeDecision, AuthorizeRequest, Permission, Role
 from .store import InMemoryRBACStore
 
-app = FastAPI(title="RBAC Authorization Service", version="1.0.0")
+app = FastAPI(title="RBAC Authorization Service", version="1.0.0", dependencies=[Depends(require_jwt)])
 store = InMemoryRBACStore()
+
+apply_security_headers(app)
 
 
 @app.get("/health")
