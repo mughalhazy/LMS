@@ -1,22 +1,23 @@
 import { CompletionStatus, LessonStatus, ScoreTracking, SessionTimeTracking } from './tracking.entities';
 
 export const TrackingEvents = {
-  LessonStatusTracked: 'scorm.tracking.lesson_status_tracked',
-  ScoreTracked: 'scorm.tracking.score_tracked',
-  SessionTimeTracked: 'scorm.tracking.session_time_tracked',
-  CompletionStatusUpdated: 'scorm.tracking.completion_status_updated',
-  LessonCompletionTracked: 'progress.lesson_completion_tracked',
+  LessonStatusTracked: 'scorm_progress_updated',
+  ScoreTracked: 'scorm_score_recorded',
+  SessionTimeTracked: 'scorm_progress_updated',
+  CompletionStatusUpdated: 'scorm_progress_updated',
+  LessonCompletionTracked: 'scorm_session_completed',
 } as const;
 
 export interface BaseTrackingEvent {
+  eventId: string;
+  occurredAt: string;
   tenantId: string;
   learnerId: string;
   courseId: string;
-  lessonId: string;
-  enrollmentId: string;
   registrationId: string;
+  sessionId: string;
   attemptNumber: number;
-  emittedAt: string;
+  scoId: string;
 }
 
 export interface LessonStatusTrackedEvent extends BaseTrackingEvent {
@@ -27,31 +28,39 @@ export interface LessonStatusTrackedEvent extends BaseTrackingEvent {
 export interface ScoreTrackedEvent extends BaseTrackingEvent {
   eventName: typeof TrackingEvents.ScoreTracked;
   score: Required<ScoreTracking>;
+  masteryScore: number | null;
+  successStatus: 'passed' | 'failed' | 'unknown';
+  isMasteryAchieved: boolean | null;
 }
 
 export interface SessionTimeTrackedEvent extends BaseTrackingEvent {
   eventName: typeof TrackingEvents.SessionTimeTracked;
   sessionTime: SessionTimeTracking;
+  progress: {
+    completionPercent: number;
+    status: 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed';
+  };
+  commitSequence: number;
 }
 
 export interface CompletionStatusUpdatedEvent extends BaseTrackingEvent {
   eventName: typeof TrackingEvents.CompletionStatusUpdated;
   completionStatus: CompletionStatus;
-  progressPercentage: number;
+  progress: {
+    completionPercent: number;
+    status: 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed';
+  };
   completedAt?: string;
+  commitSequence: number;
 }
 
 export interface LessonCompletionTrackedEvent extends BaseTrackingEvent {
   eventName: typeof TrackingEvents.LessonCompletionTracked;
+  finalOutcome: 'completed' | 'passed' | 'failed' | 'incomplete';
   completionStatus: CompletionStatus;
-  score: number;
-  timeSpentSeconds: number;
+  successStatus: 'passed' | 'failed' | 'unknown';
+  scoreScaled: number;
+  totalTimeSeconds: number;
   completedAt?: string;
+  attemptLimitReached: boolean;
 }
-
-export type ScormTrackingEvent =
-  | LessonStatusTrackedEvent
-  | ScoreTrackedEvent
-  | SessionTimeTrackedEvent
-  | CompletionStatusUpdatedEvent
-  | LessonCompletionTrackedEvent;

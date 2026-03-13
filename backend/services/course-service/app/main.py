@@ -19,7 +19,7 @@ apply_security_headers(app)
 service = CourseService()
 
 
-@app.post("/courses", response_model=CourseResponse)
+@app.post("/courses", response_model=CourseResponse, status_code=201)
 def create_course(request: CreateCourseRequest) -> CourseResponse:
     return service.create_course(request)
 
@@ -37,6 +37,11 @@ def get_course(course_id: str, tenant_id: str) -> CourseResponse:
 @app.patch("/courses/{course_id}", response_model=CourseResponse)
 def update_course(course_id: str, request: UpdateCourseRequest) -> CourseResponse:
     return service.update_course(course_id, request)
+
+
+@app.delete("/courses/{course_id}", status_code=204)
+def delete_course(course_id: str, tenant_id: str) -> None:
+    service.delete_course(tenant_id, course_id)
 
 
 @app.post("/courses/{course_id}/publish", response_model=CourseResponse)

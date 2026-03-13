@@ -25,8 +25,8 @@ class BadgeService:
         self.repository.create_badge(badge)
         return self.repository.serialize_badge(badge)
 
-    def patch_badge_definition(self, badge_id: str, updates: dict) -> dict:
-        badge = self.repository.get_badge(badge_id)
+    def patch_badge_definition(self, tenant_id: str, badge_id: str, updates: dict) -> dict:
+        badge = self.repository.get_badge(badge_id, tenant_id)
         if not badge:
             raise HTTPException(status_code=404, detail="badge definition not found")
 
@@ -38,15 +38,13 @@ class BadgeService:
         badge.updated_at = datetime.now(timezone.utc)
         return self.repository.serialize_badge(badge)
 
-    def list_badge_definitions(self, tenant_id: str | None = None) -> list[dict]:
+    def list_badge_definitions(self, tenant_id: str) -> list[dict]:
         return [self.repository.serialize_badge(row) for row in self.repository.list_badges(tenant_id=tenant_id)]
 
     def issue_badge(self, payload: dict) -> dict:
-        badge = self.repository.get_badge(payload["badge_id"])
+        badge = self.repository.get_badge(payload["badge_id"], payload["tenant_id"])
         if not badge:
             raise HTTPException(status_code=404, detail="badge definition not found")
-        if badge.tenant_id != payload["tenant_id"]:
-            raise HTTPException(status_code=400, detail="badge tenant mismatch")
         if badge.status != BadgeStatus.ACTIVE:
             raise HTTPException(status_code=400, detail="badge definition is not active")
 
@@ -60,8 +58,8 @@ class BadgeService:
         self.repository.create_issuance(issuance)
         return self.repository.serialize_issuance(issuance)
 
-    def patch_badge_issuance(self, issuance_id: str, updates: dict) -> dict:
-        issuance = self.repository.get_issuance(issuance_id)
+    def patch_badge_issuance(self, tenant_id: str, issuance_id: str, updates: dict) -> dict:
+        issuance = self.repository.get_issuance(issuance_id, tenant_id)
         if not issuance:
             raise HTTPException(status_code=404, detail="badge issuance not found")
 
@@ -81,7 +79,7 @@ class BadgeService:
         issuances = self.repository.list_issuances(tenant_id=tenant_id, learner_id=learner_id)
         out = []
         for issuance in issuances:
-            badge = self.repository.get_badge(issuance.badge_id)
+            badge = self.repository.get_badge(issuance.badge_id, tenant_id)
             row = self.repository.serialize_issuance(issuance)
             row["badge"] = self.repository.serialize_badge(badge) if badge else None
             out.append(row)

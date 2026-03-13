@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Depends
-from .security import apply_security_headers, require_jwt
+from fastapi import FastAPI, Query
 
 from .repository import InMemoryBadgeRepository
 from .schemas import (
@@ -27,14 +26,14 @@ def create_badge_definition(payload: BadgeDefinitionCreate) -> BadgeDefinitionOu
 
 
 @app.get("/badges", response_model=list[BadgeDefinitionOut])
-def list_badge_definitions(tenant_id: str | None = None) -> list[BadgeDefinitionOut]:
+def list_badge_definitions(tenant_id: str = Query(...)) -> list[BadgeDefinitionOut]:
     return service.list_badge_definitions(tenant_id)
 
 
 @app.patch("/badges/{badge_id}", response_model=BadgeDefinitionOut)
-def patch_badge_definition(badge_id: str, payload: BadgeDefinitionPatch) -> BadgeDefinitionOut:
+def patch_badge_definition(badge_id: str, payload: BadgeDefinitionPatch, tenant_id: str = Query(...)) -> BadgeDefinitionOut:
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    return service.patch_badge_definition(badge_id, updates)
+    return service.patch_badge_definition(tenant_id, badge_id, updates)
 
 
 @app.post("/badge-issuances", response_model=BadgeIssuanceOut, status_code=201)
@@ -43,8 +42,12 @@ def create_badge_issuance(payload: BadgeIssuanceCreate) -> BadgeIssuanceOut:
 
 
 @app.patch("/badge-issuances/{issuance_id}", response_model=BadgeIssuanceOut)
-def patch_badge_issuance(issuance_id: str, payload: BadgeIssuancePatch) -> BadgeIssuanceOut:
-    return service.patch_badge_issuance(issuance_id, payload.model_dump())
+def patch_badge_issuance(
+    issuance_id: str,
+    payload: BadgeIssuancePatch,
+    tenant_id: str = Query(...),
+) -> BadgeIssuanceOut:
+    return service.patch_badge_issuance(tenant_id, issuance_id, payload.model_dump())
 
 
 @app.get("/learners/{learner_id}/badges")

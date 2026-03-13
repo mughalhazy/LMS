@@ -156,6 +156,10 @@ class CourseService:
             created_at=now,
         )
 
+    def delete_course(self, tenant_id: str, course_id: str) -> None:
+        _ = self._get_tenant_course(tenant_id, course_id)
+        del self._courses[course_id]
+
     def _get_tenant_course(self, tenant_id: str, course_id: str) -> CourseRecord:
         record = self._courses.get(course_id)
         if not record or record.tenant_id != tenant_id:

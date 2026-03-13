@@ -89,6 +89,7 @@ def test_revocation_allows_reissuance() -> None:
 
     revoked = client.patch(
         f"/badge-issuances/{issuance['issuance_id']}",
+        params={"tenant_id": "t3"},
         json={"status": "revoked", "revoke_reason": "Issued by mistake"},
     )
     assert revoked.status_code == 200
