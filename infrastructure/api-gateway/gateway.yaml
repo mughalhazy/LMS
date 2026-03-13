@@ -11,7 +11,7 @@ middleware:
   authentication:
     type: jwt
     issuer: https://auth.lms.internal
-    jwks_uri: http://auth-service:8005/.well-known/jwks.json
+    jwks_uri: discovery://auth-service/.well-known/jwks.json
     required_claims:
       - sub
       - tenant_id
