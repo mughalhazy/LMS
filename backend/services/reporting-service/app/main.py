@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from .security import apply_security_headers, require_jwt
 
 from .schemas import (
     ComplianceReportResponse,
@@ -11,7 +12,9 @@ from .schemas import (
 )
 from .service import ReportingService
 
-app = FastAPI(title="Reporting Service", version="1.0.0")
+app = FastAPI(title="Reporting Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = ReportingService()
 
 

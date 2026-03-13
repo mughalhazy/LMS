@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
+from .security import apply_security_headers, require_jwt
 
 from .models import AccountStatus
 from .schemas import (
@@ -19,8 +20,10 @@ from .schemas import (
 )
 from .service import UserService
 
-app = FastAPI(title="User Management Service", version="1.0.0")
+app = FastAPI(title="User Management Service", version="1.0.0", dependencies=[Depends(require_jwt)])
 service = UserService()
+
+apply_security_headers(app)
 
 
 @app.post("/users", response_model=UserResponse)

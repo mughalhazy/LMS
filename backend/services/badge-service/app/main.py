@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from .security import apply_security_headers, require_jwt
 
 from .repository import InMemoryBadgeRepository
 from .schemas import (
@@ -13,7 +14,9 @@ from .schemas import (
 )
 from .service import BadgeService
 
-app = FastAPI(title="Badge Service", version="1.0.0")
+app = FastAPI(title="Badge Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 repository = InMemoryBadgeRepository()
 service = BadgeService(repository)
 

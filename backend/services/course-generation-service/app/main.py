@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from .security import apply_security_headers, require_jwt
 
 from .schemas import (
     IngestionRequest,
@@ -16,7 +17,9 @@ from .schemas import (
 )
 from .service import CourseGenerationService
 
-app = FastAPI(title="Course Generation Service", version="0.1.0")
+app = FastAPI(title="Course Generation Service", version="0.1.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 service = CourseGenerationService()
 
 

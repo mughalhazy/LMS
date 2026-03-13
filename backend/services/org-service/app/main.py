@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, Depends
+from .security import apply_security_headers, require_jwt
 
 from .repository import InMemoryOrgRepository
 from .schemas import (
@@ -18,7 +19,9 @@ from .schemas import (
 )
 from .service import OrganizationService
 
-app = FastAPI(title="Organization Service", version="1.0.0")
+app = FastAPI(title="Organization Service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 repo = InMemoryOrgRepository()
 service = OrganizationService(repo)
 
