@@ -11,12 +11,13 @@ from .schemas import (
     TokenRequest,
     TokenValidationRequest,
 )
+from .secrets import SecretConfigurationError, get_required_secret
 from .service import AuthService
 from .store import InMemoryAuthStore
 
 
 STORE = InMemoryAuthStore()
-SERVICE = AuthService(STORE, signing_secret="replace-with-kms-managed-secret")
+SERVICE = AuthService(STORE, signing_secret=get_required_secret("JWT_SHARED_SECRET"))
 
 
 class AuthRequestHandler(BaseHTTPRequestHandler):
@@ -61,6 +62,8 @@ class AuthRequestHandler(BaseHTTPRequestHandler):
             self._send(400, {"error": "invalid_request", "detail": str(exc)})
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid_json"})
+        except SecretConfigurationError as exc:
+            self._send(503, {"error": "secret_not_configured", "detail": str(exc)})
 
 
 def run(host: str = "0.0.0.0", port: int = 8081) -> None:
