@@ -38,7 +38,10 @@ export interface ScormTrackingState {
   lessonId: string;
   enrollmentId: string;
   registrationId: string;
+  sessionId: string;
+  scoId: string;
   attemptNumber: number;
+  commitSequence: number;
   scormVersion: ScormVersion;
   lessonStatus: LessonStatus;
   completionStatus: CompletionStatus;
@@ -56,6 +59,8 @@ export interface TrackingContext {
   lessonId: string;
   enrollmentId: string;
   registrationId: string;
+  sessionId?: string;
+  scoId?: string;
   attemptNumber: number;
   scormVersion: ScormVersion;
 }
