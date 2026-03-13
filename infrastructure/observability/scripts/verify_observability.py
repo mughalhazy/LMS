@@ -18,36 +18,131 @@ def _load_targets(path: Path) -> dict[str, dict]:
     return output
 
 
-def verify_metrics_targets() -> None:
-    service_names = sorted([p.name for p in SERVICES_DIR.iterdir() if p.is_dir()])
+def _service_names() -> list[str]:
+    return sorted([p.name for p in SERVICES_DIR.iterdir() if p.is_dir()])
+
+
+def verify_metrics_targets() -> tuple[bool, list[str]]:
+    service_names = _service_names()
     metrics_targets = _load_targets(OBS_DIR / "services" / "services-targets.json")
-    missing = [name for name in service_names if name not in metrics_targets]
-    assert not missing, f"Missing metrics target for services: {', '.join(missing)}"
+
+    missing_services = [name for name in service_names if name not in metrics_targets]
+    invalid_targets = [
+        name
+        for name, target in metrics_targets.items()
+        if target.get("labels", {}).get("metrics_path") != "/metrics"
+        or not target.get("targets")
+    ]
+
+    issues: list[str] = []
+    if missing_services:
+        issues.append(f"Missing metrics target for services: {', '.join(missing_services)}")
+    if invalid_targets:
+        issues.append(
+            "Metrics targets are missing /metrics configuration or targets: "
+            f"{', '.join(sorted(invalid_targets))}"
+        )
+
+    return not issues, issues
 
 
-def verify_health_targets() -> None:
-    service_names = sorted([p.name for p in SERVICES_DIR.iterdir() if p.is_dir()])
+def verify_health_targets() -> tuple[bool, list[str]]:
+    service_names = _service_names()
     health_targets = _load_targets(OBS_DIR / "services" / "services-health-targets.json")
-    missing = [name for name in service_names if name not in health_targets]
-    assert not missing, f"Missing health target for services: {', '.join(missing)}"
+
+    missing_services = [name for name in service_names if name not in health_targets]
+    invalid_targets = [
+        name
+        for name, target in health_targets.items()
+        if not any(str(endpoint).endswith("/health") for endpoint in target.get("targets", []))
+    ]
+
+    issues: list[str] = []
+    if missing_services:
+        issues.append(f"Missing health target for services: {', '.join(missing_services)}")
+    if invalid_targets:
+        issues.append(
+            "Health targets not pointing to /health endpoint: "
+            f"{', '.join(sorted(invalid_targets))}"
+        )
+
+    return not issues, issues
 
 
-def verify_central_logging_and_tracing() -> None:
+def verify_central_logging_and_tracing() -> tuple[bool, bool, list[str]]:
     otel_cfg = (OBS_DIR / "config" / "otel" / "otel-collector.yml").read_text()
     promtail_cfg = (OBS_DIR / "config" / "promtail" / "promtail.yml").read_text()
 
-    assert "exporters:" in otel_cfg and "loki:" in otel_cfg, "Loki exporter missing from OTEL config"
-    assert "otlp/tempo:" in otel_cfg, "Tempo exporter missing from OTEL config"
-    assert "clients:" in promtail_cfg and "loki" in promtail_cfg, "Promtail not configured to push to Loki"
+    logging_ok = all(
+        snippet in otel_cfg
+        for snippet in ["exporters:", "loki:", "pipelines:", "logs:", "exporters: [loki]"]
+    ) and all(snippet in promtail_cfg for snippet in ["clients:", "http://loki:3100/loki/api/v1/push"])
+
+    tracing_ok = all(
+        snippet in otel_cfg
+        for snippet in ["otlp/tempo:", "traces:", "exporters: [otlp/tempo]"]
+    )
+
+    issues: list[str] = []
+    if not logging_ok:
+        issues.append("Centralized logging is not fully configured across OTEL collector and Promtail")
+    if not tracing_ok:
+        issues.append("Distributed tracing is not fully configured in OTEL collector")
+
+    return logging_ok, tracing_ok, issues
+
+
+def verify_dashboards_configured() -> tuple[bool, list[str]]:
+    dashboard_provisioning = (
+        OBS_DIR / "config" / "grafana" / "provisioning" / "dashboards" / "dashboards.yml"
+    ).read_text()
+    datasources = (
+        OBS_DIR / "config" / "grafana" / "provisioning" / "datasources" / "datasources.yml"
+    ).read_text()
+    dashboard_json = OBS_DIR / "dashboards" / "service-observability-overview.json"
+
+    dashboard_ok = (
+        "providers:" in dashboard_provisioning
+        and "path: /var/lib/grafana/dashboards" in dashboard_provisioning
+        and all(name in datasources for name in ["Prometheus", "Loki", "Tempo"])
+        and dashboard_json.exists()
+    )
+
+    issues: list[str] = []
+    if not dashboard_ok:
+        issues.append("Grafana dashboards/datasources are not fully provisioned")
+
+    return dashboard_ok, issues
 
 
 def main() -> None:
-    verify_metrics_targets()
-    verify_health_targets()
-    verify_central_logging_and_tracing()
-    print("metrics_collected")
-    print("logging_configured")
-    print("tracing_enabled")
+    metrics_ok, metrics_issues = verify_metrics_targets()
+    health_ok, health_issues = verify_health_targets()
+    logging_ok, tracing_ok, telemetry_issues = verify_central_logging_and_tracing()
+    dashboards_ok, dashboard_issues = verify_dashboards_configured()
+
+    checks = {
+        "centralized_logging_enabled": logging_ok,
+        "metrics_exported_from_services": metrics_ok,
+        "distributed_tracing_enabled": tracing_ok,
+        "health_endpoints_implemented": health_ok,
+        "monitoring_dashboards_configured": dashboards_ok,
+    }
+
+    passed = sum(1 for value in checks.values() if value)
+    monitoring_score = passed * 2
+
+    issues = metrics_issues + health_issues + telemetry_issues + dashboard_issues
+    if issues:
+        print("observability_issues")
+        for issue in issues:
+            print(f"- {issue}")
+
+    print(f"services_monitored={len(_service_names())}")
+    print(f"metrics_collected={'yes' if metrics_ok else 'no'}")
+    print(f"monitoring_score={monitoring_score}/10")
+
+    assert monitoring_score == 10, "Monitoring validation failed; score is below 10/10"
 
 
 if __name__ == "__main__":
