@@ -194,3 +194,574 @@ paths:
       responses:
         '200':
           description: Success
+
+  /api/v1/ai-tutor/{proxyPath}:
+    x-lms-service: ai-tutor-service
+    x-lms-upstream: http://ai-tutor-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/api-key/{proxyPath}:
+    x-lms-service: api-key-service
+    x-lms-upstream: http://api-key-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/assessment/{proxyPath}:
+    x-lms-service: assessment-service
+    x-lms-upstream: http://assessment-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/attempt/{proxyPath}:
+    x-lms-service: attempt-service
+    x-lms-upstream: http://attempt-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/auth/{proxyPath}:
+    x-lms-service: auth-service
+    x-lms-upstream: http://auth-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/badge/{proxyPath}:
+    x-lms-service: badge-service
+    x-lms-upstream: http://badge-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/certificate/{proxyPath}:
+    x-lms-service: certificate-service
+    x-lms-upstream: http://certificate-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/cohort/{proxyPath}:
+    x-lms-service: cohort-service
+    x-lms-upstream: http://cohort-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/content/{proxyPath}:
+    x-lms-service: content-service
+    x-lms-upstream: http://content-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/course-generation/{proxyPath}:
+    x-lms-service: course-generation-service
+    x-lms-upstream: http://course-generation-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/course/{proxyPath}:
+    x-lms-service: course-service
+    x-lms-upstream: http://course-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/department/{proxyPath}:
+    x-lms-service: department-service
+    x-lms-upstream: http://department-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/email/{proxyPath}:
+    x-lms-service: email-service
+    x-lms-upstream: http://email-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/enrollment/{proxyPath}:
+    x-lms-service: enrollment-service
+    x-lms-upstream: http://enrollment-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/event-ingestion/{proxyPath}:
+    x-lms-service: event-ingestion-service
+    x-lms-upstream: http://event-ingestion-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/group/{proxyPath}:
+    x-lms-service: group-service
+    x-lms-upstream: http://group-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/hris-sync/{proxyPath}:
+    x-lms-service: hris-sync-service
+    x-lms-upstream: http://hris-sync-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/learning-analytics/{proxyPath}:
+    x-lms-service: learning-analytics-service
+    x-lms-upstream: http://learning-analytics-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/learning-path/{proxyPath}:
+    x-lms-service: learning-path-service
+    x-lms-upstream: http://learning-path-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/lesson/{proxyPath}:
+    x-lms-service: lesson-service
+    x-lms-upstream: http://lesson-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/lti/{proxyPath}:
+    x-lms-service: lti-service
+    x-lms-upstream: http://lti-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/media/{proxyPath}:
+    x-lms-service: media-service
+    x-lms-upstream: http://media-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/notification/{proxyPath}:
+    x-lms-service: notification-service
+    x-lms-upstream: http://notification-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/org/{proxyPath}:
+    x-lms-service: org-service
+    x-lms-upstream: http://org-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/prerequisite-engine/{proxyPath}:
+    x-lms-service: prerequisite-engine-service
+    x-lms-upstream: http://prerequisite-engine-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/progress/{proxyPath}:
+    x-lms-service: progress-service
+    x-lms-upstream: http://progress-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/push/{proxyPath}:
+    x-lms-service: push-service
+    x-lms-upstream: http://push-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/quiz-engine/{proxyPath}:
+    x-lms-service: quiz-engine
+    x-lms-upstream: http://quiz-engine
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/rbac/{proxyPath}:
+    x-lms-service: rbac-service
+    x-lms-upstream: http://rbac-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/recommendation/{proxyPath}:
+    x-lms-service: recommendation-service
+    x-lms-upstream: http://recommendation-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/reporting/{proxyPath}:
+    x-lms-service: reporting-service
+    x-lms-upstream: http://reporting-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/scorm/{proxyPath}:
+    x-lms-service: scorm-service
+    x-lms-upstream: http://scorm-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/skill-analytics/{proxyPath}:
+    x-lms-service: skill-analytics-service
+    x-lms-upstream: http://skill-analytics-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/skill-inference/{proxyPath}:
+    x-lms-service: skill-inference-service
+    x-lms-upstream: http://skill-inference-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/sso/{proxyPath}:
+    x-lms-service: sso-service
+    x-lms-upstream: http://sso-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/tenant/{proxyPath}:
+    x-lms-service: tenant-service
+    x-lms-upstream: http://tenant-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/user/{proxyPath}:
+    x-lms-service: user-service
+    x-lms-upstream: http://user-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
+  /api/v1/webhook/{proxyPath}:
+    x-lms-service: webhook-service
+    x-lms-upstream: http://webhook-service
+    parameters:
+      - in: path
+        name: proxyPath
+        required: true
+        schema:
+          type: string
+    x-lms-route-type: service_prefix_proxy
+    get:
+      summary: Routed by API gateway (service prefix proxy)
+      responses:
+        '200':
+          description: Success
