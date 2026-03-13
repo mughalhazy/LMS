@@ -1,0 +1,382 @@
+[
+  {
+    "labels": {
+      "service": "ai-tutor-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "ai-tutor-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "api-key-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "api-key-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "assessment-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "assessment-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "attempt-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "attempt-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "auth-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "auth-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "badge-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "badge-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "certificate-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "certificate-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "cohort-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "cohort-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "content-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "content-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "course-generation-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "course-generation-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "course-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "course-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "department-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "department-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "email-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "email-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "enrollment-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "enrollment-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "event-ingestion-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "event-ingestion-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "group-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "group-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "hris-sync-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "hris-sync-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "learning-analytics-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "learning-analytics-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "learning-path-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "learning-path-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "lesson-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "lesson-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "lti-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "lti-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "media-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "media-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "notification-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "notification-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "org-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "org-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "prerequisite-engine-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "prerequisite-engine-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "progress-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "progress-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "push-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "push-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "quiz-engine",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "quiz-engine.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "rbac-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "rbac-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "recommendation-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "recommendation-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "reporting-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "reporting-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "scorm-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "scorm-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "skill-analytics-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "skill-analytics-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "skill-inference-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "skill-inference-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "sso-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "sso-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "tenant-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "tenant-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "user-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "user-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
+      "service": "webhook-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "webhook-service.lms.svc.cluster.local:80"
+    ]
+  }
+]
