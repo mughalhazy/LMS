@@ -51,3 +51,12 @@ def generate_behavioral_learning_recommendations(
 @app.get("/learners/{learner_id}/recommendations", response_model=LearnerRecommendationBundleResponse)
 def get_recommendation_bundle(learner_id: str, tenant_id: str = Query(...)) -> LearnerRecommendationBundleResponse:
     return LearnerRecommendationBundleResponse(bundle=service.get_bundle(tenant_id=tenant_id, learner_id=learner_id))
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "recommendation-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "recommendation-service", "service_up": 1}
+

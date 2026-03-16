@@ -46,3 +46,12 @@ def generate_quizzes(request: QuizGenerationRequest) -> QuizGenerationResponse:
 @app.post("/course-generation/pipeline:run", response_model=PipelineResponse)
 def run_pipeline(request: PipelineRequest) -> PipelineResponse:
     return service.run_pipeline(request)
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "course-generation-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "course-generation-service", "service_up": 1}
+

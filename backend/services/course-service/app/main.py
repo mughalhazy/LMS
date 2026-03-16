@@ -52,3 +52,12 @@ def publish_course(course_id: str, request: PublishCourseRequest) -> CourseRespo
 @app.post("/courses/{course_id}/versions", response_model=VersionResponse)
 def create_course_version(course_id: str, request: CreateCourseVersionRequest) -> VersionResponse:
     return service.create_course_version(course_id, request)
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "course-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "course-service", "service_up": 1}
+

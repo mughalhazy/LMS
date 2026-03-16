@@ -42,3 +42,8 @@ def issue_certificate(request: CertificateIssueRequest) -> CertificateIssueRespo
         status="issued",
         issued_at=datetime.now(timezone.utc),
     )
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "certificate-service", "service_up": 1}
+

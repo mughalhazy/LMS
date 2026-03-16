@@ -54,6 +54,11 @@ class PushRequestHandler(BaseHTTPRequestHandler):
             self._send(400, {"error": "invalid_json"})
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/health":
+            return self._send(200, {"status": "ok", "service": "push-service"})
+        if self.path == "/metrics":
+            return self._send(200, {"service": "push-service", "service_up": 1})
+
         parsed = urlparse(self.path)
         if parsed.path != "/api/v1/push/subscriptions":
             return self._send(404, {"error": "not_found"})

@@ -43,3 +43,15 @@ class LearningAnalyticsAPI:
             end_at=query.end_at,
             cohort_id=query.cohort_id,
         )
+
+
+HEALTH_ENDPOINT = "/health"
+METRICS_ENDPOINT = "/metrics"
+
+
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "learning-analytics-service"}
+
+
+def metrics() -> dict[str, int | str]:
+    return {"service": "learning-analytics-service", "service_up": 1}

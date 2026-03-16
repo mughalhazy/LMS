@@ -109,3 +109,8 @@ def consumer_launch_complete(req: ConsumerLaunchCompleteRequest):
         return service.complete_consumer_launch(req)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "lti-service", "service_up": 1}
+

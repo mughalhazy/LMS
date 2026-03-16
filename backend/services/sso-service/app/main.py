@@ -36,3 +36,8 @@ def callback(req: CallbackRequest):
         return service.callback(req)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "sso-service", "service_up": 1}
+

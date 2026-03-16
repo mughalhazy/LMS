@@ -69,6 +69,38 @@ def verify_health_targets() -> tuple[bool, list[str]]:
     return not issues, issues
 
 
+def verify_service_endpoints_declared() -> tuple[bool, list[str]]:
+    issues: list[str] = []
+    for service_dir in sorted(p for p in SERVICES_DIR.iterdir() if p.is_dir()):
+        main_py = service_dir / "app" / "main.py"
+        index_js = service_dir / "src" / "index.js"
+
+        if main_py.exists():
+            content = main_py.read_text()
+            has_health = '"/health"' in content or "'/health'" in content
+            has_metrics = '"/metrics"' in content or "'/metrics'" in content
+            if not has_health or not has_metrics:
+                missing = []
+                if not has_health:
+                    missing.append("/health")
+                if not has_metrics:
+                    missing.append("/metrics")
+                issues.append(f"{service_dir.name} missing endpoints: {', '.join(missing)}")
+        elif index_js.exists():
+            content = index_js.read_text()
+            has_health = "health" in content.lower()
+            has_metrics = "/metrics" in content or "metrics" in content.lower()
+            if not has_health or not has_metrics:
+                missing = []
+                if not has_health:
+                    missing.append("/health")
+                if not has_metrics:
+                    missing.append("/metrics")
+                issues.append(f"{service_dir.name} missing endpoints: {', '.join(missing)}")
+
+    return not issues, issues
+
+
 def verify_central_logging_and_tracing() -> tuple[bool, bool, list[str]]:
     otel_cfg = (OBS_DIR / "config" / "otel" / "otel-collector.yml").read_text()
     promtail_cfg = (OBS_DIR / "config" / "promtail" / "promtail.yml").read_text()
@@ -118,6 +150,7 @@ def verify_dashboards_configured() -> tuple[bool, list[str]]:
 def main() -> None:
     metrics_ok, metrics_issues = verify_metrics_targets()
     health_ok, health_issues = verify_health_targets()
+    endpoints_ok, endpoint_issues = verify_service_endpoints_declared()
     logging_ok, tracing_ok, telemetry_issues = verify_central_logging_and_tracing()
     dashboards_ok, dashboard_issues = verify_dashboards_configured()
 
@@ -125,24 +158,24 @@ def main() -> None:
         "centralized_logging_enabled": logging_ok,
         "metrics_exported_from_services": metrics_ok,
         "distributed_tracing_enabled": tracing_ok,
-        "health_endpoints_implemented": health_ok,
+        "health_endpoints_implemented": health_ok and endpoints_ok,
         "monitoring_dashboards_configured": dashboards_ok,
     }
 
     passed = sum(1 for value in checks.values() if value)
     monitoring_score = passed * 2
 
-    issues = metrics_issues + health_issues + telemetry_issues + dashboard_issues
+    issues = metrics_issues + health_issues + endpoint_issues + telemetry_issues + dashboard_issues
     if issues:
         print("observability_issues")
         for issue in issues:
             print(f"- {issue}")
 
     print(f"services_monitored={len(_service_names())}")
-    print(f"metrics_collected={'yes' if metrics_ok else 'no'}")
-    print(f"monitoring_score={monitoring_score}/10")
+    print(f"metrics_verified={'yes' if metrics_ok and endpoints_ok else 'no'}")
+    print(f"observability_score={monitoring_score}/10")
 
-    assert monitoring_score == 10, "Monitoring validation failed; score is below 10/10"
+    assert monitoring_score == 10, "Observability validation failed; score is below 10/10"
 
 
 if __name__ == "__main__":

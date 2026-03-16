@@ -153,3 +153,12 @@ def get_user_lifecycle_timeline(
 ):
     _ = include_audit
     return TimelineResponse(lifecycle_timeline=service.get_lifecycle_timeline(tenant_id=tenant_id, user_id=user_id, actor=actor))
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "user-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "user-service", "service_up": 1}
+

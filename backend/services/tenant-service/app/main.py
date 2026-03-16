@@ -136,3 +136,15 @@ class TenantAPI:
 
 
 __all__ = ["TenantAPI", "TenantServiceError"]
+
+
+HEALTH_ENDPOINT = "/health"
+METRICS_ENDPOINT = "/metrics"
+
+
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "tenant-service"}
+
+
+def metrics() -> dict[str, int | str]:
+    return {"service": "tenant-service", "service_up": 1}

@@ -42,3 +42,12 @@ def learning_guidance(request: LearningGuidanceRequest) -> TutorResponse:
 @app.get("/ai-tutor/sessions/{session_id}", response_model=TutorSessionSummary)
 def get_tutor_session(session_id: str, tenant_id: str) -> TutorSessionSummary:
     return service.get_session_summary(tenant_id, session_id)
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "ai-tutor-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "ai-tutor-service", "service_up": 1}
+

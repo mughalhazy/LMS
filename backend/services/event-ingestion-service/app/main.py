@@ -55,9 +55,13 @@ class EventIngestionRequestHandler(BaseHTTPRequestHandler):
             self._send(status, payload)
             return
 
-        if self.path == "/api/v1/events/metrics":
+        if self.path in {"/api/v1/events/metrics", "/metrics"}:
             status, payload = SERVICE.get_ingestion_metrics()
             self._send(status, payload)
+            return
+
+        if self.path == "/health":
+            self._send(200, {"status": "ok", "service": "event-ingestion-service"})
             return
 
         self._send(404, {"error": "not_found"})
