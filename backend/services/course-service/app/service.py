@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from .audit import AuditLogger
 from .schemas import (
     CourseResponse,
     CourseStatus,
@@ -48,6 +49,7 @@ class CourseService:
     def __init__(self) -> None:
         self._courses: dict[str, CourseRecord] = {}
         self._course_ids_by_tenant: dict[str, set[str]] = {}
+        self.audit_logger = AuditLogger("course.audit")
 
     @staticmethod
     def _now() -> datetime:
@@ -83,6 +85,12 @@ class CourseService:
         )
         self._courses[course_id] = record
         self._course_ids_by_tenant.setdefault(request.tenant_id, set()).add(course_id)
+        self.audit_logger.log(
+            event_type="course.creation",
+            tenant_id=request.tenant_id,
+            actor_id=request.created_by,
+            details={"course_id": course_id, "title": request.title},
+        )
         return self._to_response(record)
 
     def get_course(self, tenant_id: str, course_id: str) -> CourseResponse:

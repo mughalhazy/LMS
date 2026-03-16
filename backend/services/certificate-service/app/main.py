@@ -38,8 +38,10 @@ def health() -> dict[str, str]:
 
 @app.post("/api/v1/certificates", response_model=CertificateIssueResponse)
 def issue_certificate(request: CertificateIssueRequest) -> CertificateIssueResponse:
+    certificate_id = f"crt-{uuid4().hex[:10]}"
+    AUDIT_LOGGER.log(event_type="certificate.issuance", tenant_id=request.tenant_id, actor_id=request.learner_id, details={"certificate_id": certificate_id, "course_id": request.course_id})
     return CertificateIssueResponse(
-        certificate_id=f"crt-{uuid4().hex[:10]}",
+        certificate_id=certificate_id,
         tenant_id=request.tenant_id,
         learner_id=request.learner_id,
         course_id=request.course_id,

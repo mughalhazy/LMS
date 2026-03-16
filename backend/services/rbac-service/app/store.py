@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 from uuid import uuid4
 
+from .audit import AuditLogger
 from .models import (
     Assignment,
     AssignmentCreate,
@@ -125,6 +126,7 @@ class InMemoryRBACStore:
         self.role_permissions: list[RolePermission] = []
         self.assignments: dict[str, Assignment] = {}
         self.audit_log: list[AuthorizationAuditEvent] = []
+        self._audit_logger = AuditLogger("rbac.audit")
         self._seed()
 
     def _seed(self) -> None:
@@ -185,6 +187,12 @@ class InMemoryRBACStore:
             assignment_model=payload.assignment_model,
         )
         self.assignments[assignment_id] = created
+        self._audit_logger.log(
+            event_type="rbac.role.assignment.changed",
+            tenant_id=created.scope_id if created.scope_type.value == "tenant" else "platform",
+            actor_id=created.assigned_by,
+            details={"subject_id": created.subject_id, "role_id": created.role_id, "scope_type": created.scope_type.value, "scope_id": created.scope_id},
+        )
         return created
 
     def effective_permissions(

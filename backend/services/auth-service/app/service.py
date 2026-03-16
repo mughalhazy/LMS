@@ -10,34 +10,66 @@ from .schemas import (
     TokenRequest,
     TokenValidationRequest,
 )
+from .audit import AuditLogger
 from .security import hash_password, issue_token, validate_token, verify_password
 from .store import InMemoryAuthStore
 
 
 class AuthService:
-    def __init__(self, store: InMemoryAuthStore, signing_secret: str) -> None:
+    def __init__(self, store: InMemoryAuthStore, signing_secret: str, audit_logger: AuditLogger | None = None) -> None:
         self.store = store
         self.signing_secret = signing_secret
+        self.audit_logger = audit_logger or AuditLogger("auth.audit")
         self.access_ttl_s = 900
         self.refresh_ttl_s = 7 * 24 * 3600
 
     def login(self, req: LoginRequest) -> Tuple[int, Dict[str, object]]:
         tenant = self.store.tenants.get(req.tenant_id)
         if tenant is None or not tenant.active:
+            self.audit_logger.log(
+                event_type="authentication.login.denied",
+                tenant_id=req.tenant_id,
+                actor_id=req.email,
+                details={"reason": "tenant_not_available"},
+            )
             return 403, {"error": "tenant_not_available"}
 
         user = self.store.get_user_by_email(req.tenant_id, req.email)
         if user is None:
+            self.audit_logger.log(
+                event_type="authentication.login.denied",
+                tenant_id=req.tenant_id,
+                actor_id=req.email,
+                details={"reason": "invalid_credentials"},
+            )
             return 401, {"error": "invalid_credentials"}
 
         if user.status != "active":
+            self.audit_logger.log(
+                event_type="authentication.login.denied",
+                tenant_id=req.tenant_id,
+                actor_id=user.user_id,
+                details={"reason": "account_disabled"},
+            )
             return 403, {"error": "account_disabled"}
 
         if not verify_password(req.password, user.password_hash):
+            self.audit_logger.log(
+                event_type="authentication.login.denied",
+                tenant_id=req.tenant_id,
+                actor_id=user.user_id,
+                details={"reason": "invalid_credentials"},
+            )
             return 401, {"error": "invalid_credentials"}
 
         user.last_login_at = datetime.now(timezone.utc)
         session = self.store.save_session(user.user_id, user.tenant_id, self.access_ttl_s, self.refresh_ttl_s)
+        self.audit_logger.log(
+            event_type="authentication.login.succeeded",
+            tenant_id=req.tenant_id,
+            actor_id=user.user_id,
+            details={"session_id": session.session_id, "roles": user.roles},
+        )
 
         return 200, {
             "user_id": user.user_id,
