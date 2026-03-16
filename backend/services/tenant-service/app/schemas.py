@@ -1,121 +1,112 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from app.models import LifecycleEvent, LifecycleState, TenantConfiguration
+from pydantic import BaseModel, Field
+
+from app.models import LifecycleState
 
 
-@dataclass
-class ValidateTenantCreationRequest:
-    tenant_code: str
-    primary_domain: str
-    admin_email: str
-    requested_region: str
+class ValidateTenantCreationRequest(BaseModel):
+    tenant_code: str = Field(min_length=2, max_length=50)
+    primary_domain: str = Field(min_length=3)
+    requested_region: str = Field(min_length=2)
 
 
-@dataclass
-class ValidationResponse:
+class ValidationResponse(BaseModel):
     validation_passed: bool
-    errors: list[dict[str, str]] = field(default_factory=list)
+    errors: list[dict[str, str]] = Field(default_factory=list)
 
 
-@dataclass
-class CreateTenantRequest:
-    tenant_name: str
-    tenant_code: str
-    primary_domain: str
-    admin_user: str
-    data_residency_region: str
-    subscription_plan: str
+class CreateTenantRequest(BaseModel):
+    tenant_name: str = Field(min_length=2)
+    tenant_code: str = Field(min_length=2, max_length=50)
+    primary_domain: str = Field(min_length=3)
+    admin_user: str = Field(min_length=2)
+    data_residency_region: str = Field(min_length=2)
+    plan_id: str = Field(min_length=2)
+    plan_name: str = Field(min_length=2)
 
 
-@dataclass
-class CreateTenantResponse:
+class CreateTenantResponse(BaseModel):
     tenant_id: str
     bootstrap_status: str
     isolation_mode: str
     namespace_resource: str
 
 
-@dataclass
-class InitializeTenantConfigurationRequest:
+class InitializeTenantConfigurationRequest(BaseModel):
     default_locale: str = "en-US"
     timezone: str = "UTC"
-    branding: dict[str, Any] = field(default_factory=dict)
-    enabled_modules: list[str] = field(default_factory=list)
-    security_baseline: dict[str, Any] = field(default_factory=dict)
+    branding: dict[str, Any] = Field(default_factory=dict)
+    enabled_modules: list[str] = Field(default_factory=list)
+    security_baseline: dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class UpdateTenantConfigurationRequest:
+class UpdateTenantConfigurationRequest(BaseModel):
     config_patch: dict[str, Any]
     actor_id: str
     change_reason: str
 
 
-@dataclass
-class ManageFeatureFlagsRequest:
+class ManageFeatureFlagsRequest(BaseModel):
     feature_flag_changes: dict[str, bool]
-    rollout_strategy: str = "immediate"
     actor_id: str = "system"
 
 
-@dataclass
-class SuspendTenantRequest:
+class SuspendTenantRequest(BaseModel):
     suspension_reason: str
     suspended_by: str
-    effective_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-@dataclass
-class ReactivateTenantRequest:
+class ReactivateTenantRequest(BaseModel):
     reactivation_reason: str
     approved_by: str
-    effective_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-@dataclass
-class ArchiveTenantRequest:
+class ArchiveTenantRequest(BaseModel):
     archive_policy: str
     retention_period: str
     requested_by: str
 
 
-@dataclass
-class DecommissionTenantRequest:
+class DecommissionTenantRequest(BaseModel):
     legal_hold_status: bool
     purge_after_date: datetime
     approved_by: str
 
 
-@dataclass
-class TenantConfigurationResponse:
+class TenantConfigurationResponse(BaseModel):
     tenant_id: str
-    configuration: TenantConfiguration
+    configuration: dict[str, Any]
     effective_settings: dict[str, Any]
 
 
-@dataclass
-class LifecycleStatusResponse:
+class LifecycleEventResponse(BaseModel):
+    state: LifecycleState
+    reason: str
+    actor_id: str
+    effective_at: datetime
+    recorded_at: datetime
+
+
+class LifecycleStatusResponse(BaseModel):
     tenant_id: str
     lifecycle_state: LifecycleState
-    state_history: list[LifecycleEvent]
+    state_history: list[LifecycleEventResponse]
     pending_transitions: list[str]
     policy_constraints: list[str]
     next_allowed_actions: list[str]
 
 
-@dataclass
-class IsolationContext:
+class IsolationContext(BaseModel):
     tenant_id: str
     actor_tenant_id: str
     actor_id: str
     action: str
 
 
-@dataclass
-class IsolationDecision:
+class IsolationDecision(BaseModel):
     allowed: bool
     reason: str
