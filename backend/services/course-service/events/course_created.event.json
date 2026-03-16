@@ -6,6 +6,7 @@
   "purpose": "Published when a new course record is created in draft state so downstream services can index metadata, prepare analytics dimensions, and register audit evidence.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "course_id": "string",
     "title": "string",
     "description": "string",

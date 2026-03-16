@@ -6,6 +6,7 @@
   "purpose": "Published when mutable course metadata changes so dependent services stay synchronized without direct read coupling.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "course_id": "string",
     "updated_by": "string",
     "updated_fields": [

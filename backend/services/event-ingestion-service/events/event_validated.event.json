@@ -12,6 +12,7 @@
     "event_id": "string",
     "event_type": "string",
     "tenant_id": "string",
+    "correlation_id": "string",
     "schema_version": "string",
     "required_fields_present": "boolean",
     "pii_policy_passed": "boolean",

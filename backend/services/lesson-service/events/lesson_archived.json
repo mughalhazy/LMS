@@ -6,13 +6,34 @@
   "description": "Published when a lesson is archived and no longer mutable.",
   "payload_schema": {
     "type": "object",
-    "required": ["lesson_id", "tenant_id", "course_id", "status", "archived_at"],
+    "required": [
+      "lesson_id",
+      "tenant_id",
+      "correlation_id",
+      "course_id",
+      "status",
+      "archived_at"
+    ],
     "properties": {
-      "lesson_id": {"type": "string"},
-      "tenant_id": {"type": "string"},
-      "course_id": {"type": "string"},
-      "status": {"const": "archived"},
-      "archived_at": {"type": "string", "format": "date-time"}
+      "lesson_id": {
+        "type": "string"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
+      "course_id": {
+        "type": "string"
+      },
+      "status": {
+        "const": "archived"
+      },
+      "archived_at": {
+        "type": "string",
+        "format": "date-time"
+      }
     }
   }
 }

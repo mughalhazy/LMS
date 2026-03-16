@@ -5,6 +5,7 @@
   "schema_version": "1.0.0",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "enrollment_id": "uuid",
     "from_status": "assigned|active|completed|withdrawn|cancelled",
     "status": "assigned|active|completed|withdrawn|cancelled",

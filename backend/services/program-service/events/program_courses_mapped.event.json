@@ -1,1 +1,17 @@
-{"event_type":"lms.program.program_courses_mapped.v1","owner":"program-service"}
+{
+  "event_type": "lms.program.program_courses_mapped.v1",
+  "owner": "program-service",
+  "payload_schema": {
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "program_id": "string",
+    "occurred_at": "date-time",
+    "data": "object"
+  },
+  "required_fields": [
+    "tenant_id",
+    "correlation_id",
+    "program_id",
+    "occurred_at"
+  ]
+}

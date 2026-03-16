@@ -13,6 +13,7 @@
     "event_type": "string",
     "source_system": "string",
     "tenant_id": "string",
+    "correlation_id": "string",
     "actor_id": "string",
     "session_id": "string",
     "occurred_at": "datetime",

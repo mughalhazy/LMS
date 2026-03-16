@@ -13,6 +13,7 @@
   ],
   "payload_schema": {
     "tenant_id": "uuid",
+    "correlation_id": "uuid",
     "learner_id": "uuid",
     "course_id": "uuid",
     "lesson_id": "uuid",
@@ -25,6 +26,7 @@
   },
   "required_fields": [
     "tenant_id",
+    "correlation_id",
     "learner_id",
     "course_id",
     "lesson_id",

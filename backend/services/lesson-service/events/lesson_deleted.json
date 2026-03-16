@@ -6,10 +6,21 @@
   "description": "Published when a lesson record is deleted.",
   "payload_schema": {
     "type": "object",
-    "required": ["lesson_id", "tenant_id"],
+    "required": [
+      "lesson_id",
+      "tenant_id",
+      "correlation_id"
+    ],
     "properties": {
-      "lesson_id": {"type": "string"},
-      "tenant_id": {"type": "string"}
+      "lesson_id": {
+        "type": "string"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      }
     }
   }
 }

@@ -12,6 +12,7 @@
     "event_id": "string",
     "event_type": "string",
     "tenant_id": "string",
+    "correlation_id": "string",
     "received_at": "datetime",
     "rejection_reason_code": "string",
     "rejection_reason_detail": "string",

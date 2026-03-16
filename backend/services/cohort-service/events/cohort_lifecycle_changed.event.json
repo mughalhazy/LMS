@@ -6,6 +6,7 @@
   "purpose": "Emitted when cohort, batch, or tutor-group lifecycle status changes.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "cohort_id": "string",
     "action": "created|status_updated|deleted",
     "status": "draft|scheduled|active|completed|archived|cancelled",

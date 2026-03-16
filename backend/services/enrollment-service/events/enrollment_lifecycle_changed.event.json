@@ -6,6 +6,7 @@
   "description": "Canonical lifecycle event emitted for enrollment creation and every valid status transition.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "enrollment_id": "uuid",
     "learner_id": "string",
     "course_id": "string",

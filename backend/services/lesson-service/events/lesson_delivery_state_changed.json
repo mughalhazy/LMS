@@ -6,12 +6,31 @@
   "description": "Published when runtime delivery state is changed for a lesson.",
   "payload_schema": {
     "type": "object",
-    "required": ["lesson_id", "tenant_id", "delivery_state", "version"],
+    "required": [
+      "lesson_id",
+      "tenant_id",
+      "correlation_id",
+      "delivery_state",
+      "version"
+    ],
     "properties": {
-      "lesson_id": {"type": "string"},
-      "tenant_id": {"type": "string"},
-      "delivery_state": {"type": "object", "additionalProperties": true},
-      "version": {"type": "integer", "minimum": 1}
+      "lesson_id": {
+        "type": "string"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
+      "delivery_state": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
     }
   }
 }

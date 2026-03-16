@@ -11,13 +11,26 @@
       "event_type",
       "occurred_at",
       "tenant_id",
+      "correlation_id",
       "data"
     ],
     "properties": {
-      "event_id": { "type": "string" },
-      "event_type": { "const": "lesson_updated" },
-      "occurred_at": { "type": "string", "format": "date-time" },
-      "tenant_id": { "type": "string" },
+      "event_id": {
+        "type": "string"
+      },
+      "event_type": {
+        "const": "lesson_updated"
+      },
+      "occurred_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
       "data": {
         "type": "object",
         "required": [
@@ -28,18 +41,33 @@
           "changes"
         ],
         "properties": {
-          "lesson_id": { "type": "string" },
-          "course_id": { "type": "string" },
-          "updated_by": { "type": "string" },
-          "updated_at": { "type": "string", "format": "date-time" },
+          "lesson_id": {
+            "type": "string"
+          },
+          "course_id": {
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
           "changes": {
             "type": "array",
             "description": "List of modified fields with previous and current values.",
             "items": {
               "type": "object",
-              "required": ["field", "before", "after"],
+              "required": [
+                "field",
+                "before",
+                "after"
+              ],
               "properties": {
-                "field": { "type": "string" },
+                "field": {
+                  "type": "string"
+                },
                 "before": {},
                 "after": {}
               }
