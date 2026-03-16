@@ -65,6 +65,15 @@ class AuthRequestHandler(BaseHTTPRequestHandler):
         except SecretConfigurationError as exc:
             self._send(503, {"error": "secret_not_configured", "detail": str(exc)})
 
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/health":
+            self._send(200, {"status": "ok", "service": "auth-service"})
+            return
+        if self.path == "/metrics":
+            self._send(200, {"service": "auth-service", "service_up": 1})
+            return
+        self._send(404, {"error": "not_found"})
+
 
 def run(host: str = "0.0.0.0", port: int = 8081) -> None:
     server = HTTPServer((host, port), AuthRequestHandler)

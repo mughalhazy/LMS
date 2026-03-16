@@ -103,3 +103,12 @@ def list_reparent_audit_events() -> list[dict]:
         }
         for e in repo.reparent_audit_logs
     ]
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "org-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "org-service", "service_up": 1}
+

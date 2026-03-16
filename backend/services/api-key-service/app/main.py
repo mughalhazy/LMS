@@ -58,6 +58,15 @@ class ApiKeyRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid_json"})
 
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/health":
+            self._send(200, {"status": "ok", "service": "api-key-service"})
+            return
+        if self.path == "/metrics":
+            self._send(200, {"service": "api-key-service", "service_up": 1})
+            return
+        self._send(404, {"error": "not_found"})
+
 
 def run(host: str = "0.0.0.0", port: int = 8086) -> None:
     server = HTTPServer((host, port), ApiKeyRequestHandler)

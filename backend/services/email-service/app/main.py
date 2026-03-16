@@ -91,3 +91,12 @@ def list_deliveries(tenant_id: str = Query(...), status: DeliveryStatus | None =
 def get_delivery(delivery_id: str, tenant_id: str = Query(...)):
     delivery = service.get_delivery(tenant_id, delivery_id)
     return DeliveryOut(**delivery.model_dump())
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "email-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "email-service", "service_up": 1}
+

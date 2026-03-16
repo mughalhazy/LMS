@@ -46,3 +46,8 @@ def upload_content(request: ContentUploadRequest) -> ContentUploadResponse:
         content_type=request.content_type,
         status="uploaded",
     )
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "content-service", "service_up": 1}
+

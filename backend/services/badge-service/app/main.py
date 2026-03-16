@@ -53,3 +53,12 @@ def patch_badge_issuance(
 @app.get("/learners/{learner_id}/badges")
 def get_learner_badge_history(tenant_id: str, learner_id: str) -> dict:
     return service.list_learner_badge_history(tenant_id=tenant_id, learner_id=learner_id)
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "badge-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "badge-service", "service_up": 1}
+

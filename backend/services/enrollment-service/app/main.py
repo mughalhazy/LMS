@@ -58,3 +58,8 @@ def create_enrollment(request: EnrollmentCreateRequest) -> EnrollmentResponse:
         course_id=request.course_id,
         status="enrolled",
     )
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "enrollment-service", "service_up": 1}
+

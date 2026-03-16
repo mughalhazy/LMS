@@ -65,6 +65,11 @@ class NotificationRequestHandler(BaseHTTPRequestHandler):
             self._send(400, {"error": "invalid_json"})
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/health":
+            return self._send(200, {"status": "ok", "service": "notification-service"})
+        if self.path == "/metrics":
+            return self._send(200, {"service": "notification-service", "service_up": 1})
+
         parsed = urlparse(self.path)
         if parsed.path != "/api/v1/notifications/preferences":
             return self._send(404, {"error": "not_found"})

@@ -12,3 +12,8 @@ apply_security_headers(app)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "webhook-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "webhook-service", "service_up": 1}
+

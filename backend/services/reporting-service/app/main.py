@@ -36,3 +36,12 @@ def generate_analytics_dashboard(request: DashboardRequest):
 @app.post("/exports", response_model=ExportResponse)
 def export_report(request: ExportReportRequest):
     return ExportResponse(export=service.export_report(request))
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "reporting-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "reporting-service", "service_up": 1}
+

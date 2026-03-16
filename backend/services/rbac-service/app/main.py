@@ -57,3 +57,8 @@ def list_audit_log(
     _: None = Depends(build_authorization_dependency(store, "audit.view_tenant")),
 ) -> list[dict]:
     return [event.model_dump(mode="json") for event in store.list_audit_events()]
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "rbac-service", "service_up": 1}
+

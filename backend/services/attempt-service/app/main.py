@@ -54,3 +54,12 @@ def get_attempt_history(
         learner_id=learner_id,
         assessment_id=assessment_id,
     )
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "attempt-service"}
+
+@app.get("/metrics")
+def metrics() -> dict[str, int | str]:
+    return {"service": "attempt-service", "service_up": 1}
+
