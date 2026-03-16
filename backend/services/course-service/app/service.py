@@ -2,207 +2,256 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Protocol
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from .audit import AuditLogger
 from .schemas import (
+    CourseMetadata,
     CourseResponse,
     CourseStatus,
-    CreateCourseRequest,
-    CreateCourseVersionRequest,
+    DeliveryRole,
+    EventEnvelope,
+    ProgramLink,
     PublishCourseRequest,
+    PublishStatus,
+    SessionLink,
+    UpsertProgramLinksRequest,
+    UpsertSessionLinksRequest,
     UpdateCourseRequest,
-    VersionResponse,
+    CreateCourseRequest,
+    ArchiveCourseRequest,
 )
 
 
-@dataclass
-class CourseVersion:
-    version: int
-    status: CourseStatus
-    created_at: datetime
-    created_by: str
-    change_summary: str
-    content_refs: list[str] = field(default_factory=list)
-    payload: dict[str, Any] = field(default_factory=dict)
+class CourseStorageContract(Protocol):
+    def save(self, record: "CourseRecord") -> None: ...
+
+    def get(self, course_id: str) -> "CourseRecord | None": ...
+
+    def delete(self, course_id: str) -> None: ...
+
+    def list_by_tenant(self, tenant_id: str) -> list["CourseRecord"]: ...
+
+
+class EventPublisher:
+    def __init__(self) -> None:
+        self._events: list[EventEnvelope] = []
+
+    def publish(self, event: EventEnvelope) -> None:
+        self._events.append(event)
+
+    def list_events(self) -> list[EventEnvelope]:
+        return list(self._events)
+
+
+class InMemoryCourseStorage(CourseStorageContract):
+    def __init__(self) -> None:
+        self._records: dict[str, CourseRecord] = {}
+        self._course_ids_by_tenant: dict[str, set[str]] = {}
+
+    def save(self, record: "CourseRecord") -> None:
+        self._records[record.course_id] = record
+        self._course_ids_by_tenant.setdefault(record.tenant_id, set()).add(record.course_id)
+
+    def get(self, course_id: str) -> "CourseRecord | None":
+        return self._records.get(course_id)
+
+    def delete(self, course_id: str) -> None:
+        record = self._records[course_id]
+        del self._records[course_id]
+        self._course_ids_by_tenant[record.tenant_id].discard(course_id)
+
+    def list_by_tenant(self, tenant_id: str) -> list["CourseRecord"]:
+        return [self._records[cid] for cid in self._course_ids_by_tenant.get(tenant_id, set())]
 
 
 @dataclass
 class CourseRecord:
     course_id: str
     tenant_id: str
+    institution_id: str | None
     created_at: datetime
     updated_at: datetime
-    created_by: str
     status: CourseStatus
-    active_version: int
-    published_version: int | None = None
-    published_at: datetime | None = None
-    effective_from: datetime | None = None
-    versions: dict[int, CourseVersion] = field(default_factory=dict)
+    publish_status: PublishStatus
+    published_at: datetime | None
+    published_by: str | None
+    created_by: str
+    course_code: str | None
+    title: str
+    description: str | None
+    language_code: str | None
+    credit_value: float | None
+    grading_scheme: str | None
+    metadata: CourseMetadata = field(default_factory=CourseMetadata)
+    program_links: list[ProgramLink] = field(default_factory=list)
+    session_links: list[SessionLink] = field(default_factory=list)
 
 
 class CourseService:
-    def __init__(self) -> None:
-        self._courses: dict[str, CourseRecord] = {}
-        self._course_ids_by_tenant: dict[str, set[str]] = {}
+    def __init__(self, storage: CourseStorageContract | None = None) -> None:
+        self.storage = storage or InMemoryCourseStorage()
         self.audit_logger = AuditLogger("course.audit")
+        self.event_publisher = EventPublisher()
+        self.metrics: dict[str, int] = {
+            "courses_created_total": 0,
+            "courses_published_total": 0,
+            "courses_archived_total": 0,
+            "course_link_updates_total": 0,
+        }
 
     @staticmethod
     def _now() -> datetime:
         return datetime.now(timezone.utc)
 
-    @staticmethod
-    def _dump_model(model: Any, **kwargs: Any) -> dict[str, Any]:
-        if hasattr(model, "model_dump"):
-            return model.model_dump(**kwargs)
-        return model.dict(**kwargs)
-
     def create_course(self, request: CreateCourseRequest) -> CourseResponse:
         now = self._now()
-        course_id = str(uuid4())
-        payload = self._dump_model(request, exclude={"tenant_id", "created_by"})
-        version = CourseVersion(
-            version=1,
-            status=CourseStatus.DRAFT,
-            created_at=now,
-            created_by=request.created_by,
-            change_summary="Initial course draft",
-            payload=payload,
-        )
         record = CourseRecord(
-            course_id=course_id,
+            course_id=str(uuid4()),
             tenant_id=request.tenant_id,
+            institution_id=request.institution_id,
             created_at=now,
             updated_at=now,
-            created_by=request.created_by,
             status=CourseStatus.DRAFT,
-            active_version=1,
-            versions={1: version},
+            publish_status=PublishStatus.UNPUBLISHED,
+            published_at=None,
+            published_by=None,
+            created_by=request.created_by,
+            course_code=request.course_code,
+            title=request.title,
+            description=request.description,
+            language_code=request.language_code,
+            credit_value=request.credit_value,
+            grading_scheme=request.grading_scheme,
+            metadata=request.metadata,
         )
-        self._courses[course_id] = record
-        self._course_ids_by_tenant.setdefault(request.tenant_id, set()).add(course_id)
-        self.audit_logger.log(
-            event_type="course.creation",
-            tenant_id=request.tenant_id,
-            actor_id=request.created_by,
-            details={"course_id": course_id, "title": request.title},
-        )
-        return self._to_response(record)
-
-    def get_course(self, tenant_id: str, course_id: str) -> CourseResponse:
-        record = self._get_tenant_course(tenant_id, course_id)
+        self.storage.save(record)
+        self.metrics["courses_created_total"] += 1
+        self.audit_logger.log(event_type="course.created", tenant_id=request.tenant_id, actor_id=request.created_by, details={"course_id": record.course_id})
+        self._publish_event("course.lifecycle.created.v1", record, request.created_by, {"status": record.status.value})
         return self._to_response(record)
 
     def list_courses(self, tenant_id: str) -> list[CourseResponse]:
-        tenant_course_ids = self._course_ids_by_tenant.get(tenant_id, set())
-        return [self._to_response(self._courses[course_id]) for course_id in tenant_course_ids]
+        return [self._to_response(record) for record in self.storage.list_by_tenant(tenant_id)]
+
+    def get_course(self, tenant_id: str, course_id: str) -> CourseResponse:
+        return self._to_response(self._get_tenant_course(tenant_id, course_id))
 
     def update_course(self, course_id: str, request: UpdateCourseRequest) -> CourseResponse:
         record = self._get_tenant_course(request.tenant_id, course_id)
-        current_version = record.versions[record.active_version]
-        updates = self._dump_model(request, exclude_none=True, exclude={"tenant_id", "updated_by"})
-        if not updates:
-            return self._to_response(record)
+        updated_fields: list[str] = []
+        for field_name in ["title", "course_code", "description", "language_code", "credit_value", "grading_scheme"]:
+            value = getattr(request, field_name)
+            if value is not None:
+                setattr(record, field_name, value)
+                updated_fields.append(field_name)
 
-        current_version.payload.update(updates)
+        if request.metadata is not None:
+            record.metadata = request.metadata
+            updated_fields.append("metadata")
+
         record.updated_at = self._now()
+        self.storage.save(record)
+        self.audit_logger.log(event_type="course.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "updated_fields": updated_fields})
+        self._publish_event("course.lifecycle.updated.v1", record, request.updated_by, {"updated_fields": updated_fields})
         return self._to_response(record)
 
     def publish_course(self, course_id: str, request: PublishCourseRequest) -> CourseResponse:
         record = self._get_tenant_course(request.tenant_id, course_id)
+        if record.status == CourseStatus.ARCHIVED:
+            raise HTTPException(status_code=409, detail="Archived courses cannot be published")
+        if not record.title:
+            raise HTTPException(status_code=422, detail="Course must have title before publishing")
+
         now = self._now()
-
-        effective_from = request.scheduled_publish_at or now
-        status = CourseStatus.SCHEDULED if request.scheduled_publish_at and request.scheduled_publish_at > now else CourseStatus.PUBLISHED
-
-        record.status = status
-        record.published_version = record.active_version
+        record.status = CourseStatus.PUBLISHED
+        record.publish_status = PublishStatus.SCHEDULED if request.scheduled_publish_at and request.scheduled_publish_at > now else PublishStatus.PUBLISHED
         record.published_at = now
-        record.effective_from = effective_from
+        record.published_by = request.requested_by
         record.updated_at = now
-        record.versions[record.active_version].status = status
+        self.storage.save(record)
+
+        self.metrics["courses_published_total"] += 1
+        self.audit_logger.log(event_type="course.published", tenant_id=request.tenant_id, actor_id=request.requested_by, details={"course_id": course_id, "publish_status": record.publish_status.value})
+        self._publish_event("course.lifecycle.published.v1", record, request.requested_by, {"publish_status": record.publish_status.value, "publish_notes": request.publish_notes})
         return self._to_response(record)
 
-    def create_course_version(
-        self,
-        course_id: str,
-        request: CreateCourseVersionRequest,
-    ) -> VersionResponse:
+    def archive_course(self, course_id: str, request: ArchiveCourseRequest) -> CourseResponse:
         record = self._get_tenant_course(request.tenant_id, course_id)
-        if request.based_on_version not in record.versions:
-            raise HTTPException(status_code=404, detail="Base version not found")
+        record.status = CourseStatus.ARCHIVED
+        record.updated_at = self._now()
+        self.storage.save(record)
+        self.metrics["courses_archived_total"] += 1
+        self.audit_logger.log(event_type="course.archived", tenant_id=request.tenant_id, actor_id=request.requested_by, details={"course_id": course_id})
+        self._publish_event("course.lifecycle.archived.v1", record, request.requested_by, {"status": record.status.value})
+        return self._to_response(record)
 
-        now = self._now()
-        base_version = record.versions[request.based_on_version]
-        new_version_number = max(record.versions.keys()) + 1
+    def upsert_program_links(self, course_id: str, request: UpsertProgramLinksRequest) -> list[ProgramLink]:
+        record = self._get_tenant_course(request.tenant_id, course_id)
+        record.program_links = request.program_links
+        record.updated_at = self._now()
+        self.storage.save(record)
+        self.metrics["course_link_updates_total"] += 1
+        self.audit_logger.log(event_type="course.program_links.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "link_count": len(request.program_links)})
+        self._publish_event("course.linkage.program.updated.v1", record, request.updated_by, {"program_links": [link.model_dump() for link in request.program_links]})
+        return record.program_links
 
-        new_payload = dict(base_version.payload)
-        if request.metadata_overrides:
-            current_metadata = dict(new_payload.get("metadata") or {})
-            current_metadata.update(request.metadata_overrides)
-            new_payload["metadata"] = current_metadata
-
-        new_version = CourseVersion(
-            version=new_version_number,
-            status=CourseStatus.DRAFT,
-            created_at=now,
-            created_by=request.created_by,
-            change_summary=request.change_summary,
-            content_refs=request.cloned_content_refs or [],
-            payload=new_payload,
-        )
-
-        record.versions[new_version_number] = new_version
-        record.active_version = new_version_number
-        record.status = CourseStatus.DRAFT
-        record.updated_at = now
-
-        return VersionResponse(
-            course_id=record.course_id,
-            version_id=f"{record.course_id}:v{new_version_number}",
-            new_version=new_version_number,
-            status=CourseStatus.DRAFT,
-            created_at=now,
-        )
+    def upsert_session_links(self, course_id: str, request: UpsertSessionLinksRequest) -> list[SessionLink]:
+        record = self._get_tenant_course(request.tenant_id, course_id)
+        normalized_links = [SessionLink(session_id=link.session_id, delivery_role=DeliveryRole(link.delivery_role)) for link in request.session_links]
+        record.session_links = normalized_links
+        record.updated_at = self._now()
+        self.storage.save(record)
+        self.metrics["course_link_updates_total"] += 1
+        self.audit_logger.log(event_type="course.session_links.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "link_count": len(normalized_links)})
+        self._publish_event("course.linkage.session.updated.v1", record, request.updated_by, {"session_links": [link.model_dump() for link in normalized_links]})
+        return normalized_links
 
     def delete_course(self, tenant_id: str, course_id: str) -> None:
-        _ = self._get_tenant_course(tenant_id, course_id)
-        del self._courses[course_id]
-        tenant_course_ids = self._course_ids_by_tenant.get(tenant_id)
-        if tenant_course_ids is not None:
-            tenant_course_ids.discard(course_id)
-            if not tenant_course_ids:
-                del self._course_ids_by_tenant[tenant_id]
+        self._get_tenant_course(tenant_id, course_id)
+        self.storage.delete(course_id)
 
     def _get_tenant_course(self, tenant_id: str, course_id: str) -> CourseRecord:
-        record = self._courses.get(course_id)
+        record = self.storage.get(course_id)
         if not record or record.tenant_id != tenant_id:
             raise HTTPException(status_code=404, detail="Course not found for tenant")
         return record
 
-    def _to_response(self, record: CourseRecord) -> CourseResponse:
-        version_payload = record.versions[record.active_version].payload
+    def _publish_event(self, event_name: str, record: CourseRecord, actor_id: str, payload: dict) -> None:
+        self.event_publisher.publish(
+            EventEnvelope(
+                event_id=str(uuid4()),
+                event_name=event_name,
+                tenant_id=record.tenant_id,
+                aggregate_id=record.course_id,
+                actor_id=actor_id,
+                occurred_at=self._now(),
+                payload=payload,
+            )
+        )
+
+    @staticmethod
+    def _to_response(record: CourseRecord) -> CourseResponse:
         return CourseResponse(
             course_id=record.course_id,
             tenant_id=record.tenant_id,
+            institution_id=record.institution_id,
             status=record.status,
-            version=record.active_version,
+            publish_status=record.publish_status,
             created_at=record.created_at,
             updated_at=record.updated_at,
-            published_version=record.published_version,
             published_at=record.published_at,
-            effective_from=record.effective_from,
-            title=version_payload["title"],
-            description=version_payload.get("description"),
-            category_id=version_payload.get("category_id"),
-            language=version_payload.get("language"),
-            delivery_mode=version_payload.get("delivery_mode"),
-            duration_minutes=version_payload.get("duration_minutes"),
-            tags=version_payload.get("tags") or [],
-            objectives=version_payload.get("objectives") or [],
-            metadata=version_payload.get("metadata") or {},
+            published_by=record.published_by,
+            course_code=record.course_code,
+            title=record.title,
+            description=record.description,
+            language_code=record.language_code,
+            credit_value=record.credit_value,
+            grading_scheme=record.grading_scheme,
+            metadata=record.metadata,
+            program_links=record.program_links,
+            session_links=record.session_links,
         )
