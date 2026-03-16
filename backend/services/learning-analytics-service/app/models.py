@@ -6,6 +6,7 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class CourseEnrollment:
+    tenant_id: str
     learner_id: str
     course_id: str
     cohort_id: str
@@ -15,6 +16,7 @@ class CourseEnrollment:
 
 @dataclass(frozen=True)
 class CourseCompletion:
+    tenant_id: str
     learner_id: str
     course_id: str
     completion_status: str
@@ -24,6 +26,7 @@ class CourseCompletion:
 
 @dataclass(frozen=True)
 class LearningActivityEvent:
+    tenant_id: str
     learner_id: str
     course_id: str
     cohort_id: str
@@ -36,6 +39,7 @@ class LearningActivityEvent:
 
 @dataclass(frozen=True)
 class AssessmentAttempt:
+    tenant_id: str
     learner_id: str
     course_id: str
     cohort_id: str
@@ -46,6 +50,7 @@ class AssessmentAttempt:
 
 @dataclass(frozen=True)
 class PathProgressSnapshot:
+    tenant_id: str
     learner_id: str
     learning_path_id: str
     cohort_id: str

@@ -24,11 +24,12 @@ export class LessonContentService {
   constructor(private readonly repository: LessonContentRepository) {}
 
   async attachContent(input: AttachLessonContentInput): Promise<LessonContentItem> {
-    const existing = await this.repository.getContentByLessonId(input.lessonId);
+    const existing = await this.repository.getContentByLessonId(input.tenantId, input.lessonId);
     const orderIndex = input.orderIndex ?? existing.length + 1;
 
     const item: LessonContentItem = {
       lessonContentId: makeId(),
+      tenantId: input.tenantId,
       lessonId: input.lessonId,
       contentId: input.contentId,
       contentType: input.contentType,
@@ -44,7 +45,7 @@ export class LessonContentService {
 
   async upsertResource(input: UpsertLessonResourceInput): Promise<LessonResource> {
     const existing = input.resourceId
-      ? await this.repository.findResourceById(input.resourceId)
+      ? await this.repository.findResourceById(input.tenantId, input.resourceId)
       : null;
 
     if (existing) {
@@ -59,9 +60,10 @@ export class LessonContentService {
       return this.repository.updateResource(updated);
     }
 
-    const lessonResources = await this.repository.getResourcesByLessonId(input.lessonId);
+    const lessonResources = await this.repository.getResourcesByLessonId(input.tenantId, input.lessonId);
     const resource: LessonResource = {
       resourceId: makeId(),
+      tenantId: input.tenantId,
       lessonId: input.lessonId,
       label: input.label,
       resourceType: input.resourceType,
@@ -76,7 +78,7 @@ export class LessonContentService {
   }
 
   async reorderContent(input: ReorderLessonContentInput): Promise<LessonContentItem[]> {
-    const existing = await this.repository.getContentByLessonId(input.lessonId);
+    const existing = await this.repository.getContentByLessonId(input.tenantId, input.lessonId);
     const existingSet = new Set(existing.map((item) => item.lessonContentId));
 
     for (const lessonContentId of input.orderedLessonContentIds) {
@@ -100,7 +102,7 @@ export class LessonContentService {
     lessonId: UUID,
     learnerContext: LearnerContext,
   ): Promise<LessonContentItem[]> {
-    const items = await this.repository.getContentByLessonId(lessonId);
+    const items = await this.repository.getContentByLessonId(learnerContext.tenantId, lessonId);
     return items.filter((item) => this.matchesVisibility(item.visibilityRules, learnerContext));
   }
 

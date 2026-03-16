@@ -31,6 +31,7 @@ export interface VisibilityRules {
 }
 
 export interface LessonContentItem {
+  tenantId: UUID;
   lessonContentId: UUID;
   lessonId: UUID;
   contentId: UUID;
@@ -43,6 +44,7 @@ export interface LessonContentItem {
 }
 
 export interface LessonResource {
+  tenantId: UUID;
   resourceId: UUID;
   lessonId: UUID;
   label: string;
@@ -55,6 +57,7 @@ export interface LessonResource {
 }
 
 export interface AttachLessonContentInput {
+  tenantId: UUID;
   lessonId: UUID;
   contentId: UUID;
   contentType: ContentType;
@@ -65,6 +68,7 @@ export interface AttachLessonContentInput {
 }
 
 export interface UpsertLessonResourceInput {
+  tenantId: UUID;
   lessonId: UUID;
   resourceId?: UUID;
   label: string;
@@ -76,6 +80,7 @@ export interface UpsertLessonResourceInput {
 }
 
 export interface ReorderLessonContentInput {
+  tenantId: UUID;
   lessonId: UUID;
   orderedLessonContentIds: UUID[];
   actorUserId: UUID;
