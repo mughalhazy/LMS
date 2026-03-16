@@ -1,18 +1,15 @@
 {
-  "event_name": "enrollment_status_updated",
+  "event_name": "enrollment.status_transitioned",
   "producer_service": "enrollment-service",
-  "topic": "lms.enrollment.enrollment_status_updated.v1",
-  "consumer_services": [
-    "course-service",
-    "progress-service",
-    "learning-analytics-service",
-    "notification-service"
-  ],
+  "topic": "lms.enrollment.status-transitioned.v1",
+  "schema_version": "1.0.0",
   "payload": {
     "tenant_id": "string",
     "enrollment_id": "uuid",
-    "status": "string",
-    "updated_at": "datetime",
-    "updated_by": "string"
+    "from_status": "assigned|active|completed|withdrawn|cancelled",
+    "status": "assigned|active|completed|withdrawn|cancelled",
+    "actor_id": "string",
+    "change_reason": "string",
+    "updated_at": "datetime"
   }
 }
