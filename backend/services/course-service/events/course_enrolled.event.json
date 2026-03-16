@@ -1,9 +1,10 @@
 {
   "event_name": "course_enrolled",
-  "topic": "lms.course.enrolled.v1",
-  "producer_service": "course-service",
+  "topic": "lms.enrollment.created.v1",
+  "producer_service": "enrollment-service",
   "schema_version": 1,
-  "purpose": "Published when a learner is enrolled in a course so progress tracking, notifications, and compliance workflows can initialize enrollment-dependent processes.",
+  "ownership_status": "deprecated_in_course_service",
+  "purpose": "Compatibility alias kept for legacy consumers. Canonical ownership and production live in enrollment-service to preserve domain boundaries.",
   "payload": {
     "tenant_id": "string",
     "correlation_id": "string",
@@ -17,11 +18,10 @@
     "enrolled_at": "date-time"
   },
   "consumers": [
-    "progress-tracking-service",
+    "progress-service",
     "notification-service",
     "assessment-service",
-    "analytics-reporting-service",
-    "compliance-reporting-service",
-    "audit-compliance-service"
+    "learning-analytics-service",
+    "certificate-service"
   ]
 }
