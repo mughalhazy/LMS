@@ -1,50 +1,55 @@
 # Assessment Service
 
-This service implements the **assessment_service** bounded context and owns assessment authoring workflows, reusable question banks, grading rule configuration, and assessment publishing.
-
-## Scope implemented
-
-- Assessment creation with tenant-scoped ownership.
-- Question bank creation and question item management.
-- Grading rules for pass threshold and attempt constraints.
-- Publishing workflow with validation gates.
+Production-ready assessment lifecycle service for Enterprise LMS V2.
 
 ## Responsibilities
+- Assessment lifecycle and CRUD.
+- Quiz/exam/assignment/mock-test definitions.
+- Attempt and submission management.
+- Grading result linkage (`grading_result_id` only, no grading ownership).
+- Tenant-scoped request context.
+- Audit logging and observability hooks.
+- Domain event publishing for lifecycle changes.
 
-- Persist assessment metadata and lifecycle state.
-- Persist reusable question banks and question metadata (difficulty/objective tags).
-- Persist grading rules and scoring constraints.
-- Validate that publish-ready assessments have both question content and grading policy.
-- Emit audit events for compliance traceability.
+## Runtime Boundaries
+- Extends LMS runtime as an independent service module.
+- Does **not** replace Course, Lesson, Progress, or Certificate services.
+- Does **not** absorb Progress ownership.
+- Uses service-local storage contract; no shared database writes.
 
-## API handlers
+## Module Structure
+- `app/main.py`: FastAPI routes, health, metrics.
+- `app/schemas.py`: request/response contracts.
+- `app/models.py`: domain models and enums.
+- `app/service.py`: business logic and lifecycle orchestration.
+- `app/store.py`: storage contract + in-memory adapter.
+- `app/events.py`: domain event contract + publisher adapter.
+- `app/audit.py`: audit sink.
+- `app/tenant.py`: tenant-aware request context resolver.
+- `app/observability.py`: counters/metrics hooks.
+- `events/*.event.json`: event definitions.
+- `tests/test_assessment_service.py`: functional API tests.
 
-The service exposes framework-adapter friendly handlers in `src/api.py`:
+## API Routes (v1)
+- `POST /api/v1/assessments`
+- `GET /api/v1/assessments`
+- `GET /api/v1/assessments/{assessment_id}`
+- `PATCH /api/v1/assessments/{assessment_id}`
+- `POST /api/v1/assessments/{assessment_id}/publish`
+- `POST /api/v1/assessments/{assessment_id}/activate`
+- `POST /api/v1/assessments/{assessment_id}/retire`
+- `DELETE /api/v1/assessments/{assessment_id}`
+- `POST /api/v1/assessments/{assessment_id}/attempts`
+- `GET /api/v1/assessments/{assessment_id}/attempts`
+- `POST /api/v1/attempts/{attempt_id}/submissions`
+- `POST /api/v1/attempts/{attempt_id}/grade`
+- `GET /api/v1/attempts/{attempt_id}`
+- `GET /health`
+- `GET /metrics`
+- `GET /api/v1/observability/hooks`
 
-- `create_assessment`
-- `create_question_bank`
-- `add_question_item`
-- `create_grading_rule`
-- `publish_assessment`
-- `list_assessments`
-
-## Tenant isolation
-
-Every operation requires `tenant_id` and rejects cross-tenant access/mutation.
-
-## Publishing validation rules
-
-`publish_assessment` requires:
-
-1. Assessment is in `draft` state.
-2. Assessment references a question bank.
-3. Question bank contains at least one question.
-4. Assessment references a grading rule.
-
-## Events emitted
-
-- `AssessmentCreated`
-- `QuestionBankCreated`
-- `QuestionBankItemAdded`
-- `GradingRuleCreated`
-- `AssessmentPublished`
+## Local test
+```bash
+cd backend/services/assessment-service
+pytest -q
+```
