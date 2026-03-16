@@ -18,6 +18,7 @@ class LearningAnalyticsService:
 
     def course_completion_analytics(
         self,
+        tenant_id: str,
         course_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
@@ -25,12 +26,12 @@ class LearningAnalyticsService:
     ) -> dict:
         enrolled = [
             row
-            for row in self.repository.list_enrollments(course_id, cohort_id)
+            for row in self.repository.list_enrollments(tenant_id, course_id, cohort_id)
             if row.enrollment_status in {"enrolled", "in_progress"}
         ]
         completion_rows = [
             row
-            for row in self.repository.list_completions(course_id, start_at, end_at, cohort_id)
+            for row in self.repository.list_completions(tenant_id, course_id, start_at, end_at, cohort_id)
             if row.completion_status == "completed"
         ]
         completed_learner_ids = {row.learner_id for row in completion_rows}
@@ -41,6 +42,7 @@ class LearningAnalyticsService:
             median_time_hours = round((hours[mid] if len(hours) % 2 else (hours[mid - 1] + hours[mid]) / 2), 2)
 
         return {
+            "tenant_id": tenant_id,
             "course_id": course_id,
             "cohort_id": cohort_id,
             "enrolled_learners": len({item.learner_id for item in enrolled}),
@@ -51,12 +53,13 @@ class LearningAnalyticsService:
 
     def learner_engagement_metrics(
         self,
+        tenant_id: str,
         course_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
         cohort_id: str | None = None,
     ) -> dict:
-        events = self.repository.list_activities(course_id, start_at, end_at, cohort_id)
+        events = self.repository.list_activities(tenant_id, course_id, start_at, end_at, cohort_id)
         per_learner: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         for row in events:
             per_learner[row.learner_id]["active_minutes"] += row.active_minutes
@@ -84,6 +87,7 @@ class LearningAnalyticsService:
         p90_index = int(len(scores) * 0.9) - 1 if scores else 0
 
         return {
+            "tenant_id": tenant_id,
             "course_id": course_id,
             "cohort_id": cohort_id,
             "active_learners": len(per_learner),
@@ -97,28 +101,34 @@ class LearningAnalyticsService:
 
     def cohort_performance_metrics(
         self,
+        tenant_id: str,
         cohort_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
     ) -> dict:
-        cohort_courses = {row.course_id for row in self.repository.enrollments if row.cohort_id == cohort_id}
+        cohort_courses = {
+            row.course_id
+            for row in self.repository.enrollments
+            if row.tenant_id == tenant_id and row.cohort_id == cohort_id
+        }
         course_completion = {
-            course_id: self.course_completion_analytics(course_id, start_at=start_at, end_at=end_at, cohort_id=cohort_id)
+            course_id: self.course_completion_analytics(tenant_id, course_id, start_at=start_at, end_at=end_at, cohort_id=cohort_id)
             for course_id in cohort_courses
         }
 
         course_engagement = {
-            course_id: self.learner_engagement_metrics(course_id, start_at=start_at, end_at=end_at, cohort_id=cohort_id)
+            course_id: self.learner_engagement_metrics(tenant_id, course_id, start_at=start_at, end_at=end_at, cohort_id=cohort_id)
             for course_id in cohort_courses
         }
 
-        attempts = self.repository.list_assessment_attempts(cohort_id, start_at, end_at)
+        attempts = self.repository.list_assessment_attempts(tenant_id, cohort_id, start_at, end_at)
         avg_assessment_score = round(sum((a.score / a.max_score) * 100 for a in attempts) / len(attempts), 2) if attempts else 0.0
 
         completion_rates = [row["completion_rate"] for row in course_completion.values()]
         engagement_scores = [row["average_engagement_score"] for row in course_engagement.values()]
 
         return {
+            "tenant_id": tenant_id,
             "cohort_id": cohort_id,
             "tracked_courses": len(cohort_courses),
             "average_completion_rate": round(sum(completion_rates) / len(completion_rates), 2) if completion_rates else 0.0,
@@ -135,12 +145,13 @@ class LearningAnalyticsService:
 
     def learning_path_completion_analysis(
         self,
+        tenant_id: str,
         learning_path_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
         cohort_id: str | None = None,
     ) -> dict:
-        snapshots = self.repository.list_path_snapshots(learning_path_id, start_at, end_at, cohort_id)
+        snapshots = self.repository.list_path_snapshots(tenant_id, learning_path_id, start_at, end_at, cohort_id)
         latest_by_learner = {}
         for row in sorted(snapshots, key=lambda x: x.snapshot_timestamp):
             latest_by_learner[row.learner_id] = row
@@ -164,6 +175,7 @@ class LearningAnalyticsService:
         dominant_stage = max(drop_off, key=drop_off.get) if drop_off else None
 
         return {
+            "tenant_id": tenant_id,
             "learning_path_id": learning_path_id,
             "cohort_id": cohort_id,
             "assigned_learners": stage_counts["assigned"],

@@ -11,6 +11,7 @@ class LearningAnalyticsAPI:
 
     def get_course_completion_analytics(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
         return self.service.course_completion_analytics(
+            tenant_id=query.tenant_id,
             course_id=course_id,
             start_at=query.start_at,
             end_at=query.end_at,
@@ -19,6 +20,7 @@ class LearningAnalyticsAPI:
 
     def get_learner_engagement_metrics(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
         return self.service.learner_engagement_metrics(
+            tenant_id=query.tenant_id,
             course_id=course_id,
             start_at=query.start_at,
             end_at=query.end_at,
@@ -27,6 +29,7 @@ class LearningAnalyticsAPI:
 
     def get_cohort_performance_metrics(self, cohort_id: str, query: TimeWindowQuery) -> dict:
         return self.service.cohort_performance_metrics(
+            tenant_id=query.tenant_id,
             cohort_id=cohort_id,
             start_at=query.start_at,
             end_at=query.end_at,
@@ -34,6 +37,7 @@ class LearningAnalyticsAPI:
 
     def get_learning_path_completion_analysis(self, learning_path_id: str, query: LearningPathAnalyticsQuery) -> dict:
         return self.service.learning_path_completion_analysis(
+            tenant_id=query.tenant_id,
             learning_path_id=learning_path_id,
             start_at=query.start_at,
             end_at=query.end_at,

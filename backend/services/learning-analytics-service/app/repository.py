@@ -28,33 +28,42 @@ class AnalyticsRepository:
             return False
         return True
 
-    def list_enrollments(self, course_id: str, cohort_id: str | None = None) -> list[CourseEnrollment]:
+    def list_enrollments(self, tenant_id: str, course_id: str, cohort_id: str | None = None) -> list[CourseEnrollment]:
         return [
             item
             for item in self.enrollments
-            if item.course_id == course_id and (cohort_id is None or item.cohort_id == cohort_id)
+            if item.tenant_id == tenant_id
+            and item.course_id == course_id
+            and (cohort_id is None or item.cohort_id == cohort_id)
         ]
 
     def list_completions(
         self,
+        tenant_id: str,
         course_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
         cohort_id: str | None = None,
     ) -> list[CourseCompletion]:
         cohort_learners = {
-            row.learner_id for row in self.enrollments if row.course_id == course_id and (cohort_id is None or row.cohort_id == cohort_id)
+            row.learner_id
+            for row in self.enrollments
+            if row.tenant_id == tenant_id
+            and row.course_id == course_id
+            and (cohort_id is None or row.cohort_id == cohort_id)
         }
         return [
             row
             for row in self.completions
-            if row.course_id == course_id
+            if row.tenant_id == tenant_id
+            and row.course_id == course_id
             and row.learner_id in cohort_learners
             and self._in_window(row.completion_timestamp, start_at, end_at)
         ]
 
     def list_activities(
         self,
+        tenant_id: str,
         course_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
@@ -63,13 +72,15 @@ class AnalyticsRepository:
         return [
             row
             for row in self.activities
-            if row.course_id == course_id
+            if row.tenant_id == tenant_id
+            and row.course_id == course_id
             and (cohort_id is None or row.cohort_id == cohort_id)
             and self._in_window(row.event_timestamp, start_at, end_at)
         ]
 
     def list_assessment_attempts(
         self,
+        tenant_id: str,
         cohort_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
@@ -77,11 +88,14 @@ class AnalyticsRepository:
         return [
             row
             for row in self.assessment_attempts
-            if row.cohort_id == cohort_id and self._in_window(row.submitted_at, start_at, end_at)
+            if row.tenant_id == tenant_id
+            and row.cohort_id == cohort_id
+            and self._in_window(row.submitted_at, start_at, end_at)
         ]
 
     def list_path_snapshots(
         self,
+        tenant_id: str,
         learning_path_id: str,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
@@ -90,7 +104,8 @@ class AnalyticsRepository:
         return [
             row
             for row in self.path_snapshots
-            if row.learning_path_id == learning_path_id
+            if row.tenant_id == tenant_id
+            and row.learning_path_id == learning_path_id
             and (cohort_id is None or row.cohort_id == cohort_id)
             and self._in_window(row.snapshot_timestamp, start_at, end_at)
         ]

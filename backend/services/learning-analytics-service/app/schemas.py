@@ -6,6 +6,7 @@ from datetime import datetime
 
 @dataclass
 class TimeWindowQuery:
+    tenant_id: str
     start_at: datetime | None = None
     end_at: datetime | None = None
 
