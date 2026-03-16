@@ -4,204 +4,271 @@ routes:
   - path: /api/v1/users
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: user-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/users/{userId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: user-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/courses
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: course-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/courses/{courseId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: course-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/lessons
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: lesson-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/lessons/{lessonId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: lesson-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/enrollments
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: enrollment-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/enrollments/{enrollmentId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: enrollment-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/assessments
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: assessment-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/assessments/{assessmentId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: assessment-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/certificates
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: certificate-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/certificates/{certificateId}
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: certificate-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/content/uploads
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: content-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/courses/{courseId}/lessons
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: lesson-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/courses/{courseId}/publish
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: course-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/integrations/hris/employees/sync
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: hris-sync-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/integrations/crm/contacts/upsert
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: org-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/integrations/lti/launch
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: lti-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/integrations/webhooks/events
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: webhook-service
+    rate_limit_policy: webhook-ingestion-guarded
   - path: /api/v1/analytics/learners/{learnerId}/progress
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: learning-analytics-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/analytics/courses/{courseId}/performance
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: learning-analytics-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/analytics/skills
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: skill-analytics-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/analytics/compliance/reports
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: reporting-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/auth/login
     methods: [POST]
     service: auth-service
+    rate_limit_policy: auth-login-strict
   - path: /api/v1/attempts
     methods: [POST]
     service: attempt-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/attempts/{attemptId}/answers
     methods: [POST]
     service: attempt-service
+    rate_limit_policy: public-api-standard
   - path: /api/v1/events/ingest
     methods: [POST]
     service: event-ingestion-service
+    rate_limit_policy: event-ingestion-guarded
 
   # Catch-all service routes to expose every backend service through the gateway.
   service_prefix_routes:
   - path_prefix: /api/v1/ai-tutor
     service: ai-tutor-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/api-key
     service: api-key-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/assessment
     service: assessment-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/attempt
     service: attempt-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/attempts
     service: attempt-service
+    rate_limit_policy: public-api-standard
     strip_prefix: true
   - path_prefix: /api/v1/auth
     service: auth-service
+    rate_limit_policy: auth-endpoints-sensitive
     strip_prefix: false
   - path_prefix: /api/v1/badge
     service: badge-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/certificate
     service: certificate-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/cohort
     service: cohort-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/content
     service: content-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/course-generation
     service: course-generation-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/course
     service: course-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/department
     service: department-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/email
     service: email-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/enrollment
     service: enrollment-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/event-ingestion
     service: event-ingestion-service
+    rate_limit_policy: event-ingestion-guarded
     strip_prefix: false
   - path_prefix: /api/v1/events
     service: event-ingestion-service
+    rate_limit_policy: event-ingestion-guarded
     strip_prefix: false
   - path_prefix: /api/v1/group
     service: group-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/hris-sync
     service: hris-sync-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/learning-analytics
     service: learning-analytics-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/learning-path
     service: learning-path-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/lesson
     service: lesson-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/lti
     service: lti-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/media
     service: media-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/notification
     service: notification-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/org
     service: org-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/prerequisite-engine
     service: prerequisite-engine-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/progress
     service: progress-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/push
     service: push-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/quiz-engine
     service: quiz-engine
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/rbac
     service: rbac-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/recommendation
     service: recommendation-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/reporting
     service: reporting-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/scorm
     service: scorm-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/skill-analytics
     service: skill-analytics-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/skill-inference
     service: skill-inference-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/sso
     service: sso-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/tenant
     service: tenant-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/user
     service: user-service
+    rate_limit_policy: public-api-standard
     strip_prefix: false
   - path_prefix: /api/v1/webhook
     service: webhook-service
+    rate_limit_policy: webhook-ingestion-guarded
     strip_prefix: false
