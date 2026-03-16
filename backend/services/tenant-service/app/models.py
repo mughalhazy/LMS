@@ -7,7 +7,6 @@ from typing import Any
 
 
 class IsolationMode(str, Enum):
-    SHARED_SCHEMA = "shared_schema"
     SCHEMA_PER_TENANT = "schema_per_tenant"
     DATABASE_PER_TENANT = "database_per_tenant"
 
@@ -18,6 +17,12 @@ class LifecycleState(str, Enum):
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
     DECOMMISSIONED = "decommissioned"
+
+
+@dataclass
+class PlanLink:
+    plan_id: str
+    plan_name: str
 
 
 @dataclass
@@ -48,7 +53,7 @@ class Tenant:
     primary_domain: str
     admin_user: str
     data_residency_region: str
-    subscription_plan: str
+    plan_link: PlanLink
     isolation_mode: IsolationMode
     lifecycle_state: LifecycleState = LifecycleState.PROVISIONING
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

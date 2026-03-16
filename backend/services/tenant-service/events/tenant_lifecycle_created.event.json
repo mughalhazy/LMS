@@ -1,0 +1,10 @@
+{
+  "event_type": "tenant.lifecycle.created",
+  "version": "1.0.0",
+  "description": "Published when a tenant root is provisioned and activated.",
+  "payload": {
+    "tenant_id": "string",
+    "state": "active",
+    "timestamp": "RFC3339 datetime"
+  }
+}

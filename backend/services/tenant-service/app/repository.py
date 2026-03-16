@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from app.models import Tenant, TenantNamespace
+from app.store import TenantStore
 
 
-class TenantRepository:
+class InMemoryTenantStore(TenantStore):
+    """Reference store for local runs/tests; production store should implement TenantStore."""
+
     def __init__(self) -> None:
         self._tenants: dict[str, Tenant] = {}
         self._namespace_by_tenant: dict[str, TenantNamespace] = {}
@@ -11,6 +14,9 @@ class TenantRepository:
     def add(self, tenant: Tenant, namespace: TenantNamespace) -> None:
         self._tenants[tenant.tenant_id] = tenant
         self._namespace_by_tenant[tenant.tenant_id] = namespace
+
+    def update(self, tenant: Tenant) -> None:
+        self._tenants[tenant.tenant_id] = tenant
 
     def get(self, tenant_id: str) -> Tenant | None:
         return self._tenants.get(tenant_id)
