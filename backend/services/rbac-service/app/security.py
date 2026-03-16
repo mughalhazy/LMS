@@ -7,12 +7,12 @@ import json
 import os
 from typing import Any
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.responses import Response
 
 _AUTH_SCHEME = HTTPBearer(auto_error=False)
-_EXEMPT_PATHS = {"/health", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+_EXEMPT_PATHS = {"/health", "/api/v1/rbac/health", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
 
 
 def _decode_base64url(value: str) -> bytes:
@@ -55,8 +55,16 @@ def require_jwt(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_bearer_token")
 
-    payload = _validate_hs256_jwt(credentials.credentials, secret)
-    request.state.jwt_payload = payload
+    request.state.jwt_payload = _validate_hs256_jwt(credentials.credentials, secret)
+
+
+def require_tenant_scope(request: Request, x_tenant_id: str | None = Header(None, alias="X-Tenant-Id")) -> None:
+    if request.url.path in _EXEMPT_PATHS:
+        return
+    payload = getattr(request.state, "jwt_payload", {})
+    claim_tenant = payload.get("tenant_id")
+    if not x_tenant_id or not claim_tenant or claim_tenant != x_tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="tenant_mismatch")
 
 
 def apply_security_headers(app) -> None:
