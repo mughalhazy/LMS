@@ -47,15 +47,22 @@ class CourseRecord:
 class CourseService:
     def __init__(self) -> None:
         self._courses: dict[str, CourseRecord] = {}
+        self._course_ids_by_tenant: dict[str, set[str]] = {}
 
     @staticmethod
     def _now() -> datetime:
         return datetime.now(timezone.utc)
 
+    @staticmethod
+    def _dump_model(model: Any, **kwargs: Any) -> dict[str, Any]:
+        if hasattr(model, "model_dump"):
+            return model.model_dump(**kwargs)
+        return model.dict(**kwargs)
+
     def create_course(self, request: CreateCourseRequest) -> CourseResponse:
         now = self._now()
         course_id = str(uuid4())
-        payload = request.model_dump(exclude={"tenant_id", "created_by"})
+        payload = self._dump_model(request, exclude={"tenant_id", "created_by"})
         version = CourseVersion(
             version=1,
             status=CourseStatus.DRAFT,
@@ -75,6 +82,7 @@ class CourseService:
             versions={1: version},
         )
         self._courses[course_id] = record
+        self._course_ids_by_tenant.setdefault(request.tenant_id, set()).add(course_id)
         return self._to_response(record)
 
     def get_course(self, tenant_id: str, course_id: str) -> CourseResponse:
@@ -82,16 +90,13 @@ class CourseService:
         return self._to_response(record)
 
     def list_courses(self, tenant_id: str) -> list[CourseResponse]:
-        return [
-            self._to_response(course)
-            for course in self._courses.values()
-            if course.tenant_id == tenant_id
-        ]
+        tenant_course_ids = self._course_ids_by_tenant.get(tenant_id, set())
+        return [self._to_response(self._courses[course_id]) for course_id in tenant_course_ids]
 
     def update_course(self, course_id: str, request: UpdateCourseRequest) -> CourseResponse:
         record = self._get_tenant_course(request.tenant_id, course_id)
         current_version = record.versions[record.active_version]
-        updates = request.model_dump(exclude_none=True, exclude={"tenant_id", "updated_by"})
+        updates = self._dump_model(request, exclude_none=True, exclude={"tenant_id", "updated_by"})
         if not updates:
             return self._to_response(record)
 
@@ -159,6 +164,11 @@ class CourseService:
     def delete_course(self, tenant_id: str, course_id: str) -> None:
         _ = self._get_tenant_course(tenant_id, course_id)
         del self._courses[course_id]
+        tenant_course_ids = self._course_ids_by_tenant.get(tenant_id)
+        if tenant_course_ids is not None:
+            tenant_course_ids.discard(course_id)
+            if not tenant_course_ids:
+                del self._course_ids_by_tenant[tenant_id]
 
     def _get_tenant_course(self, tenant_id: str, course_id: str) -> CourseRecord:
         record = self._courses.get(course_id)
