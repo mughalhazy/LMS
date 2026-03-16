@@ -272,3 +272,7 @@ routes:
     service: webhook-service
     rate_limit_policy: webhook-ingestion-guarded
     strip_prefix: false
+  - path_prefix: /api/v1/program
+    service: program-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false

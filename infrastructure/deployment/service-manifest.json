@@ -210,6 +210,14 @@
       "start_command": ""
     },
     {
+      "name": "program-service",
+      "path": "backend/services/program-service",
+      "runtime": "python",
+      "port": 8138,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
       "name": "push-service",
       "path": "backend/services/push-service",
       "runtime": "python",

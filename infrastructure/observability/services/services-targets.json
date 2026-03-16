@@ -378,5 +378,15 @@
     "targets": [
       "webhook-service.lms.svc.cluster.local:80"
     ]
+  },
+  {
+    "labels": {
+      "service": "program-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "program-service.lms.svc.cluster.local:80"
+    ]
   }
 ]
