@@ -1,10 +1,14 @@
 """Service entrypoint."""
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-app = FastAPI()
+from .security import apply_security_headers, require_jwt
+
+app = FastAPI(title="webhook-service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "service": "webhook-service"}
