@@ -12,6 +12,11 @@ from .schemas import (
 )
 from .store import InMemoryEventStore
 
+TIMESTAMP_FIELDS_BY_EVENT = {
+    event_type: [f for f in fields if f.endswith("_at") or f.endswith("_timestamp")]
+    for event_type, fields in SUPPORTED_EVENT_FIELDS.items()
+}
+
 
 class EventIngestionService:
     def __init__(self, store: InMemoryEventStore) -> None:
@@ -124,8 +129,7 @@ class EventIngestionService:
                     field,
                 )
 
-        timestamp_fields = [f for f in required_fields if f.endswith("_at") or f.endswith("_timestamp")]
-        for timestamp_field in timestamp_fields:
+        for timestamp_field in TIMESTAMP_FIELDS_BY_EVENT.get(request.event_type, []):
             if timestamp_field in request.payload:
                 ensure_iso8601(str(request.payload[timestamp_field]), timestamp_field)
 
