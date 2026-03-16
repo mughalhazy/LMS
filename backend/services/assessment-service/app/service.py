@@ -1,7 +1,249 @@
-"""Service layer."""
+from __future__ import annotations
+
+from dataclasses import asdict, replace
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from fastapi import HTTPException
+
+from .audit import AuditLogger
+from .events import DomainEvent, EventPublisher
+from .models import AssessmentDefinition, AssessmentStatus, AssessmentType, AttemptRecord, AttemptStatus, SubmissionRecord
+from .observability import ServiceMetrics
+from .schemas import (
+    AssessmentCreateRequest,
+    AssessmentListResponse,
+    AssessmentResponse,
+    AssessmentUpdateRequest,
+    AttemptResponse,
+    AttemptStartRequest,
+    GradeAttemptRequest,
+    SubmissionCreateRequest,
+    SubmissionResponse,
+)
+from .store import AssessmentStore
 
 
-class Service:
-    """Base service placeholder."""
+class AssessmentService:
+    def __init__(
+        self,
+        store: AssessmentStore,
+        event_publisher: EventPublisher,
+        audit_logger: AuditLogger,
+        metrics: ServiceMetrics,
+    ) -> None:
+        self.store = store
+        self.event_publisher = event_publisher
+        self.audit_logger = audit_logger
+        self.metrics = metrics
 
-    pass
+    @staticmethod
+    def _now() -> datetime:
+        return datetime.now(timezone.utc)
+
+    def create_assessment(self, tenant_id: str, request: AssessmentCreateRequest) -> AssessmentResponse:
+        if request.passing_score > request.max_score:
+            raise HTTPException(status_code=422, detail="passing_score cannot exceed max_score")
+
+        record = AssessmentDefinition(
+            assessment_id=str(uuid4()),
+            tenant_id=tenant_id,
+            course_id=request.course_id,
+            lesson_id=request.lesson_id,
+            title=request.title,
+            description=request.description,
+            assessment_type=request.assessment_type,
+            status=AssessmentStatus.DRAFT,
+            max_score=request.max_score,
+            passing_score=request.passing_score,
+            time_limit_minutes=request.time_limit_minutes,
+            question_count=request.question_count,
+            metadata=request.metadata,
+            created_by=request.actor_id,
+            created_at=self._now(),
+            updated_at=self._now(),
+        )
+        created = self.store.create_assessment(record)
+        self.metrics.inc("assessments_created")
+        self._audit(tenant_id, request.actor_id, "assessment.created", created.assessment_id, {"type": created.assessment_type.value})
+        self._event("assessment.created", tenant_id, created.assessment_id, {"status": created.status.value, "type": created.assessment_type.value})
+        return self._to_assessment_response(created)
+
+    def list_assessments(self, tenant_id: str) -> AssessmentListResponse:
+        items = sorted(self.store.list_assessments(tenant_id), key=lambda item: item.created_at)
+        return AssessmentListResponse(items=[self._to_assessment_response(item) for item in items])
+
+    def get_assessment(self, tenant_id: str, assessment_id: str) -> AssessmentResponse:
+        record = self.store.get_assessment(tenant_id, assessment_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="assessment not found")
+        return self._to_assessment_response(record)
+
+    def update_assessment(self, tenant_id: str, assessment_id: str, request: AssessmentUpdateRequest) -> AssessmentResponse:
+        current = self.store.get_assessment(tenant_id, assessment_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="assessment not found")
+
+        updated = replace(
+            current,
+            title=request.title if request.title is not None else current.title,
+            description=request.description if request.description is not None else current.description,
+            max_score=request.max_score if request.max_score is not None else current.max_score,
+            passing_score=request.passing_score if request.passing_score is not None else current.passing_score,
+            time_limit_minutes=request.time_limit_minutes if request.time_limit_minutes is not None else current.time_limit_minutes,
+            question_count=request.question_count if request.question_count is not None else current.question_count,
+            metadata=request.metadata if request.metadata is not None else current.metadata,
+            updated_at=self._now(),
+        )
+        if updated.passing_score > updated.max_score:
+            raise HTTPException(status_code=422, detail="passing_score cannot exceed max_score")
+
+        persisted = self.store.update_assessment(updated)
+        self.metrics.inc("assessments_updated")
+        self._audit(tenant_id, request.actor_id, "assessment.updated", assessment_id, {})
+        self._event("assessment.updated", tenant_id, assessment_id, {"status": persisted.status.value})
+        return self._to_assessment_response(persisted)
+
+    def transition_assessment(
+        self,
+        tenant_id: str,
+        assessment_id: str,
+        actor_id: str,
+        target_status: AssessmentStatus,
+    ) -> AssessmentResponse:
+        current = self.store.get_assessment(tenant_id, assessment_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="assessment not found")
+
+        allowed = {
+            AssessmentStatus.DRAFT: {AssessmentStatus.PUBLISHED},
+            AssessmentStatus.PUBLISHED: {AssessmentStatus.ACTIVE, AssessmentStatus.RETIRED},
+            AssessmentStatus.ACTIVE: {AssessmentStatus.RETIRED},
+            AssessmentStatus.RETIRED: set(),
+        }
+        if target_status not in allowed[current.status]:
+            raise HTTPException(status_code=409, detail="invalid lifecycle transition")
+
+        updated = replace(current, status=target_status, updated_at=self._now())
+        persisted = self.store.update_assessment(updated)
+        self._audit(tenant_id, actor_id, "assessment.lifecycle_changed", assessment_id, {"to": target_status.value})
+        self._event("assessment.lifecycle_changed", tenant_id, assessment_id, {"from": current.status.value, "to": target_status.value})
+        return self._to_assessment_response(persisted)
+
+    def delete_assessment(self, tenant_id: str, assessment_id: str, actor_id: str) -> None:
+        current = self.store.get_assessment(tenant_id, assessment_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="assessment not found")
+        self.store.delete_assessment(tenant_id, assessment_id)
+        self._audit(tenant_id, actor_id, "assessment.deleted", assessment_id, {})
+        self._event("assessment.deleted", tenant_id, assessment_id, {})
+
+    def start_attempt(self, tenant_id: str, assessment_id: str, request: AttemptStartRequest) -> AttemptResponse:
+        assessment = self.store.get_assessment(tenant_id, assessment_id)
+        if not assessment:
+            raise HTTPException(status_code=404, detail="assessment not found")
+        if assessment.status not in {AssessmentStatus.PUBLISHED, AssessmentStatus.ACTIVE}:
+            raise HTTPException(status_code=409, detail="assessment not available for attempts")
+
+        attempt = AttemptRecord(
+            attempt_id=str(uuid4()),
+            tenant_id=tenant_id,
+            assessment_id=assessment_id,
+            learner_id=request.learner_id,
+            started_at=self._now(),
+            status=AttemptStatus.STARTED,
+        )
+        persisted = self.store.create_attempt(attempt)
+        self.metrics.inc("attempts_started")
+        self._audit(tenant_id, request.learner_id, "assessment.attempt_started", persisted.attempt_id, {"assessment_id": assessment_id})
+        self._event("assessment.attempt_started", tenant_id, persisted.attempt_id, {"assessment_id": assessment_id})
+        return self._to_attempt_response(persisted)
+
+    def submit_attempt(self, tenant_id: str, attempt_id: str, request: SubmissionCreateRequest) -> SubmissionResponse:
+        attempt = self.store.get_attempt(tenant_id, attempt_id)
+        if not attempt:
+            raise HTTPException(status_code=404, detail="attempt not found")
+        if attempt.status == AttemptStatus.GRADED:
+            raise HTTPException(status_code=409, detail="graded attempt cannot accept submissions")
+
+        submission = SubmissionRecord(
+            submission_id=str(uuid4()),
+            attempt_id=attempt_id,
+            tenant_id=tenant_id,
+            payload=request.payload,
+            submitted_by=request.submitted_by,
+            submitted_at=self._now(),
+        )
+        persisted_submission = self.store.save_submission(submission)
+        updated_attempt = replace(attempt, status=AttemptStatus.SUBMITTED, submitted_at=self._now())
+        self.store.update_attempt(updated_attempt)
+
+        self.metrics.inc("submissions_recorded")
+        self._audit(tenant_id, request.submitted_by, "assessment.submitted", attempt_id, {"submission_id": persisted_submission.submission_id})
+        self._event("assessment.submitted", tenant_id, attempt_id, {"submission_id": persisted_submission.submission_id})
+        return self._to_submission_response(persisted_submission)
+
+    def grade_attempt(self, tenant_id: str, attempt_id: str, request: GradeAttemptRequest) -> AttemptResponse:
+        attempt = self.store.get_attempt(tenant_id, attempt_id)
+        if not attempt:
+            raise HTTPException(status_code=404, detail="attempt not found")
+        if not self.store.list_submissions(tenant_id, attempt_id):
+            raise HTTPException(status_code=409, detail="attempt cannot be graded before submission")
+
+        graded = replace(
+            attempt,
+            status=AttemptStatus.GRADED,
+            grading_result_id=request.grading_result_id,
+            submitted_at=attempt.submitted_at or self._now(),
+        )
+        persisted = self.store.update_attempt(graded)
+        self.metrics.inc("attempts_graded")
+        self._audit(tenant_id, request.actor_id, "assessment.graded", attempt_id, {"grading_result_id": request.grading_result_id})
+        self._event("assessment.graded", tenant_id, attempt_id, {"grading_result_id": request.grading_result_id})
+        return self._to_attempt_response(persisted)
+
+    def get_attempt(self, tenant_id: str, attempt_id: str) -> AttemptResponse:
+        attempt = self.store.get_attempt(tenant_id, attempt_id)
+        if not attempt:
+            raise HTTPException(status_code=404, detail="attempt not found")
+        return self._to_attempt_response(attempt)
+
+    def list_attempts(self, tenant_id: str, assessment_id: str) -> list[AttemptResponse]:
+        attempts = sorted(self.store.list_attempts(tenant_id, assessment_id), key=lambda item: item.started_at)
+        return [self._to_attempt_response(item) for item in attempts]
+
+    def _event(self, event_type: str, tenant_id: str, entity_id: str, payload: dict[str, object]) -> None:
+        self.event_publisher.publish(
+            DomainEvent(
+                event_type=event_type,
+                tenant_id=tenant_id,
+                entity_id=entity_id,
+                occurred_at=self._now(),
+                payload=payload,
+            )
+        )
+
+    def _audit(self, tenant_id: str, actor_id: str, action: str, entity_id: str, details: dict[str, object]) -> None:
+        self.audit_logger.log(
+            {
+                "tenant_id": tenant_id,
+                "actor_id": actor_id,
+                "action": action,
+                "entity_type": "assessment",
+                "entity_id": entity_id,
+                "occurred_at": self._now().isoformat(),
+                "details": details,
+            }
+        )
+
+    @staticmethod
+    def _to_assessment_response(record: AssessmentDefinition) -> AssessmentResponse:
+        return AssessmentResponse(**asdict(record))
+
+    @staticmethod
+    def _to_attempt_response(record: AttemptRecord) -> AttemptResponse:
+        return AttemptResponse(**asdict(record))
+
+    @staticmethod
+    def _to_submission_response(record: SubmissionRecord) -> SubmissionResponse:
+        return SubmissionResponse(**asdict(record))

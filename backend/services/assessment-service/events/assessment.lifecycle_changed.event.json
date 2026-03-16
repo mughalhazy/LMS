@@ -1,0 +1,10 @@
+{
+  "event_type": "assessment.lifecycle_changed",
+  "description": "Published when an assessment lifecycle status transitions.",
+  "payload": {
+    "tenant_id": "string",
+    "entity_id": "assessment_id",
+    "from": "draft|published|active|retired",
+    "to": "draft|published|active|retired"
+  }
+}
