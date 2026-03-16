@@ -1,0 +1,25 @@
+{
+  "event_name": "enrollment.lifecycle.changed",
+  "producer_service": "enrollment-service",
+  "topic": "lms.enrollment.lifecycle-changed.v1",
+  "schema_version": "1.0.0",
+  "description": "Canonical lifecycle event emitted for enrollment creation and every valid status transition.",
+  "payload": {
+    "tenant_id": "string",
+    "enrollment_id": "uuid",
+    "learner_id": "string",
+    "course_id": "string",
+    "cohort_id": "string|null",
+    "session_id": "string|null",
+    "from_status": "assigned|active|completed|withdrawn|cancelled|null",
+    "status": "assigned|active|completed|withdrawn|cancelled",
+    "actor_id": "string",
+    "change_reason": "string",
+    "occurred_at": "datetime"
+  },
+  "consumer_services": [
+    "progress-service",
+    "notification-service",
+    "analytics-service"
+  ]
+}

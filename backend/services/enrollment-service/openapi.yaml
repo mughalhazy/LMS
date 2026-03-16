@@ -1,0 +1,119 @@
+openapi: 3.0.3
+info:
+  title: Enrollment Service API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /metrics:
+    get:
+      summary: Service metrics
+      responses:
+        '200':
+          description: Metrics payload
+  /api/v1/enrollments:
+    post:
+      summary: Create an enrollment
+      parameters:
+        - in: header
+          name: X-Tenant-Id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Actor-Id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentCreateRequest'
+      responses:
+        '201':
+          description: Enrollment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+    get:
+      summary: List enrollments
+      parameters:
+        - in: query
+          name: learner_id
+          schema: { type: string }
+        - in: query
+          name: course_id
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: Enrollment list
+  /api/v1/enrollments/{enrollment_id}:
+    get:
+      summary: Fetch enrollment by id
+      parameters:
+        - in: path
+          name: enrollment_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Enrollment
+  /api/v1/enrollments/{enrollment_id}/status-transitions:
+    post:
+      summary: Transition enrollment status
+      parameters:
+        - in: path
+          name: enrollment_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusTransitionRequest'
+      responses:
+        '200':
+          description: Enrollment after transition
+components:
+  schemas:
+    EnrollmentCreateRequest:
+      type: object
+      required: [learner_id, course_id, assignment_source]
+      properties:
+        learner_id: { type: string }
+        course_id: { type: string }
+        assignment_source: { type: string }
+        cohort_id: { type: string, nullable: true }
+        session_id: { type: string, nullable: true }
+    StatusTransitionRequest:
+      type: object
+      required: [to_status, reason]
+      properties:
+        to_status:
+          type: string
+          enum: [assigned, active, completed, withdrawn, cancelled]
+        reason: { type: string }
+    Enrollment:
+      type: object
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        learner_id: { type: string }
+        course_id: { type: string }
+        assignment_source: { type: string }
+        cohort_id: { type: string, nullable: true }
+        session_id: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [assigned, active, completed, withdrawn, cancelled]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
