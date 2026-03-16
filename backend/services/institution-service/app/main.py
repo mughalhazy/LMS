@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fastapi import FastAPI
+
 from app.errors import InstitutionServiceError
 from app.models import InstitutionStatus
 from app.repository import InstitutionRepository
@@ -16,6 +18,8 @@ from app.schemas import (
     UpdateInstitutionRequest,
 )
 from app.service import InstitutionService
+
+app = FastAPI(title="institution-service", version="2.0.0")
 
 
 class InstitutionAPI:
@@ -114,3 +118,16 @@ class InstitutionAPI:
 
 
 __all__ = ["InstitutionAPI", "InstitutionServiceError"]
+
+
+_api = InstitutionAPI()
+
+
+@app.get("/health", response_model=HealthResponse, tags=["health"])
+def health() -> HealthResponse:
+    return _api.health()
+
+
+@app.get("/metrics", response_model=MetricsResponse, tags=["health"])
+def metrics() -> MetricsResponse:
+    return _api.metrics()
