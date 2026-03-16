@@ -5,15 +5,15 @@ organizations
 organization_id (PK), tenant_id (FK), name, code, status (active/inactive), parent_organization_id (nullable FK for multi-org enterprises), primary_admin_user_id, timezone, locale, created_at, updated_at
 
 departments
-department_id (PK), organization_id (FK), name, code, status (active/inactive), parent_department_id (nullable FK), department_head_user_id, cost_center, created_at, updated_at
+department_id (PK), tenant_id (FK), organization_id (FK), name, code, status (active/inactive), parent_department_id (nullable FK), department_head_user_id, cost_center, created_at, updated_at
 
 teams
-team_id (PK), department_id (FK), name, code, status (active/inactive), team_lead_user_id, capacity, created_at, updated_at
+team_id (PK), tenant_id (FK), department_id (FK), name, code, status (active/inactive), team_lead_user_id, capacity, created_at, updated_at
 
 relationships
 source_entity | relationship | target_entity | cardinality | notes
-organizations | contains | departments | 1:N | Every department must belong to exactly one organization.
-departments | contains | teams | 1:N | Every team must belong to exactly one department.
+organizations | contains | departments | 1:N | Every department must belong to exactly one organization and match organization.tenant_id.
+departments | contains | teams | 1:N | Every team must belong to exactly one department and match department.tenant_id.
 organizations | may_have_parent | organizations | N:1 (optional) | Supports enterprise group structures while preserving tenant isolation.
 departments | may_have_parent | departments | N:1 (optional) | Supports nested departments (e.g., Engineering > Platform).
 
@@ -25,3 +25,4 @@ rules
 - Users can be assigned memberships at any level, but effective access is resolved by least-privilege plus inherited visibility from parent entities.
 - Cross-organization team membership is not allowed unless explicitly enabled through inter-organization collaboration policy.
 - Re-parenting departments or teams must be audit logged with before/after parent IDs and actor metadata.
+- Tenant integrity is mandatory: organizations, departments, and teams must all carry tenant_id and all joins/mutations must enforce tenant_id equality.

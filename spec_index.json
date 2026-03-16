@@ -60,6 +60,12 @@
       "chars": 505
     },
     {
+      "file": "docs/architecture/ARCH_07_multi_tenant_isolation_model.md",
+      "domain": "system_architecture",
+      "bytes": 5937,
+      "chars": 5929
+    },
+    {
       "file": "docs/architecture/DOC_04_academy_operational_model.md",
       "domain": "system_architecture",
       "bytes": 7364,
@@ -250,6 +256,12 @@
       "domain": "system_architecture",
       "bytes": 3369,
       "chars": 3367
+    },
+    {
+      "file": "docs/data/DOC_09_learning_data_model_overview.md",
+      "domain": "data_models",
+      "bytes": 6505,
+      "chars": 6467
     },
     {
       "file": "docs/data/analytics_data_model.md",
@@ -470,8 +482,8 @@
     {
       "file": "docs/specs/org_hierarchy_spec.md",
       "domain": "service_definitions",
-      "bytes": 1961,
-      "chars": 1961
+      "bytes": 2210,
+      "chars": 2210
     },
     {
       "file": "docs/specs/prerequisite_engine_spec.md",
@@ -526,12 +538,6 @@
       "domain": "service_definitions",
       "bytes": 2825,
       "chars": 2825
-    },
-    {
-      "file": "docs/data/DOC_09_learning_data_model_overview.md",
-      "domain": "data_models",
-      "bytes": 6505,
-      "chars": 6467
     }
   ]
 }
