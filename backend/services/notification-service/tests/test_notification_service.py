@@ -108,3 +108,121 @@ def test_drain_delivery_queue_marks_failed_email_recipient() -> None:
     assert status == 200
     assert payload["failed"] == 1
     assert payload["failed_messages"][0]["failure_reason"] == "unresolvable_email_recipient"
+
+
+def test_service_crash_and_restart_recovery() -> None:
+    service = make_service()
+    service.store.crash_service()
+
+    status, payload = service.list_preferences("tenant-acme", "user1@acme.com")
+    assert status == 503
+    assert payload["error"] == "service_restarting"
+
+    service.store.restart_service()
+    status, payload = service.list_preferences("tenant-acme", "user1@acme.com")
+    assert status == 200
+    assert payload["preferences"] == []
+
+
+def test_event_bus_failure_opens_circuit_breaker_and_gracefully_degrades() -> None:
+    service = make_service()
+    service.store.set_event_bus_availability(False)
+
+    status, payload = service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-acme",
+            category="alerts",
+            recipients=["user1@acme.com"],
+            subject="Alert",
+            body="Check system status",
+            channels=["push"],
+        )
+    )
+    assert status == 202
+    assert payload["status"] == "degraded"
+    assert payload["reason"] == "event_bus_unavailable"
+
+    # second failed attempt should open circuit breaker
+    service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-acme",
+            category="alerts",
+            recipients=["user1@acme.com"],
+            subject="Alert",
+            body="Check system status",
+            channels=["push"],
+        )
+    )
+    assert service.circuit_breaker_open is True
+
+    status, payload = service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-acme",
+            category="alerts",
+            recipients=["user1@acme.com"],
+            subject="Alert",
+            body="Check system status",
+            channels=["push"],
+        )
+    )
+    assert payload["reason"] == "event_bus_circuit_open"
+
+
+def test_database_failure_returns_retry_exhausted_error() -> None:
+    service = make_service()
+    service.store.set_database_availability(False)
+
+    status, payload = service.upsert_preference(
+        PreferenceUpsertRequest(
+            tenant_id="tenant-acme",
+            user_id="user1@acme.com",
+            category="learning",
+            channels={"email": True},
+        )
+    )
+    assert status == 503
+    assert payload["error"] == "database_unavailable"
+
+
+def test_gateway_restart_blocks_drain_until_available() -> None:
+    service = make_service()
+    service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-acme",
+            category="alerts",
+            recipients=["user1@acme.com"],
+            subject="Alert",
+            body="Check system status",
+            channels=["push"],
+        )
+    )
+
+    service.store.set_gateway_availability(False)
+    status, payload = service.drain_delivery_queue(DeliveryDrainRequest(max_messages=10))
+    assert status == 503
+    assert payload["error"] == "gateway_unavailable"
+
+    service.store.set_gateway_availability(True)
+    status, payload = service.drain_delivery_queue(DeliveryDrainRequest(max_messages=10))
+    assert status == 200
+    assert payload["delivered"] == 1
+
+
+def test_message_queue_delays_are_observed_and_recovered() -> None:
+    service = make_service()
+    service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-acme",
+            category="alerts",
+            recipients=["user1@acme.com"],
+            subject="Alert",
+            body="Check system status",
+            channels=["push"],
+        )
+    )
+
+    service.store.set_queue_delay_cycles(2)
+    status, payload = service.drain_delivery_queue(DeliveryDrainRequest(max_messages=3))
+    assert status == 200
+    assert payload["delayed_cycles"] == 2
+    assert payload["delivered"] == 1

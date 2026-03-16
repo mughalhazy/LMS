@@ -18,6 +18,14 @@ class EventRoute:
     body_template: str
 
 
+class DatabaseUnavailableError(RuntimeError):
+    pass
+
+
+class ServiceUnavailableError(RuntimeError):
+    pass
+
+
 class InMemoryNotificationStore:
     def __init__(self) -> None:
         self._counter = count(1)
@@ -26,17 +34,51 @@ class InMemoryNotificationStore:
         self.events: dict[str, NotificationEvent] = {}
         self.messages: dict[str, NotificationMessage] = {}
         self.queue: deque[str] = deque()
+        self.service_running = True
+        self.database_available = True
+        self.event_bus_available = True
+        self.gateway_available = True
+        self.queue_delay_cycles = 0
+
+    def crash_service(self) -> None:
+        self.service_running = False
+
+    def restart_service(self) -> None:
+        self.service_running = True
+
+    def set_database_availability(self, available: bool) -> None:
+        self.database_available = available
+
+    def set_event_bus_availability(self, available: bool) -> None:
+        self.event_bus_available = available
+
+    def set_gateway_availability(self, available: bool) -> None:
+        self.gateway_available = available
+
+    def set_queue_delay_cycles(self, cycles: int) -> None:
+        self.queue_delay_cycles = max(cycles, 0)
+
+    def assert_service_running(self) -> None:
+        if not self.service_running:
+            raise ServiceUnavailableError("notification service is restarting")
+
+    def assert_database_available(self) -> None:
+        if not self.database_available:
+            raise DatabaseUnavailableError("database connection unavailable")
 
     def new_id(self, prefix: str) -> str:
         return f"{prefix}_{next(self._counter)}"
 
     def upsert_preference(self, preference: NotificationPreference) -> None:
+        self.assert_database_available()
         self.preferences[(preference.tenant_id, preference.user_id, preference.category)] = preference
 
     def get_preference(self, tenant_id: str, user_id: str, category: str) -> NotificationPreference | None:
+        self.assert_database_available()
         return self.preferences.get((tenant_id, user_id, category))
 
     def list_preferences(self, tenant_id: str, user_id: str) -> list[NotificationPreference]:
+        self.assert_database_available()
         return [
             pref
             for pref in self.preferences.values()
@@ -44,17 +86,27 @@ class InMemoryNotificationStore:
         ]
 
     def upsert_route(self, route: EventRoute) -> None:
+        self.assert_database_available()
         self.routes[(route.tenant_id, route.event_type)] = route
 
     def get_route(self, tenant_id: str, event_type: str) -> EventRoute | None:
+        self.assert_database_available()
         return self.routes.get((tenant_id, event_type))
 
     def save_event(self, event: NotificationEvent) -> None:
+        self.assert_database_available()
         self.events[event.event_id] = event
 
     def save_message(self, message: NotificationMessage) -> None:
+        self.assert_database_available()
         self.messages[message.message_id] = message
         self.queue.append(message.message_id)
+
+    def consume_delay_cycle(self) -> bool:
+        if self.queue_delay_cycles <= 0:
+            return False
+        self.queue_delay_cycles -= 1
+        return True
 
     def next_message(self) -> NotificationMessage | None:
         if not self.queue:
