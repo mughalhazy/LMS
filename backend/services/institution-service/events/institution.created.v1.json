@@ -1,0 +1,11 @@
+{
+  "event_type": "institution.created.v1",
+  "aggregate": "institution",
+  "payload": {
+    "institution_id": "string",
+    "tenant_id": "string",
+    "institution_type": "school|university|academy|tutor_organization|corporate_training_organization",
+    "status": "draft|active|suspended|archived",
+    "registration_country": "ISO-3166-1 alpha-2"
+  }
+}

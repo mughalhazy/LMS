@@ -1,0 +1,9 @@
+{
+  "event_type": "institution.hierarchy_linked.v1",
+  "aggregate": "institution-hierarchy",
+  "payload": {
+    "parent_institution_id": "string",
+    "child_institution_id": "string",
+    "relationship_type": "governance_parent|affiliate|academic_partnership"
+  }
+}
