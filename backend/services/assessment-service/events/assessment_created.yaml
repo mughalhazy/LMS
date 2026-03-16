@@ -2,11 +2,11 @@ event_name: assessment_created
 producer_service: assessment-service
 topic: lms.assessment.assessment_created.v1
 consumer_services:
-  - course-service
+  - event-ingestion-service
   - progress-service
   - learning-analytics-service
   - notification-service
-description: Fired when a draft assessment is created.
+description: Routed through event-ingestion-service for integration routing. Fired when a draft assessment is created.
 payload:
   tenant_id: string
   assessment_id: uuid

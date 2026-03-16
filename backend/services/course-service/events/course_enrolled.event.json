@@ -4,7 +4,7 @@
   "producer_service": "enrollment-service",
   "schema_version": 1,
   "ownership_status": "deprecated_in_course_service",
-  "purpose": "Compatibility alias kept for legacy consumers. Canonical ownership and production live in enrollment-service to preserve domain boundaries.",
+  "purpose": "Compatibility alias retained for legacy topic naming while integration fan-out is handled asynchronously via event-ingestion-service to avoid direct course/assessment coupling.",
   "payload": {
     "tenant_id": "string",
     "correlation_id": "string",
@@ -18,6 +18,9 @@
     "enrolled_at": "date-time"
   },
   "consumers": [
+    "event-ingestion-service"
+  ],
+  "downstream_consumers": [
     "progress-service",
     "notification-service",
     "assessment-service",
