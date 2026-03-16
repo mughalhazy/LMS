@@ -1,0 +1,19 @@
+{
+  "event_name": "cohort.lifecycle.changed",
+  "topic": "lms.cohort.lifecycle.v1",
+  "producer_service": "cohort-service",
+  "schema_version": 1,
+  "purpose": "Emitted when cohort, batch, or tutor-group lifecycle status changes.",
+  "payload": {
+    "tenant_id": "string",
+    "cohort_id": "string",
+    "action": "created|status_updated|deleted",
+    "status": "draft|scheduled|active|completed|archived|cancelled",
+    "kind": "formal_cohort|academy_batch|tutor_group"
+  },
+  "consumers": [
+    "notification-service",
+    "analytics-reporting-service",
+    "integration-gateway-service"
+  ]
+}

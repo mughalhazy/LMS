@@ -1,0 +1,18 @@
+{
+  "event_name": "cohort.program.linked",
+  "topic": "lms.cohort.program_linked.v1",
+  "producer_service": "cohort-service",
+  "schema_version": 1,
+  "purpose": "Emitted when a cohort links to a program without taking over enrollment ownership.",
+  "payload": {
+    "tenant_id": "string",
+    "cohort_id": "string",
+    "program_id": "string",
+    "kind": "formal_cohort|academy_batch|tutor_group"
+  },
+  "consumers": [
+    "enrollment-service",
+    "catalog-service",
+    "analytics-reporting-service"
+  ]
+}
