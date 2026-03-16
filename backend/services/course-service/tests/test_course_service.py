@@ -1,87 +1,132 @@
+import base64
+import hashlib
+import hmac
+import json
+import os
+import time
+
 from fastapi.testclient import TestClient
 
-from app.main import app
+os.environ["JWT_SHARED_SECRET"] = "test-secret"
 
+from app.main import app, service
 
 client = TestClient(app)
 
 
-def test_course_lifecycle_with_versioning_and_publish() -> None:
-    create_payload = {
-        "tenant_id": "tenant-a",
-        "created_by": "user-1",
-        "title": "Intro to LMS",
-        "description": "Draft",
-        "category_id": "cat-1",
-        "language": "en",
-        "delivery_mode": "self-paced",
-        "duration_minutes": 60,
-        "tags": ["intro"],
-        "objectives": ["objective-1"],
-        "metadata": {"level": "beginner"},
-    }
+def _jwt() -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {"sub": "test-user", "exp": time.time() + 3600}
 
-    create_response = client.post("/courses", json=create_payload)
+    def _b64(data: dict) -> str:
+        raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+    h = _b64(header)
+    p = _b64(payload)
+    sig = hmac.new(b"test-secret", f"{h}.{p}".encode("utf-8"), hashlib.sha256).digest()
+    s = base64.urlsafe_b64encode(sig).decode("utf-8").rstrip("=")
+    return f"{h}.{p}.{s}"
+
+
+def _headers(tenant_id: str = "tenant-a") -> dict[str, str]:
+    return {"X-Tenant-Id": tenant_id, "Authorization": f"Bearer {_jwt()}"}
+
+
+def test_course_lifecycle_and_linkage_flows() -> None:
+    create_response = client.post(
+        "/api/v1/courses",
+        headers=_headers(),
+        json={
+            "tenant_id": "tenant-a",
+            "created_by": "user-1",
+            "title": "Engineering Onboarding",
+            "description": "v1",
+            "course_code": "ENG-ONB-101",
+            "language_code": "en",
+            "metadata": {"duration_minutes": 90, "tags": ["eng"]},
+        },
+    )
     assert create_response.status_code == 201
-    created = create_response.json()
+    created = create_response.json()["data"]
     assert created["status"] == "draft"
-    assert created["version"] == 1
+    assert created["publish_status"] == "unpublished"
 
     course_id = created["course_id"]
+
     update_response = client.patch(
-        f"/courses/{course_id}",
+        f"/api/v1/courses/{course_id}",
+        headers=_headers(),
+        json={"tenant_id": "tenant-a", "updated_by": "user-2", "description": "updated"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["data"]["description"] == "updated"
+
+    links_response = client.put(
+        f"/api/v1/courses/{course_id}/program-links",
+        headers=_headers(),
         json={
             "tenant_id": "tenant-a",
             "updated_by": "user-2",
-            "description": "Updated description",
+            "program_links": [{"program_id": "prog-1", "is_primary": True}],
         },
     )
-    assert update_response.status_code == 200
-    assert update_response.json()["description"] == "Updated description"
+    assert links_response.status_code == 200
+    assert links_response.json()["data"][0]["program_id"] == "prog-1"
 
-    version_response = client.post(
-        f"/courses/{course_id}/versions",
+    session_links_response = client.put(
+        f"/api/v1/courses/{course_id}/session-links",
+        headers=_headers(),
         json={
             "tenant_id": "tenant-a",
-            "based_on_version": 1,
-            "created_by": "user-3",
-            "change_summary": "Prepare v2",
-            "metadata_overrides": {"level": "intermediate"},
+            "updated_by": "user-2",
+            "session_links": [{"session_id": "sess-1", "delivery_role": "default"}],
         },
     )
-    assert version_response.status_code == 200
-    assert version_response.json()["new_version"] == 2
+    assert session_links_response.status_code == 200
 
     publish_response = client.post(
-        f"/courses/{course_id}/publish",
-        json={"tenant_id": "tenant-a", "requested_by": "user-4"},
+        f"/api/v1/courses/{course_id}/publish",
+        headers=_headers(),
+        json={"tenant_id": "tenant-a", "requested_by": "publisher-1"},
     )
     assert publish_response.status_code == 200
-    published = publish_response.json()
-    assert published["status"] == "published"
-    assert published["published_version"] == 2
+    assert publish_response.json()["data"]["status"] == "published"
 
-
-def test_tenant_scoping_enforced() -> None:
-    create_response = client.post(
-        "/courses",
-        json={"tenant_id": "tenant-scope", "created_by": "owner", "title": "Scoped Course"},
+    archive_response = client.post(
+        f"/api/v1/courses/{course_id}/archive",
+        headers=_headers(),
+        json={"tenant_id": "tenant-a", "requested_by": "admin-1"},
     )
-    course_id = create_response.json()["course_id"]
-
-    unauthorized_response = client.get(f"/courses/{course_id}?tenant_id=wrong-tenant")
-    assert unauthorized_response.status_code == 404
+    assert archive_response.status_code == 200
+    assert archive_response.json()["data"]["status"] == "archived"
 
 
-def test_delete_course_endpoint_matches_core_rest_api() -> None:
+def test_tenant_header_context_is_enforced() -> None:
     create_response = client.post(
-        "/courses",
-        json={"tenant_id": "tenant-del", "created_by": "owner", "title": "Disposable"},
+        "/api/v1/courses",
+        headers=_headers("tenant-header"),
+        json={"tenant_id": "tenant-body", "created_by": "user-1", "title": "Mismatch"},
     )
-    course_id = create_response.json()["course_id"]
+    assert create_response.status_code == 400
 
-    delete_response = client.delete(f"/courses/{course_id}?tenant_id=tenant-del")
-    assert delete_response.status_code == 204
 
-    not_found_response = client.get(f"/courses/{course_id}?tenant_id=tenant-del")
-    assert not_found_response.status_code == 404
+def test_metrics_endpoint_includes_observability_counters() -> None:
+    metrics_response = client.get("/metrics", headers=_headers())
+    assert metrics_response.status_code == 200
+    metrics = metrics_response.json()
+    assert "courses_created_total" in metrics
+    assert metrics["service_up"] == 1
+
+
+def test_events_are_published_for_lifecycle_changes() -> None:
+    before_count = len(service.event_publisher.list_events())
+    response = client.post(
+        "/api/v1/courses",
+        headers=_headers("tenant-events"),
+        json={"tenant_id": "tenant-events", "created_by": "user-1", "title": "Event Course"},
+    )
+    assert response.status_code == 201
+    after_count = len(service.event_publisher.list_events())
+    assert after_count == before_count + 1
+    assert service.event_publisher.list_events()[-1].event_name == "course.lifecycle.created.v1"
