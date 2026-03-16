@@ -31,15 +31,68 @@ middleware:
       Content-Security-Policy: "default-src 'none'; frame-ancestors 'none'"
   rate_limiting:
     algorithm: token_bucket
+    enforce_on_public_apis: true
     defaults:
       requests_per_minute: 600
       burst: 120
     by_tenant:
       enabled: true
       header: X-Tenant-ID
+      requests_per_minute: 900
+      burst: 180
     by_client:
       enabled: true
       header: X-API-Key
+      requests_per_minute: 300
+      burst: 60
+    by_user:
+      enabled: true
+      claim: sub
+      requests_per_minute: 240
+      burst: 48
+    endpoint_policies:
+      public-api-standard:
+        requests_per_minute: 600
+        burst: 120
+      auth-login-strict:
+        requests_per_minute: 30
+        burst: 10
+        key_strategy:
+          - ip
+          - tenant
+      auth-endpoints-sensitive:
+        requests_per_minute: 90
+        burst: 20
+        key_strategy:
+          - ip
+          - tenant
+      webhook-ingestion-guarded:
+        requests_per_minute: 120
+        burst: 25
+        key_strategy:
+          - client
+          - ip
+      event-ingestion-guarded:
+        requests_per_minute: 180
+        burst: 40
+        key_strategy:
+          - tenant
+          - client
+    abuse_protection:
+      enabled: true
+      ip_reputation_blocklist_enabled: true
+      bad_user_agent_block_enabled: true
+      request_signature_validation:
+        required_paths:
+          - /api/v1/integrations/webhooks/events
+      anomaly_detection:
+        enabled: true
+        max_4xx_per_minute: 120
+        max_distinct_paths_per_minute: 80
+      temporary_block:
+        enabled: true
+        threshold_violations: 6
+        block_duration_seconds: 900
   request_logging:
     format: json
     include:

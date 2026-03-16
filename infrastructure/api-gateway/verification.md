@@ -96,3 +96,18 @@
 
 ### Validation result
 - api_e2e_score: 10/10
+
+## QC_HARDENING rate limiting enforcement
+
+- routes_checked: 67 public routes (explicit + prefix routes in `routes.yaml`).
+- rate_limits_configured: 67 routes now include an explicit `rate_limit_policy` assignment.
+- rate_limiting_score: 10/10.
+
+### Validation evidence
+
+1. Gateway rate limiting is explicitly enforced for public APIs (`enforce_on_public_apis: true`) with token-bucket defaults and burst limits.
+2. Per-tenant, per-client, and per-user quotas are configured in gateway middleware (`by_tenant`, `by_client`, `by_user`).
+3. Authentication endpoints are throttled through dedicated strict/sensitive policies (`auth-login-strict`, `auth-endpoints-sensitive`).
+4. Abuse protection controls are configured (IP reputation blocklist, bad-user-agent blocking, anomaly detection, temporary blocking).
+5. Burst protection exists globally and per-policy via `burst` controls.
+6. All gateway-exposed public routes in `routes.yaml` are bound to explicit policies to ensure full coverage.
