@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from .audit import AuditLogger
 from .schemas import (
     AnswerSubmission,
     AttemptAnswerResponse,
@@ -56,6 +57,7 @@ class AttemptService:
     def __init__(self) -> None:
         self._attempts: dict[str, AttemptRecord] = {}
         self._attempt_order: dict[tuple[str, str, str], list[str]] = {}
+        self.audit_logger = AuditLogger("attempt.audit")
 
     @staticmethod
     def _now() -> datetime:
@@ -93,6 +95,12 @@ class AttemptService:
         if request.answers:
             attempt.status = AttemptStatus.SUBMITTED
             attempt.submitted_at = self._now()
+            self.audit_logger.log(
+                event_type="assessment.submission",
+                tenant_id=request.tenant_id,
+                actor_id=attempt.learner_id,
+                details={"attempt_id": attempt.attempt_id, "assessment_id": attempt.assessment_id, "answer_count": len(request.answers)},
+            )
         return self._to_response(attempt)
 
     def score_attempt(self, attempt_id: str, request: ScoreAttemptRequest) -> AttemptResponse:

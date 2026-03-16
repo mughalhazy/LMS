@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.audit import AuditLogger
 from app.errors import TenantServiceError
 from app.models import IsolationMode, LifecycleEvent, LifecycleState, Tenant, TenantConfiguration, TenantNamespace
 from app.repository import TenantRepository
@@ -20,6 +21,7 @@ DEFAULT_EFFECTIVE_SETTINGS = {
 class TenantService:
     def __init__(self, repository: TenantRepository):
         self.repository = repository
+        self.audit_logger = AuditLogger("tenant.audit")
 
     def validate_creation(self, tenant_code: str, primary_domain: str, requested_region: str) -> list[dict[str, str]]:
         errors: list[dict[str, str]] = []
@@ -70,6 +72,7 @@ class TenantService:
         )
         namespace = self._initialize_namespace(tenant.tenant_code, isolation_mode)
         self.repository.add(tenant, namespace)
+        self.audit_logger.log(event_type="admin.tenant.created", tenant_id=tenant.tenant_id, actor_id=tenant.admin_user, details={"tenant_code": tenant.tenant_code})
         return tenant, namespace
 
     def get_tenant(self, tenant_id: str) -> Tenant:
@@ -102,6 +105,7 @@ class TenantService:
                 effective_at=datetime.now(timezone.utc),
             )
         )
+        self.audit_logger.log(event_type="admin.tenant.configuration.updated", tenant_id=tenant.tenant_id, actor_id=actor_id, details={"reason": reason, "version": tenant.configuration.version})
         return tenant.configuration
 
     def manage_feature_flags(self, tenant_id: str, feature_flag_changes: dict[str, bool], actor_id: str) -> TenantConfiguration:
@@ -134,6 +138,7 @@ class TenantService:
         tenant.lifecycle_state = next_state
         tenant.updated_at = datetime.now(timezone.utc)
         tenant.state_history.append(LifecycleEvent(state=next_state, reason=reason, actor_id=actor_id, effective_at=effective_at))
+        self.audit_logger.log(event_type="admin.tenant.lifecycle.changed", tenant_id=tenant.tenant_id, actor_id=actor_id, details={"next_state": next_state.value, "reason": reason})
         return tenant
 
     def effective_settings(self, tenant: Tenant, include_defaults: bool) -> dict:
