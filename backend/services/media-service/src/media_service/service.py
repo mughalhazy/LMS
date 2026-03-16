@@ -59,6 +59,7 @@ class MediaService:
         self._asset_store[media_asset.media_asset_id] = media_asset
         event = self.event_publisher.publish(
             "video.uploaded",
+            request.uploader_metadata.tenant_id,
             media_asset.media_asset_id,
             {
                 "object_storage_uri": media_asset.object_storage_uri,
@@ -91,6 +92,7 @@ class MediaService:
         events.append(
             self.event_publisher.publish(
                 "video.transcoded",
+                asset.uploader_metadata.tenant_id,
                 media_asset_id,
                 {
                     "transcoding_job_status": "completed",
@@ -117,6 +119,7 @@ class MediaService:
         events.append(
             self.event_publisher.publish(
                 "video.thumbnails_generated",
+                asset.uploader_metadata.tenant_id,
                 media_asset_id,
                 {
                     "poster_image_uri": asset.poster_image_uri,
@@ -157,6 +160,7 @@ class MediaService:
 
         event = self.event_publisher.publish(
             "video.published",
+            asset.uploader_metadata.tenant_id,
             media_asset_id,
             {
                 "edge_cache_status": "warm",

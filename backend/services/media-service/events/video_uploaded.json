@@ -1,6 +1,7 @@
 {
   "event": "video.uploaded",
   "media_asset_id": "asset_123",
+  "tenant_id": "tenant-acme",
   "object_storage_uri": "s3://lms-content-prod/videos/tenant-acme/raw/asset_123/module-1.mp4",
   "upload_checksum": "sha256"
 }

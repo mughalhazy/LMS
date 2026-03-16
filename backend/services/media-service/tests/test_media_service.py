@@ -32,13 +32,16 @@ def test_media_service_upload_process_publish_pipeline() -> None:
     )
 
     assert upload_event.event_name == "video.uploaded"
+    assert upload_event.tenant_id == "tenant-acme"
     assert len(processed_asset.adaptive_streaming_assets) == 3
     assert [event.event_name for event in processing_events] == ["video.transcoded", "video.thumbnails_generated"]
+    assert {event.tenant_id for event in processing_events} == {"tenant-acme"}
     assert processed_asset.metadata is not None
     assert processed_asset.metadata.duration_seconds >= 600
     assert processed_asset.metadata.thumbnail_uri is not None
     assert published_asset.status.value == "published"
     assert publish_event.event_name == "video.published"
+    assert publish_event.tenant_id == "tenant-acme"
     assert all(url.startswith("https://cdn.lms.example.com/") for url in published_asset.cdn_playback_urls.values())
     assert all("?sig=mock-token" in url for url in published_asset.cdn_playback_urls.values())
 

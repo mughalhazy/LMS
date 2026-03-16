@@ -1,6 +1,7 @@
 {
   "event": "video.transcoded",
   "media_asset_id": "asset_123",
+  "tenant_id": "tenant-acme",
   "transcoding_job_status": "completed",
   "encoding_preset": "h264/aac"
 }

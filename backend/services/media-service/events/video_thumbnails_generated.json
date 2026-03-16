@@ -1,6 +1,7 @@
 {
   "event": "video.thumbnails_generated",
   "media_asset_id": "asset_123",
+  "tenant_id": "tenant-acme",
   "poster_image_uri": "s3://lms-content-prod/videos/tenant-acme/thumbnails/asset_123/poster.jpg",
   "keyframe_selection": "nearest"
 }
