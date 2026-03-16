@@ -70,6 +70,18 @@ routes:
   - path: /api/v1/analytics/compliance/reports
     methods: [GET, POST, PATCH, PUT, DELETE]
     service: reporting-service
+  - path: /api/v1/auth/login
+    methods: [POST]
+    service: auth-service
+  - path: /api/v1/attempts
+    methods: [POST]
+    service: attempt-service
+  - path: /api/v1/attempts/{attemptId}/answers
+    methods: [POST]
+    service: attempt-service
+  - path: /api/v1/events/ingest
+    methods: [POST]
+    service: event-ingestion-service
 
   # Catch-all service routes to expose every backend service through the gateway.
   service_prefix_routes:
@@ -85,6 +97,9 @@ routes:
   - path_prefix: /api/v1/attempt
     service: attempt-service
     strip_prefix: false
+  - path_prefix: /api/v1/attempts
+    service: attempt-service
+    strip_prefix: true
   - path_prefix: /api/v1/auth
     service: auth-service
     strip_prefix: false
@@ -116,6 +131,9 @@ routes:
     service: enrollment-service
     strip_prefix: false
   - path_prefix: /api/v1/event-ingestion
+    service: event-ingestion-service
+    strip_prefix: false
+  - path_prefix: /api/v1/events
     service: event-ingestion-service
     strip_prefix: false
   - path_prefix: /api/v1/group

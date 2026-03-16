@@ -765,3 +765,87 @@ paths:
       responses:
         '200':
           description: Success
+  /api/v1/auth/login:
+    x-lms-service: auth-service
+    x-lms-upstream: http://auth-service
+    post:
+      summary: Login through gateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, tenant_id]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                tenant_id:
+                  type: string
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Standardized bad request error
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                  detail:
+                    type: string
+  /api/v1/attempts:
+    x-lms-service: attempt-service
+    x-lms-upstream: http://attempt-service
+    post:
+      summary: Submit assessment attempt start
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Attempt created
+          content:
+            application/json:
+              schema:
+                type: object
+        '422':
+          description: Validation error
+  /api/v1/events/ingest:
+    x-lms-service: event-ingestion-service
+    x-lms-upstream: http://event-ingestion-service
+    post:
+      summary: Ingest analytics event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '202':
+          description: Event accepted
+        '400':
+          description: Standardized bad request error
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                  detail:
+                    type: string
