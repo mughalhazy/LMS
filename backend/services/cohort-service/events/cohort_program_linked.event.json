@@ -6,6 +6,7 @@
   "purpose": "Emitted when a cohort links to a program without taking over enrollment ownership.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "cohort_id": "string",
     "program_id": "string",
     "kind": "formal_cohort|academy_batch|tutor_group"

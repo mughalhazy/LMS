@@ -6,6 +6,7 @@
   "purpose": "Published when a course transitions to published status so enrollment and discovery channels can make it available to learners.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "course_id": "string",
     "requested_by": "string",
     "publish_notes": "string|null",

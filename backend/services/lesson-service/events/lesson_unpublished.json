@@ -6,13 +6,34 @@
   "description": "Published when a lesson moves from published back to draft.",
   "payload_schema": {
     "type": "object",
-    "required": ["lesson_id", "tenant_id", "course_id", "status", "version"],
+    "required": [
+      "lesson_id",
+      "tenant_id",
+      "correlation_id",
+      "course_id",
+      "status",
+      "version"
+    ],
     "properties": {
-      "lesson_id": {"type": "string"},
-      "tenant_id": {"type": "string"},
-      "course_id": {"type": "string"},
-      "status": {"const": "draft"},
-      "version": {"type": "integer", "minimum": 1}
+      "lesson_id": {
+        "type": "string"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
+      "course_id": {
+        "type": "string"
+      },
+      "status": {
+        "const": "draft"
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
     }
   }
 }

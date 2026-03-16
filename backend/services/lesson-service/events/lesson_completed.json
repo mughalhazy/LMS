@@ -11,13 +11,26 @@
       "event_type",
       "occurred_at",
       "tenant_id",
+      "correlation_id",
       "data"
     ],
     "properties": {
-      "event_id": { "type": "string" },
-      "event_type": { "const": "lesson_completed" },
-      "occurred_at": { "type": "string", "format": "date-time" },
-      "tenant_id": { "type": "string" },
+      "event_id": {
+        "type": "string"
+      },
+      "event_type": {
+        "const": "lesson_completed"
+      },
+      "occurred_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
       "data": {
         "type": "object",
         "required": [
@@ -28,16 +41,32 @@
           "completion_status"
         ],
         "properties": {
-          "lesson_id": { "type": "string" },
-          "course_id": { "type": "string" },
-          "learner_id": { "type": "string" },
-          "completed_at": { "type": "string", "format": "date-time" },
+          "lesson_id": {
+            "type": "string"
+          },
+          "course_id": {
+            "type": "string"
+          },
+          "learner_id": {
+            "type": "string"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
           "completion_status": {
             "type": "string",
-            "enum": ["completed", "passed", "failed"]
+            "enum": [
+              "completed",
+              "passed",
+              "failed"
+            ]
           },
           "score": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "minimum": 0,
             "maximum": 100
           },

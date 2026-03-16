@@ -3,6 +3,7 @@
   "description": "Published when a submission is recorded for an attempt.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "entity_id": "attempt_id",
     "submission_id": "string"
   }

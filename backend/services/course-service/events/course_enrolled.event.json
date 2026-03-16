@@ -6,6 +6,7 @@
   "purpose": "Published when a learner is enrolled in a course so progress tracking, notifications, and compliance workflows can initialize enrollment-dependent processes.",
   "payload": {
     "tenant_id": "string",
+    "correlation_id": "string",
     "course_id": "string",
     "enrollment_id": "string",
     "learner_id": "string",

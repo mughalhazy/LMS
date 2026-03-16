@@ -5,6 +5,7 @@
   "producer_service": "progress-service",
   "description": "Canonical event emitted on any progress record upsert.",
   "payload_schema": {
+    "tenant_id": "uuid",
     "progress_id": "uuid",
     "enrollment_id": "uuid",
     "learner_id": "uuid",
@@ -16,6 +17,8 @@
     "last_activity_at": "date-time"
   },
   "required_fields": [
+    "correlation_id",
+    "tenant_id",
     "progress_id",
     "enrollment_id",
     "user_id",

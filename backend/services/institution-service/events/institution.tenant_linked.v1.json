@@ -4,6 +4,7 @@
   "payload": {
     "institution_id": "string",
     "tenant_id": "string",
+    "correlation_id": "string",
     "link_scope": "primary|affiliate|delivery",
     "status": "active|inactive"
   }

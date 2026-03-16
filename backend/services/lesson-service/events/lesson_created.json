@@ -11,13 +11,26 @@
       "event_type",
       "occurred_at",
       "tenant_id",
+      "correlation_id",
       "data"
     ],
     "properties": {
-      "event_id": { "type": "string" },
-      "event_type": { "const": "lesson_created" },
-      "occurred_at": { "type": "string", "format": "date-time" },
-      "tenant_id": { "type": "string" },
+      "event_id": {
+        "type": "string"
+      },
+      "event_type": {
+        "const": "lesson_created"
+      },
+      "occurred_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
       "data": {
         "type": "object",
         "required": [
@@ -34,20 +47,44 @@
           "created_at"
         ],
         "properties": {
-          "lesson_id": { "type": "string" },
-          "course_id": { "type": "string" },
-          "title": { "type": "string" },
-          "description": { "type": "string" },
-          "lesson_type": { "type": "string" },
+          "lesson_id": {
+            "type": "string"
+          },
+          "course_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
           "learning_objectives": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "content_ref": { "type": "string" },
-          "status": { "const": "draft" },
-          "order_index": { "type": "integer", "minimum": 0 },
-          "created_by": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" }
+          "content_ref": {
+            "type": "string"
+          },
+          "status": {
+            "const": "draft"
+          },
+          "order_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     }
