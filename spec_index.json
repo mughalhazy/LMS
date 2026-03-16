@@ -396,6 +396,12 @@
       "chars": 2922
     },
     {
+      "file": "docs/specs/assessment_service_spec.md",
+      "domain": "service_specs",
+      "bytes": 12307,
+      "chars": 12305
+    },
+    {
       "file": "docs/specs/auth_service_spec.md",
       "domain": "service_definitions",
       "bytes": 740,
