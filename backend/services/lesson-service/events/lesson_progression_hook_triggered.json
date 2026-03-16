@@ -1,0 +1,18 @@
+{
+  "event_name": "lesson_progression_hook_triggered",
+  "event_version": "v1",
+  "topic": "lms.lesson.progression_hook.v1",
+  "producer_service": "lesson-service",
+  "description": "Published to notify progression-owned systems of lesson runtime hooks.",
+  "payload_schema": {
+    "type": "object",
+    "required": ["lesson_id", "tenant_id", "course_id", "hook_type", "payload"],
+    "properties": {
+      "lesson_id": {"type": "string"},
+      "tenant_id": {"type": "string"},
+      "course_id": {"type": "string"},
+      "hook_type": {"type": "string"},
+      "payload": {"type": "object", "additionalProperties": true}
+    }
+  }
+}
