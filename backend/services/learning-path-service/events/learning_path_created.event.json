@@ -2,7 +2,7 @@
   "event_name": "learning_path_created",
   "version": "1.0.0",
   "producer_service": "learning_path_service",
-  "topic": "lms.learning_path.v1.learning_path_created",
+  "topic": "lms.learning_path.learning_path_created.v1",
   "purpose": "Published when a new learning path definition is created in draft or published status.",
   "payload_schema": {
     "tenant_id": "string",
