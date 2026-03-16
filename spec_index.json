@@ -466,6 +466,12 @@
       "domain": "service_definitions",
       "bytes": 2825,
       "chars": 2825
+    },
+    {
+      "file": "docs/data/DOC_09_learning_data_model_overview.md",
+      "domain": "data_models",
+      "bytes": 6505,
+      "chars": 6467
     }
   ]
 }
