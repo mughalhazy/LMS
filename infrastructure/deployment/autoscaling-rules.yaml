@@ -1,0 +1,40 @@
+autoscaling:
+  api-gateway:
+    min_replicas: 4
+    max_replicas: 12
+    metrics:
+      cpu_utilization_percent: 65
+      memory_utilization_percent: 70
+      requests_per_second_per_pod: 250
+    behavior:
+      scale_up_stabilization_seconds: 15
+      scale_down_stabilization_seconds: 120
+  event-ingestion-service:
+    min_replicas: 6
+    max_replicas: 20
+    metrics:
+      cpu_utilization_percent: 60
+      queue_lag_threshold: 5000
+      requests_per_second_per_pod: 300
+    behavior:
+      scale_up_stabilization_seconds: 10
+      scale_down_stabilization_seconds: 180
+  learning-analytics-service:
+    min_replicas: 4
+    max_replicas: 16
+    metrics:
+      cpu_utilization_percent: 65
+      memory_utilization_percent: 75
+      event_backlog_threshold: 3000
+    behavior:
+      scale_up_stabilization_seconds: 20
+      scale_down_stabilization_seconds: 180
+  reporting-service:
+    min_replicas: 3
+    max_replicas: 10
+    metrics:
+      cpu_utilization_percent: 70
+      requests_per_second_per_pod: 120
+    behavior:
+      scale_up_stabilization_seconds: 30
+      scale_down_stabilization_seconds: 240
