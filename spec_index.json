@@ -204,6 +204,12 @@
       "chars": 1097
     },
     {
+      "file": "docs/architecture/platform_long_term_evolution_model.md",
+      "domain": "system_architecture",
+      "bytes": 8419,
+      "chars": 8403
+    },
+    {
       "file": "docs/architecture/scalability_strategy.md",
       "domain": "system_architecture",
       "bytes": 968,
