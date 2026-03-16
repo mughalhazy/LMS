@@ -1,1 +1,4 @@
-fastapi
+fastapi==0.115.6
+pydantic==2.10.5
+starlette==0.41.3
+httpx==0.28.1
