@@ -1,1 +1,1 @@
-"""Event ingestion service package."""
+"""Enterprise LMS V2 event ingestion service."""

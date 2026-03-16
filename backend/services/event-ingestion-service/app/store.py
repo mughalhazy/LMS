@@ -1,64 +1,60 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from dataclasses import dataclass
-from threading import Lock
-from typing import Any, Deque, Dict, List
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from typing import Dict, List
+
+from .models import AuditLogEntry, EventRecord
 
 
-@dataclass
-class InMemoryEventStore:
-    """In-memory append-only storage model for raw, validated, and rejected events."""
+class EventStorage(ABC):
+    """Contract for tenant-aware event storage owned by this service only."""
 
-    max_events_per_tenant: int = 50000
+    @abstractmethod
+    def persist(self, record: EventRecord) -> EventRecord:
+        raise NotImplementedError
 
-    def __post_init__(self) -> None:
-        self._raw_by_tenant: Dict[str, Deque[Dict[str, Any]]] = defaultdict(
-            lambda: deque(maxlen=self.max_events_per_tenant)
-        )
-        self._validated_by_tenant: Dict[str, Deque[Dict[str, Any]]] = defaultdict(
-            lambda: deque(maxlen=self.max_events_per_tenant)
-        )
-        self._rejected_by_tenant: Dict[str, Deque[Dict[str, Any]]] = defaultdict(
-            lambda: deque(maxlen=self.max_events_per_tenant)
-        )
-        self._lock = Lock()
+    @abstractmethod
+    def list_by_tenant(self, tenant_id: str) -> List[EventRecord]:
+        raise NotImplementedError
 
-    def append_raw(self, tenant_id: str, event: Dict[str, Any]) -> None:
-        with self._lock:
-            self._raw_by_tenant[tenant_id].append(event)
+    @abstractmethod
+    def health(self) -> bool:
+        raise NotImplementedError
 
-    def append_validated(self, tenant_id: str, event: Dict[str, Any]) -> None:
-        with self._lock:
-            self._validated_by_tenant[tenant_id].append(event)
 
-    def append_rejected(self, tenant_id: str, event: Dict[str, Any]) -> None:
-        with self._lock:
-            self._rejected_by_tenant[tenant_id].append(event)
+class AuditStorage(ABC):
+    @abstractmethod
+    def append(self, entry: AuditLogEntry) -> AuditLogEntry:
+        raise NotImplementedError
 
-    def get_tenant_stream(self, tenant_id: str) -> Dict[str, List[Dict[str, Any]]]:
-        with self._lock:
-            return {
-                "raw": list(self._raw_by_tenant[tenant_id]),
-                "validated": list(self._validated_by_tenant[tenant_id]),
-                "rejected": list(self._rejected_by_tenant[tenant_id]),
-            }
+    @abstractmethod
+    def list_by_tenant(self, tenant_id: str) -> List[AuditLogEntry]:
+        raise NotImplementedError
 
-    def get_ingestion_metrics(self) -> Dict[str, int]:
-        with self._lock:
-            return {
-                "raw_events": sum(len(stream) for stream in self._raw_by_tenant.values()),
-                "validated_events": sum(
-                    len(stream) for stream in self._validated_by_tenant.values()
-                ),
-                "rejected_events": sum(
-                    len(stream) for stream in self._rejected_by_tenant.values()
-                ),
-                "tenant_streams": len(
-                    {
-                        *self._raw_by_tenant.keys(),
-                        *self._validated_by_tenant.keys(),
-                        *self._rejected_by_tenant.keys(),
-                    }
-                ),
-            }
+
+class InMemoryEventStorage(EventStorage):
+    def __init__(self) -> None:
+        self._records: Dict[str, List[EventRecord]] = defaultdict(list)
+
+    def persist(self, record: EventRecord) -> EventRecord:
+        self._records[record.event.tenant_id].append(record)
+        return record
+
+    def list_by_tenant(self, tenant_id: str) -> List[EventRecord]:
+        return list(self._records.get(tenant_id, []))
+
+    def health(self) -> bool:
+        return True
+
+
+class InMemoryAuditStorage(AuditStorage):
+    def __init__(self) -> None:
+        self._entries: Dict[str, List[AuditLogEntry]] = defaultdict(list)
+
+    def append(self, entry: AuditLogEntry) -> AuditLogEntry:
+        self._entries[entry.tenant_id].append(entry)
+        return entry
+
+    def list_by_tenant(self, tenant_id: str) -> List[AuditLogEntry]:
+        return list(self._entries.get(tenant_id, []))
