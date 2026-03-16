@@ -6,13 +6,14 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel, Field
 
-from src.audit import AuditLogger
+from .security import apply_security_headers, require_jwt
 
-app = FastAPI(title="Certificate Service", version="0.1.0")
-AUDIT_LOGGER = AuditLogger("certificate.audit")
+app = FastAPI(title="Certificate Service", version="0.1.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 
 
 class CertificateIssueRequest(BaseModel):
