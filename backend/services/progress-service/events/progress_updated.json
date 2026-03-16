@@ -1,0 +1,27 @@
+{
+  "event_name": "progress.updated",
+  "event_version": "v1",
+  "topic": "lms.progress.updated.v1",
+  "producer_service": "progress-service",
+  "description": "Canonical event emitted on any progress record upsert.",
+  "payload_schema": {
+    "progress_id": "uuid",
+    "enrollment_id": "uuid",
+    "learner_id": "uuid",
+    "user_id": "uuid",
+    "course_id": "uuid",
+    "lesson_id": "uuid|null",
+    "percent_complete": "number",
+    "status": "string",
+    "last_activity_at": "date-time"
+  },
+  "required_fields": [
+    "progress_id",
+    "enrollment_id",
+    "user_id",
+    "course_id",
+    "percent_complete",
+    "status",
+    "last_activity_at"
+  ]
+}
