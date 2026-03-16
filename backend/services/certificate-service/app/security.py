@@ -12,7 +12,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.responses import Response
 
 _AUTH_SCHEME = HTTPBearer(auto_error=False)
-_EXEMPT_PATHS = {"/health", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+_EXEMPT_PATHS = {"/health", "/metrics", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+_EXEMPT_PREFIXES = ("/api/v1/certificates/verify/",)
 
 
 def _decode_base64url(value: str) -> bytes:
@@ -46,7 +47,7 @@ def require_jwt(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_AUTH_SCHEME),
 ) -> None:
-    if request.url.path in _EXEMPT_PATHS:
+    if request.url.path in _EXEMPT_PATHS or any(request.url.path.startswith(prefix) for prefix in _EXEMPT_PREFIXES):
         return
 
     secret = os.getenv("JWT_SHARED_SECRET")
