@@ -1,266 +1,236 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Protocol
+from uuid import uuid4
 
 from fastapi import HTTPException
 
-from .models import AccountStatus, IdentityMapping, LifecycleEvent, LifecycleEventType, User, UserPreferences
-from .security import AuthorizationContext
-from .schemas import (
-    ActivateUserRequest,
-    ChangeStatusRequest,
-    CreateUserRequest,
-    LockUnlockRequest,
-    ManagePreferencesRequest,
-    MapIdentityRequest,
-    TerminateReinstateRequest,
-    UnmapIdentityRequest,
-    UpdateProfileRequest,
-    UpdateUserRequest,
+from .models import (
+    AuditLogEntry,
+    IdentityAttributes,
+    RoleLink,
+    UserAggregate,
+    UserLifecycleEvent,
+    UserLifecycleEventType,
+    UserProfile,
+    UserStatus,
 )
+from .schemas import CreateUserRequest, RoleLinkRequest, RoleUnlinkRequest, UpdateStatusRequest, UpdateUserRequest
+from .store import AuditLogStore, InMemoryAuditLogStore, InMemoryUserStore, UserStore
+
+
+class EventPublisher(Protocol):
+    def publish(self, event: UserLifecycleEvent) -> None: ...
+
+
+class ObservabilityHook(Protocol):
+    def increment(self, name: str) -> None: ...
+
+
+@dataclass
+class InMemoryEventPublisher(EventPublisher):
+    events: list[UserLifecycleEvent] = field(default_factory=list)
+
+    def publish(self, event: UserLifecycleEvent) -> None:
+        self.events.append(event)
+
+
+@dataclass
+class InMemoryObservability(ObservabilityHook):
+    counters: dict[str, int] = field(default_factory=dict)
+
+    def increment(self, name: str) -> None:
+        self.counters[name] = self.counters.get(name, 0) + 1
 
 
 class UserService:
-    def __init__(self) -> None:
-        self.users: Dict[str, User] = {}
+    def __init__(
+        self,
+        user_store: UserStore | None = None,
+        audit_store: AuditLogStore | None = None,
+        event_publisher: EventPublisher | None = None,
+        observability: ObservabilityHook | None = None,
+    ) -> None:
+        self.user_store = user_store or InMemoryUserStore()
+        self.audit_store = audit_store or InMemoryAuditLogStore()
+        self.event_publisher = event_publisher or InMemoryEventPublisher()
+        self.observability = observability or InMemoryObservability()
 
-    def _get_tenant_user(self, tenant_id: str, user_id: str) -> User:
-        user = self.users.get(user_id)
-        if not user or user.tenant_id != tenant_id:
-            raise HTTPException(status_code=404, detail="User not found in tenant")
+    def _assert_tenant(self, context_tenant_id: str, target_tenant_id: str) -> None:
+        if context_tenant_id != target_tenant_id:
+            raise HTTPException(status_code=403, detail="cross_tenant_access_denied")
+
+    def _load_user(self, tenant_id: str, user_id: str) -> UserAggregate:
+        user = self.user_store.get(tenant_id, user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=404, detail="user_not_found")
         return user
 
-    def _add_event(self, user: User, event_type: LifecycleEventType, actor: str, detail: Dict[str, str]) -> None:
-        user.lifecycle_timeline.append(LifecycleEvent(event_type=event_type, actor=actor, detail=detail))
-
-    def _enforce_permission(self, actor: AuthorizationContext, required_permission: str) -> None:
-        if actor.role == "platform_admin":
-            return
-        if required_permission not in actor.permissions:
-            raise HTTPException(status_code=403, detail=f"Missing permission: {required_permission}")
-
-    def _enforce_tenant(self, actor: AuthorizationContext, tenant_id: str) -> None:
-        if actor.role != "platform_admin" and actor.tenant_id != tenant_id:
-            raise HTTPException(status_code=403, detail="Cross-tenant access is not allowed")
-
-    def _enforce_self_or_admin(self, actor: AuthorizationContext, user_id: str) -> None:
-        if actor.role in {"platform_admin", "tenant_admin"}:
-            return
-        if actor.principal_id != user_id:
-            raise HTTPException(status_code=403, detail="Only self-service access is allowed")
-
-    def create_user(self, req: CreateUserRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.user.invite")
-        user = User(
-            tenant_id=req.tenant_id,
-            email=req.email,
-            username=req.username,
-            role_set=req.role_set,
-            auth_provider=req.auth_provider,
-            external_subject_id=req.external_subject_id,
-            profile={"first_name": req.first_name, "last_name": req.last_name},
-            status=AccountStatus.ACTIVE if req.start_active else AccountStatus.PENDING_ACTIVATION,
-            created_by=req.created_by,
+    def _emit(self, event_type: UserLifecycleEventType, user: UserAggregate, actor_id: str, payload: dict[str, Any]) -> None:
+        event = UserLifecycleEvent(
+            event_id=str(uuid4()),
+            event_type=event_type,
+            tenant_id=user.tenant_id,
+            user_id=user.user_id,
+            actor_id=actor_id,
+            payload=payload,
         )
-        self._add_event(
-            user,
-            LifecycleEventType.CREATED,
-            req.created_by,
-            {"status": user.status.value, "username": user.username},
+        self.event_publisher.publish(event)
+        self.observability.increment(f"event.{event_type.value}")
+
+    def _audit(self, user: UserAggregate, action: str, actor_id: str, changes: dict[str, Any]) -> None:
+        self.audit_store.append(
+            AuditLogEntry(
+                audit_id=str(uuid4()),
+                tenant_id=user.tenant_id,
+                user_id=user.user_id,
+                action=action,
+                actor_id=actor_id,
+                changes=changes,
+            )
         )
-        self.users[user.user_id] = user
-        return user
+        self.observability.increment(f"audit.{action}")
 
-    def list_users(self, tenant_id: str, actor: AuthorizationContext, status: AccountStatus | None = None) -> List[User]:
-        self._enforce_tenant(actor, tenant_id)
-        self._enforce_permission(actor, "org.user.view")
-        items = [u for u in self.users.values() if u.tenant_id == tenant_id]
-        if status:
-            items = [u for u in items if u.status == status]
-        return items
-
-    def get_user(self, tenant_id: str, user_id: str, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, tenant_id)
-        self._enforce_self_or_admin(actor, user_id)
-        return self._get_tenant_user(tenant_id, user_id)
-
-    def activate_user(self, user_id: str, req: ActivateUserRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.user.disable")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        if user.status != AccountStatus.PENDING_ACTIVATION:
-            raise HTTPException(status_code=409, detail="Only pending users can be activated")
-        if not req.activation_token and not req.admin_override_reason:
-            raise HTTPException(status_code=400, detail="Activation token or admin override reason required")
-
-        user.status = AccountStatus.ACTIVE
-        user.activated_at = datetime.now(timezone.utc)
-        self._add_event(user, LifecycleEventType.ACTIVATED, req.activated_by, {"status": user.status.value})
-        return user
-
-    def update_profile(self, user_id: str, req: UpdateProfileRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_self_or_admin(actor, user_id)
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        fields = req.model_dump(exclude_none=True)
-        fields.pop("tenant_id", None)
-        actor = fields.pop("updated_by")
-        for key, value in fields.items():
-            setattr(user.profile, key, value)
-        user.profile_version += 1
-        self._add_event(user, LifecycleEventType.PROFILE_UPDATED, actor, {"version": str(user.profile_version)})
-        return user
-
-    def manage_preferences(self, user_id: str, req: ManagePreferencesRequest, actor: AuthorizationContext) -> UserPreferences:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_self_or_admin(actor, user_id)
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        user.preferences = UserPreferences(
-            notification_preferences=req.notification_preferences,
-            accessibility_preferences=req.accessibility_preferences,
-            language_preference=req.language_preference,
-        )
-        self._add_event(
-            user,
-            LifecycleEventType.PREFERENCES_UPDATED,
-            req.updated_by,
-            {"language": req.language_preference or ""},
-        )
-        return user.preferences
-
-    def change_account_status(self, user_id: str, req: ChangeStatusRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.user.disable")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        if user.status == AccountStatus.TERMINATED and req.target_status != AccountStatus.ACTIVE:
-            raise HTTPException(status_code=409, detail="Terminated users can only be reinstated to active")
-
-        user.status = req.target_status
-        self._add_event(
-            user,
-            LifecycleEventType.STATUS_CHANGED,
-            req.changed_by,
-            {"reason_code": req.reason_code, "target_status": req.target_status.value},
-        )
-        return user
-
-    def lock_or_unlock(self, user_id: str, req: LockUnlockRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.user.disable")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        if req.action not in {"lock", "unlock"}:
-            raise HTTPException(status_code=400, detail="Invalid action")
-
-        user.status = AccountStatus.LOCKED if req.action == "lock" else AccountStatus.ACTIVE
-        self._add_event(
-            user,
-            LifecycleEventType.STATUS_CHANGED,
-            req.performed_by,
-            {"action": req.action, "reason_code": req.reason_code},
-        )
-        return user
-
-    def terminate_or_reinstate(self, user_id: str, req: TerminateReinstateRequest, actor: AuthorizationContext) -> User:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.user.disable")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        if req.action not in {"terminate", "reinstate"}:
-            raise HTTPException(status_code=400, detail="Invalid action")
-
-        user.status = AccountStatus.TERMINATED if req.action == "terminate" else AccountStatus.ACTIVE
-        self._add_event(
-            user,
-            LifecycleEventType.STATUS_CHANGED,
-            req.performed_by,
-            {
-                "action": req.action,
-                "data_retention_policy_id": req.data_retention_policy_id or "",
-            },
-        )
-        return user
-
-    def map_external_identity(self, user_id: str, req: MapIdentityRequest, actor: AuthorizationContext) -> List[IdentityMapping]:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.role.assign")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-
-        for existing_user in self.users.values():
-            if existing_user.tenant_id != req.tenant_id:
-                continue
-            for mapping in existing_user.identity_links:
-                if (
-                    mapping.identity_provider == req.identity_provider
-                    and mapping.external_subject_id == req.external_subject_id
-                    and existing_user.user_id != user.user_id
-                ):
-                    raise HTTPException(status_code=409, detail="Identity mapping already used by another user")
-
-        mapping = next(
-            (
-                link
-                for link in user.identity_links
-                if link.identity_provider == req.identity_provider
-                and link.external_subject_id == req.external_subject_id
+    def create_user(self, request: CreateUserRequest, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, request.tenant_id)
+        user = UserAggregate(
+            tenant_id=request.tenant_id,
+            user_id=request.user_id,
+            status=UserStatus.PROVISIONED,
+            identity=IdentityAttributes(
+                email=request.email,
+                username=request.username,
+                external_subject_id=request.external_subject_id,
             ),
-            None,
+            profile=UserProfile(
+                first_name=request.first_name,
+                last_name=request.last_name,
+                display_name=request.display_name,
+                locale=request.locale,
+                timezone=request.timezone,
+                title=request.title,
+                department=request.department,
+            ),
         )
+        try:
+            self.user_store.create(user)
+        except ValueError:
+            raise HTTPException(status_code=409, detail="user_exists")
+        self._audit(user, "user.created", request.actor_id, {"status": user.status.value})
+        self._emit(UserLifecycleEventType.CREATED, user, request.actor_id, {"status": user.status.value})
+        self.observability.increment("user.create")
+        return user
 
-        if mapping:
-            mapping.external_username = req.external_username
-            mapping.mapping_attributes = req.mapping_attributes
-            mapping.mapped_by = req.mapped_by
-            mapping.mapped_at = datetime.now(timezone.utc)
-        else:
-            user.identity_links.append(
-                IdentityMapping(
-                    identity_provider=req.identity_provider,
-                    external_subject_id=req.external_subject_id,
-                    external_username=req.external_username,
-                    mapping_attributes=req.mapping_attributes,
-                    mapped_by=req.mapped_by,
-                )
-            )
+    def list_users(self, tenant_id: str, context_tenant_id: str) -> list[UserAggregate]:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self.observability.increment("user.list")
+        return [u for u in self.user_store.list(tenant_id) if u.deleted_at is None]
 
-        self._add_event(
-            user,
-            LifecycleEventType.IDENTITY_MAPPED,
-            req.mapped_by,
-            {"provider": req.identity_provider, "subject": req.external_subject_id},
+    def get_user(self, tenant_id: str, user_id: str, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self.observability.increment("user.get")
+        return self._load_user(tenant_id, user_id)
+
+    def update_user(self, tenant_id: str, user_id: str, request: UpdateUserRequest, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self._assert_tenant(context_tenant_id, request.tenant_id)
+        user = self._load_user(tenant_id, user_id)
+
+        changed: dict[str, Any] = {}
+        for field in ("email", "username"):
+            value = getattr(request, field)
+            if value is not None:
+                setattr(user.identity, field, value)
+                changed[f"identity.{field}"] = value
+
+        profile_fields = (
+            "first_name",
+            "last_name",
+            "display_name",
+            "locale",
+            "timezone",
+            "title",
+            "department",
+            "phone_number",
+            "avatar_url",
         )
-        return user.identity_links
+        for field in profile_fields:
+            value = getattr(request, field)
+            if value is not None:
+                setattr(user.profile, field, value)
+                changed[f"profile.{field}"] = value
 
-    def unmap_external_identity(self, user_id: str, req: UnmapIdentityRequest, actor: AuthorizationContext) -> List[IdentityMapping]:
-        self._enforce_tenant(actor, req.tenant_id)
-        self._enforce_permission(actor, "org.role.assign")
-        user = self._get_tenant_user(req.tenant_id, user_id)
-        before = len(user.identity_links)
-        user.identity_links = [
-            link
-            for link in user.identity_links
-            if not (
-                link.identity_provider == req.identity_provider
-                and link.external_subject_id == req.external_subject_id
-            )
-        ]
-        if before == len(user.identity_links):
-            raise HTTPException(status_code=404, detail="Identity mapping not found")
+        user.version += 1
+        user.updated_at = datetime.now(timezone.utc)
+        self.user_store.update(user)
+        self._audit(user, "user.profile.updated", request.actor_id, changed)
+        self._emit(UserLifecycleEventType.PROFILE_UPDATED, user, request.actor_id, changed)
+        self.observability.increment("user.update")
+        return user
 
-        self._add_event(
-            user,
-            LifecycleEventType.IDENTITY_UNMAPPED,
-            req.unmapped_by,
-            {"provider": req.identity_provider, "subject": req.external_subject_id, "reason": req.reason},
-        )
-        return user.identity_links
+    def update_status(self, tenant_id: str, user_id: str, request: UpdateStatusRequest, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self._assert_tenant(context_tenant_id, request.tenant_id)
+        user = self._load_user(tenant_id, user_id)
+        prev_status = user.status
+        user.status = request.status
+        user.version += 1
+        user.updated_at = datetime.now(timezone.utc)
+        self.user_store.update(user)
+        payload = {"from": prev_status.value, "to": user.status.value, "reason": request.reason}
+        self._audit(user, "user.status.updated", request.actor_id, payload)
+        self._emit(UserLifecycleEventType.STATUS_CHANGED, user, request.actor_id, payload)
+        self.observability.increment("user.status")
+        return user
 
-    def get_identity_links(self, tenant_id: str, user_id: str, actor: AuthorizationContext) -> List[IdentityMapping]:
-        self._enforce_tenant(actor, tenant_id)
-        self._enforce_self_or_admin(actor, user_id)
-        return self._get_tenant_user(tenant_id, user_id).identity_links
+    def link_role(self, tenant_id: str, user_id: str, request: RoleLinkRequest, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self._assert_tenant(context_tenant_id, request.tenant_id)
+        user = self._load_user(tenant_id, user_id)
+        if request.role_id not in [link.role_id for link in user.role_links]:
+            user.role_links.append(RoleLink(role_id=request.role_id, linked_by=request.actor_id))
+            user.version += 1
+            self.user_store.update(user)
+            payload = {"role_id": request.role_id}
+            self._audit(user, "user.role.linked", request.actor_id, payload)
+            self._emit(UserLifecycleEventType.ROLE_LINKED, user, request.actor_id, payload)
+        self.observability.increment("user.role.link")
+        return user
 
-    def get_lifecycle_timeline(self, tenant_id: str, user_id: str, actor: AuthorizationContext) -> List[LifecycleEvent]:
-        self._enforce_tenant(actor, tenant_id)
-        self._enforce_permission(actor, "org.user.view")
-        return self._get_tenant_user(tenant_id, user_id).lifecycle_timeline
+    def unlink_role(self, tenant_id: str, user_id: str, request: RoleUnlinkRequest, context_tenant_id: str) -> UserAggregate:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self._assert_tenant(context_tenant_id, request.tenant_id)
+        user = self._load_user(tenant_id, user_id)
+        before = len(user.role_links)
+        user.role_links = [link for link in user.role_links if link.role_id != request.role_id]
+        if len(user.role_links) == before:
+            raise HTTPException(status_code=404, detail="role_link_not_found")
+        user.version += 1
+        self.user_store.update(user)
+        payload = {"role_id": request.role_id}
+        self._audit(user, "user.role.unlinked", request.actor_id, payload)
+        self._emit(UserLifecycleEventType.ROLE_UNLINKED, user, request.actor_id, payload)
+        self.observability.increment("user.role.unlink")
+        return user
+
+    def delete_user(self, tenant_id: str, user_id: str, actor_id: str, context_tenant_id: str) -> None:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        user = self._load_user(tenant_id, user_id)
+        user.deleted_at = datetime.now(timezone.utc)
+        user.status = UserStatus.DEACTIVATED
+        user.version += 1
+        self.user_store.update(user)
+        self._audit(user, "user.deleted", actor_id, {"deleted": True})
+        self._emit(UserLifecycleEventType.DELETED, user, actor_id, {"deleted": True})
+        self.observability.increment("user.delete")
+
+    def list_audit_entries(self, tenant_id: str, user_id: str, context_tenant_id: str) -> list[AuditLogEntry]:
+        self._assert_tenant(context_tenant_id, tenant_id)
+        self._load_user(tenant_id, user_id)
+        return self.audit_store.list_for_user(tenant_id, user_id)
+
+    def list_emitted_events(self, tenant_id: str) -> list[UserLifecycleEvent]:
+        events = getattr(self.event_publisher, "events", [])
+        return [event for event in events if event.tenant_id == tenant_id]
