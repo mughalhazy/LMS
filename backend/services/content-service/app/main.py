@@ -5,10 +5,14 @@ from __future__ import annotations
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="Content Service", version="0.1.0")
+from .security import apply_security_headers, require_jwt
+
+app = FastAPI(title="Content Service", version="0.1.0", dependencies=[Depends(require_jwt)])
+
+apply_security_headers(app)
 
 
 class ContentUploadRequest(BaseModel):
