@@ -1,0 +1,10 @@
+{
+  "event_type": "institution.tenant_linked.v1",
+  "aggregate": "institution-tenant-link",
+  "payload": {
+    "institution_id": "string",
+    "tenant_id": "string",
+    "link_scope": "primary|affiliate|delivery",
+    "status": "active|inactive"
+  }
+}
