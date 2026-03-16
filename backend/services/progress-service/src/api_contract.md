@@ -1,48 +1,36 @@
-# Progress Service API Endpoints
+# Progress Service API Endpoints (v1)
 
 Base path: `/api/v1/progress`
 
-## 1) Track lesson completion
-- **POST** `/api/v1/progress/lessons/completion`
-- Request body fields:
-  - `tenant_id`
-  - `learner_id`
-  - `course_id`
-  - `lesson_id`
-  - `enrollment_id`
-  - `completion_status`
-  - `score`
-  - `time_spent_seconds`
-  - `attempt_count`
-- Emits:
-  - `LessonCompletionTracked`
-  - recomputed `CourseCompletionTracked`
-  - recomputed `LearningPathProgressUpdated`
+## Health and observability
+- `GET /health`
+- `GET /metrics`
 
-## 2) Assign learning path to learner
-- **POST** `/api/v1/progress/learning-paths/assign`
-- Request body fields:
-  - `tenant_id`
-  - `learner_id`
-  - `learning_path_id`
-  - `assigned_course_ids`
-  - `expected_completion_date` (optional)
-- Emits:
-  - initial `LearningPathProgressUpdated`
+## Upsert lesson progress
+- `POST /api/v1/progress/lessons/{lesson_id}/upsert`
+- Idempotent write using `idempotency_key`
+- Requires tenant context in both payload and `X-Tenant-Id`
+- Returns canonical Progress response with `learner_id` and `user_id` alias
 
-## 3) Get learner progress (tenant scoped)
-- **GET** `/api/v1/progress/learners/{learner_id}?tenant_id={tenant_id}`
-- Response sections:
-  - `courses`
-  - `lessons`
-  - `learning_paths`
+## Complete lesson
+- `POST /api/v1/progress/lessons/{lesson_id}/complete`
+- Forces lesson progress to `completed` with `progress_percentage=100`
+- Recomputes and persists course progression snapshot
+- Emits lesson + progress lifecycle events
 
-## 4) Get course progress for learner
-- **GET** `/api/v1/progress/learners/{learner_id}/courses/{course_id}?tenant_id={tenant_id}`
-- Response:
-  - `completion_status`
-  - `final_score`
-  - `started_at`
-  - `completed_at`
-  - `total_time_spent_seconds`
-  - `certificate_id`
+## Get learner summary
+- `GET /api/v1/progress/learners/{learner_id}?tenant_id={tenant_id}`
+- Returns tenant-scoped course/lesson/path projections
+
+## Get course progress
+- `GET /api/v1/progress/learners/{learner_id}/courses/{course_id}?tenant_id={tenant_id}`
+- Returns course completion state and metrics
+
+## Assign learning path context
+- `POST /api/v1/progress/learning-paths/{learning_path_id}/assignments`
+- Stores path assignment context for path-level progression rollups
+
+## Error semantics
+- `400 tenant_mismatch` when `X-Tenant-Id` differs from requested tenant
+- `404 course_progress_not_found` when no course projection exists
+- `409 enrollment_not_active` when enrollment gateway denies progress mutation
