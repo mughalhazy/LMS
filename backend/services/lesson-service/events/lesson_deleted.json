@@ -1,0 +1,15 @@
+{
+  "event_name": "lesson_deleted",
+  "event_version": "v1",
+  "topic": "lms.lesson.deleted.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when a lesson record is deleted.",
+  "payload_schema": {
+    "type": "object",
+    "required": ["lesson_id", "tenant_id"],
+    "properties": {
+      "lesson_id": {"type": "string"},
+      "tenant_id": {"type": "string"}
+    }
+  }
+}

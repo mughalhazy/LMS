@@ -1,0 +1,18 @@
+{
+  "event_name": "lesson_unpublished",
+  "event_version": "v1",
+  "topic": "lms.lesson.unpublished.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when a lesson moves from published back to draft.",
+  "payload_schema": {
+    "type": "object",
+    "required": ["lesson_id", "tenant_id", "course_id", "status", "version"],
+    "properties": {
+      "lesson_id": {"type": "string"},
+      "tenant_id": {"type": "string"},
+      "course_id": {"type": "string"},
+      "status": {"const": "draft"},
+      "version": {"type": "integer", "minimum": 1}
+    }
+  }
+}
