@@ -1,140 +1,88 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from .schemas import (
-    EventIngestRequest,
-    SUPPORTED_EVENT_FIELDS,
-    SchemaValidationError,
-    ensure_iso8601,
-    utc_now_iso,
-)
-from .store import InMemoryEventStore
-
-TIMESTAMP_FIELDS_BY_EVENT = {
-    event_type: [f for f in fields if f.endswith("_at") or f.endswith("_timestamp")]
-    for event_type, fields in SUPPORTED_EVENT_FIELDS.items()
-}
+from .forwarders import ForwardingPipeline
+from .models import AuditLogEntry, EventActor, EventEntityRef, EventRecord, IngestResult, NormalizedEvent
+from .observability import MetricsRecorder, Timer
+from .schemas import IngestionRequest
+from .store import AuditStorage, EventStorage
 
 
 class EventIngestionService:
-    def __init__(self, store: InMemoryEventStore) -> None:
-        self.store = store
+    def __init__(
+        self,
+        event_store: EventStorage,
+        audit_store: AuditStorage,
+        forwarding_pipeline: ForwardingPipeline,
+        metrics: MetricsRecorder,
+    ) -> None:
+        self._event_store = event_store
+        self._audit_store = audit_store
+        self._forwarding_pipeline = forwarding_pipeline
+        self._metrics = metrics
 
-    def ingest_event(self, request: EventIngestRequest) -> Tuple[int, Dict[str, Any]]:
-        collected_event = {
-            "collection_id": f"col_{uuid4().hex}",
-            "event_id": request.event_id,
-            "event_type": request.event_type,
-            "source_system": request.source_system,
-            "tenant_id": request.tenant_id,
-            "actor_id": request.actor_id,
-            "session_id": request.session_id,
-            "occurred_at": request.occurred_at,
-            "received_at": utc_now_iso(),
-            "schema_version": request.schema_version,
-            "payload": request.payload,
-            "ingestion_channel": request.ingestion_channel,
-        }
-        self.store.append_raw(request.tenant_id, collected_event)
+    def ingest(self, request: IngestionRequest) -> IngestResult:
+        timer = Timer()
+        normalized = self._normalize(request)
+        record = EventRecord(
+            record_id=f"evtrec_{uuid4().hex}",
+            event=normalized,
+            storage_partition=f"tenant::{normalized.tenant_id}",
+        )
 
-        try:
-            normalized_payload = self._validate_schema(request)
-        except SchemaValidationError as exc:
-            rejected_event = {
-                "rejection_id": f"rej_{uuid4().hex}",
-                "event_id": request.event_id,
-                "event_type": request.event_type,
-                "tenant_id": request.tenant_id,
-                "received_at": collected_event["received_at"],
-                "rejection_reason_code": exc.reason_code,
-                "rejection_reason_detail": exc.detail,
-                "failed_field": exc.failed_field,
-                "validator_version": "event-schema-validator-v1",
-                "original_payload": request.payload,
-                "retry_eligible_flag": exc.reason_code == "missing_required_field",
-            }
-            self.store.append_rejected(request.tenant_id, rejected_event)
-            return 422, {"status": "rejected", "event": rejected_event}
-
-        validated_event = {
-            "validation_id": f"val_{uuid4().hex}",
-            "event_id": request.event_id,
-            "event_type": request.event_type,
-            "tenant_id": request.tenant_id,
-            "schema_version": request.schema_version,
-            "required_fields_present": True,
-            "pii_policy_passed": True,
-            "signature_verified": True,
-            "validation_status": "valid",
-            "validated_at": utc_now_iso(),
-            "validator_version": "event-schema-validator-v1",
-            "normalized_payload": normalized_payload,
-        }
-        self.store.append_validated(request.tenant_id, validated_event)
-        return 202, {"status": "accepted", "event": validated_event}
-
-    def ingest_batch(
-        self, tenant_id: str, events: List[EventIngestRequest]
-    ) -> Tuple[int, Dict[str, Any]]:
-        accepted = 0
-        rejected = 0
-        results: List[Dict[str, Any]] = []
-
-        for event in events:
-            if event.tenant_id != tenant_id:
-                return 400, {
-                    "error": "tenant_scope_violation",
-                    "detail": "all events in batch must match request tenant",
-                }
-
-            status, payload = self.ingest_event(event)
-            if status == 202:
-                accepted += 1
-            else:
-                rejected += 1
-            results.append({"status_code": status, **payload})
-
-        return 207, {
-            "tenant_id": tenant_id,
-            "batch_size": len(events),
-            "accepted": accepted,
-            "rejected": rejected,
-            "results": results,
-        }
-
-    def get_tenant_stream(self, tenant_id: str) -> Tuple[int, Dict[str, Any]]:
-        return 200, {"tenant_id": tenant_id, **self.store.get_tenant_stream(tenant_id)}
-
-    def get_ingestion_metrics(self) -> Tuple[int, Dict[str, Any]]:
-        return 200, self.store.get_ingestion_metrics()
-
-    def _validate_schema(self, request: EventIngestRequest) -> Dict[str, Any]:
-        if request.event_type not in SUPPORTED_EVENT_FIELDS:
-            raise SchemaValidationError(
-                "unsupported_event_type",
-                f"event_type '{request.event_type}' is not supported",
-                "event_type",
+        self._event_store.persist(record)
+        self._audit_store.append(
+            AuditLogEntry(
+                audit_id=f"audit_{uuid4().hex}",
+                tenant_id=normalized.tenant_id,
+                action="event_ingested",
+                event_id=normalized.event_id,
+                metadata={
+                    "family": normalized.family.value,
+                    "event_type": normalized.event_type,
+                    "trace_id": normalized.trace.trace_id,
+                },
             )
+        )
+        forward_results = self._forwarding_pipeline.publish(normalized)
 
-        ensure_iso8601(request.occurred_at, "occurred_at")
+        self._metrics.increment("events_ingested_total")
+        self._metrics.increment(f"events_ingested_family_{normalized.family.value}")
+        self._metrics.observe_duration_ms("ingestion_latency", timer.elapsed_ms())
 
-        required_fields = SUPPORTED_EVENT_FIELDS[request.event_type]
-        for field in required_fields:
-            if field not in request.payload:
-                raise SchemaValidationError(
-                    "missing_required_field",
-                    f"payload is missing required field '{field}'",
-                    field,
-                )
+        return IngestResult(record=record, forward_results=forward_results)
 
-        for timestamp_field in TIMESTAMP_FIELDS_BY_EVENT.get(request.event_type, []):
-            if timestamp_field in request.payload:
-                ensure_iso8601(str(request.payload[timestamp_field]), timestamp_field)
-
-        normalized_payload = {
-            key: request.payload[key] for key in required_fields if key in request.payload
+    def health(self) -> dict[str, bool]:
+        return {
+            "storage_ok": self._event_store.health(),
+            "forwarders_ok": self._forwarding_pipeline.health(),
         }
-        normalized_payload["tenant_id"] = request.tenant_id
-        return normalized_payload
+
+    def metrics(self) -> dict[str, int]:
+        return self._metrics.snapshot().counters
+
+    def _normalize(self, request: IngestionRequest) -> NormalizedEvent:
+        normalized_payload = {
+            "keys": sorted(list(request.payload.keys())),
+            "value_types": {k: type(v).__name__ for k, v in request.payload.items()},
+            "source": request.source,
+            "event_type": request.event_type,
+        }
+
+        return NormalizedEvent(
+            event_id=request.event_id,
+            tenant_id=request.tenant_id,
+            family=request.family,
+            event_type=request.event_type,
+            source=request.source,
+            occurred_at=request.occurred_at.astimezone(timezone.utc),
+            ingested_at=datetime.now(timezone.utc),
+            trace=request.trace,
+            actor=EventActor(**request.actor) if request.actor else None,
+            entity=EventEntityRef(**request.entity) if request.entity else None,
+            payload=request.payload,
+            normalized_payload=normalized_payload,
+            tags=sorted(set(request.tags)),
+        )

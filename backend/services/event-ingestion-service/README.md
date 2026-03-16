@@ -1,30 +1,44 @@
 # Event Ingestion Service
 
-The Event Ingestion Service provides high-volume, tenant-scoped ingestion of LMS learning activity events for the analytics pipeline.
+Production-ready ingestion boundary for Enterprise LMS V2 domain events.
+
+## Scope
+
+This service **only ingests and normalizes events**. It does not own source domain entities and does not write to any shared domain service database.
 
 ## Responsibilities
-- Ingest learning activity events through single-event and batch APIs.
-- Validate incoming payloads against supported analytics event schemas.
-- Persist raw, validated, and rejected events for downstream analytics and replay.
-- Keep tenant-scoped streams isolated (`raw`, `validated`, `rejected`).
 
-## API Endpoints
-- `POST /api/v1/events/ingest`
-- `POST /api/v1/events/ingest/batch`
-- `GET /api/v1/events/streams/{tenant_id}`
-- `GET /api/v1/events/metrics`
+- Capture domain events through `/events/ingest`
+- Normalize payloads into a tenant-aware canonical record
+- Persist event records and immutable audit entries in service-owned storage
+- Forward events to analytics and AI consumers
+- Preserve tenant context and end-to-end traceability metadata
+- Provide health and metrics endpoints for observability
 
-## Event Topics
-- `lms.analytics_ingestion.event_collected.v1`
-- `lms.analytics_ingestion.event_validated.v1`
-- `lms.analytics_ingestion.event_rejected.v1`
+## Event Families
 
-## Run
-```bash
-python -m app.main
-```
+- `user`
+- `course`
+- `lesson`
+- `enrollment`
+- `progress`
+- `assessment`
+- `certificate`
+- `ai`
 
-## Test
-```bash
-pytest tests/test_event_ingestion_service.py
-```
+## API
+
+- `POST /events/ingest`
+- `GET /health`
+- `GET /metrics`
+
+## Migration notes
+
+1. Provision a dedicated storage schema/database for this service (no shared DB writes).
+2. Apply `migrations/0001_create_event_records.sql`.
+3. Configure downstream forwarders (analytics + AI endpoints/queues).
+4. Replace in-memory store and noop forwarders with production adapters implementing:
+   - `EventStorage`
+   - `AuditStorage`
+   - `EventForwarder`
+5. Route producer services to this API instead of direct analytics writes.
