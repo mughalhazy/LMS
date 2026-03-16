@@ -171,6 +171,16 @@
   },
   {
     "labels": {
+      "service": "institution-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "institution-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
       "service": "learning-analytics-service",
       "job": "lms-services-metrics",
       "metrics_path": "/metrics"
@@ -251,6 +261,16 @@
   },
   {
     "labels": {
+      "service": "program-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "program-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
       "service": "progress-service",
       "job": "lms-services-metrics",
       "metrics_path": "/metrics"
@@ -321,6 +341,16 @@
   },
   {
     "labels": {
+      "service": "session-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "session-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
       "service": "skill-analytics-service",
       "job": "lms-services-metrics",
       "metrics_path": "/metrics"
@@ -377,16 +407,6 @@
     },
     "targets": [
       "webhook-service.lms.svc.cluster.local:80"
-    ]
-  },
-  {
-    "labels": {
-      "service": "program-service",
-      "job": "lms-services-metrics",
-      "metrics_path": "/metrics"
-    },
-    "targets": [
-      "program-service.lms.svc.cluster.local:80"
     ]
   }
 ]

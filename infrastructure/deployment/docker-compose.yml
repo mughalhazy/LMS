@@ -628,6 +628,30 @@ services:
     networks:
       - lms-backend-net
     restart: unless-stopped
+  program-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/deployment/docker/Dockerfile.python
+      args:
+        SERVICE_PATH: backend/services/program-service
+    env_file:
+      - ./env/common.env
+      - ./env/services.env
+    environment:
+      SERVICE_NAME: program-service
+      SERVICE_PORT: "8138"
+      APP_MODULE: "app.main:app"
+      START_COMMAND: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8138:8138"
+    networks:
+      - lms-backend-net
+    restart: unless-stopped
   progress-service:
     build:
       context: ../..

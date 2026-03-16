@@ -456,6 +456,24 @@
         "deregister_on_shutdown": true
       }
     },
+    "institution-service": {
+      "service_name": "institution-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
+    },
     "learning-analytics-service": {
       "service_name": "learning-analytics-service",
       "service_id": "learning-analytics-service-${HOSTNAME}",
@@ -664,6 +682,24 @@
         "deregister_on_shutdown": true
       }
     },
+    "program-service": {
+      "service_name": "program-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
+    },
     "progress-service": {
       "service_name": "progress-service",
       "service_id": "progress-service-${HOSTNAME}",
@@ -845,6 +881,24 @@
         "register_on_startup": true,
         "deregister_on_shutdown": true
       }
+    },
+    "session-service": {
+      "service_name": "session-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
     },
     "skill-analytics-service": {
       "service_name": "skill-analytics-service",

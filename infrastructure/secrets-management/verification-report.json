@@ -1,6 +1,6 @@
 {
   "secrets_configured": true,
-  "services_using_secrets": 38,
+  "services_using_secrets": 41,
   "security_status": "pass",
   "missing_service_mappings": [],
   "hardcoded_secret_findings": []

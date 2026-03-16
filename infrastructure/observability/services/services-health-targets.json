@@ -154,6 +154,15 @@
   },
   {
     "labels": {
+      "service": "institution-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://institution-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
       "service": "learning-analytics-service",
       "job": "lms-services-health"
     },
@@ -226,6 +235,15 @@
   },
   {
     "labels": {
+      "service": "program-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://program-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
       "service": "progress-service",
       "job": "lms-services-health"
     },
@@ -289,6 +307,15 @@
   },
   {
     "labels": {
+      "service": "session-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://session-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
       "service": "skill-analytics-service",
       "job": "lms-services-health"
     },
@@ -339,15 +366,6 @@
     },
     "targets": [
       "http://webhook-service.lms.svc.cluster.local/health"
-    ]
-  },
-  {
-    "labels": {
-      "service": "program-service",
-      "job": "lms-services-health"
-    },
-    "targets": [
-      "http://program-service.lms.svc.cluster.local/health"
     ]
   }
 ]
