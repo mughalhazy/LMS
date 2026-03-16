@@ -60,6 +60,12 @@
       "chars": 505
     },
     {
+      "file": "docs/architecture/DOC_04_academy_operational_model.md",
+      "domain": "system_architecture",
+      "bytes": 7364,
+      "chars": 7352
+    },
+    {
       "file": "docs/architecture/adaptive_learning_engine.md",
       "domain": "system_architecture",
       "bytes": 3026,
@@ -300,6 +306,24 @@
       "chars": 2789
     },
     {
+      "file": "docs/qc/audit_logging_verification.md",
+      "domain": "validation_constraints",
+      "bytes": 1010,
+      "chars": 998
+    },
+    {
+      "file": "docs/qc/final_qc_cross_service_dependency_check.md",
+      "domain": "validation_constraints",
+      "bytes": 2683,
+      "chars": 2681
+    },
+    {
+      "file": "docs/qc/load_test_preparation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1920,
+      "chars": 1916
+    },
+    {
       "file": "docs/qc/qc_gate_1_feature_completeness_check.md",
       "domain": "validation_constraints",
       "bytes": 1734,
@@ -316,6 +340,36 @@
       "domain": "validation_constraints",
       "bytes": 4073,
       "chars": 4073
+    },
+    {
+      "file": "docs/qc/qc_gate_3_code_structure_validation.md",
+      "domain": "validation_constraints",
+      "bytes": 667,
+      "chars": 665
+    },
+    {
+      "file": "docs/qc/qc_gate_3_event_publishing_validation.md",
+      "domain": "validation_constraints",
+      "bytes": 1820,
+      "chars": 1820
+    },
+    {
+      "file": "docs/qc/qc_gate_4_service_communication_validation.md",
+      "domain": "validation_constraints",
+      "bytes": 1472,
+      "chars": 1470
+    },
+    {
+      "file": "docs/qc/stage3_service_map_verification.md",
+      "domain": "validation_constraints",
+      "bytes": 4066,
+      "chars": 4066
+    },
+    {
+      "file": "docs/qc/system_final_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 3480,
+      "chars": 3480
     },
     {
       "file": "docs/qc/tenant_model_validation_qc_gate2.md",
@@ -386,8 +440,8 @@
     {
       "file": "docs/specs/lesson_service_spec.md",
       "domain": "service_definitions",
-      "bytes": 598,
-      "chars": 598
+      "bytes": 1302,
+      "chars": 1302
     },
     {
       "file": "docs/specs/localization_spec.md",
