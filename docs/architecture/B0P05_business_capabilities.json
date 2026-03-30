@@ -1,0 +1,368 @@
+{
+  "capability_schema": "business_capability.v1",
+  "version": "2026-03-30",
+  "capabilities": [
+    {
+      "capability_key": "commerce.catalog",
+      "domain": "commerce",
+      "name": "Commerce Catalog Management",
+      "description": "Manages sellable SKUs, bundles, catalogs, and publication state for commercial offerings.",
+      "dependencies": [
+        "tenant_context_service",
+        "product_catalog_service",
+        "taxonomy_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "commerce_catalog_skus",
+          "unit": "active_sku_count",
+          "billable": true
+        },
+        {
+          "meter_key": "commerce_catalog_publish_events",
+          "unit": "event_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "subscription",
+        "billable_dimensions": [
+          "active_sku_count",
+          "event_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "commerce.pricing",
+      "domain": "commerce",
+      "name": "Commerce Pricing Engine",
+      "description": "Defines price books, regional pricing, coupons, and promotional rules for commercial offers.",
+      "dependencies": [
+        "tenant_context_service",
+        "pricing_service",
+        "currency_fx_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "commerce_price_rule_evaluations",
+          "unit": "evaluation_count",
+          "billable": true
+        },
+        {
+          "meter_key": "commerce_active_price_books",
+          "unit": "price_book_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "hybrid",
+        "billable_dimensions": [
+          "evaluation_count",
+          "price_book_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "commerce.checkout",
+      "domain": "commerce",
+      "name": "Commerce Checkout",
+      "description": "Runs cart-to-order conversion, payment authorization, tax estimation, and order confirmation.",
+      "dependencies": [
+        "tenant_context_service",
+        "checkout_service",
+        "payment_gateway_adapter",
+        "tax_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "commerce_checkout_attempts",
+          "unit": "checkout_attempt_count",
+          "billable": true
+        },
+        {
+          "meter_key": "commerce_successful_orders",
+          "unit": "order_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "usage_based",
+        "billable_dimensions": [
+          "checkout_attempt_count",
+          "order_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "commerce.invoices",
+      "domain": "commerce",
+      "name": "Commerce Invoicing",
+      "description": "Generates invoices, credit notes, payment status updates, and receivables exports.",
+      "dependencies": [
+        "tenant_context_service",
+        "invoice_service",
+        "ledger_export_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "commerce_invoices_issued",
+          "unit": "invoice_count",
+          "billable": true
+        },
+        {
+          "meter_key": "commerce_invoice_pdf_storage_gb",
+          "unit": "gb_month",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "hybrid",
+        "billable_dimensions": [
+          "invoice_count",
+          "gb_month"
+        ]
+      }
+    },
+    {
+      "capability_key": "commerce.subscriptions",
+      "domain": "commerce",
+      "name": "Commerce Subscription Billing",
+      "description": "Handles recurring plans, renewals, proration, grace periods, and dunning workflows.",
+      "dependencies": [
+        "tenant_context_service",
+        "subscription_billing_service",
+        "payment_gateway_adapter",
+        "entitlement_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "commerce_active_subscriptions",
+          "unit": "subscription_count",
+          "billable": true
+        },
+        {
+          "meter_key": "commerce_renewal_transactions",
+          "unit": "transaction_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "subscription",
+        "billable_dimensions": [
+          "subscription_count",
+          "transaction_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "academy_operations.batches",
+      "domain": "academy_operations",
+      "name": "Academy Batch Administration",
+      "description": "Creates and operates delivery batches, intake windows, and seat allocation for academy programs.",
+      "dependencies": [
+        "tenant_context_service",
+        "academy_batch_service",
+        "organization_catalog_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "academy_batches_active",
+          "unit": "batch_count",
+          "billable": true
+        },
+        {
+          "meter_key": "academy_batch_seat_assignments",
+          "unit": "seat_assignment_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "subscription",
+        "billable_dimensions": [
+          "batch_count",
+          "seat_assignment_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "academy_operations.attendance",
+      "domain": "academy_operations",
+      "name": "Academy Attendance Operations",
+      "description": "Captures and audits attendance sessions, late marks, and attendance compliance summaries.",
+      "dependencies": [
+        "tenant_context_service",
+        "attendance_service",
+        "reporting_analytics_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "academy_attendance_records",
+          "unit": "attendance_record_count",
+          "billable": true
+        },
+        {
+          "meter_key": "academy_attendance_audit_exports",
+          "unit": "export_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "usage_based",
+        "billable_dimensions": [
+          "attendance_record_count",
+          "export_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "academy_operations.branches",
+      "domain": "academy_operations",
+      "name": "Academy Branch Operations",
+      "description": "Manages academy branch setup, branch-level staffing scope, and branch operations reporting.",
+      "dependencies": [
+        "tenant_context_service",
+        "branch_management_service",
+        "organization_catalog_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "academy_branches_active",
+          "unit": "branch_count",
+          "billable": true
+        },
+        {
+          "meter_key": "academy_branch_admins",
+          "unit": "admin_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "subscription",
+        "billable_dimensions": [
+          "branch_count",
+          "admin_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "school_operations.grading",
+      "domain": "school_operations",
+      "name": "School Grading Operations",
+      "description": "Administers grade books, grading periods, grade publication controls, and transcript-grade synchronization.",
+      "dependencies": [
+        "tenant_context_service",
+        "grading_service",
+        "transcript_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "school_grade_entries",
+          "unit": "grade_entry_count",
+          "billable": true
+        },
+        {
+          "meter_key": "school_grade_publications",
+          "unit": "publication_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "hybrid",
+        "billable_dimensions": [
+          "grade_entry_count",
+          "publication_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "school_operations.parent_portal",
+      "domain": "school_operations",
+      "name": "School Parent Portal Operations",
+      "description": "Provides guardians access to attendance/grade summaries, announcements, and school communication workflows.",
+      "dependencies": [
+        "tenant_context_service",
+        "parent_portal_service",
+        "notification_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "school_parent_portal_guardian_accounts",
+          "unit": "guardian_account_count",
+          "billable": true
+        },
+        {
+          "meter_key": "school_parent_portal_notifications_sent",
+          "unit": "notification_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "subscription",
+        "billable_dimensions": [
+          "guardian_account_count",
+          "notification_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "corporate_training.compliance",
+      "domain": "corporate_training",
+      "name": "Corporate Training Compliance Management",
+      "description": "Tracks required policy training obligations, compliance windows, and audit-ready compliance attestation records.",
+      "dependencies": [
+        "tenant_context_service",
+        "compliance_reporting_service",
+        "policy_registry_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "corporate_compliance_assignments",
+          "unit": "assignment_count",
+          "billable": true
+        },
+        {
+          "meter_key": "corporate_compliance_attestations",
+          "unit": "attestation_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "usage_based",
+        "billable_dimensions": [
+          "assignment_count",
+          "attestation_count"
+        ]
+      }
+    },
+    {
+      "capability_key": "corporate_training.onboarding",
+      "domain": "corporate_training",
+      "name": "Corporate Training Onboarding Programs",
+      "description": "Orchestrates role-based onboarding tracks, cohort scheduling for new hires, and readiness checkpoint reporting.",
+      "dependencies": [
+        "tenant_context_service",
+        "onboarding_program_service",
+        "hris_sync_service"
+      ],
+      "usage_meters": [
+        {
+          "meter_key": "corporate_onboarding_enrollments",
+          "unit": "enrollment_count",
+          "billable": true
+        },
+        {
+          "meter_key": "corporate_onboarding_programs_active",
+          "unit": "program_count",
+          "billable": true
+        }
+      ],
+      "monetization": {
+        "model": "hybrid",
+        "billable_dimensions": [
+          "enrollment_count",
+          "program_count"
+        ]
+      }
+    }
+  ]
+}
