@@ -1,0 +1,67 @@
+{
+  "batch": "B7P01",
+  "title": "Capability Registry Validation",
+  "scope": {
+    "batch_0_files": [
+      "docs/specs/B0P04_core_capabilities.json",
+      "docs/architecture/B0P05_business_capabilities.json",
+      "docs/architecture/B0P06_communication_capabilities.json",
+      "docs/architecture/capabilities/B0P07_delivery_capabilities.json",
+      "docs/architecture/B0P08_intelligence_capabilities.json"
+    ],
+    "registry_service_artifacts": [
+      "docs/architecture/schemas/capability_registry.example.json",
+      "docs/architecture/B2P05_capability_registry_service_design.md",
+      "docs/architecture/schemas/segment_configuration.example.json"
+    ]
+  },
+  "totals": {
+    "capabilities": 19,
+    "domains": 10,
+    "dependency_edges": 19
+  },
+  "checks": {
+    "no_duplicate_capability_keys": true,
+    "no_missing_dependencies": true,
+    "no_circular_dependencies": true,
+    "all_capabilities_resolvable": true,
+    "no_orphan_capabilities": true,
+    "supported_segments_alignment": true,
+    "supported_countries_alignment": true,
+    "clean_domain_separation": true
+  },
+  "domain_summary": {
+    "analytics": 1,
+    "assessment": 1,
+    "communications": 3,
+    "communications_workflows": 1,
+    "credentials": 1,
+    "delivery": 2,
+    "engagement": 1,
+    "intelligence_assist": 6,
+    "learning": 2,
+    "platform": 1
+  },
+  "issues": [],
+  "details": {
+    "duplicate_keys": [],
+    "missing_dependencies": [],
+    "cycles": [],
+    "orphans": [],
+    "alignment": {
+      "allowed_segments": [
+        "SME",
+        "academy",
+        "corporate",
+        "multinational",
+        "school",
+        "tuition",
+        "university",
+        "vocational"
+      ],
+      "segment_mismatches": {},
+      "country_mismatches": {}
+    }
+  },
+  "score": 10
+}
