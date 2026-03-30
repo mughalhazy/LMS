@@ -475,3 +475,12 @@ service_registry:
       path: /health
       interval_seconds: 15
       timeout_seconds: 2
+  - name: hr-helpdesk-service
+    upstream:
+      host: hr-helpdesk-service
+      port: 8039
+      protocol: http
+    healthcheck:
+      path: /health
+      interval_seconds: 15
+      timeout_seconds: 2

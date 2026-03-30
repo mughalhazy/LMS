@@ -145,6 +145,15 @@
   },
   {
     "labels": {
+      "service": "hr-helpdesk-service",
+      "job": "lms-services-health"
+    },
+    "targets": [
+      "http://hr-helpdesk-service.lms.svc.cluster.local/health"
+    ]
+  },
+  {
+    "labels": {
       "service": "hris-sync-service",
       "job": "lms-services-health"
     },

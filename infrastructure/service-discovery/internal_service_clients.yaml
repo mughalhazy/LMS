@@ -116,3 +116,18 @@ services:
         retry_policy:
           max_attempts: 3
           backoff_ms: 250
+
+  hr-helpdesk-service:
+    outbound_clients:
+      - target_service: notification-service
+        base_uri: discovery://notification-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: webhook-service
+        base_uri: discovery://webhook-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
