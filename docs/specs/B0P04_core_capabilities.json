@@ -1,0 +1,75 @@
+{
+  "schema": "lms.capability.v1",
+  "capability_set": "B0P04_core_capabilities",
+  "capabilities": [
+    {
+      "capability_id": "CAP-IDENTITY-TENANT",
+      "name": "Tenant and Identity Foundation",
+      "domain": "platform",
+      "description": "Provides tenant isolation, user identity, authentication, and authorization context for all learner and admin operations.",
+      "entities": ["Tenant", "User", "Role", "Permission", "Session"],
+      "owner_services": ["tenant-service", "auth-service", "user-service", "rbac-service"],
+      "depends_on": []
+    },
+    {
+      "capability_id": "CAP-COURSE-LESSON",
+      "name": "Course and Lesson Management",
+      "domain": "learning",
+      "description": "Manages course and lesson lifecycle, publication state, and structured content delivery metadata.",
+      "entities": ["Course", "Lesson"],
+      "owner_services": ["course-service", "lesson-service", "content-service"],
+      "depends_on": ["CAP-IDENTITY-TENANT"]
+    },
+    {
+      "capability_id": "CAP-ENROLL-PROGRESS",
+      "name": "Enrollment and Progress Tracking",
+      "domain": "learning",
+      "description": "Tracks learner enrollment status and progress state across lesson and course completion milestones.",
+      "entities": ["Enrollment", "Progress"],
+      "owner_services": ["enrollment-service", "progress-service"],
+      "depends_on": ["CAP-IDENTITY-TENANT", "CAP-COURSE-LESSON"]
+    },
+    {
+      "capability_id": "CAP-ASSESSMENT",
+      "name": "Assessment Delivery and Attempts",
+      "domain": "assessment",
+      "description": "Supports assessment definition, learner attempts, scoring outcomes, and pass/fail decisions tied to learning progression.",
+      "entities": ["Assessment", "AssessmentAttempt", "AssessmentResult"],
+      "owner_services": ["assessment-service", "attempt-service"],
+      "depends_on": ["CAP-IDENTITY-TENANT", "CAP-COURSE-LESSON", "CAP-ENROLL-PROGRESS"]
+    },
+    {
+      "capability_id": "CAP-CERTIFICATION",
+      "name": "Certification Lifecycle",
+      "domain": "credentials",
+      "description": "Issues, verifies, expires, and revokes certificates based on completion and assessment outcomes.",
+      "entities": ["Certificate"],
+      "owner_services": ["certificate-service"],
+      "depends_on": ["CAP-IDENTITY-TENANT", "CAP-ENROLL-PROGRESS", "CAP-ASSESSMENT"]
+    },
+    {
+      "capability_id": "CAP-ANALYTICS-BASIC",
+      "name": "Basic Learning Analytics",
+      "domain": "analytics",
+      "description": "Produces foundational learner progress and course performance metrics for operational reporting.",
+      "entities": ["LearningEvent", "ProgressSnapshot", "CoursePerformanceMetric"],
+      "owner_services": ["event-ingestion-service", "learning-analytics-service", "reporting-service"],
+      "depends_on": ["CAP-IDENTITY-TENANT", "CAP-ENROLL-PROGRESS", "CAP-ASSESSMENT", "CAP-CERTIFICATION"]
+    },
+    {
+      "capability_id": "CAP-NOTIFICATIONS-GENERIC",
+      "name": "Generic Notification Orchestration",
+      "domain": "engagement",
+      "description": "Dispatches platform notifications for core lifecycle events through generic channels (in-app, email, and push).",
+      "entities": ["Notification", "NotificationTemplate", "NotificationDelivery"],
+      "owner_services": ["notification-service", "email-service", "push-service"],
+      "depends_on": [
+        "CAP-IDENTITY-TENANT",
+        "CAP-COURSE-LESSON",
+        "CAP-ENROLL-PROGRESS",
+        "CAP-ASSESSMENT",
+        "CAP-CERTIFICATION"
+      ]
+    }
+  ]
+}
