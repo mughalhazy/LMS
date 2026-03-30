@@ -1,0 +1,170 @@
+{
+  "batch": "B7P02",
+  "title": "Entitlement Resolution Validation",
+  "scope": {
+    "entitlement_service_artifacts": [
+      "docs/architecture/B2P02_entitlement_service_design.md",
+      "docs/architecture/entitlement_interface_contract.md"
+    ],
+    "segment_configs": [
+      "docs/architecture/schemas/segment_configuration.example.json"
+    ],
+    "capability_registry": [
+      "docs/architecture/schemas/capability_registry.example.json"
+    ]
+  },
+  "validation_flow": [
+    "normalize_context(segment, plan, country, add-ons)",
+    "load_base_policy(segment+plan+country)",
+    "load_addon_policies_in_lexicographic_order",
+    "apply_allow_deny_merges_with_fixed_precedence",
+    "enforce_capability_dependencies_from_registry",
+    "emit_resolved_entitlements_with_reasons_and_hash"
+  ],
+  "totals": {
+    "scenario_count": 4,
+    "capabilities_per_resolution": 2,
+    "segments_checked": 3
+  },
+  "checks": {
+    "no_incorrect_capability_activation": true,
+    "add_on_enablement_works": true,
+    "dependency_enforcement_works": true,
+    "deterministic_results": true,
+    "no_config_conflicts": true,
+    "clean_resolution_logic": true
+  },
+  "issues": [],
+  "issue_report": {
+    "incorrect_activation": [],
+    "missing_dependencies": [],
+    "config_conflicts": [],
+    "segment_mismatches": [],
+    "registry_missing_dependency_definitions": [
+      "learning.reporting.basic"
+    ]
+  },
+  "scenario_results": [
+    {
+      "scenario": "academy_pro_with_advanced_addon",
+      "context": {
+        "segment": "academy",
+        "plan": "pro",
+        "country": "US",
+        "addons": [
+          "advanced_analytics"
+        ]
+      },
+      "resolved": {
+        "learning.analytics.advanced": {
+          "enabled": true,
+          "reasons": [
+            "addon:advanced_analytics"
+          ]
+        },
+        "learning.reporting.basic": {
+          "enabled": true,
+          "reasons": [
+            "base_plan"
+          ]
+        }
+      },
+      "derived_capabilities": [
+        "learning.reporting.basic"
+      ],
+      "result_hash": "d235c6d476d556ccf7006a6b01bba20fa8599994b31b97b7e05e33987dccf7f3"
+    },
+    {
+      "scenario": "academy_starter_addon_blocked_by_missing_dependency",
+      "context": {
+        "segment": "academy",
+        "plan": "starter",
+        "country": "US",
+        "addons": [
+          "advanced_analytics"
+        ]
+      },
+      "resolved": {
+        "learning.analytics.advanced": {
+          "enabled": false,
+          "reasons": [
+            "addon:advanced_analytics",
+            "missing_dependency:learning.reporting.basic"
+          ]
+        },
+        "learning.reporting.basic": {
+          "enabled": false,
+          "reasons": [
+            "denied_by_base_policy"
+          ]
+        }
+      },
+      "derived_capabilities": [
+        "learning.reporting.basic"
+      ],
+      "result_hash": "b98bfb3d2f22f9628d62d46f8736473d3bd0493e8ccf928185a1e984cd20af96"
+    },
+    {
+      "scenario": "corporate_pro_addon_explicitly_denied",
+      "context": {
+        "segment": "corporate",
+        "plan": "pro",
+        "country": "US",
+        "addons": [
+          "advanced_analytics",
+          "analytics_blocker"
+        ]
+      },
+      "resolved": {
+        "learning.analytics.advanced": {
+          "enabled": false,
+          "reasons": [
+            "addon:advanced_analytics",
+            "addon_denied:analytics_blocker"
+          ]
+        },
+        "learning.reporting.basic": {
+          "enabled": true,
+          "reasons": [
+            "base_plan"
+          ]
+        }
+      },
+      "derived_capabilities": [
+        "learning.reporting.basic"
+      ],
+      "result_hash": "2ed4d3f417262c33f6408144eec47d3c80ccd0a23e651fa1f7c167f8a7594dea"
+    },
+    {
+      "scenario": "university_starter_dependency_recovered_by_reporting_addon",
+      "context": {
+        "segment": "university",
+        "plan": "starter",
+        "country": "GB",
+        "addons": [
+          "advanced_analytics",
+          "reporting_core"
+        ]
+      },
+      "resolved": {
+        "learning.analytics.advanced": {
+          "enabled": true,
+          "reasons": [
+            "addon:advanced_analytics"
+          ]
+        },
+        "learning.reporting.basic": {
+          "enabled": true,
+          "reasons": [
+            "addon:reporting_core"
+          ]
+        }
+      },
+      "derived_capabilities": [
+        "learning.reporting.basic"
+      ],
+      "result_hash": "9db8b74466cef818e5ea03671d61a37b4f77d8d4853ac99a2e28ee81fe15ec64"
+    }
+  ],
+  "score": 10
+}
