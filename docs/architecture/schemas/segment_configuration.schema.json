@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lms.local/schemas/segment-configuration.schema.json",
+  "title": "LMS Segment Configuration",
+  "description": "Universal runtime configuration envelope for LMS tenant segments.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "segments"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this configuration schema payload.",
+      "minLength": 1
+    },
+    "segments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tuition",
+        "academy",
+        "vocational",
+        "school",
+        "university",
+        "SME",
+        "corporate",
+        "multinational"
+      ],
+      "properties": {
+        "tuition": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "academy": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "vocational": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "school": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "university": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "SME": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "corporate": {
+          "$ref": "#/$defs/segment_config"
+        },
+        "multinational": {
+          "$ref": "#/$defs/segment_config"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "segment_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_goals",
+        "enabled_capabilities",
+        "limits",
+        "behavior_flags"
+      ],
+      "properties": {
+        "core_goals": {
+          "type": "array",
+          "description": "Primary outcomes expected for this segment.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "enabled_capabilities": {
+          "type": "array",
+          "description": "Capability keys enabled for the segment. Keys only; no capability definitions.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9_\\-]+$"
+          },
+          "uniqueItems": true
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_users",
+            "max_storage_gb"
+          ],
+          "properties": {
+            "max_users": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum active users per tenant in this segment profile."
+            },
+            "max_storage_gb": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum tenant-managed content storage in gigabytes."
+            },
+            "max_concurrent_sessions": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Optional maximum concurrent learner sessions if concurrency control is required."
+            }
+          }
+        },
+        "behavior_flags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "monetization",
+            "analytics_level",
+            "compliance_level",
+            "complexity"
+          ],
+          "properties": {
+            "monetization": {
+              "type": "string",
+              "enum": [
+                "none",
+                "subscription",
+                "usage_based",
+                "hybrid"
+              ]
+            },
+            "analytics_level": {
+              "type": "string",
+              "enum": [
+                "none",
+                "basic",
+                "standard",
+                "advanced"
+              ]
+            },
+            "compliance_level": {
+              "type": "string",
+              "enum": [
+                "baseline",
+                "enhanced",
+                "strict"
+              ]
+            },
+            "complexity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "very_high"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

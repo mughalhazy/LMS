@@ -1,0 +1,193 @@
+{
+  "schema_version": "1.0.0",
+  "segments": {
+    "tuition": {
+      "core_goals": [
+        "Increase learner completion rates",
+        "Deliver rapid course publishing"
+      ],
+      "enabled_capabilities": [
+        "course_management",
+        "live_sessions",
+        "basic_reporting",
+        "certificate_issuance"
+      ],
+      "limits": {
+        "max_users": 500,
+        "max_storage_gb": 200,
+        "max_concurrent_sessions": 150
+      },
+      "behavior_flags": {
+        "monetization": "subscription",
+        "analytics_level": "basic",
+        "compliance_level": "baseline",
+        "complexity": "low"
+      }
+    },
+    "academy": {
+      "core_goals": [
+        "Scale blended learning programs",
+        "Standardize curriculum governance"
+      ],
+      "enabled_capabilities": [
+        "course_management",
+        "cohort_management",
+        "learning_paths",
+        "assessment_management",
+        "analytics_dashboards"
+      ],
+      "limits": {
+        "max_users": 3000,
+        "max_storage_gb": 1000,
+        "max_concurrent_sessions": 900
+      },
+      "behavior_flags": {
+        "monetization": "subscription",
+        "analytics_level": "standard",
+        "compliance_level": "enhanced",
+        "complexity": "medium"
+      }
+    },
+    "vocational": {
+      "core_goals": [
+        "Track skill progression",
+        "Support practice-heavy learning workflows"
+      ],
+      "enabled_capabilities": [
+        "competency_tracking",
+        "assessment_management",
+        "attendance_tracking",
+        "certificate_issuance"
+      ],
+      "limits": {
+        "max_users": 2500,
+        "max_storage_gb": 800,
+        "max_concurrent_sessions": 700
+      },
+      "behavior_flags": {
+        "monetization": "subscription",
+        "analytics_level": "standard",
+        "compliance_level": "enhanced",
+        "complexity": "medium"
+      }
+    },
+    "school": {
+      "core_goals": [
+        "Manage term-based teaching",
+        "Improve learner engagement"
+      ],
+      "enabled_capabilities": [
+        "class_management",
+        "assignment_management",
+        "gradebook",
+        "guardian_reporting"
+      ],
+      "limits": {
+        "max_users": 8000,
+        "max_storage_gb": 2000,
+        "max_concurrent_sessions": 2200
+      },
+      "behavior_flags": {
+        "monetization": "none",
+        "analytics_level": "standard",
+        "compliance_level": "strict",
+        "complexity": "medium"
+      }
+    },
+    "university": {
+      "core_goals": [
+        "Coordinate large faculty operations",
+        "Support multi-program governance"
+      ],
+      "enabled_capabilities": [
+        "program_management",
+        "curriculum_mapping",
+        "assessment_management",
+        "learning_analytics"
+      ],
+      "limits": {
+        "max_users": 30000,
+        "max_storage_gb": 10000,
+        "max_concurrent_sessions": 9000
+      },
+      "behavior_flags": {
+        "monetization": "hybrid",
+        "analytics_level": "advanced",
+        "compliance_level": "strict",
+        "complexity": "high"
+      }
+    },
+    "SME": {
+      "core_goals": [
+        "Onboard teams quickly",
+        "Run cost-efficient role training"
+      ],
+      "enabled_capabilities": [
+        "course_management",
+        "team_enrollment",
+        "compliance_training",
+        "basic_reporting"
+      ],
+      "limits": {
+        "max_users": 1200,
+        "max_storage_gb": 500,
+        "max_concurrent_sessions": 350
+      },
+      "behavior_flags": {
+        "monetization": "subscription",
+        "analytics_level": "basic",
+        "compliance_level": "baseline",
+        "complexity": "low"
+      }
+    },
+    "corporate": {
+      "core_goals": [
+        "Enable enterprise workforce development",
+        "Measure compliance completion by organization"
+      ],
+      "enabled_capabilities": [
+        "learning_paths",
+        "compliance_training",
+        "org_hierarchy",
+        "advanced_analytics",
+        "sso"
+      ],
+      "limits": {
+        "max_users": 50000,
+        "max_storage_gb": 15000,
+        "max_concurrent_sessions": 15000
+      },
+      "behavior_flags": {
+        "monetization": "hybrid",
+        "analytics_level": "advanced",
+        "compliance_level": "strict",
+        "complexity": "high"
+      }
+    },
+    "multinational": {
+      "core_goals": [
+        "Operate globally across multiple tenant partitions",
+        "Ensure standardized reporting across regions"
+      ],
+      "enabled_capabilities": [
+        "multi_tenant_admin",
+        "cross_tenant_reporting",
+        "global_catalog",
+        "advanced_analytics",
+        "sso",
+        "webhooks"
+      ],
+      "limits": {
+        "max_users": 250000,
+        "max_storage_gb": 50000,
+        "max_concurrent_sessions": 60000
+      },
+      "behavior_flags": {
+        "monetization": "hybrid",
+        "analytics_level": "advanced",
+        "compliance_level": "strict",
+        "complexity": "very_high"
+      }
+    }
+  }
+}
