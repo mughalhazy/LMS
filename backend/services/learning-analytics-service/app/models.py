@@ -35,6 +35,7 @@ class LearningActivityEvent:
     assessment_attempts: int
     discussion_actions: int
     event_timestamp: datetime
+    sentiment_score: float = 0.0
 
 
 @dataclass(frozen=True)

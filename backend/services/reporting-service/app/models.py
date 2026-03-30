@@ -84,10 +84,17 @@ class DashboardKPI(BaseModel):
     unit: str
 
 
+class DashboardTrendPoint(BaseModel):
+    label: str
+    value: float
+
+
 class DashboardWidget(BaseModel):
     widget_id: str
     widget_name: str
     metrics: List[DashboardKPI]
+    insights: List[str] = Field(default_factory=list)
+    trend_points: List[DashboardTrendPoint] = Field(default_factory=list)
 
 
 class AnalyticsDashboard(BaseModel):

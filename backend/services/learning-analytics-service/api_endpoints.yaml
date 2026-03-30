@@ -9,6 +9,12 @@ paths:
   /api/v1/analytics/courses/{courseId}/engagement:
     get:
       summary: Learner engagement metrics for a course
+  /api/v1/analytics/courses/{courseId}/engagement/trends:
+    get:
+      summary: Sentiment-aware engagement trends for a course
+  /api/v1/analytics/courses/{courseId}/engagement/dashboard:
+    get:
+      summary: Engagement dashboard payload with overview, sentiment, and trend widgets
   /api/v1/analytics/cohorts/{cohortId}/performance:
     get:
       summary: Cohort performance metrics

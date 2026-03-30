@@ -16,6 +16,18 @@ class LearningAnalyticsService:
             return 0.0
         return round((numerator / denominator) * 100, 2)
 
+    @staticmethod
+    def _round(value: float) -> float:
+        return round(value, 2)
+
+    @staticmethod
+    def _sentiment_label(score: float) -> str:
+        if score >= 0.25:
+            return "positive"
+        if score <= -0.25:
+            return "negative"
+        return "neutral"
+
     def course_completion_analytics(
         self,
         tenant_id: str,
@@ -61,16 +73,23 @@ class LearningAnalyticsService:
     ) -> dict:
         events = self.repository.list_activities(tenant_id, course_id, start_at, end_at, cohort_id)
         per_learner: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        sentiment_totals: dict[str, float] = defaultdict(float)
+        sentiment_counts: dict[str, int] = defaultdict(int)
+
         for row in events:
             per_learner[row.learner_id]["active_minutes"] += row.active_minutes
             per_learner[row.learner_id]["content_interactions"] += row.content_interactions
             per_learner[row.learner_id]["assessment_attempts"] += row.assessment_attempts
             per_learner[row.learner_id]["discussion_actions"] += row.discussion_actions
+            sentiment_totals[row.learner_id] += row.sentiment_score
+            sentiment_counts[row.learner_id] += 1
 
         dimensions = ["active_minutes", "content_interactions", "assessment_attempts", "discussion_actions"]
         max_values = {dim: max((metrics[dim] for metrics in per_learner.values()), default=0.0) for dim in dimensions}
 
         score_by_learner: dict[str, float] = {}
+        sentiment_by_learner: dict[str, dict[str, float | str]] = {}
+        sentiment_distribution = {"positive": 0, "neutral": 0, "negative": 0}
         for learner_id, metrics in per_learner.items():
             score = (
                 0.35 * (metrics["active_minutes"] / max_values["active_minutes"] if max_values["active_minutes"] else 0)
@@ -82,9 +101,18 @@ class LearningAnalyticsService:
             )
             score_by_learner[learner_id] = round(score * 100, 2)
 
+            avg_sentiment = sentiment_totals[learner_id] / sentiment_counts[learner_id] if sentiment_counts[learner_id] else 0.0
+            label = self._sentiment_label(avg_sentiment)
+            sentiment_distribution[label] += 1
+            sentiment_by_learner[learner_id] = {
+                "average_sentiment": self._round(avg_sentiment),
+                "label": label,
+            }
+
         scores = sorted(score_by_learner.values())
         avg_score = round(sum(scores) / len(scores), 2) if scores else 0.0
         p90_index = int(len(scores) * 0.9) - 1 if scores else 0
+        average_sentiment = self._round(sum(sentiment_totals.values()) / sum(sentiment_counts.values())) if sentiment_counts else 0.0
 
         return {
             "tenant_id": tenant_id,
@@ -97,6 +125,121 @@ class LearningAnalyticsService:
                 "p90": scores[max(0, p90_index)] if scores else 0.0,
             },
             "scores_by_learner": score_by_learner,
+            "average_sentiment": average_sentiment,
+            "sentiment_distribution": sentiment_distribution,
+            "sentiment_by_learner": sentiment_by_learner,
+        }
+
+    def engagement_trends(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        events = self.repository.list_activities(tenant_id, course_id, start_at, end_at, cohort_id)
+        grouped: dict[str, list] = defaultdict(list)
+        for row in events:
+            grouped[row.event_timestamp.date().isoformat()].append(row)
+
+        trend_points = []
+        previous_score: float | None = None
+        for period in sorted(grouped):
+            rows = grouped[period]
+            active_minutes = sum(row.active_minutes for row in rows)
+            interactions = sum(
+                row.content_interactions + row.assessment_attempts + row.discussion_actions for row in rows
+            )
+            avg_sentiment = sum(row.sentiment_score for row in rows) / len(rows)
+            engagement_score = self._round((0.6 * active_minutes) + (4.0 * interactions))
+            trend_points.append(
+                {
+                    "period": period,
+                    "engagement_score": engagement_score,
+                    "active_minutes": self._round(active_minutes),
+                    "interaction_count": interactions,
+                    "average_sentiment": self._round(avg_sentiment),
+                    "sentiment_label": self._sentiment_label(avg_sentiment),
+                    "engagement_delta": self._round(engagement_score - previous_score) if previous_score is not None else 0.0,
+                }
+            )
+            previous_score = engagement_score
+
+        overall_delta = self._round(trend_points[-1]["engagement_score"] - trend_points[0]["engagement_score"]) if len(trend_points) > 1 else 0.0
+        if overall_delta > 5:
+            direction = "up"
+        elif overall_delta < -5:
+            direction = "down"
+        else:
+            direction = "stable"
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "periods": len(trend_points),
+            "direction": direction,
+            "net_engagement_delta": overall_delta,
+            "trend_points": trend_points,
+        }
+
+    def engagement_dashboard(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        completion = self.course_completion_analytics(tenant_id, course_id, start_at, end_at, cohort_id)
+        engagement = self.learner_engagement_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
+        trends = self.engagement_trends(tenant_id, course_id, start_at, end_at, cohort_id)
+
+        latest_trend = trends["trend_points"][-1] if trends["trend_points"] else None
+        widgets = [
+            {
+                "widget_id": "engagement_overview",
+                "widget_name": "Engagement Overview",
+                "metrics": [
+                    {"metric": "active_learners", "value": float(engagement["active_learners"]), "unit": "learners"},
+                    {"metric": "average_engagement_score", "value": engagement["average_engagement_score"], "unit": "score"},
+                    {"metric": "completion_rate", "value": completion["completion_rate"], "unit": "percent"},
+                ],
+            },
+            {
+                "widget_id": "sentiment_tracking",
+                "widget_name": "Sentiment Tracking",
+                "metrics": [
+                    {"metric": "average_sentiment", "value": engagement["average_sentiment"], "unit": "score"},
+                    {"metric": "positive_learners", "value": float(engagement["sentiment_distribution"]["positive"]), "unit": "learners"},
+                    {"metric": "negative_learners", "value": float(engagement["sentiment_distribution"]["negative"]), "unit": "learners"},
+                ],
+            },
+            {
+                "widget_id": "engagement_trends",
+                "widget_name": "Engagement Trends",
+                "metrics": [
+                    {"metric": "net_engagement_delta", "value": trends["net_engagement_delta"], "unit": "score"},
+                    {"metric": "tracked_periods", "value": float(trends["periods"]), "unit": "days"},
+                    {"metric": "latest_sentiment", "value": latest_trend["average_sentiment"] if latest_trend else 0.0, "unit": "score"},
+                ],
+                "direction": trends["direction"],
+                "trend_points": trends["trend_points"],
+            },
+        ]
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "widgets": widgets,
+            "summary": {
+                "completion_rate": completion["completion_rate"],
+                "average_engagement_score": engagement["average_engagement_score"],
+                "average_sentiment": engagement["average_sentiment"],
+                "trend_direction": trends["direction"],
+            },
         }
 
     def cohort_performance_metrics(
@@ -126,6 +269,7 @@ class LearningAnalyticsService:
 
         completion_rates = [row["completion_rate"] for row in course_completion.values()]
         engagement_scores = [row["average_engagement_score"] for row in course_engagement.values()]
+        sentiment_scores = [row["average_sentiment"] for row in course_engagement.values()]
 
         return {
             "tenant_id": tenant_id,
@@ -134,10 +278,12 @@ class LearningAnalyticsService:
             "average_completion_rate": round(sum(completion_rates) / len(completion_rates), 2) if completion_rates else 0.0,
             "average_engagement_score": round(sum(engagement_scores) / len(engagement_scores), 2) if engagement_scores else 0.0,
             "average_assessment_score": avg_assessment_score,
+            "average_sentiment": round(sum(sentiment_scores) / len(sentiment_scores), 2) if sentiment_scores else 0.0,
             "course_breakdown": {
                 course_id: {
                     "completion_rate": course_completion[course_id]["completion_rate"],
                     "engagement_score": course_engagement[course_id]["average_engagement_score"],
+                    "average_sentiment": course_engagement[course_id]["average_sentiment"],
                 }
                 for course_id in cohort_courses
             },
