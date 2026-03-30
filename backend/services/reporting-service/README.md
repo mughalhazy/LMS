@@ -5,7 +5,7 @@ Reporting service for LMS analytics and compliance reporting.
 ## Capabilities
 - Generate compliance reports.
 - Generate course completion reports.
-- Produce analytics dashboard payloads.
+- Produce analytics dashboard payloads with sentiment tracking and engagement trends.
 - Export reports as CSV and PDF payloads.
 
 ## API Endpoints

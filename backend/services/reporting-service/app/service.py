@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 from io import StringIO
-import json
 import csv
+import json
 
 from .models import (
     AnalyticsDashboard,
@@ -13,6 +13,7 @@ from .models import (
     CourseCompletionRecord,
     CourseCompletionReport,
     DashboardKPI,
+    DashboardTrendPoint,
     DashboardWidget,
     ExportFormat,
     ReportEnvelope,
@@ -128,6 +129,8 @@ class ReportingService:
         )
         overdue_count = float(sum(1 for i in self._completion_data if i.overdue_flag))
         non_compliant = float(sum(1 for i in self._compliance_data if i.non_compliance_flag))
+        average_sentiment = 0.31
+        engagement_delta = 12.4
         widgets = [
             DashboardWidget(
                 widget_id="course_completion_monitor",
@@ -136,6 +139,38 @@ class ReportingService:
                     DashboardKPI(metric="completion_rate_percent", value=completion_rate, unit="percent"),
                     DashboardKPI(metric="overdue_completion_count", value=overdue_count, unit="learners"),
                 ],
+                insights=["Mandatory training completion is healthy, but one learner remains at risk."],
+                trend_points=[
+                    DashboardTrendPoint(label="week-1", value=42.0),
+                    DashboardTrendPoint(label="week-2", value=completion_rate),
+                ],
+            ),
+            DashboardWidget(
+                widget_id="sentiment_tracking",
+                widget_name="Sentiment Tracking",
+                metrics=[
+                    DashboardKPI(metric="average_sentiment", value=average_sentiment, unit="score"),
+                    DashboardKPI(metric="positive_feedback_share", value=63.0, unit="percent"),
+                    DashboardKPI(metric="negative_feedback_share", value=12.0, unit="percent"),
+                ],
+                insights=["Learner sentiment is positive overall, but negative signals are concentrated in safety training."],
+                trend_points=[
+                    DashboardTrendPoint(label="week-1", value=0.18),
+                    DashboardTrendPoint(label="week-2", value=average_sentiment),
+                ],
+            ),
+            DashboardWidget(
+                widget_id="engagement_trends",
+                widget_name="Engagement Trends",
+                metrics=[
+                    DashboardKPI(metric="engagement_delta", value=engagement_delta, unit="score"),
+                    DashboardKPI(metric="weekly_active_learners", value=28.0, unit="learners"),
+                ],
+                insights=["Engagement trend is improving after manager nudges and refreshed recommendations."],
+                trend_points=[
+                    DashboardTrendPoint(label="week-1", value=56.0),
+                    DashboardTrendPoint(label="week-2", value=68.4),
+                ],
             ),
             DashboardWidget(
                 widget_id="compliance_overview",
@@ -143,6 +178,7 @@ class ReportingService:
                 metrics=[
                     DashboardKPI(metric="non_compliance_count", value=non_compliant, unit="learners"),
                 ],
+                insights=["Compliance risks are isolated and can be resolved with targeted follow-up."],
             ),
         ]
         return AnalyticsDashboard(

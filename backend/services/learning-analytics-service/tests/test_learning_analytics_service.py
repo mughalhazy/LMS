@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.main import LearningAnalyticsAPI
 from app.models import (
@@ -15,7 +15,7 @@ from app.schemas import CourseAnalyticsQuery, LearningPathAnalyticsQuery, TimeWi
 
 
 def test_learning_analytics_metrics_and_endpoints() -> None:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 3, tzinfo=timezone.utc)
     repository = AnalyticsRepository(
         enrollments=[
             CourseEnrollment("tenant-a", "l1", "c1", "co1", "enrolled", now),
@@ -29,10 +29,13 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
             CourseCompletion("tenant-b", "l1", "c1", "completed", now, 60),
         ],
         activities=[
-            LearningActivityEvent("tenant-a", "l1", "c1", "co1", 100, 20, 4, 5, now),
-            LearningActivityEvent("tenant-a", "l2", "c1", "co1", 50, 10, 2, 1, now),
-            LearningActivityEvent("tenant-a", "l3", "c1", "co1", 10, 2, 1, 0, now),
-            LearningActivityEvent("tenant-b", "l1", "c1", "co1", 1000, 200, 20, 20, now),
+            LearningActivityEvent("tenant-a", "l1", "c1", "co1", 70, 12, 3, 3, now - timedelta(days=2), 0.7),
+            LearningActivityEvent("tenant-a", "l2", "c1", "co1", 30, 6, 1, 1, now - timedelta(days=2), -0.1),
+            LearningActivityEvent("tenant-a", "l3", "c1", "co1", 10, 2, 1, 0, now - timedelta(days=2), -0.5),
+            LearningActivityEvent("tenant-a", "l1", "c1", "co1", 100, 20, 4, 5, now - timedelta(days=1), 0.9),
+            LearningActivityEvent("tenant-a", "l2", "c1", "co1", 50, 10, 2, 1, now - timedelta(days=1), 0.2),
+            LearningActivityEvent("tenant-a", "l3", "c1", "co1", 10, 2, 1, 0, now - timedelta(days=1), -0.6),
+            LearningActivityEvent("tenant-b", "l1", "c1", "co1", 1000, 200, 20, 20, now, 0.8),
         ],
         assessment_attempts=[
             AssessmentAttempt("tenant-a", "l1", "c1", "co1", 88, 100, now),
@@ -56,10 +59,24 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
     engagement = api.get_learner_engagement_metrics("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
     assert engagement["active_learners"] == 3
     assert engagement["scores_by_learner"]["l1"] == 100.0
+    assert engagement["average_sentiment"] == 0.1
+    assert engagement["sentiment_distribution"] == {"positive": 1, "neutral": 1, "negative": 1}
+    assert engagement["sentiment_by_learner"]["l3"]["label"] == "negative"
+
+    trends = api.get_engagement_trends("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
+    assert trends["periods"] == 2
+    assert trends["direction"] == "up"
+    assert trends["trend_points"][1]["engagement_delta"] > 0
+
+    dashboard = api.get_engagement_dashboard("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
+    assert dashboard["summary"]["trend_direction"] == "up"
+    assert len(dashboard["widgets"]) == 3
+    assert dashboard["widgets"][1]["widget_id"] == "sentiment_tracking"
 
     cohort = api.get_cohort_performance_metrics("co1", TimeWindowQuery(tenant_id="tenant-a"))
     assert cohort["average_completion_rate"] == 66.67
     assert cohort["average_assessment_score"] == 79.0
+    assert cohort["average_sentiment"] == 0.1
 
     path = api.get_learning_path_completion_analysis("lp1", LearningPathAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
     assert path["completion_rate"] == 33.33
