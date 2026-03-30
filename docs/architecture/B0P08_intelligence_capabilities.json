@@ -8,31 +8,62 @@
       "capability_name": "AI Tutor Assist",
       "capability_type": "ai_assistive",
       "role_scope": "learner_support",
-      "description": "Provides context-aware hints, explanations, and guided practice support inside active lessons while preserving teacher authority.",
+      "description": "Provides context-aware learner support inside enrolled courses/lessons for question answering, concept explanation, revision help, and contextual study guidance while preserving teacher authority.",
       "assistive_guardrail": "AI suggests and explains; teachers control instructional decisions, grading, and interventions.",
       "integration_mode": "embedded_learning_workflow",
       "integration_points": [
+        "course-service",
         "lesson-service",
-        "assessment-service",
         "progress-service",
+        "learning-analytics-service",
         "ai-tutor-service"
       ],
       "dependencies": {
         "required_services": [
           "ai-tutor-service",
+          "course-service",
           "lesson-service",
-          "assessment-service",
+          "progress-service",
+          "learning-analytics-service",
           "event-ingestion-service"
         ],
         "required_data_contracts": [
+          "course.updated",
+          "lesson_updated",
           "learning.activity.completed",
-          "assessment.item.attempted"
+          "lesson_completed"
         ]
       },
       "exclusions": [
         "autonomous_grading",
-        "teacher_replacement"
-      ]
+        "teacher_replacement",
+        "standalone_ai_without_lms_context",
+        "curriculum_source_of_truth_override"
+      ],
+      "supported_languages": [
+        "en",
+        "ur"
+      ],
+      "context_requirements": [
+        "tenant_scoped_course_context",
+        "lesson_context_required_for_lesson_support",
+        "learner_progress_context",
+        "no_model_invocation_without_context"
+      ],
+      "teacher_boundary": {
+        "teacher_owns": [
+          "grading",
+          "interventions",
+          "instructional_decisions",
+          "content_publication"
+        ],
+        "ai_assist_owns": [
+          "query_answering",
+          "concept_explanation",
+          "revision_guidance",
+          "next_step_suggestions"
+        ]
+      }
     },
     {
       "capability_id": "intelligence.teacher_content_assist",
