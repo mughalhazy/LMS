@@ -71,6 +71,13 @@ All proposed features are implemented by extending these entities with adjacent 
 - Learner and tutor dashboards with trend and risk signals.
 - Completion integrity checks for downstream certification eligibility.
 
+### 3.4 Advanced Learning Programs
+- Extends the baseline learning runtime with coordinated certification, learning path, and analytics capabilities layered on `Course`, `Enrollment`, `Progress`, and `Certificate`.
+- Certification-aware completion policies map course and path milestones into issuance, renewal, and revocation workflows without bypassing canonical progress ownership.
+- Learning path orchestration supports sequenced curricula, prerequisite enforcement, electives, milestone checkpoints, and role-based assignment for structured programs.
+- Advanced analytics packages engagement, completion, certification, and path progression signals into learner, manager, and executive dashboards.
+- Capability gating can enable advanced learning features per tenant plan while preserving the underlying core learning experience for all tenants.
+
 ---
 
 ## Enrollment
@@ -197,8 +204,8 @@ All proposed features are implemented by extending these entities with adjacent 
 - `Course` remains canonical for learning catalog; extended by lifecycle/versioning, academy/batch binding, recommendation metadata, and AI generation provenance.
 - `Lesson` remains canonical for delivery units; extended by modality metadata, live-session linkage, adaptive rules, and AI tutor context anchors.
 - `Enrollment` remains canonical for learner-course association; extended by lifecycle states, cohort/session links, seat/waitlist logic, and integration provenance.
-- `Progress` remains canonical for learning state; extended by event granularity, skill inference signals, interventions, and analytics dimensions.
-- `Certificate` remains canonical for completion credentials; extended by verification, expiration/renewal policy, revocation, and badge adjacency.
+- `Progress` remains canonical for learning state; extended by event granularity, skill inference signals, interventions, analytics dimensions, and learning-path milestone state.
+- `Certificate` remains canonical for completion credentials; extended by verification, expiration/renewal policy, revocation, badge adjacency, and path-linked certification policy evaluation.
 
 ---
 
@@ -226,6 +233,7 @@ All proposed features are implemented by extending these entities with adjacent 
 
 ### Revisions Applied After Pass 1
 - Expanded **Integrations** to include ecosystem sync, interoperability standards, and resilient enterprise controls.
+- Added **Advanced Learning Programs** coverage tying certifications, learning paths, and analytics back to the baseline learning runtime and tenant capability gating.
 - Added explicit **Extension Map to Existing Rails Models** section tying every domain back to `User`, `Course`, `Lesson`, `Enrollment`, `Progress`, and `Certificate`.
 - Added **Enterprise Readiness Cross-Cutting Requirements** section for security, governance, reliability, scalability, and operability.
 
@@ -233,7 +241,7 @@ All proposed features are implemented by extending these entities with adjacent 
 
 | Category | Score (1–10) | Result |
 |---|---:|---|
-| Feature completeness | 10 | Meets requested domain coverage with enterprise depth. |
+| Feature completeness | 10 | Meets requested domain coverage with enterprise depth, including advanced learning packaging across certifications, learning paths, and analytics. |
 | Alignment with repo entities | 10 | Fully anchored to existing Rails models with extension-only approach. |
 | Domain clarity | 10 | Domains are cleanly separated with minimal overlap ambiguity. |
 | Extensibility | 10 | Modular extension points and cross-cutting constraints are explicit. |
