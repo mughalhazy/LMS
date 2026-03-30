@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "capabilities": {
+    "learning.analytics.advanced": {
+      "key": "learning.analytics.advanced",
+      "domain": "learning_analytics",
+      "description": "Unlocks advanced learner progression dashboards and cohort trend analysis.",
+      "dependencies": [
+        "learning.reporting.basic"
+      ],
+      "usage_meter": {
+        "meter_key": "analytics_processing_credits",
+        "unit": "credits",
+        "aggregation": "sum",
+        "reset_period": "monthly"
+      },
+      "billing_type": "add-on",
+      "supported_segments": [
+        "academy",
+        "university",
+        "corporate",
+        "multinational"
+      ],
+      "supported_countries": [
+        "US",
+        "GB",
+        "AE",
+        "PK"
+      ],
+      "required_adapters": [
+        "adapter.data_warehouse",
+        "adapter.event_stream"
+      ],
+      "activation": {
+        "default_state": "inactive",
+        "allowed_states": [
+          "inactive",
+          "active",
+          "paused"
+        ],
+        "strategy": "entitlement-driven"
+      },
+      "addon": {
+        "is_addon": true,
+        "compatible_base_capabilities": [
+          "learning.reporting.basic"
+        ],
+        "addon_group": "analytics_suite"
+      },
+      "x-owner": "product-analytics"
+    }
+  }
+}
