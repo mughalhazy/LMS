@@ -276,3 +276,7 @@ routes:
     service: program-service
     rate_limit_policy: public-api-standard
     strip_prefix: false
+  - path_prefix: /api/v1/hr-helpdesk
+    service: hr-helpdesk-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false

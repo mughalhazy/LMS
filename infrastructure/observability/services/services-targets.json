@@ -161,6 +161,16 @@
   },
   {
     "labels": {
+      "service": "hr-helpdesk-service",
+      "job": "lms-services-metrics",
+      "metrics_path": "/metrics"
+    },
+    "targets": [
+      "hr-helpdesk-service.lms.svc.cluster.local:80"
+    ]
+  },
+  {
+    "labels": {
       "service": "hris-sync-service",
       "job": "lms-services-metrics",
       "metrics_path": "/metrics"
