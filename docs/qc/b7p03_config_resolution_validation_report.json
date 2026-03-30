@@ -1,0 +1,216 @@
+{
+  "batch": "B7P03",
+  "title": "Config Resolution Validation",
+  "scope": {
+    "config_service_batch_2": [
+      "docs/architecture/B2P01_config_service_design.md",
+      "docs/architecture/config_resolution_interface_contract.md"
+    ],
+    "country_config_batch_4": "qc_fixture_in_script:_build_country_layers",
+    "segment_config_batch_0": [
+      "docs/architecture/schemas/segment_configuration.example.json"
+    ]
+  },
+  "resolution_flow": [
+    "normalize_context(tenant, country, segment, plan)",
+    "fetch_layers(global -> country -> segment -> plan -> tenant)",
+    "merge_layers_with_last_writer_wins",
+    "apply_override_layer_if_present",
+    "emit_effective_map_with_provenance_and_hash"
+  ],
+  "validation_report": {
+    "scenario_count": 3,
+    "segments_covered": [
+      "academy",
+      "corporate",
+      "multinational"
+    ],
+    "countries_covered": [
+      "AE",
+      "GB",
+      "US"
+    ],
+    "checks": {
+      "no_hierarchy_violations": true,
+      "no_override_conflicts": true,
+      "deterministic_resolution": true,
+      "no_duplication_of_config_layers": true,
+      "clear_priority_order": true,
+      "overrides_work_correctly": true
+    },
+    "issues": [],
+    "score": 10
+  },
+  "scenario_results": [
+    {
+      "scenario": "academy_us_pro_tenant_override",
+      "context": {
+        "tenant_id": "tenant_academy_us_01",
+        "country": "US",
+        "segment": "academy",
+        "plan": "pro"
+      },
+      "applied_levels": [
+        "global",
+        "country",
+        "segment",
+        "plan",
+        "tenant",
+        "override"
+      ],
+      "effective": {
+        "feature.chat.enabled": true,
+        "limits.max_concurrent_sessions": 700,
+        "reporting.retention_days": 45,
+        "security.mfa.required": true,
+        "ui.locale.default": "en-US",
+        "segment.analytics_level": "standard",
+        "segment.compliance_level": "enhanced",
+        "tenant.branding.theme": "academy-dark"
+      },
+      "provenance": {
+        "feature.chat.enabled": "plan",
+        "limits.max_concurrent_sessions": "override",
+        "reporting.retention_days": "country",
+        "security.mfa.required": "country",
+        "ui.locale.default": "country",
+        "segment.analytics_level": "segment",
+        "segment.compliance_level": "segment",
+        "tenant.branding.theme": "tenant"
+      },
+      "conflict_trace": {
+        "reporting.retention_days": [
+          "global->country"
+        ],
+        "security.mfa.required": [
+          "global->country"
+        ],
+        "ui.locale.default": [
+          "global->country"
+        ],
+        "limits.max_concurrent_sessions": [
+          "global->segment",
+          "segment->plan",
+          "plan->tenant",
+          "tenant->override"
+        ],
+        "feature.chat.enabled": [
+          "global->plan"
+        ]
+      },
+      "result_hash": "43972e7f0b6ea1b7a0a5730f468aa08d0cb33b65b7551943507116a24d552f22"
+    },
+    {
+      "scenario": "corporate_gb_starter_plan_wins_over_segment",
+      "context": {
+        "tenant_id": "tenant_corporate_gb_77",
+        "country": "GB",
+        "segment": "corporate",
+        "plan": "starter"
+      },
+      "applied_levels": [
+        "global",
+        "country",
+        "segment",
+        "plan",
+        "tenant"
+      ],
+      "effective": {
+        "feature.chat.enabled": false,
+        "limits.max_concurrent_sessions": 180,
+        "reporting.retention_days": 60,
+        "security.mfa.required": false,
+        "ui.locale.default": "en-GB",
+        "segment.analytics_level": "advanced",
+        "segment.compliance_level": "strict",
+        "tenant.branding.theme": "corp-standard"
+      },
+      "provenance": {
+        "feature.chat.enabled": "tenant",
+        "limits.max_concurrent_sessions": "plan",
+        "reporting.retention_days": "country",
+        "security.mfa.required": "global",
+        "ui.locale.default": "country",
+        "segment.analytics_level": "segment",
+        "segment.compliance_level": "segment",
+        "tenant.branding.theme": "tenant"
+      },
+      "conflict_trace": {
+        "reporting.retention_days": [
+          "global->country"
+        ],
+        "ui.locale.default": [
+          "global->country"
+        ],
+        "limits.max_concurrent_sessions": [
+          "global->segment",
+          "segment->plan"
+        ],
+        "feature.chat.enabled": [
+          "global->plan",
+          "plan->tenant"
+        ]
+      },
+      "result_hash": "1297e969eec3bc2ed97e86751a27de21cd5d79bb11ca969abc722fc2834100dc"
+    },
+    {
+      "scenario": "multinational_ae_enterprise_tenant_wins",
+      "context": {
+        "tenant_id": "tenant_multi_ae_99",
+        "country": "AE",
+        "segment": "multinational",
+        "plan": "enterprise"
+      },
+      "applied_levels": [
+        "global",
+        "country",
+        "segment",
+        "plan",
+        "tenant",
+        "override"
+      ],
+      "effective": {
+        "feature.chat.enabled": true,
+        "limits.max_concurrent_sessions": 1200,
+        "reporting.retention_days": 120,
+        "security.mfa.required": true,
+        "ui.locale.default": "ar-AE",
+        "segment.analytics_level": "advanced",
+        "segment.compliance_level": "strict",
+        "tenant.branding.theme": "global-gold"
+      },
+      "provenance": {
+        "feature.chat.enabled": "plan",
+        "limits.max_concurrent_sessions": "plan",
+        "reporting.retention_days": "tenant",
+        "security.mfa.required": "override",
+        "ui.locale.default": "country",
+        "segment.analytics_level": "segment",
+        "segment.compliance_level": "segment",
+        "tenant.branding.theme": "tenant"
+      },
+      "conflict_trace": {
+        "limits.max_concurrent_sessions": [
+          "global->country",
+          "country->segment",
+          "segment->plan"
+        ],
+        "reporting.retention_days": [
+          "global->country",
+          "country->tenant"
+        ],
+        "ui.locale.default": [
+          "global->country"
+        ],
+        "feature.chat.enabled": [
+          "global->plan"
+        ],
+        "security.mfa.required": [
+          "global->plan",
+          "plan->override"
+        ]
+      },
+      "result_hash": "f9229e637e2830a04278359846d886fd7648e71630d76bc54f60cb881dedc012"
+    }
+  ]
+}
