@@ -3,19 +3,20 @@
   "segments": {
     "tuition": {
       "core_goals": [
-        "Increase learner completion rates",
-        "Deliver rapid course publishing"
+        "Run high-frequency exam preparation cohorts",
+        "Convert walk-in enrollments into repeat paid batches"
       ],
       "enabled_capabilities": [
         "course_management",
         "live_sessions",
+        "assessment_management",
         "basic_reporting",
         "certificate_issuance"
       ],
       "limits": {
-        "max_users": 500,
-        "max_storage_gb": 200,
-        "max_concurrent_sessions": 150
+        "max_users": 700,
+        "max_storage_gb": 180,
+        "max_concurrent_sessions": 240
       },
       "behavior_flags": {
         "monetization": "subscription",
@@ -26,23 +27,24 @@
     },
     "academy": {
       "core_goals": [
-        "Scale blended learning programs",
-        "Standardize curriculum governance"
+        "Scale short-cycle bootcamps across major cities",
+        "Standardize instructor-led and recorded delivery"
       ],
       "enabled_capabilities": [
         "course_management",
         "cohort_management",
         "learning_paths",
         "assessment_management",
-        "analytics_dashboards"
+        "analytics_dashboards",
+        "certificate_issuance"
       ],
       "limits": {
-        "max_users": 3000,
-        "max_storage_gb": 1000,
-        "max_concurrent_sessions": 900
+        "max_users": 4500,
+        "max_storage_gb": 1400,
+        "max_concurrent_sessions": 1200
       },
       "behavior_flags": {
-        "monetization": "subscription",
+        "monetization": "hybrid",
         "analytics_level": "standard",
         "compliance_level": "enhanced",
         "complexity": "medium"
@@ -50,22 +52,23 @@
     },
     "vocational": {
       "core_goals": [
-        "Track skill progression",
-        "Support practice-heavy learning workflows"
+        "Track hands-on trade skill progression",
+        "Maintain attendance and practical assessment evidence"
       ],
       "enabled_capabilities": [
         "competency_tracking",
-        "assessment_management",
         "attendance_tracking",
+        "assessment_management",
+        "learning_paths",
         "certificate_issuance"
       ],
       "limits": {
-        "max_users": 2500,
-        "max_storage_gb": 800,
-        "max_concurrent_sessions": 700
+        "max_users": 6000,
+        "max_storage_gb": 2200,
+        "max_concurrent_sessions": 1400
       },
       "behavior_flags": {
-        "monetization": "subscription",
+        "monetization": "none",
         "analytics_level": "standard",
         "compliance_level": "enhanced",
         "complexity": "medium"
@@ -73,19 +76,21 @@
     },
     "school": {
       "core_goals": [
-        "Manage term-based teaching",
-        "Improve learner engagement"
+        "Deliver term-based K-12 instruction with guardian visibility",
+        "Improve assignment submission and continuous grading discipline"
       ],
       "enabled_capabilities": [
         "class_management",
         "assignment_management",
         "gradebook",
-        "guardian_reporting"
+        "guardian_reporting",
+        "attendance_tracking",
+        "basic_reporting"
       ],
       "limits": {
-        "max_users": 8000,
-        "max_storage_gb": 2000,
-        "max_concurrent_sessions": 2200
+        "max_users": 12000,
+        "max_storage_gb": 2600,
+        "max_concurrent_sessions": 3200
       },
       "behavior_flags": {
         "monetization": "none",
@@ -96,19 +101,21 @@
     },
     "university": {
       "core_goals": [
-        "Coordinate large faculty operations",
-        "Support multi-program governance"
+        "Coordinate multi-faculty semester delivery",
+        "Support accreditation-ready program and outcome tracking"
       ],
       "enabled_capabilities": [
         "program_management",
         "curriculum_mapping",
+        "learning_paths",
         "assessment_management",
-        "learning_analytics"
+        "learning_analytics",
+        "sso"
       ],
       "limits": {
-        "max_users": 30000,
-        "max_storage_gb": 10000,
-        "max_concurrent_sessions": 9000
+        "max_users": 45000,
+        "max_storage_gb": 18000,
+        "max_concurrent_sessions": 11000
       },
       "behavior_flags": {
         "monetization": "hybrid",
@@ -119,19 +126,20 @@
     },
     "SME": {
       "core_goals": [
-        "Onboard teams quickly",
-        "Run cost-efficient role training"
+        "Enable rapid onboarding for distributed small teams",
+        "Control training spend with role-based essentials only"
       ],
       "enabled_capabilities": [
         "course_management",
         "team_enrollment",
         "compliance_training",
-        "basic_reporting"
+        "basic_reporting",
+        "certificate_issuance"
       ],
       "limits": {
-        "max_users": 1200,
-        "max_storage_gb": 500,
-        "max_concurrent_sessions": 350
+        "max_users": 1500,
+        "max_storage_gb": 420,
+        "max_concurrent_sessions": 380
       },
       "behavior_flags": {
         "monetization": "subscription",
@@ -142,23 +150,24 @@
     },
     "corporate": {
       "core_goals": [
-        "Enable enterprise workforce development",
-        "Measure compliance completion by organization"
+        "Manage compliance and capability uplift across business units",
+        "Automate enterprise learning governance and reporting"
       ],
       "enabled_capabilities": [
+        "org_hierarchy",
         "learning_paths",
         "compliance_training",
-        "org_hierarchy",
         "advanced_analytics",
-        "sso"
+        "sso",
+        "webhooks"
       ],
       "limits": {
-        "max_users": 50000,
-        "max_storage_gb": 15000,
-        "max_concurrent_sessions": 15000
+        "max_users": 80000,
+        "max_storage_gb": 24000,
+        "max_concurrent_sessions": 22000
       },
       "behavior_flags": {
-        "monetization": "hybrid",
+        "monetization": "usage_based",
         "analytics_level": "advanced",
         "compliance_level": "strict",
         "complexity": "high"
@@ -166,21 +175,22 @@
     },
     "multinational": {
       "core_goals": [
-        "Operate globally across multiple tenant partitions",
-        "Ensure standardized reporting across regions"
+        "Operate Pakistan learning operations under global controls",
+        "Consolidate cross-region insights with centralized governance"
       ],
       "enabled_capabilities": [
         "multi_tenant_admin",
         "cross_tenant_reporting",
         "global_catalog",
         "advanced_analytics",
+        "org_hierarchy",
         "sso",
         "webhooks"
       ],
       "limits": {
-        "max_users": 250000,
-        "max_storage_gb": 50000,
-        "max_concurrent_sessions": 60000
+        "max_users": 300000,
+        "max_storage_gb": 70000,
+        "max_concurrent_sessions": 85000
       },
       "behavior_flags": {
         "monetization": "hybrid",
