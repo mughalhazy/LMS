@@ -78,7 +78,28 @@ class CertificateApiTests(unittest.TestCase):
         )
         self.assertEqual(patch.status_code, 200)
         self.assertEqual(patch.json()["version"], 2)
+    def test_issue_rejected_when_assessment_progression_incomplete(self) -> None:
+        response = self.client.post(
+            "/api/v1/certificates",
+            headers={"Authorization": f"Bearer {self.token}", "X-Tenant-Id": "tenant-z"},
+            json={
+                "user_id": "user-1",
+                "course_id": "course-2",
+                "template_id": "tpl-main",
+                "completion_ref": {
+                    "source_event": "lms.progress.course_completed.v1",
+                    "source_event_id": "evt-3",
+                    "completed_at": "2026-01-01T00:00:00Z",
+                },
+                "metadata": {
+                    "assessment_progression": {
+                        "required_assessment_count": 3,
+                        "passed_assessment_count": 2,
+                    }
+                },
+                "issued_by": "system",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"]["error"]["code"], "ASSESSMENT_PROGRESSION_INCOMPLETE")
 
-
-if __name__ == "__main__":
-    unittest.main()

@@ -182,3 +182,32 @@ def test_correlation_id_propagates_to_events_and_audit_and_is_auto_generated() -
     assert generated_event.correlation_id
     assert generated_audit.correlation_id
     assert generated_event.correlation_id == generated_audit.correlation_id
+
+def test_program_linked_course_prerequisites_must_reference_prior_courses() -> None:
+    created = client.post(
+        "/api/v1/programs",
+        headers=_headers("tenant-uni"),
+        json={
+            "tenant_id": "tenant-uni",
+            "institution_id": "inst-uni",
+            "code": "PREREQ-1",
+            "title": "Prereq Program",
+            "created_by": "user-1",
+        },
+    )
+    assert created.status_code == 201
+    program_id = created.json()["program_id"]
+
+    bad_map = client.put(
+        f"/api/v1/programs/{program_id}/courses",
+        headers=_headers("tenant-uni"),
+        json={
+            "tenant_id": "tenant-uni",
+            "updated_by": "user-1",
+            "courses": [
+                {"course_id": "c-101", "sequence_order": 1, "is_required": True, "availability_rule": {"prerequisite_course_ids": ["c-205"]}},
+                {"course_id": "c-205", "sequence_order": 2, "is_required": True},
+            ],
+        },
+    )
+    assert bad_map.status_code == 400

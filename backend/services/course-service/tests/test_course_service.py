@@ -164,3 +164,35 @@ def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> Non
     metrics_response = client.get("/metrics", headers=_headers("tenant-workforce"))
     assert metrics_response.status_code == 200
     assert metrics_response.json()["workforce_mandatory_courses_total"] >= 1
+
+def test_program_link_upsert_deduplicates_and_tracks_university_metadata() -> None:
+    create_response = client.post(
+        "/api/v1/courses",
+        headers=_headers("tenant-link"),
+        json={"tenant_id": "tenant-link", "created_by": "user-1", "title": "Linked Course"},
+    )
+    assert create_response.status_code == 201
+    course_id = create_response.json()["data"]["course_id"]
+
+    links_response = client.put(
+        f"/api/v1/courses/{course_id}/program-links",
+        headers=_headers("tenant-link"),
+        json={
+            "tenant_id": "tenant-link",
+            "updated_by": "user-2",
+            "program_links": [
+                {"program_id": "prog-1", "is_primary": True},
+                {"program_id": "prog-1", "is_primary": True},
+                {"program_id": "prog-2", "is_primary": False},
+            ],
+        },
+    )
+    assert links_response.status_code == 200
+    data = links_response.json()["data"]
+    assert len(data) == 2
+
+    course_response = client.get(f"/api/v1/courses/{course_id}", headers=_headers("tenant-link"))
+    assert course_response.status_code == 200
+    university_meta = course_response.json()["data"]["metadata"]["extra"]["university"]
+    assert university_meta["program_link_count"] == 2
+    assert university_meta["has_primary_program"] is True
