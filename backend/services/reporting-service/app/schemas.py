@@ -18,9 +18,11 @@ from .models import (
 class ReportFilterRequest(BaseModel):
     tenant_id: str
     department: Optional[str] = None
+    manager_id: Optional[str] = None
     course_id: Optional[str] = None
     from_date: Optional[date] = None
     to_date: Optional[date] = None
+    workforce_only: bool = False
 
 
 class DashboardRequest(BaseModel):

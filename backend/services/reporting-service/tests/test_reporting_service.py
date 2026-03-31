@@ -45,6 +45,18 @@ def test_generate_compliance_report() -> None:
     assert payload["envelope"]["row_count"] >= 1
 
 
+def test_generate_manager_scoped_compliance_report() -> None:
+    response = client.post(
+        "/reports/compliance",
+        json={"tenant_id": "tenant-1", "manager_id": "mgr-10", "workforce_only": True},
+        headers=AUTH_HEADERS,
+    )
+    assert response.status_code == 200
+    payload = response.json()["report"]
+    assert payload["envelope"]["row_count"] == 2
+    assert all(item["manager_id"] == "mgr-10" for item in payload["items"])
+
+
 def test_generate_course_completion_report() -> None:
     response = client.post("/reports/course-completion", json={"tenant_id": "tenant-1"}, headers=AUTH_HEADERS)
     assert response.status_code == 200
@@ -65,6 +77,9 @@ def test_generate_analytics_dashboard() -> None:
     assert len(dashboard["widgets"]) == 4
     assert dashboard["widgets"][1]["widget_id"] == "sentiment_tracking"
     assert dashboard["widgets"][2]["trend_points"][-1]["value"] == 68.4
+    compliance_widget = [w for w in dashboard["widgets"] if w["widget_id"] == "compliance_overview"][0]
+    metric_names = [m["metric"] for m in compliance_widget["metrics"]]
+    assert "reminders_pending_count" in metric_names
 
 
 def test_export_csv_and_pdf() -> None:

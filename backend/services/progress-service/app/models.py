@@ -78,6 +78,20 @@ class CompletionMetricDaily:
 
 
 @dataclass
+class MandatoryTrainingProgress:
+    tenant_id: str
+    learner_id: str
+    manager_id: str
+    course_id: str
+    policy_id: str
+    due_date: str
+    completion_status: Literal["not_started", "in_progress", "completed"]
+    completion_percentage: float
+    reminder_required: bool
+    last_activity_at: datetime
+
+
+@dataclass
 class ProgressAuditEntry:
     tenant_id: str
     actor_id: str

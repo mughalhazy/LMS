@@ -31,6 +31,7 @@ class ReportingService:
                 learner_name="Ava Patel",
                 department="Operations",
                 role="Supervisor",
+                manager_id="mgr-10",
                 policy_id="policy-aml",
                 mandatory_course_id="course-aml-101",
                 mandatory_course_title="AML Foundations",
@@ -38,12 +39,14 @@ class ReportingService:
                 due_date=date(2026, 2, 1),
                 completion_status=CompletionStatus.COMPLETED,
                 completion_date=date(2026, 1, 20),
+                reminder_status="none",
             ),
             ComplianceRecord(
                 learner_id="u-101",
                 learner_name="Noah Kim",
                 department="Operations",
                 role="Analyst",
+                manager_id="mgr-10",
                 policy_id="policy-safety",
                 mandatory_course_id="course-safe-201",
                 mandatory_course_title="Workplace Safety",
@@ -52,6 +55,7 @@ class ReportingService:
                 completion_status=CompletionStatus.IN_PROGRESS,
                 non_compliance_flag=True,
                 escalation_level="manager",
+                reminder_status="scheduled",
             ),
         ]
         self._completion_data = [
@@ -91,6 +95,7 @@ class ReportingService:
             r
             for r in self._compliance_data
             if (req.department is None or r.department == req.department)
+            and (req.manager_id is None or r.manager_id == req.manager_id)
             and (req.course_id is None or r.mandatory_course_id == req.course_id)
         ]
         envelope = ReportEnvelope(
@@ -106,6 +111,7 @@ class ReportingService:
             r
             for r in self._completion_data
             if (req.department is None or r.department == req.department)
+            and (req.manager_id is None or r.manager_id == req.manager_id)
             and (req.course_id is None or r.course_id == req.course_id)
         ]
         envelope = ReportEnvelope(
@@ -129,6 +135,7 @@ class ReportingService:
         )
         overdue_count = float(sum(1 for i in self._completion_data if i.overdue_flag))
         non_compliant = float(sum(1 for i in self._compliance_data if i.non_compliance_flag))
+        reminder_count = float(sum(1 for i in self._compliance_data if i.reminder_status != "none"))
         average_sentiment = 0.31
         engagement_delta = 12.4
         widgets = [
@@ -177,8 +184,9 @@ class ReportingService:
                 widget_name="Compliance Overview",
                 metrics=[
                     DashboardKPI(metric="non_compliance_count", value=non_compliant, unit="learners"),
+                    DashboardKPI(metric="reminders_pending_count", value=reminder_count, unit="learners"),
                 ],
-                insights=["Compliance risks are isolated and can be resolved with targeted follow-up."],
+                insights=["Manager visibility is enabled for all mandatory workforce assignments and reminders."],
             ),
         ]
         return AnalyticsDashboard(
@@ -233,7 +241,7 @@ class ReportingService:
     @staticmethod
     def _filters(req: ReportFilterRequest) -> dict[str, str]:
         filters: dict[str, str] = {}
-        for key in ("department", "course_id", "from_date", "to_date"):
+        for key in ("department", "manager_id", "course_id", "from_date", "to_date", "workforce_only"):
             value = getattr(req, key)
             if value is not None:
                 filters[key] = str(value)

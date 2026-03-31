@@ -29,6 +29,7 @@ class ComplianceRecord(BaseModel):
     learner_name: str
     department: str
     role: str
+    manager_id: str
     policy_id: str
     mandatory_course_id: str
     mandatory_course_title: str
@@ -40,6 +41,7 @@ class ComplianceRecord(BaseModel):
     exemption_reason: Optional[str] = None
     non_compliance_flag: bool = False
     escalation_level: str = "none"
+    reminder_status: str = "none"
 
 
 class CourseCompletionRecord(BaseModel):
