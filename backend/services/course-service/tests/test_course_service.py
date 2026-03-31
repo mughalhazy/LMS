@@ -130,3 +130,37 @@ def test_events_are_published_for_lifecycle_changes() -> None:
     after_count = len(service.event_publisher.list_events())
     assert after_count == before_count + 1
     assert service.event_publisher.list_events()[-1].event_name == "course.lifecycle.created.v1"
+
+
+def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> None:
+    bad_response = client.post(
+        "/api/v1/courses",
+        headers=_headers("tenant-workforce"),
+        json={
+            "tenant_id": "tenant-workforce",
+            "created_by": "hr-1",
+            "title": "Annual Safety",
+            "metadata": {"audience": "workforce", "mandatory_training": True},
+        },
+    )
+    assert bad_response.status_code == 422
+
+    ok_response = client.post(
+        "/api/v1/courses",
+        headers=_headers("tenant-workforce"),
+        json={
+            "tenant_id": "tenant-workforce",
+            "created_by": "hr-1",
+            "title": "Annual Safety",
+            "metadata": {
+                "audience": "workforce",
+                "mandatory_training": True,
+                "compliance_policy_id": "policy-safety-annual",
+                "manager_visibility_enabled": True,
+            },
+        },
+    )
+    assert ok_response.status_code == 201
+    metrics_response = client.get("/metrics", headers=_headers("tenant-workforce"))
+    assert metrics_response.status_code == 200
+    assert metrics_response.json()["workforce_mandatory_courses_total"] >= 1

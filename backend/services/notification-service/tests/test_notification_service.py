@@ -111,6 +111,42 @@ def test_workflow_trigger_event_uses_default_route_templates() -> None:
     assert payload["messages"][0]["metadata"]["workflow_action"] == "alert"
 
 
+def test_workforce_compliance_reminder_route_and_manager_visibility() -> None:
+    service = make_service()
+    status, payload = service.process_event(
+        EventNotificationRequest(
+            tenant_id="tenant-acme",
+            event_type="workforce.compliance.reminder_required",
+            actor_id="progress-service",
+            recipients=["manager@acme.com"],
+            payload={
+                "audience": "workforce",
+                "learner_id": "learner-7",
+                "course_id": "course-safe-101",
+                "due_date": "2026-04-05",
+            },
+        )
+    )
+    assert status == 202
+    assert payload["status"] == "accepted"
+    assert payload["messages"][0]["subject"] == "Mandatory training due soon: course-safe-101"
+
+
+def test_workforce_event_ignored_for_non_workforce_audience() -> None:
+    service = make_service()
+    status, payload = service.process_event(
+        EventNotificationRequest(
+            tenant_id="tenant-acme",
+            event_type="workforce.compliance.reminder_required",
+            recipients=["manager@acme.com"],
+            payload={"audience": "academy", "learner_id": "learner-8", "course_id": "c-1", "due_date": "2026-05-01"},
+        )
+    )
+    assert status == 202
+    assert payload["status"] == "ignored"
+    assert payload["reason"] == "non_workforce_audience"
+
+
 def test_drain_delivery_queue_marks_failed_email_recipient() -> None:
     service = make_service()
     service.orchestrate_notification(
