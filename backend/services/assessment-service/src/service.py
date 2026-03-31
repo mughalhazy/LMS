@@ -19,19 +19,19 @@ from .repository import InMemoryAssessmentRepository
 
 
 class AssessmentServiceError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class AssessmentNotFoundError(AssessmentServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class TenantScopeError(AssessmentServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class AssessmentPublishValidationError(AssessmentServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class AssessmentService:

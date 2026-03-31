@@ -28,7 +28,7 @@ ALLOWED_OPERATORS = {
 
 
 class ValidationError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 def load_json(path: Path) -> Dict:

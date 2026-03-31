@@ -21,19 +21,19 @@ from .repository import InMemoryCohortRepository
 
 
 class CohortServiceError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class CohortNotFoundError(CohortServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class TenantScopeError(CohortServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class InvalidLifecycleTransitionError(CohortServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class CohortService:

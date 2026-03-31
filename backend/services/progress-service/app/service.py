@@ -63,7 +63,7 @@ class NoopMetricsHook:
 
 
 class EnrollmentInactiveError(ValueError):
-    pass
+    """Domain-specific exception."""
 
 
 class ProgressService:

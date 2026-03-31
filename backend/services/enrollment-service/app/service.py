@@ -14,15 +14,15 @@ from .store import AuditLogStore, EnrollmentStore
 
 
 class NotFoundError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class ConflictError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class ValidationError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class EventPublisher(Protocol):

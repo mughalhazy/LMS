@@ -21,23 +21,23 @@ from .repository import SessionRepository
 
 
 class SessionServiceError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class SessionNotFoundError(SessionServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class TenantBoundaryError(SessionServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class InvalidSessionTransitionError(SessionServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class SessionValidationError(SessionServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class SessionService:

@@ -17,15 +17,15 @@ from .models import (
 
 
 class GroupServiceError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class NotFoundError(GroupServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class ValidationError(GroupServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class GroupService:

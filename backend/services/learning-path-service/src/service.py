@@ -16,15 +16,15 @@ from .models import (
 
 
 class LearningPathServiceError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class ValidationError(LearningPathServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class NotFoundError(LearningPathServiceError):
-    pass
+    """Domain-specific exception."""
 
 
 class CourseCatalog:
