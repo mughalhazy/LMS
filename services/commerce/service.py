@@ -12,8 +12,8 @@ from .checkout import CheckoutService, Order, OrderStatus
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
-from integrations.payments.router import PaymentProviderRouter
 from integrations.payments.base_adapter import TenantPaymentContext
+from integrations.payments.orchestration import PaymentOrchestrationService
 from shared.utils.entitlement import TenantEntitlementContext
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -44,7 +44,7 @@ EntitlementService = _EntitlementModule.EntitlementService
 class CommerceService:
     """Commerce completion layer orchestrating catalog, checkout, and billing modules."""
 
-    def __init__(self, *, payment_router: PaymentProviderRouter) -> None:
+    def __init__(self, *, payment_orchestrator: PaymentOrchestrationService) -> None:
         self.catalog = CatalogService()
         self.billing = BillingService()
         self.subscription_service = SubscriptionService()
@@ -59,7 +59,7 @@ class CommerceService:
             capability_registry=self.entitlement_service._capability_registry,
             entitlement_service=self.entitlement_service,
         )
-        self._payment_router = payment_router
+        self._payment_orchestrator = payment_orchestrator
 
     def add_product(
         self,
@@ -113,15 +113,16 @@ class CommerceService:
             return False, None, False
 
         payment_tenant = TenantPaymentContext(tenant_id=tenant_id, country_code=ctx.country_code)
-        adapter = self._payment_router.resolve(payment_tenant)
-        result = adapter.process_payment(
-            amount=int(amount * 100),
+        entry = self._payment_orchestrator.process_checkout_payment(
+            idempotency_key=f"{tenant_id}:{learner_id}:{attempt}",
             tenant=payment_tenant,
+            amount=int(amount * 100),
+            currency=currency,
             invoice_id=None,
         )
-        if result.ok:
-            return True, result.payment_id, False
-        return False, None, bool(result.error and "timeout" in result.error.lower())
+        if entry.status in {"pending_verification", "verified"} and entry.payment_id:
+            return True, entry.payment_id, False
+        return False, None, bool(entry.error and "timeout" in entry.error.lower())
 
     async def checkout_and_invoice(
         self,
@@ -168,6 +169,8 @@ class CommerceService:
 
 
 def build_commerce_service_for_pakistan(default_provider: str = "jazzcash") -> CommerceService:
-    from integrations.payments.orchestration import build_pakistan_payment_router
+    from integrations.payments.orchestration import build_pakistan_payment_orchestration
 
-    return CommerceService(payment_router=build_pakistan_payment_router(default_provider=default_provider))
+    return CommerceService(
+        payment_orchestrator=build_pakistan_payment_orchestration(default_provider=default_provider)
+    )
