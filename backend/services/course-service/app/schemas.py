@@ -28,6 +28,8 @@ class DeliveryRole(str, Enum):
 class CourseMetadata(BaseModel):
     category_id: str | None = None
     delivery_mode: str | None = None
+    academy_cohort_id: str | None = None
+    academy_enrollment_enabled: bool = False
     duration_minutes: int | None = Field(default=None, ge=1)
     tags: list[str] = Field(default_factory=list)
     objectives: list[str] = Field(default_factory=list)
@@ -71,6 +73,14 @@ class CreateCourseRequest(BaseModel):
     grading_scheme: str | None = None
     metadata: CourseMetadata = Field(default_factory=CourseMetadata)
 
+    @model_validator(mode="after")
+    def validate_academy_delivery(self) -> "CreateCourseRequest":
+        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.academy_cohort_id:
+            raise ValueError("academy_cohort_id required for cohort_based delivery")
+        if self.metadata.academy_cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
+            raise ValueError("academy_cohort_id is only supported for cohort_based delivery")
+        return self
+
 
 class UpdateCourseRequest(BaseModel):
     tenant_name: str = "tenant"
@@ -87,6 +97,16 @@ class UpdateCourseRequest(BaseModel):
     credit_value: float | None = None
     grading_scheme: str | None = None
     metadata: CourseMetadata | None = None
+
+    @model_validator(mode="after")
+    def validate_academy_delivery(self) -> "UpdateCourseRequest":
+        if self.metadata is None:
+            return self
+        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.academy_cohort_id:
+            raise ValueError("academy_cohort_id required for cohort_based delivery")
+        if self.metadata.academy_cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
+            raise ValueError("academy_cohort_id is only supported for cohort_based delivery")
+        return self
 
 
 class PublishCourseRequest(BaseModel):

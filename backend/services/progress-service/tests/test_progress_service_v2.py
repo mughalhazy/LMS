@@ -104,6 +104,40 @@ class ProgressServiceV2Tests(unittest.TestCase):
         self.assertEqual(summary.learning_paths[0].progress_percentage, 50.0)
         self.assertEqual(summary.learning_paths[0].current_course_id, "course-2")
 
+    def test_academy_completion_includes_academy_context_in_event_payload(self) -> None:
+        req = LessonProgressCompleteRequest(
+            tenant_id="tenant-a",
+            learner_id="learner-1",
+            course_id="course-1",
+            enrollment_id="enroll-1",
+            academy_cohort_id="batch-2026-A",
+            academy_enrollment_id="academy-enroll-1",
+            score=90,
+            time_spent_seconds=100,
+            attempt_count=1,
+            completed_at=datetime.now(timezone.utc),
+            idempotency_key="evt-academy",
+        )
+        self.service.complete_lesson("lesson-1", req, actor_id="tester")
+        completion = [event for event in self.publisher.events if event.event_type == "LessonCompletionTracked"][-1]
+        self.assertEqual(completion.payload["academy_cohort_id"], "batch-2026-A")
+        self.assertEqual(completion.payload["academy_enrollment_id"], "academy-enroll-1")
+
+    def test_academy_context_must_be_provided_as_pair(self) -> None:
+        with self.assertRaises(ValueError):
+            LessonProgressCompleteRequest(
+                tenant_id="tenant-a",
+                learner_id="learner-1",
+                course_id="course-1",
+                enrollment_id="enroll-1",
+                academy_cohort_id="batch-2026-A",
+                score=90,
+                time_spent_seconds=100,
+                attempt_count=1,
+                completed_at=datetime.now(timezone.utc),
+                idempotency_key="evt-academy-invalid",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

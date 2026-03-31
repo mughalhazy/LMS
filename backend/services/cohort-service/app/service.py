@@ -10,6 +10,7 @@ from .events import EventPublisher
 from .models import CohortRecord, MembershipRecord, ObservabilityState
 from .schemas import (
     AddMembershipRequest,
+    CohortKind,
     CohortResponse,
     CohortWithMembershipsResponse,
     CreateCohortRequest,
@@ -41,6 +42,8 @@ class CohortService:
         now = self._now()
         if request.schedule.starts_at and request.schedule.ends_at and request.schedule.ends_at < request.schedule.starts_at:
             raise HTTPException(status_code=422, detail="schedule.ends_at must be >= schedule.starts_at")
+        if request.kind == CohortKind.ACADEMY_BATCH and not request.program_id:
+            raise HTTPException(status_code=422, detail="academy_batch cohorts require a program_id")
 
         cohort = CohortRecord(
             cohort_id=str(uuid4()),
@@ -147,6 +150,8 @@ class CohortService:
 
     def add_membership(self, tenant_id: str, cohort_id: str, request: AddMembershipRequest) -> MembershipResponse:
         cohort = self._require_cohort(tenant_id, cohort_id)
+        if cohort.kind == CohortKind.ACADEMY_BATCH and request.role not in {"learner", "instructor", "mentor"}:
+            raise HTTPException(status_code=422, detail="academy_batch role must be learner, instructor, or mentor")
         joined_at = request.joined_at or self._now()
         membership = MembershipRecord(
             membership_id=str(uuid4()),

@@ -130,3 +130,36 @@ def test_events_are_published_for_lifecycle_changes() -> None:
     after_count = len(service.event_publisher.list_events())
     assert after_count == before_count + 1
     assert service.event_publisher.list_events()[-1].event_name == "course.lifecycle.created.v1"
+
+
+def test_academy_cohort_delivery_requires_academy_cohort_id() -> None:
+    invalid = client.post(
+        "/api/v1/courses",
+        headers=_headers(),
+        json={
+            "tenant_id": "tenant-a",
+            "created_by": "academy-admin",
+            "title": "Academy Data Lab",
+            "metadata": {"delivery_mode": "cohort_based"},
+        },
+    )
+    assert invalid.status_code == 422
+
+    valid = client.post(
+        "/api/v1/courses",
+        headers=_headers(),
+        json={
+            "tenant_id": "tenant-a",
+            "created_by": "academy-admin",
+            "title": "Academy Data Lab",
+            "metadata": {
+                "delivery_mode": "cohort_based",
+                "academy_cohort_id": "batch-2026-A",
+                "academy_enrollment_enabled": True,
+            },
+        },
+    )
+    assert valid.status_code == 201
+    payload = valid.json()["data"]
+    assert payload["metadata"]["academy_cohort_id"] == "batch-2026-A"
+    assert payload["metadata"]["academy_enrollment_enabled"] is True

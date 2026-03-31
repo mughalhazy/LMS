@@ -42,3 +42,26 @@ def test_invalid_transition_is_blocked_for_consistent_state() -> None:
 
     assert subscription.state == SubscriptionState.CANCELLED
     assert subscription.lifecycle == []
+
+
+def test_academy_enrollment_requires_active_cohort_delivery_subscription() -> None:
+    service = SubscriptionLifecycleService()
+    subscription = Subscription(
+        subscription_id="sub_academy",
+        tenant_id="tenant_1",
+        plan_id="pro",
+        academy_package_id="academy-pro",
+        academy_cohort_delivery_enabled=True,
+        academy_seat_limit=2,
+        state=SubscriptionState.ACTIVE,
+    )
+
+    service.reserve_academy_enrollment(subscription)
+    service.reserve_academy_enrollment(subscription)
+    assert subscription.academy_active_enrollments == 2
+
+    with pytest.raises(SubscriptionLifecycleError):
+        service.reserve_academy_enrollment(subscription)
+
+    service.release_academy_enrollment(subscription)
+    assert subscription.academy_active_enrollments == 1

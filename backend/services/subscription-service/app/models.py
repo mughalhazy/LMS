@@ -32,6 +32,10 @@ class Subscription:
     subscription_id: str
     tenant_id: str
     plan_id: str
+    academy_package_id: str | None = None
+    academy_cohort_delivery_enabled: bool = False
+    academy_seat_limit: int = 0
+    academy_active_enrollments: int = 0
     state: SubscriptionState = SubscriptionState.TRIAL
     trial_ends_at: datetime | None = None
     current_period_ends_at: datetime | None = None
