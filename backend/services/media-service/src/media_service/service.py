@@ -16,6 +16,7 @@ from media_service.models import (
     TranscodingRequest,
     UploadRequest,
 )
+from media_service.security import AccessClaims, MediaAccessError, MediaSecurity
 
 
 class MediaService:
@@ -25,11 +26,13 @@ class MediaService:
         transcoder_client: TranscoderClient,
         cdn_client: CDNClient,
         event_publisher: EventPublisher,
+        security: MediaSecurity | None = None,
     ) -> None:
         self.storage_client = storage_client
         self.transcoder_client = transcoder_client
         self.cdn_client = cdn_client
         self.event_publisher = event_publisher
+        self.security = security or MediaSecurity()
         self._asset_store: dict[str, MediaAsset] = {}
 
     def upload_media(self, request: UploadRequest) -> tuple[MediaAsset, EventRecord]:
@@ -152,8 +155,46 @@ class MediaService:
     def publish_to_cdn(self, media_asset_id: str, config: CDNDeliveryConfig) -> tuple[MediaAsset, EventRecord]:
         asset = self._asset_store[media_asset_id]
         signed = config.access_policy in {"signed_url", "token"}
-        asset.cdn_playback_urls = self.cdn_client.publish_streaming_urls(asset.adaptive_streaming_assets, signed=signed)
-        asset.cdn_thumbnail_urls = self.cdn_client.publish_thumbnail_urls(asset.thumbnail_set_uris, signed=signed)
+        published_playback_urls = self.cdn_client.publish_streaming_urls(asset.adaptive_streaming_assets, signed=signed)
+
+        if signed:
+            expires_at = self.security.expiry_from_ttl(config.ttl_seconds)
+            watermark_text = self._build_watermark(asset, config) if config.watermark_enabled else None
+            asset.cdn_playback_urls = {
+                profile: self.security.secure_url(
+                    url,
+                    AccessClaims(
+                        tenant_id=asset.uploader_metadata.tenant_id,
+                        asset_id=media_asset_id,
+                        profile=profile,
+                        access_tier=asset.uploader_metadata.access_tier,
+                        expires_at=expires_at,
+                        watermark_text=watermark_text,
+                    ),
+                )
+                for profile, url in published_playback_urls.items()
+            }
+            asset.cdn_thumbnail_urls = {
+                image_format: [
+                    self.security.secure_url(
+                        url,
+                        AccessClaims(
+                            tenant_id=asset.uploader_metadata.tenant_id,
+                            asset_id=media_asset_id,
+                            profile=f"thumb-{image_format}",
+                            access_tier=asset.uploader_metadata.access_tier,
+                            expires_at=expires_at,
+                            watermark_text=watermark_text,
+                        ),
+                    )
+                    for url in urls
+                ]
+                for image_format, urls in self.cdn_client.publish_thumbnail_urls(asset.thumbnail_set_uris, signed=signed).items()
+            }
+        else:
+            asset.cdn_playback_urls = published_playback_urls
+            asset.cdn_thumbnail_urls = self.cdn_client.publish_thumbnail_urls(asset.thumbnail_set_uris, signed=signed)
+
         asset.status = ProcessingStatus.published
         if asset.metadata is not None:
             asset.metadata.published_at = datetime.now(timezone.utc)
@@ -165,9 +206,32 @@ class MediaService:
             {
                 "edge_cache_status": "warm",
                 "access_policy": config.access_policy,
+                "secure_streaming": str(signed).lower(),
+                "watermark": self._build_watermark(asset, config) if config.watermark_enabled else "disabled",
             },
         )
         return asset, event
 
+    def validate_playback_access(self, media_asset_id: str, profile: str, playback_url: str) -> bool:
+        asset = self._asset_store[media_asset_id]
+        return self.security.validate_url(
+            playback_url,
+            tenant_id=asset.uploader_metadata.tenant_id,
+            asset_id=media_asset_id,
+            profile=profile,
+            access_tier=asset.uploader_metadata.access_tier,
+        )
+
     def get_asset(self, media_asset_id: str) -> MediaAsset:
         return self._asset_store[media_asset_id]
+
+    def assert_playback_access(self, media_asset_id: str, profile: str, playback_url: str) -> None:
+        if not self.validate_playback_access(media_asset_id=media_asset_id, profile=profile, playback_url=playback_url):
+            raise MediaAccessError("unauthorized media playback access")
+
+    def _build_watermark(self, asset: MediaAsset, config: CDNDeliveryConfig) -> str:
+        return config.watermark_text_template.format(
+            tenant_id=asset.uploader_metadata.tenant_id,
+            asset_id=asset.media_asset_id,
+            uploader_id=asset.uploader_metadata.uploader_id,
+        )
