@@ -2,6 +2,8 @@ from fastapi import FastAPI, Query, Depends
 from .security import apply_security_headers, require_jwt
 
 from .schemas import (
+    IntegratedRecommendationRequest,
+    IntegratedRecommendationResponse,
     BehavioralRecommendationRequest,
     BehavioralRecommendationResponse,
     LearnerRecommendationBundleResponse,
@@ -56,6 +58,12 @@ def generate_recommendations_from_analytics(
     return BehavioralRecommendationResponse(items=service.generate_from_analytics(request))
 
 
+@app.post("/recommendations/integrated", response_model=IntegratedRecommendationResponse)
+def generate_integrated_recommendations(request: IntegratedRecommendationRequest) -> IntegratedRecommendationResponse:
+    courses, learning_paths = service.generate_integrated_recommendations(request)
+    return IntegratedRecommendationResponse(personalized_courses=courses, learning_paths=learning_paths)
+
+
 @app.get("/learners/{learner_id}/recommendations", response_model=LearnerRecommendationBundleResponse)
 def get_recommendation_bundle(learner_id: str, tenant_id: str = Query(...)) -> LearnerRecommendationBundleResponse:
     return LearnerRecommendationBundleResponse(bundle=service.get_bundle(tenant_id=tenant_id, learner_id=learner_id))
@@ -67,4 +75,3 @@ def health() -> dict[str, str]:
 @app.get("/metrics")
 def metrics() -> dict[str, int | str]:
     return {"service": "recommendation-service", "service_up": 1}
-
