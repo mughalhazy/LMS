@@ -7,14 +7,28 @@ from decimal import Decimal
 from enum import Enum
 from typing import Callable
 
-from .catalog import CatalogProduct, CatalogService
+from .catalog import CatalogService, Product
 
 
 class CheckoutStatus(str, Enum):
     OPEN = "open"
     SUBMITTED = "submitted"
-    COMPLETED = "completed"
-    PAYMENT_FAILED = "payment_failed"
+    FAILED_VALIDATION = "failed_validation"
+
+
+class OrderStatus(str, Enum):
+    CREATED = "created"
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    RECONCILED = "reconciled"
+
+
+class TransactionStatus(str, Enum):
+    PENDING = "pending"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    RECONCILED = "reconciled"
 
 
 @dataclass(frozen=True)
@@ -29,30 +43,62 @@ class CheckoutSession:
 
 
 @dataclass(frozen=True)
-class OrderRecord:
+class Order:
     order_id: str
     session_id: str
     tenant_id: str
     learner_id: str
-    product: CatalogProduct
+    product: Product
+    capability_id: str
     amount: Decimal
     currency: str
     payment_id: str | None
-    status: CheckoutStatus
+    status: OrderStatus
+    transaction_id: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass(frozen=True)
+class Transaction:
+    transaction_id: str
+    order_id: str
+    tenant_id: str
+    amount: Decimal
+    currency: str
+    payment_id: str | None
+    status: TransactionStatus
+    retryable: bool
+    attempt: int
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 PaymentExecutor = Callable[[str, str, Decimal, str, int], tuple[bool, str | None, bool]]
+PriceResolver = Callable[[Product], Decimal]
 
 
 class CheckoutService:
     """Checkout owns order/payment-intent initiation with retry-safe idempotency."""
 
-    def __init__(self, catalog_service: CatalogService, payment_executor: PaymentExecutor) -> None:
+    _valid_transitions: dict[OrderStatus, set[OrderStatus]] = {
+        OrderStatus.CREATED: {OrderStatus.PENDING},
+        OrderStatus.PENDING: {OrderStatus.PAID, OrderStatus.FAILED},
+        OrderStatus.PAID: {OrderStatus.RECONCILED},
+        OrderStatus.FAILED: {OrderStatus.RECONCILED},
+        OrderStatus.RECONCILED: set(),
+    }
+
+    def __init__(
+        self,
+        catalog_service: CatalogService,
+        payment_executor: PaymentExecutor,
+        pricing_resolver: PriceResolver,
+    ) -> None:
         self._catalog_service = catalog_service
         self._payment_executor = payment_executor
+        self._pricing_resolver = pricing_resolver
         self._sessions: dict[str, CheckoutSession] = {}
-        self._orders: dict[str, OrderRecord] = {}
+        self._orders: dict[str, Order] = {}
+        self._transactions: dict[str, Transaction] = {}
         self._idempotency_index: dict[tuple[str, str], str] = {}
 
     def start_session(
@@ -75,7 +121,7 @@ class CheckoutService:
         self._sessions[session.session_id] = session
         return session
 
-    async def submit_session(self, *, session_id: str, max_retries: int = 2) -> OrderRecord:
+    async def submit_session(self, *, session_id: str, max_retries: int = 2) -> Order:
         session = self._sessions[session_id.strip()]
         idem_key = (session.tenant_id, session.idempotency_key)
         existing_order_id = self._idempotency_index.get(idem_key)
@@ -87,13 +133,17 @@ class CheckoutService:
             product_id=session.product_id,
         )
 
+        amount = self._pricing_resolver(product)
         payment_id: str | None = None
         success = False
+        last_attempt = 0
+        retryable = False
         for attempt in range(max_retries + 1):
+            last_attempt = attempt
             success, payment_id, retryable = self._payment_executor(
                 session.tenant_id,
                 session.learner_id,
-                product.price,
+                amount,
                 product.currency,
                 attempt,
             )
@@ -103,18 +153,34 @@ class CheckoutService:
                 break
             await asyncio.sleep(0)
 
-        status = CheckoutStatus.COMPLETED if success else CheckoutStatus.PAYMENT_FAILED
-        order = OrderRecord(
+        order = Order(
             order_id=f"order_{len(self._orders) + 1}",
             session_id=session.session_id,
             tenant_id=session.tenant_id,
             learner_id=session.learner_id,
             product=product,
-            amount=Decimal(product.price),
+            capability_id=product.capability_id,
+            amount=Decimal(amount),
             currency=product.currency,
             payment_id=payment_id,
-            status=status,
+            status=OrderStatus.CREATED,
         )
+        order = self._transition_order(order, OrderStatus.PENDING)
+        order = self._transition_order(order, OrderStatus.PAID if success else OrderStatus.FAILED)
+
+        transaction = Transaction(
+            transaction_id=f"txn_{len(self._transactions) + 1}",
+            order_id=order.order_id,
+            tenant_id=order.tenant_id,
+            amount=order.amount,
+            currency=order.currency,
+            payment_id=payment_id,
+            status=TransactionStatus.SUCCEEDED if success else TransactionStatus.FAILED,
+            retryable=retryable,
+            attempt=last_attempt,
+        )
+        self._transactions[transaction.transaction_id] = transaction
+        order = Order(**{**order.__dict__, "transaction_id": transaction.transaction_id})
         self._orders[order.order_id] = order
         self._idempotency_index[idem_key] = order.order_id
         self._sessions[session.session_id] = CheckoutSession(
@@ -122,5 +188,30 @@ class CheckoutService:
         )
         return order
 
-    def get_order(self, order_id: str) -> OrderRecord | None:
+    def reconcile_order(self, *, order_id: str) -> Order:
+        order = self._orders[order_id.strip()]
+        if order.status == OrderStatus.RECONCILED:
+            return order
+        reconciled = self._transition_order(order, OrderStatus.RECONCILED)
+        self._orders[reconciled.order_id] = reconciled
+        if reconciled.transaction_id:
+            txn = self._transactions[reconciled.transaction_id]
+            txn_state = TransactionStatus.RECONCILED
+            self._transactions[txn.transaction_id] = Transaction(**{**txn.__dict__, "status": txn_state})
+        return reconciled
+
+    def _transition_order(self, order: Order, target: OrderStatus) -> Order:
+        allowed = self._valid_transitions[order.status]
+        if target not in allowed:
+            raise ValueError(f"invalid order transition: {order.status.value} -> {target.value}")
+        return Order(**{**order.__dict__, "status": target})
+
+    def get_order(self, order_id: str) -> Order | None:
         return self._orders.get(order_id.strip())
+
+    def get_transaction(self, transaction_id: str) -> Transaction | None:
+        return self._transactions.get(transaction_id.strip())
+
+
+# Backward-compatible alias while promoting Order as first-class domain entity.
+OrderRecord = Order

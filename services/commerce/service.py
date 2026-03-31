@@ -7,8 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from .billing import BillingService, InvoiceRecord
-from .catalog import CatalogProduct, CatalogService, ProductType
-from .checkout import CheckoutService, OrderRecord
+from .catalog import CatalogService, Product, ProductType
+from .checkout import CheckoutService, Order, OrderStatus
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -53,7 +53,7 @@ class CommerceService:
             subscription_service=self.subscription_service,
             config_service=self.config_service,
         )
-        self.checkout = CheckoutService(self.catalog, self._execute_payment)
+        self.checkout = CheckoutService(self.catalog, self._execute_payment, self._resolve_product_amount)
         self.monetization = CapabilityMonetizationService(
             subscription_service=self.subscription_service,
             capability_registry=self.entitlement_service._capability_registry,
@@ -72,19 +72,23 @@ class CommerceService:
         price: Decimal,
         currency: str,
         metadata: dict[str, str] | None = None,
-    ) -> CatalogProduct:
-        product = CatalogProduct(
+    ) -> Product:
+        product = Product(
             product_id=product_id,
             tenant_id=tenant_id,
             sku=sku,
             product_type=product_type,
             title=title,
+            capability_id=metadata.get("capability_id", "") if metadata else "",
             price=price,
             currency=currency,
             metadata=metadata or {},
         )
         self.catalog.upsert_product(product)
         return product
+
+    def _resolve_product_amount(self, product: Product) -> Decimal:
+        return self.monetization.quote_product_amount(product)
 
     def _execute_payment(
         self,
@@ -127,7 +131,7 @@ class CommerceService:
         learner_id: str,
         product_id: str,
         idempotency_key: str,
-    ) -> tuple[OrderRecord, InvoiceRecord]:
+    ) -> tuple[Order, InvoiceRecord]:
         self.checkout.start_session(
             session_id=session_id,
             tenant_id=tenant_id,
@@ -136,7 +140,10 @@ class CommerceService:
             idempotency_key=idempotency_key,
         )
         order = await self.checkout.submit_session(session_id=session_id)
+        if order.status not in {OrderStatus.PAID, OrderStatus.RECONCILED}:
+            raise ValueError(f"cannot invoice unpaid order '{order.order_id}'")
         invoice = self.billing.create_invoice_for_order(order)
+        order = self.checkout.reconcile_order(order_id=order.order_id)
         if invoice.invoice_type == "subscription":
             self.subscription_service.create_or_activate_subscription(
                 tenant_id=tenant_id,

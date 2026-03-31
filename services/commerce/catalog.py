@@ -13,47 +13,56 @@ class ProductType(str, Enum):
 
 
 @dataclass(frozen=True)
-class CatalogProduct:
+class Product:
     product_id: str
     tenant_id: str
     sku: str
     product_type: ProductType
     title: str
+    capability_id: str
     price: Decimal
     currency: str
     published: bool = True
     metadata: dict[str, str] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def normalized(self) -> "CatalogProduct":
-        return CatalogProduct(
+    def normalized(self) -> "Product":
+        normalized = Product(
             product_id=self.product_id.strip(),
             tenant_id=self.tenant_id.strip(),
             sku=self.sku.strip().upper(),
             product_type=ProductType(self.product_type),
             title=self.title.strip(),
+            capability_id=self.capability_id.strip(),
             price=Decimal(self.price),
             currency=self.currency.strip().upper(),
             published=bool(self.published),
             metadata={str(k): str(v) for k, v in self.metadata.items()},
             created_at=self.created_at,
         )
+        if not normalized.capability_id:
+            raise ValueError("product capability_id is required")
+        return normalized
+
+
+# Backward-compatible alias while elevating Product as a first-class entity.
+CatalogProduct = Product
 
 
 class CatalogService:
     """Catalog owns sellable entities only; no checkout/billing state."""
 
     def __init__(self) -> None:
-        self._products: dict[str, CatalogProduct] = {}
+        self._products: dict[str, Product] = {}
 
-    def upsert_product(self, product: CatalogProduct) -> None:
+    def upsert_product(self, product: Product) -> None:
         normalized = product.normalized()
         self._products[normalized.product_id] = normalized
 
-    def get_product(self, product_id: str) -> CatalogProduct | None:
+    def get_product(self, product_id: str) -> Product | None:
         return self._products.get(product_id.strip())
 
-    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[CatalogProduct]:
+    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[Product]:
         normalized_tenant = tenant_id.strip()
         products = [
             product
@@ -64,7 +73,7 @@ class CatalogService:
             return sorted(products, key=lambda p: p.sku)
         return sorted((p for p in products if p.product_type == product_type), key=lambda p: p.sku)
 
-    def resolve_sellable_product(self, *, tenant_id: str, product_id: str) -> CatalogProduct:
+    def resolve_sellable_product(self, *, tenant_id: str, product_id: str) -> Product:
         product = self.get_product(product_id)
         if product is None or product.tenant_id != tenant_id.strip() or not product.published:
             raise ValueError(f"product '{product_id}' is not sellable for tenant '{tenant_id}'")

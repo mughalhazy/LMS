@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
+from .catalog import Product
 from shared.models.capability_pricing import CapabilityPricing
 from shared.utils.entitlement import TenantEntitlementContext
 
@@ -80,6 +81,20 @@ class CapabilityMonetizationService:
             capability_id=capability.capability_id,
             units=units,
         )
+
+    def resolve_capability_unit_price(self, capability_id: str) -> Decimal:
+        capability = self._capability_registry.get_capability(capability_id.strip())
+        if capability is None:
+            raise ValueError(f"unknown capability '{capability_id}'")
+        return Decimal(capability.price)
+
+    def quote_product_amount(self, product: Product) -> Decimal:
+        """Capability-driven rating hook for commerce product checkout."""
+        unit_price = self.resolve_capability_unit_price(product.capability_id)
+        units = int(product.metadata.get("monetization_units", "1"))
+        if units <= 0:
+            raise ValueError("monetization_units must be >= 1")
+        return unit_price * units
 
     def calculate_tenant_capability_charges(self, tenant: TenantEntitlementContext) -> list[CapabilityCharge]:
         normalized_tenant = tenant.normalized()

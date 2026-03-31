@@ -35,6 +35,7 @@ def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
         title="Course 101",
         price=Decimal("99.00"),
         currency="USD",
+        metadata={"capability_id": "recommendation.basic"},
     )
 
     order, invoice = commerce.checkout_and_invoice_sync(
@@ -45,7 +46,7 @@ def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
         idempotency_key="idem_1",
     )
 
-    assert order.status.value == "completed"
+    assert order.status.value == "reconciled"
     assert invoice.state.value == "issued"
     assert invoice.invoice_type == "one_time"
     assert commerce.catalog.get_product("p_course") is not None
@@ -65,6 +66,7 @@ def test_checkout_retries_and_idempotency() -> None:
         title="Bundle 201",
         price=Decimal("149.00"),
         currency="USD",
+        metadata={"capability_id": "assessment.author"},
     )
 
     order_a, _ = commerce.checkout_and_invoice_sync(
@@ -98,6 +100,7 @@ def test_subscription_product_activates_subscription_service_contract() -> None:
         title="Pro Subscription",
         price=Decimal("29.00"),
         currency="USD",
+        metadata={"capability_id": "assessment.author"},
     )
 
     _, invoice = commerce.checkout_and_invoice_sync(
