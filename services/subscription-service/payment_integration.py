@@ -19,10 +19,8 @@ class Tenant:
 def build_subscription_payment_service(
     country_provider_config: dict[str, str] | None = None,
 ) -> PaymentFlowService:
-    """Build subscription payment flow with pluggable provider adapters."""
-    config = country_provider_config or {
-        "PK": "jazzcash",
-    }
+    """Build subscription payment flow with country routing isolated in adapters."""
+    config = country_provider_config or {"PK": "jazzcash"}
     router = PaymentProviderRouter(
         country_provider_config=config,
         adapters=[JazzCashAdapter(), EasyPaisaAdapter()],
@@ -30,17 +28,10 @@ def build_subscription_payment_service(
     return PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
 
-def process_payment(amount: int, tenant: str | Tenant | TenantPaymentContext) -> dict[str, str | int | None]:
-    """Subscription service payment entrypoint.
-
-    Required by task:
-      process_payment(amount, tenant)
-    """
+def process_payment(amount: int, tenant: Tenant | TenantPaymentContext) -> dict[str, str | int | None]:
+    """Subscription service payment entrypoint via adapter-only country routing."""
     service = build_subscription_payment_service()
-    tenant_payload = (
-        TenantPaymentContext(tenant_id=tenant, country_code="PK") if isinstance(tenant, str) else tenant
-    )
-    result = service.process_payment(amount=amount, tenant=tenant_payload)
+    result = service.process_payment(amount=amount, tenant=tenant)
     if result.get("status") == "failure":
         result["event_type"] = "billing.missed_payment"
         result["workflow_action"] = "reminder"
