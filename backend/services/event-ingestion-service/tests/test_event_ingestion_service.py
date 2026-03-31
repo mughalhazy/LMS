@@ -8,6 +8,7 @@ client = TestClient(app)
 def test_ingest_event_normalizes_and_forwards() -> None:
     response = client.post(
         "/events/ingest",
+        headers={"X-Tenant-Id": "tenant-a", "X-Request-Id": "req-1"},
         json={
             "event_id": "evt-1",
             "tenant_id": "tenant-a",
@@ -39,6 +40,7 @@ def test_ingest_event_normalizes_and_forwards() -> None:
 def test_ai_forwarding_can_reject_non_ai_family() -> None:
     response = client.post(
         "/events/ingest",
+        headers={"X-Tenant-Id": "tenant-a", "X-Request-Id": "req-2"},
         json={
             "event_id": "evt-2",
             "tenant_id": "tenant-a",
@@ -67,3 +69,23 @@ def test_health_and_metrics() -> None:
     assert metrics.status_code == 200
     assert metrics.json()["service"] == "event-ingestion-service"
     assert metrics.json()["events_ingested_total"] >= 2
+
+
+def test_ingest_rejects_cross_tenant_context() -> None:
+    response = client.post(
+        "/events/ingest",
+        headers={"X-Tenant-Id": "tenant-b", "X-Request-Id": "req-3"},
+        json={
+            "event_id": "evt-3",
+            "tenant_id": "tenant-a",
+            "family": "progress",
+            "event_type": "progress.updated",
+            "source": "progress-service",
+            "occurred_at": "2026-01-01T10:00:00Z",
+            "trace": {"trace_id": "trace-3", "correlation_id": "corr-3"},
+            "payload": {"score": 90},
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "x_tenant_id_mismatch"

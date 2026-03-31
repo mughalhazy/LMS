@@ -1,8 +1,10 @@
-"""Service layer."""
+"""Thin adapter around the quiz engine domain service."""
+
+from __future__ import annotations
+
+from src.quiz_engine import QuizEngine
 
 
-class Service:
-    """Base service contract that must be implemented by a concrete adapter."""
+class Service(QuizEngine):
+    """Backward-compatible app-layer alias for the quiz engine."""
 
-    def __init__(self) -> None:
-        raise NotImplementedError("Service is not implemented for this module")

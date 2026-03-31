@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .forwarders import AIForwarder, AnalyticsForwarder, ForwardingPipeline
 from .observability import MetricsRecorder
@@ -18,13 +20,21 @@ service = EventIngestionService(
 )
 
 
-# Placeholder dependency to stay compatible with existing JWT-enforced service shape.
-def require_runtime_context() -> bool:
-    return True
+def require_runtime_context(
+    tenant_id: Annotated[str, Header(alias="X-Tenant-Id")],
+    request_id: Annotated[str, Header(alias="X-Request-Id")],
+) -> tuple[str, str]:
+    return tenant_id, request_id
 
 
-@app.post("/events/ingest", response_model=IngestionResponse, dependencies=[Depends(require_runtime_context)])
-def ingest_event(request: IngestionRequest) -> IngestionResponse:
+@app.post("/events/ingest", response_model=IngestionResponse)
+def ingest_event(
+    request: IngestionRequest,
+    runtime_context: tuple[str, str] = Depends(require_runtime_context),
+) -> IngestionResponse:
+    tenant_id, _request_id = runtime_context
+    if tenant_id != request.tenant_id:
+        raise HTTPException(status_code=400, detail="x_tenant_id_mismatch")
     return IngestionResponse(result=service.ingest(request))
 
 
