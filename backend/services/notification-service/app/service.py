@@ -4,6 +4,10 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Callable, TypeVar
 
+from integrations.communication.base_adapter import CommunicationRouter, CommunicationUser, Tenant
+from integrations.communication.sms_adapter import SMSAdapter
+from integrations.communication.whatsapp_adapter import WhatsAppAdapter
+
 from .models import NotificationEvent, NotificationMessage, NotificationPreference
 from .schemas import (
     DeliveryDrainRequest,
@@ -29,6 +33,10 @@ class NotificationService:
         self.circuit_breaker_threshold = 2
         self.circuit_breaker_open = False
         self._event_bus_failures = 0
+        self.communication_router = CommunicationRouter(
+            whatsapp_adapter=WhatsAppAdapter(),
+            sms_adapter=SMSAdapter(),
+        )
 
     def upsert_preference(self, req: PreferenceUpsertRequest) -> tuple[int, dict[str, Any]]:
         if not req.channels:
@@ -130,6 +138,8 @@ class NotificationService:
             for channel in req.channels:
                 if not self._channel_enabled(preference, channel):
                     continue
+                metadata = dict(req.metadata)
+                metadata["tenant_country_code"] = req.tenant_country_code
                 message = NotificationMessage(
                     message_id=self.store.new_id("msg"),
                     tenant_id=req.tenant_id,
@@ -139,7 +149,7 @@ class NotificationService:
                     subject=req.subject,
                     body=req.body,
                     event_id=event_id,
-                    metadata=req.metadata,
+                    metadata=metadata,
                 )
                 if not self._persist_message_with_event_bus_retry(message):
                     return 202, {
@@ -195,6 +205,7 @@ class NotificationService:
         status, payload = self.orchestrate_notification(
             NotificationOrchestrationRequest(
                 tenant_id=req.tenant_id,
+                tenant_country_code=req.tenant_country_code,
                 category=route.category,
                 recipients=req.recipients,
                 channels=route.channels,
@@ -237,6 +248,22 @@ class NotificationService:
                 failed += 1
                 failed_messages.append(asdict(message))
                 continue
+
+            if message.channel in {"whatsapp", "sms"}:
+                tenant = Tenant(country_code=message.metadata.get("tenant_country_code", "US"))
+                attempt = self.communication_router.send_message(
+                    tenant=tenant,
+                    user=CommunicationUser(user_id=message.user_id),
+                    message=message.body,
+                )
+                if not attempt.ok:
+                    message.status = "failed"
+                    message.failure_reason = attempt.error or "adapter_delivery_failed"
+                    failed += 1
+                    failed_messages.append(asdict(message))
+                    continue
+                message.metadata["adapter_provider"] = attempt.provider
+                message.metadata["adapter_fallback_used"] = attempt.fallback_used
 
             message.status = "delivered"
             message.delivered_at = datetime.utcnow()
