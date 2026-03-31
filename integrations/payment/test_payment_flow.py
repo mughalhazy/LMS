@@ -68,3 +68,16 @@ def test_no_provider_lock_in_with_runtime_config() -> None:
     result = service.process_payment(amount=2000, tenant="tenant_dynamic")
     assert result["status"] == "failure"
     assert result["provider"] == "mock_failure"
+
+
+def test_country_based_payment_adapter_selection_from_config() -> None:
+    router = PaymentProviderRouter(
+        tenant_provider_config={"US": "mock_success", "DE": "mock_failure"},
+        adapters=[MockSuccessAdapter(), MockFailureAdapter()],
+    )
+
+    us_adapter = router.resolve_for_country("us")
+    de_adapter = router.resolve_for_country("DE")
+
+    assert us_adapter.provider_key == "mock_success"
+    assert de_adapter.provider_key == "mock_failure"

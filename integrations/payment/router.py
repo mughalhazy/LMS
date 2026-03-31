@@ -14,6 +14,15 @@ class PaymentProviderRouter:
         provider_key = self._tenant_provider_config.get(tenant)
         if not provider_key:
             raise ValueError(f"No payment provider configured for tenant '{tenant}'")
+        return self._resolve_provider(provider_key)
+
+    def resolve_for_country(self, country_code: str) -> PaymentAdapter:
+        provider_key = self._tenant_provider_config.get(country_code.upper())
+        if not provider_key:
+            raise ValueError(f"No payment provider configured for country '{country_code}'")
+        return self._resolve_provider(provider_key)
+
+    def _resolve_provider(self, provider_key: str) -> PaymentAdapter:
         adapter = self._adapters.get(provider_key)
         if adapter is None:
             raise ValueError(f"Provider '{provider_key}' is not registered")

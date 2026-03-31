@@ -39,6 +39,7 @@ class TenantConfiguration:
     enabled_modules: list[str] = field(default_factory=list)
     security_baseline: dict[str, Any] = field(default_factory=dict)
     feature_flags: dict[str, bool] = field(default_factory=dict)
+    country_behavior_profiles: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass

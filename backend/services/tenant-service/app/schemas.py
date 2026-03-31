@@ -43,6 +43,7 @@ class InitializeTenantConfigurationRequest(BaseModel):
     branding: dict[str, Any] = Field(default_factory=dict)
     enabled_modules: list[str] = Field(default_factory=list)
     security_baseline: dict[str, Any] = Field(default_factory=dict)
+    country_behavior_profiles: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class UpdateTenantConfigurationRequest(BaseModel):
