@@ -70,6 +70,12 @@ class ConfigService:
             behavior_tuning=behavior_tuning,
         )
 
+
+    def resolve_capability_entitlement(self, context: ConfigResolutionContext, capability: str) -> bool | None:
+        """Config contribution for entitlement engine (`None` means no override)."""
+        effective = self.resolve(context)
+        return effective.capability_enabled.get(capability)
+
     def has_conflicting_config_paths(self) -> bool:
         seen: set[tuple[ConfigLevel, str, str]] = set()
         for override in self._overrides.values():

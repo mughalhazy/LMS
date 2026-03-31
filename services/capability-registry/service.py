@@ -22,3 +22,9 @@ class CapabilityRegistryService:
         if not mapped_capability_id:
             return None
         return self.get_capability(mapped_capability_id)
+
+
+    def is_enabled_by_default(self, capability_id: str) -> bool:
+        """Registry default signal consumed by entitlement service only."""
+        capability = self.get_capability(capability_id)
+        return bool(capability.default_enabled) if capability else False

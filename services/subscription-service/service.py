@@ -1,54 +1,75 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from decimal import Decimal
-from uuid import uuid4
-
-from shared.models.invoice import Invoice
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
-class Subscription:
-    subscription_id: str
+class TenantSubscription:
     tenant_id: str
-    amount: Decimal
-    active: bool = False
+    plan_type: str
+    add_ons: tuple[str, ...] = field(default_factory=tuple)
+
+    def normalized(self) -> "TenantSubscription":
+        return TenantSubscription(
+            tenant_id=self.tenant_id.strip(),
+            plan_type=self.plan_type.strip().lower(),
+            add_ons=tuple(sorted({addon.strip().lower() for addon in self.add_ons if addon.strip()})),
+        )
 
 
 class SubscriptionService:
+    """Source of truth for tenant subscription packaging (plan and add-ons)."""
+
     def __init__(self) -> None:
-        self._invoices: list[Invoice] = []
+        self._tenant_subscriptions: dict[str, TenantSubscription] = {}
 
-    @property
-    def invoices(self) -> list[Invoice]:
-        return list(self._invoices)
+    def upsert_tenant_subscription(self, subscription: TenantSubscription) -> None:
+        normalized = subscription.normalized()
+        self._tenant_subscriptions[normalized.tenant_id] = normalized
 
-    def activate_subscription(self, subscription: Subscription) -> tuple[Subscription, Invoice]:
-        activated = Subscription(
-            subscription_id=subscription.subscription_id,
-            tenant_id=subscription.tenant_id,
-            amount=Decimal(subscription.amount),
-            active=True,
-        )
-        invoice = self._generate_invoice(
-            tenant_id=subscription.tenant_id,
-            amount=subscription.amount,
-        )
-        return activated, invoice
+    def get_tenant_subscription(self, tenant_id: str) -> TenantSubscription | None:
+        return self._tenant_subscriptions.get(tenant_id.strip())
 
-    def renew_subscription(self, subscription: Subscription) -> Invoice:
-        if not subscription.active:
-            raise ValueError("Cannot renew an inactive subscription")
-        return self._generate_invoice(
-            tenant_id=subscription.tenant_id,
-            amount=subscription.amount,
-        )
+    def get_plan_capabilities(self, plan_type: str) -> set[str]:
+        plan_capabilities = {
+            "free": {
+                "assessment.attempt",
+                "recommendation.basic",
+                "commerce.catalog.basic",
+                "learning.analytics.basic",
+            },
+            "pro": {
+                "assessment.attempt",
+                "assessment.author",
+                "course.write",
+                "recommendation.basic",
+                "commerce.catalog.basic",
+                "learning.analytics.basic",
+            },
+            "enterprise": {
+                "assessment.attempt",
+                "assessment.author",
+                "course.write",
+                "recommendation.basic",
+                "commerce.catalog.basic",
+                "learning.analytics.basic",
+                "learning.analytics.advanced",
+                "platform.support.priority",
+            },
+        }
+        return set(plan_capabilities.get(plan_type.strip().lower(), set()))
 
-    def _generate_invoice(self, tenant_id: str, amount: Decimal) -> Invoice:
-        invoice = Invoice.issued(
-            invoice_id=f"inv_{uuid4().hex}",
-            tenant_id=tenant_id,
-            amount=Decimal(amount),
-        )
-        self._invoices.append(invoice)
-        return invoice
+    def is_enabled_for_subscription(self, *, plan_type: str, add_ons: tuple[str, ...], capability: str) -> bool:
+        normalized_capability = capability.strip()
+        if normalized_capability in self.get_plan_capabilities(plan_type):
+            return True
+        return any(normalized_capability in self.get_add_on_capabilities(add_on) for add_on in add_ons)
+
+    def get_add_on_capabilities(self, add_on: str) -> set[str]:
+        add_on_capabilities = {
+            "analytics_advanced": {"learning.analytics.advanced"},
+            "ai_tutor_pack": {"ai.tutor"},
+            "dedicated_isolation": {"platform.isolation.dedicated"},
+            "priority_support": {"platform.support.priority"},
+        }
+        return set(add_on_capabilities.get(add_on.strip().lower(), set()))
