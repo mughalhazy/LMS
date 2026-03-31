@@ -7,6 +7,7 @@ from datetime import datetime
 @dataclass
 class TimeWindowQuery:
     tenant_id: str
+    owner_id: str | None = None
     start_at: datetime | None = None
     end_at: datetime | None = None
 

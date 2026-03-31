@@ -44,22 +44,81 @@ class LearningAnalyticsService:
         start_at: datetime | None = None,
         end_at: datetime | None = None,
         tenant_id: str | None = None,
+        owner_id: str | None = None,
     ) -> dict:
-        records = self.repository.list_revenue_records(start_at=start_at, end_at=end_at, tenant_id=tenant_id)
+        records = self.repository.list_revenue_records(
+            start_at=start_at,
+            end_at=end_at,
+            tenant_id=tenant_id,
+            owner_id=owner_id,
+        )
         total_revenue = self._round(sum(row.amount for row in records))
 
         per_tenant_revenue: dict[str, float] = {}
         per_plan_revenue: dict[str, float] = {}
+        per_owner_revenue: dict[str, float] = {}
         for row in records:
             per_tenant_revenue[row.tenant_id] = self._round(per_tenant_revenue.get(row.tenant_id, 0.0) + row.amount)
             per_plan_revenue[row.plan_id] = self._round(per_plan_revenue.get(row.plan_id, 0.0) + row.amount)
+            per_owner_revenue[row.owner_id] = self._round(per_owner_revenue.get(row.owner_id, 0.0) + row.amount)
 
         return {
             "tenant_id": tenant_id,
+            "owner_id": owner_id,
             "total_revenue": total_revenue,
             "per_tenant_revenue": dict(sorted(per_tenant_revenue.items())),
             "per_plan_revenue": dict(sorted(per_plan_revenue.items())),
+            "per_owner_revenue": dict(sorted(per_owner_revenue.items())),
             "transaction_count": len(records),
+        }
+
+    def cashflow_metrics(
+        self,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        tenant_id: str | None = None,
+        owner_id: str | None = None,
+    ) -> dict:
+        rows = self.repository.list_cashflow_records(start_at=start_at, end_at=end_at, tenant_id=tenant_id, owner_id=owner_id)
+        inflow = self._round(sum(row.amount for row in rows if row.flow_type == "inflow"))
+        outflow = self._round(sum(row.amount for row in rows if row.flow_type == "outflow"))
+        net_cashflow = self._round(inflow - outflow)
+        by_category: dict[str, float] = {}
+        for row in rows:
+            signed_amount = row.amount if row.flow_type == "inflow" else -row.amount
+            by_category[row.category] = self._round(by_category.get(row.category, 0.0) + signed_amount)
+
+        return {
+            "tenant_id": tenant_id,
+            "owner_id": owner_id,
+            "inflow": inflow,
+            "outflow": outflow,
+            "net_cashflow": net_cashflow,
+            "cashflow_by_category": dict(sorted(by_category.items())),
+            "transaction_count": len(rows),
+        }
+
+    def profitability_metrics(
+        self,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        tenant_id: str | None = None,
+        owner_id: str | None = None,
+    ) -> dict:
+        revenue = self.revenue_metrics(start_at=start_at, end_at=end_at, tenant_id=tenant_id, owner_id=owner_id)
+        cashflow = self.cashflow_metrics(start_at=start_at, end_at=end_at, tenant_id=tenant_id, owner_id=owner_id)
+        outflows = self.repository.list_cashflow_records(start_at=start_at, end_at=end_at, tenant_id=tenant_id, owner_id=owner_id)
+        operating_cost = self._round(sum(row.amount for row in outflows if row.flow_type == "outflow"))
+        gross_profit = self._round(revenue["total_revenue"] - operating_cost)
+        margin = self._round((gross_profit / revenue["total_revenue"]) * 100) if revenue["total_revenue"] > 0 else 0.0
+        return {
+            "tenant_id": tenant_id,
+            "owner_id": owner_id,
+            "revenue": revenue["total_revenue"],
+            "operating_cost": operating_cost,
+            "gross_profit": gross_profit,
+            "profit_margin_percent": margin,
+            "net_cashflow": cashflow["net_cashflow"],
         }
 
     def course_completion_analytics(

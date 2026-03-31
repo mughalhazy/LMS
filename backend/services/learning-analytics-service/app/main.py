@@ -81,7 +81,31 @@ class LearningAnalyticsAPI:
             start_at=query.start_at,
             end_at=query.end_at,
             tenant_id=query.tenant_id,
+            owner_id=query.owner_id,
         )
+
+    def get_cashflow_metrics(self, query: TimeWindowQuery) -> dict:
+        return self.service.cashflow_metrics(
+            start_at=query.start_at,
+            end_at=query.end_at,
+            tenant_id=query.tenant_id,
+            owner_id=query.owner_id,
+        )
+
+    def get_profitability_metrics(self, query: TimeWindowQuery) -> dict:
+        return self.service.profitability_metrics(
+            start_at=query.start_at,
+            end_at=query.end_at,
+            tenant_id=query.tenant_id,
+            owner_id=query.owner_id,
+        )
+
+    def get_owner_economics(self, query: TimeWindowQuery) -> dict:
+        return {
+            "revenue": self.get_revenue_metrics(query),
+            "cashflow": self.get_cashflow_metrics(query),
+            "profitability": self.get_profitability_metrics(query),
+        }
 
     def get_ai_service_signals(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
         return self.service.ai_service_signals(

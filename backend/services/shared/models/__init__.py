@@ -6,6 +6,7 @@ from .knowledge_graph import (
     KnowledgeNodeType,
 )
 from .plan import BillingCycle, Plan
+from .revenue import RevenueRecord
 
 __all__ = [
     "BillingCycle",
