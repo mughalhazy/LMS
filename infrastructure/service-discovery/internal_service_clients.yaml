@@ -131,3 +131,25 @@ services:
         retry_policy:
           max_attempts: 3
           backoff_ms: 250
+
+
+  control-plane-clients:
+    outbound_clients:
+      - target_service: capability-registry
+        base_uri: discovery://capability-registry
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: config-service
+        base_uri: discovery://config-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250
+      - target_service: entitlement-service
+        base_uri: discovery://entitlement-service
+        timeout_ms: 2000
+        retry_policy:
+          max_attempts: 3
+          backoff_ms: 250

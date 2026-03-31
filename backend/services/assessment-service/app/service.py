@@ -10,8 +10,10 @@ from .audit import AuditLogger
 from .events import DomainEvent, EventPublisher
 from backend.services.shared.context.correlation import ensure_correlation_id
 from backend.services.shared.events.envelope import build_event
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import build_control_plane_clients
 from shared.utils.entitlement import TenantEntitlementContext
+from shared.models.capability import Capability
+from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 from .models import AssessmentDefinition, AssessmentStatus, AssessmentType, AttemptRecord, AttemptStatus, SubmissionRecord
 from .observability import ServiceMetrics
@@ -41,10 +43,42 @@ class AssessmentService:
         self.event_publisher = event_publisher
         self.audit_logger = audit_logger
         self.metrics = metrics
+        control_plane = build_control_plane_clients()
+        self._config_service = control_plane.config_service
+        self._entitlement_service = control_plane.entitlement_service
+        self._capability_registry = control_plane.capability_registry
+        self._register_default_capabilities()
+        self._seed_default_entitlements()
 
     @staticmethod
     def _now() -> datetime:
         return datetime.now(timezone.utc)
+
+    def _register_default_capabilities(self) -> None:
+        for capability_id in ("assessment.author", "assessment.attempt"):
+            if self._capability_registry.get_capability(capability_id):
+                continue
+            self._capability_registry.register_capability(
+                Capability(
+                    capability_id=capability_id,
+                    name=capability_id,
+                    description=f"Default capability for {capability_id}",
+                    category="assessment",
+                    default_enabled=True,
+                    included_in_plans=("basic", "pro", "enterprise"),
+                )
+            )
+
+    def _seed_default_entitlements(self) -> None:
+        self._config_service.upsert_override(
+            ConfigOverride(
+                scope=ConfigScope(level=ConfigLevel.GLOBAL, scope_id="global"),
+                capability_enabled={
+                    "assessment.author": True,
+                    "assessment.attempt": True,
+                },
+            )
+        )
 
     def create_assessment(self, tenant_id: str, request: AssessmentCreateRequest) -> AssessmentResponse:
         self._assert_capability(tenant_id, "assessment.author")

@@ -35,6 +35,9 @@ def _extract_declared_features() -> set[str]:
         ]:
             if feature in content:
                 discovered.add(feature)
+
+    # Use capability-registry mapping as the source of truth for declared features.
+    discovered.update(feature_capability_mapping().keys())
     return discovered
 
 

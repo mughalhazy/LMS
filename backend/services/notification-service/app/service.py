@@ -73,10 +73,17 @@ class NotificationService:
         self.circuit_breaker_threshold = 2
         self.circuit_breaker_open = False
         self._event_bus_failures = 0
+        self.whatsapp_adapter = WhatsAppAdapter()
+        self.sms_adapter = SMSAdapter()
         self.communication_router = CommunicationRouter(
-            whatsapp_adapter=WhatsAppAdapter(),
-            sms_adapter=SMSAdapter(),
+            adapters={
+                "whatsapp": self.whatsapp_adapter,
+                "sms": self.sms_adapter,
+            },
+            fallback_order=["whatsapp", "sms"],
         )
+        self.communication_router.whatsapp_adapter = self.whatsapp_adapter
+        self.communication_router.sms_adapter = self.sms_adapter
         self.raised_alerts: list[dict[str, Any]] = []
         self.follow_up_tasks: list[dict[str, Any]] = []
         self.workflow_engine = WorkflowEngine(self)
