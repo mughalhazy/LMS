@@ -41,6 +41,16 @@ class TenantSubscription:
         )
 
 
+@dataclass(frozen=True)
+class CommerceSubscription:
+    subscription_id: str
+    tenant_id: str
+    plan_type: str
+    source_order_id: str
+    status: str = "active"
+    renewals: int = 0
+
+
 class SubscriptionService:
     """Source of truth for tenant subscription packaging (plan and add-ons)."""
 
@@ -48,6 +58,7 @@ class SubscriptionService:
         self._tenant_subscriptions: dict[str, TenantSubscription] = {}
         self._tenant_add_on_purchases: dict[str, set[str]] = {}
         self._tenant_usage_ledger: dict[str, dict[str, int]] = {}
+        self._commerce_subscriptions: dict[str, CommerceSubscription] = {}
         self._capability_registry = _load_registry_service()()
 
     def upsert_tenant_subscription(self, subscription: TenantSubscription) -> None:
@@ -122,3 +133,51 @@ class SubscriptionService:
             for capability in self._capability_registry.list_capabilities()
             if normalized_add_on in capability.included_in_add_ons
         }
+
+    def create_or_activate_subscription(
+        self,
+        *,
+        tenant_id: str,
+        subscription_id: str,
+        plan_type: str,
+        source_order_id: str,
+    ) -> CommerceSubscription:
+        normalized = CommerceSubscription(
+            subscription_id=subscription_id.strip(),
+            tenant_id=tenant_id.strip(),
+            plan_type=plan_type.strip().lower(),
+            source_order_id=source_order_id.strip(),
+            status="active",
+            renewals=0,
+        )
+        self._commerce_subscriptions[normalized.subscription_id] = normalized
+        return normalized
+
+    def renew_subscription(self, subscription_id: str) -> CommerceSubscription:
+        current = self._commerce_subscriptions[subscription_id.strip()]
+        renewed = CommerceSubscription(
+            subscription_id=current.subscription_id,
+            tenant_id=current.tenant_id,
+            plan_type=current.plan_type,
+            source_order_id=current.source_order_id,
+            status="active",
+            renewals=current.renewals + 1,
+        )
+        self._commerce_subscriptions[renewed.subscription_id] = renewed
+        return renewed
+
+    def cancel_subscription(self, subscription_id: str) -> CommerceSubscription:
+        current = self._commerce_subscriptions[subscription_id.strip()]
+        canceled = CommerceSubscription(
+            subscription_id=current.subscription_id,
+            tenant_id=current.tenant_id,
+            plan_type=current.plan_type,
+            source_order_id=current.source_order_id,
+            status="canceled",
+            renewals=current.renewals,
+        )
+        self._commerce_subscriptions[canceled.subscription_id] = canceled
+        return canceled
+
+    def get_subscription_contract(self, subscription_id: str) -> CommerceSubscription | None:
+        return self._commerce_subscriptions.get(subscription_id.strip())
