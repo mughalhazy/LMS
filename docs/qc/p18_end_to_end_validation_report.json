@@ -1,0 +1,207 @@
+{
+  "batch": "P18",
+  "title": "End-to-End Validation",
+  "validated_flow": "tenant \u2192 config \u2192 capability \u2192 usage \u2192 billing \u2192 communication",
+  "flow_sequence": [
+    "tenant",
+    "config",
+    "capability",
+    "usage",
+    "billing",
+    "communication"
+  ],
+  "flow_service_bindings": {
+    "tenant": "tenant-service",
+    "config": "config-service",
+    "capability": "capability-registry",
+    "usage": "learning-analytics-service",
+    "billing": "entitlement-service",
+    "communication": "notification-service"
+  },
+  "platform_coverage": {
+    "service_count": 42,
+    "strict_runtime_service_count": 39,
+    "platform_exempt_services": [
+      "capability-registry",
+      "config-service",
+      "entitlement-service"
+    ],
+    "discovery_coverage": true,
+    "secrets_coverage": true,
+    "metrics_coverage": true,
+    "health_coverage": true,
+    "gateway_route_coverage": true,
+    "missing": {
+      "discovery": [],
+      "secrets": [],
+      "metrics": [],
+      "health": [],
+      "routes": []
+    }
+  },
+  "scenarios": [
+    {
+      "tenant_id": "tenant_us_academy",
+      "flow": {
+        "tenant": {
+          "tenant_id": "tenant_us_academy",
+          "segment": "academy",
+          "country": "US",
+          "plan": "pro",
+          "status": "ready"
+        },
+        "config": {
+          "locale": "en-US",
+          "feature_flags": [
+            "entitlement_guard",
+            "usage_metering",
+            "smart_notifications"
+          ],
+          "status": "resolved"
+        },
+        "capability": {
+          "enabled": [
+            "catalog",
+            "checkout",
+            "billing",
+            "communication"
+          ],
+          "blocked": [],
+          "status": "resolved"
+        },
+        "usage": {
+          "enrolled_users": 120,
+          "monthly_active_users": 160,
+          "usage_units": 160,
+          "status": "recorded"
+        },
+        "billing": {
+          "billable_units": 40,
+          "unit_price_usd": 1.5,
+          "invoice_amount_usd": 60.0,
+          "status": "invoiced"
+        },
+        "communication": {
+          "channel": "email+push",
+          "template": "invoice-issued-v1",
+          "status": "sent"
+        }
+      }
+    },
+    {
+      "tenant_id": "tenant_uk_corporate",
+      "flow": {
+        "tenant": {
+          "tenant_id": "tenant_uk_corporate",
+          "segment": "corporate",
+          "country": "GB",
+          "plan": "enterprise",
+          "status": "ready"
+        },
+        "config": {
+          "locale": "en-GB",
+          "feature_flags": [
+            "entitlement_guard",
+            "usage_metering",
+            "smart_notifications"
+          ],
+          "status": "resolved"
+        },
+        "capability": {
+          "enabled": [
+            "catalog",
+            "checkout",
+            "billing",
+            "communication"
+          ],
+          "blocked": [],
+          "status": "resolved"
+        },
+        "usage": {
+          "enrolled_users": 900,
+          "monthly_active_users": 1040,
+          "usage_units": 1040,
+          "status": "recorded"
+        },
+        "billing": {
+          "billable_units": 140,
+          "unit_price_usd": 1.2,
+          "invoice_amount_usd": 168.0,
+          "status": "invoiced"
+        },
+        "communication": {
+          "channel": "email+push",
+          "template": "invoice-issued-v1",
+          "status": "sent"
+        }
+      }
+    },
+    {
+      "tenant_id": "tenant_ae_global",
+      "flow": {
+        "tenant": {
+          "tenant_id": "tenant_ae_global",
+          "segment": "multinational",
+          "country": "AE",
+          "plan": "starter",
+          "status": "ready"
+        },
+        "config": {
+          "locale": "en-GB",
+          "feature_flags": [
+            "entitlement_guard",
+            "usage_metering",
+            "smart_notifications"
+          ],
+          "status": "resolved"
+        },
+        "capability": {
+          "enabled": [
+            "catalog",
+            "checkout",
+            "billing",
+            "communication"
+          ],
+          "blocked": [],
+          "status": "resolved"
+        },
+        "usage": {
+          "enrolled_users": 300,
+          "monthly_active_users": 320,
+          "usage_units": 320,
+          "status": "recorded"
+        },
+        "billing": {
+          "billable_units": 20,
+          "unit_price_usd": 2.0,
+          "invoice_amount_usd": 40.0,
+          "status": "invoiced"
+        },
+        "communication": {
+          "channel": "email+push",
+          "template": "invoice-issued-v1",
+          "status": "sent"
+        }
+      }
+    }
+  ],
+  "checks": {
+    "all_services_registered_for_runtime": true,
+    "all_services_wired_for_security": true,
+    "all_services_observable": true,
+    "all_services_gateway_exposed": true,
+    "flow_is_ordered_tenant_to_communication": true,
+    "flow_service_bindings_present": true
+  },
+  "qc_fix": {
+    "production_ready": true,
+    "status": "PASS"
+  },
+  "issue_report": {
+    "issue_count": 0,
+    "issues": [],
+    "status": "no_issues"
+  },
+  "validation_score": 10,
+  "validated_at": "2026-03-31T00:00:00Z"
+}
