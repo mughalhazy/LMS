@@ -515,6 +515,153 @@ class LearningAnalyticsService:
             },
         }
 
+    def network_effect_insights(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        completion = self.course_completion_analytics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=cohort_id,
+        )
+        engagement = self.learner_engagement_metrics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=cohort_id,
+        )
+        trends = self.engagement_trends(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=cohort_id,
+        )
+        performance = self.learning_and_performance_metrics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=cohort_id,
+        )["performance_metrics"]
+
+        tenant_baseline_completion = self.course_completion_analytics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=None,
+        )
+        tenant_baseline_engagement = self.learner_engagement_metrics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=None,
+        )
+        tenant_baseline_performance = self.learning_and_performance_metrics(
+            tenant_id=tenant_id,
+            course_id=course_id,
+            start_at=start_at,
+            end_at=end_at,
+            cohort_id=None,
+        )["performance_metrics"]
+
+        activities = self.repository.list_activities(tenant_id, course_id, start_at, end_at, cohort_id)
+        interaction_total = sum(
+            row.content_interactions + row.assessment_attempts + row.discussion_actions for row in activities
+        )
+        collaboration_ratio = self._round(
+            sum(row.discussion_actions for row in activities) / interaction_total if interaction_total else 0.0
+        )
+        momentum_bonus = 6.0 if trends["direction"] == "up" else -6.0 if trends["direction"] == "down" else 0.0
+        network_effect_score = self._round(
+            min(
+                100.0,
+                (
+                    0.35 * completion["completion_rate"]
+                    + 0.30 * engagement["average_engagement_score"]
+                    + 0.25 * performance["average_assessment_score"]
+                    + 10 * collaboration_ratio
+                    + momentum_bonus
+                ),
+            )
+        )
+
+        recommendations = []
+        if completion["completion_rate"] < 70:
+            recommendations.append(
+                {
+                    "focus_area": "completion",
+                    "action": "Introduce milestone nudges and cohort accountability checkpoints.",
+                    "expected_impact": "increase completion conversion in active cohorts",
+                }
+            )
+        if engagement["average_engagement_score"] < 65:
+            recommendations.append(
+                {
+                    "focus_area": "engagement",
+                    "action": "Increase peer discussion prompts and adaptive practice loops.",
+                    "expected_impact": "raise engagement and collaborative interaction density",
+                }
+            )
+        if performance["average_assessment_score"] < 75:
+            recommendations.append(
+                {
+                    "focus_area": "performance",
+                    "action": "Run targeted remediation playlists for low-performing learners.",
+                    "expected_impact": "improve assessment mastery distribution",
+                }
+            )
+        if not recommendations:
+            recommendations.append(
+                {
+                    "focus_area": "optimization",
+                    "action": "Scale current intervention mix and monitor leading indicators weekly.",
+                    "expected_impact": "sustain high network effect score",
+                }
+            )
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "benchmarking": {
+                "cohort_completion_rate": completion["completion_rate"],
+                "tenant_completion_rate": tenant_baseline_completion["completion_rate"],
+                "completion_gap": self._round(completion["completion_rate"] - tenant_baseline_completion["completion_rate"]),
+                "cohort_engagement_score": engagement["average_engagement_score"],
+                "tenant_engagement_score": tenant_baseline_engagement["average_engagement_score"],
+                "engagement_gap": self._round(engagement["average_engagement_score"] - tenant_baseline_engagement["average_engagement_score"]),
+                "cohort_assessment_score": performance["average_assessment_score"],
+                "tenant_assessment_score": tenant_baseline_performance["average_assessment_score"],
+                "assessment_gap": self._round(
+                    performance["average_assessment_score"] - tenant_baseline_performance["average_assessment_score"]
+                ),
+            },
+            "scoring": {
+                "network_effect_score": network_effect_score,
+                "collaboration_ratio": collaboration_ratio,
+                "momentum_direction": trends["direction"],
+                "contributors": {
+                    "completion_rate": completion["completion_rate"],
+                    "engagement_score": engagement["average_engagement_score"],
+                    "assessment_score": performance["average_assessment_score"],
+                },
+            },
+            "optimization": {
+                "priority_actions": recommendations,
+                "next_review_window_days": 14,
+            },
+        }
+
     def learner_risk_insights(
         self,
         tenant_id: str,
