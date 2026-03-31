@@ -81,3 +81,44 @@ def test_tenant_creation_rejects_unknown_plan_type() -> None:
     payload = validate.json()
     assert payload["validation_passed"] is False
     assert any(error["field"] == "plan_type" for error in payload["errors"])
+
+
+def test_country_configuration_selects_adapters_and_delivery_mode() -> None:
+    created = client.post(
+        "/api/v1/tenants",
+        json={
+            "name": "Country Config Tenant",
+            "country_code": "DE",
+            "segment_type": "enterprise",
+            "plan_type": "enterprise",
+            "addon_flags": [],
+            "admin_user": "admin_country",
+        },
+    )
+    assert created.status_code == 200
+    tenant_id = created.json()["tenant_id"]
+
+    configured = client.put(
+        f"/api/v1/tenants/{tenant_id}/configuration",
+        headers={"x-tenant-id": tenant_id},
+        json={
+            "country_behavior_profiles": {
+                "default": {
+                    "payment_adapter": "payment_global",
+                    "communication_adapter": "notify_global",
+                    "delivery_mode": "digital",
+                },
+                "DE": {
+                    "payment_adapter": "payment_eu",
+                    "communication_adapter": "notify_eu",
+                    "delivery_mode": "hybrid",
+                },
+            }
+        },
+    )
+    assert configured.status_code == 200
+
+    effective = configured.json()["effective_settings"]
+    assert effective["payment_adapter"] == "payment_eu"
+    assert effective["communication_adapter"] == "notify_eu"
+    assert effective["delivery_mode"] == "hybrid"

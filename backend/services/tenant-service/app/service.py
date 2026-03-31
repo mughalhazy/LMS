@@ -42,6 +42,8 @@ DEFAULT_EFFECTIVE_SETTINGS = {
     "security.session_ttl_minutes": 60,
     "feature.analytics": True,
 }
+COUNTRY_BEHAVIOR_DEFAULT_KEY = "default"
+COUNTRY_BEHAVIOR_FIELDS = ("payment_adapter", "communication_adapter", "delivery_mode")
 
 
 class TenantService:
@@ -208,9 +210,17 @@ class TenantService:
 
     def effective_settings(self, tenant: Tenant, include_defaults: bool) -> dict:
         cfg = asdict(tenant.configuration)
+        country_behavior = self._resolve_country_behavior(tenant, cfg.get("country_behavior_profiles", {}))
         if include_defaults:
             merged = DEFAULT_EFFECTIVE_SETTINGS.copy()
             merged.update(cfg.get("security_baseline", {}))
             merged.update({f"feature.{k}": v for k, v in cfg.get("feature_flags", {}).items()})
+            merged.update(country_behavior)
             return merged
+        cfg.update(country_behavior)
         return cfg
+
+    def _resolve_country_behavior(self, tenant: Tenant, profiles: dict[str, dict[str, str]]) -> dict[str, str]:
+        normalized_profiles = {key.upper(): value for key, value in profiles.items() if isinstance(value, dict)}
+        profile = normalized_profiles.get(tenant.country_code.upper()) or normalized_profiles.get(COUNTRY_BEHAVIOR_DEFAULT_KEY.upper(), {})
+        return {key: value for key, value in profile.items() if key in COUNTRY_BEHAVIOR_FIELDS}
