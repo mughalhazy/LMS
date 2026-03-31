@@ -105,7 +105,7 @@ class CourseService:
         self._control_plane = build_control_plane_client()
         self.metrics: dict[str, int] = {
             "courses_created_total": 0,
-            "workforce_mandatory_courses_total": 0,
+            "mandatory_courses_total": 0,
             "courses_published_total": 0,
             "courses_archived_total": 0,
             "course_link_updates_total": 0,
@@ -140,7 +140,7 @@ class CourseService:
         self.storage.save(record)
         self.metrics["courses_created_total"] += 1
         if request.metadata.audience == "workforce" and request.metadata.mandatory_training:
-            self.metrics["workforce_mandatory_courses_total"] += 1
+            self.metrics["mandatory_courses_total"] += 1
         self.audit_logger.log(event_type="course.created", tenant_id=request.tenant_id, actor_id=request.created_by, details={"course_id": record.course_id})
         self._publish_event(
             "course.lifecycle.created.v1",
@@ -223,10 +223,10 @@ class CourseService:
             raise HTTPException(status_code=422, detail="Only one primary program link is allowed")
         normalized_links = sorted(deduped.values(), key=lambda item: (not item.is_primary, item.program_id))
         record.program_links = normalized_links
-        university_meta = dict(record.metadata.extra.get("university", {}))
-        university_meta["program_link_count"] = len(normalized_links)
-        university_meta["has_primary_program"] = bool(primary_links)
-        record.metadata.extra["university"] = university_meta
+        linkage_meta = dict(record.metadata.extra.get("linkage", {}))
+        linkage_meta["program_link_count"] = len(normalized_links)
+        linkage_meta["has_primary_program"] = bool(primary_links)
+        record.metadata.extra["linkage"] = linkage_meta
         record.updated_at = self._now()
         self.storage.save(record)
         self.metrics["course_link_updates_total"] += 1
@@ -272,14 +272,14 @@ class CourseService:
             tenant_id=request.tenant_id,
             tenant_name=getattr(request, "tenant_name", None),
             country_code=getattr(request, "country_code", None),
-            segment_type=getattr(request, "segment_type", None),
+            segment_context=getattr(request, "segment_context", None),
             plan_type=getattr(request, "plan_type", None),
             addon_flags=getattr(request, "addon_flags", []),
         )
         return TenantEntitlementContext(
             tenant_id=tenant.tenant_id,
             country_code=tenant.country_code,
-            segment_id=tenant.segment_type,
+            segment_id=str(tenant.segment_context.get("type", "default")),
             plan_type=tenant.plan_type,
             add_ons=tuple(tenant.addon_flags),
         )

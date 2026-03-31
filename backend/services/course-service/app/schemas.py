@@ -28,8 +28,8 @@ class DeliveryRole(str, Enum):
 class CourseMetadata(BaseModel):
     category_id: str | None = None
     delivery_mode: str | None = None
-    academy_cohort_id: str | None = None
-    academy_enrollment_enabled: bool = False
+    cohort_id: str | None = None
+    enrollment_enabled: bool = False
     duration_minutes: int | None = Field(default=None, ge=1)
     tags: list[str] = Field(default_factory=list)
     objectives: list[str] = Field(default_factory=list)
@@ -41,7 +41,7 @@ class CourseMetadata(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_workforce_fields(self) -> "CourseMetadata":
+    def validate_mandatory_policy_fields(self) -> "CourseMetadata":
         if self.mandatory_training and self.audience == "workforce" and not self.compliance_policy_id:
             raise ValueError("compliance_policy_id is required for workforce mandatory training")
         return self
@@ -63,14 +63,14 @@ class TenantContext(BaseModel):
     tenant_id: str
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
 
 class CreateCourseRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -85,18 +85,18 @@ class CreateCourseRequest(BaseModel):
     metadata: CourseMetadata = Field(default_factory=CourseMetadata)
 
     @model_validator(mode="after")
-    def validate_academy_delivery(self) -> "CreateCourseRequest":
-        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.academy_cohort_id:
-            raise ValueError("academy_cohort_id required for cohort_based delivery")
-        if self.metadata.academy_cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
-            raise ValueError("academy_cohort_id is only supported for cohort_based delivery")
+    def validate_cohort_delivery(self) -> "CreateCourseRequest":
+        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.cohort_id:
+            raise ValueError("cohort_id required for cohort_based delivery")
+        if self.metadata.cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
+            raise ValueError("cohort_id is only supported for cohort_based delivery")
         return self
 
 
 class UpdateCourseRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -110,20 +110,20 @@ class UpdateCourseRequest(BaseModel):
     metadata: CourseMetadata | None = None
 
     @model_validator(mode="after")
-    def validate_academy_delivery(self) -> "UpdateCourseRequest":
+    def validate_cohort_delivery(self) -> "UpdateCourseRequest":
         if self.metadata is None:
             return self
-        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.academy_cohort_id:
-            raise ValueError("academy_cohort_id required for cohort_based delivery")
-        if self.metadata.academy_cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
-            raise ValueError("academy_cohort_id is only supported for cohort_based delivery")
+        if self.metadata.delivery_mode == "cohort_based" and not self.metadata.cohort_id:
+            raise ValueError("cohort_id required for cohort_based delivery")
+        if self.metadata.cohort_id and self.metadata.delivery_mode not in {"cohort_based", None}:
+            raise ValueError("cohort_id is only supported for cohort_based delivery")
         return self
 
 
 class PublishCourseRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -136,7 +136,7 @@ class PublishCourseRequest(BaseModel):
 class ArchiveCourseRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -146,7 +146,7 @@ class ArchiveCourseRequest(BaseModel):
 class UpsertProgramLinksRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -164,7 +164,7 @@ class UpsertProgramLinksRequest(BaseModel):
 class UpsertSessionLinksRequest(BaseModel):
     tenant_name: str = "tenant"
     country_code: str = "ZZ"
-    segment_type: str = "default"
+    segment_context: dict[str, Any] = Field(default_factory=lambda: {"type": "default", "attributes": {}})
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
