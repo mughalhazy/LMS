@@ -36,6 +36,7 @@ from .schemas import (
 )
 from .store import ProgramStore
 from backend.services.shared.context.correlation import ensure_correlation_id
+from shared.models.university import prerequisite_ids_from_rule
 
 
 class ProgramService:
@@ -224,6 +225,20 @@ class ProgramService:
         missing = [course_id for course_id in ids if course_id not in self.known_courses]
         if missing:
             raise HTTPException(status_code=422, detail=f"course_not_found:{missing[0]}")
+
+        self._validate_program_linked_structure(courses)
+
+    @staticmethod
+    def _validate_program_linked_structure(courses: list[ProgramCourseInput]) -> None:
+        ordered = sorted(courses, key=lambda item: item.sequence_order)
+        known_by_sequence = {course.course_id: course.sequence_order for course in ordered}
+        for course in ordered:
+            prereq_ids = prerequisite_ids_from_rule(course.availability_rule)
+            for prereq_id in prereq_ids:
+                if prereq_id not in known_by_sequence:
+                    raise HTTPException(status_code=400, detail=f"invalid_prerequisite_course:{prereq_id}")
+                if known_by_sequence[prereq_id] >= course.sequence_order:
+                    raise HTTPException(status_code=400, detail="prerequisite_course_must_precede_target_course")
 
     def _get_tenant_program(self, tenant_id: str, program_id: str) -> Program:
         program = self.store.get(program_id)

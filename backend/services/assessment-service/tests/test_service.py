@@ -145,3 +145,62 @@ def test_tenant_isolation_on_question_bank_mutation() -> None:
         return
     else:
         raise AssertionError("cross-tenant write should fail")
+
+def test_assessment_progression_flow_for_course_completion() -> None:
+    service = _service()
+    bank = service.create_question_bank(
+        tenant_id="tenant-a",
+        name="Progress Bank",
+        description="progress",
+        course_id="course-progress",
+        created_by="author",
+    )
+    service.add_question_bank_item(
+        tenant_id="tenant-a",
+        question_bank_id=bank["question_bank_id"],
+        prompt="Q1",
+        question_type="single_choice",
+        options=["A", "B"],
+        correct_answer="A",
+        objective_tag="obj",
+        difficulty="easy",
+        points=1,
+    )
+    rule = service.create_grading_rule(
+        tenant_id="tenant-a",
+        name="Progress Rule",
+        pass_threshold=60,
+        negative_marking_ratio=0,
+        max_attempts=2,
+        allow_partial_credit=True,
+        late_penalty_percent=0,
+        created_by="author",
+    )
+    created = service.create_assessment(
+        tenant_id="tenant-a",
+        course_id="course-progress",
+        title="Progress Quiz",
+        description="desc",
+        assessment_type="quiz",
+        time_limit_minutes=10,
+        question_bank_id=bank["question_bank_id"],
+        grading_rule_id=rule["grading_rule_id"],
+        created_by="author",
+    )
+    service.publish_assessment(tenant_id="tenant-a", assessment_id=created["assessment_id"], published_by="author")
+
+    attempt = service.record_assessment_progression(
+        tenant_id="tenant-a",
+        assessment_id=created["assessment_id"],
+        user_id="student-1",
+        score_percent=85,
+    )
+    assert attempt["passed"] is True
+
+    progress = service.get_course_assessment_progression(
+        tenant_id="tenant-a",
+        user_id="student-1",
+        course_id="course-progress",
+    )
+    assert progress["completed"] is True
+    assert progress["passed_assessment_count"] == 1

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from .models import Assessment, AuditEvent, GradingRule, QuestionBank
+from .models import Assessment, AssessmentAttempt, AuditEvent, GradingRule, QuestionBank
 
 
 class InMemoryAssessmentRepository:
@@ -11,6 +11,7 @@ class InMemoryAssessmentRepository:
         self.question_banks: Dict[str, QuestionBank] = {}
         self.grading_rules: Dict[str, GradingRule] = {}
         self.events: List[AuditEvent] = []
+        self.assessment_attempts: Dict[str, AssessmentAttempt] = {}
 
     def create_assessment(self, assessment: Assessment) -> None:
         self.assessments[assessment.assessment_id] = assessment
@@ -41,3 +42,14 @@ class InMemoryAssessmentRepository:
 
     def append_event(self, event: AuditEvent) -> None:
         self.events.append(event)
+
+
+    def create_assessment_attempt(self, attempt: AssessmentAttempt) -> None:
+        self.assessment_attempts[attempt.attempt_id] = attempt
+
+    def list_assessment_attempts(self, tenant_id: str, user_id: str, course_id: str) -> List[AssessmentAttempt]:
+        return [
+            attempt
+            for attempt in self.assessment_attempts.values()
+            if attempt.tenant_id == tenant_id and attempt.user_id == user_id and attempt.course_id == course_id
+        ]

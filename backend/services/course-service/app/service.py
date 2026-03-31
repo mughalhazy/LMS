@@ -213,13 +213,24 @@ class CourseService:
 
     def upsert_program_links(self, course_id: str, request: UpsertProgramLinksRequest) -> list[ProgramLink]:
         record = self._get_tenant_course(request.tenant_id, course_id)
-        record.program_links = request.program_links
+        deduped: dict[str, ProgramLink] = {}
+        for link in request.program_links:
+            deduped[link.program_id] = link
+        primary_links = [link for link in deduped.values() if link.is_primary]
+        if len(primary_links) > 1:
+            raise HTTPException(status_code=422, detail="Only one primary program link is allowed")
+        normalized_links = sorted(deduped.values(), key=lambda item: (not item.is_primary, item.program_id))
+        record.program_links = normalized_links
+        university_meta = dict(record.metadata.extra.get("university", {}))
+        university_meta["program_link_count"] = len(normalized_links)
+        university_meta["has_primary_program"] = bool(primary_links)
+        record.metadata.extra["university"] = university_meta
         record.updated_at = self._now()
         self.storage.save(record)
         self.metrics["course_link_updates_total"] += 1
         self.audit_logger.log(event_type="course.program_links.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "link_count": len(request.program_links)})
-        self._publish_event("course.linkage.program.updated.v1", record, request.updated_by, {"program_links": [link.model_dump() for link in request.program_links]})
-        return record.program_links
+        self._publish_event("course.linkage.program.updated.v1", record, request.updated_by, {"program_links": [link.model_dump() for link in normalized_links]})
+        return normalized_links
 
     def upsert_session_links(self, course_id: str, request: UpsertSessionLinksRequest) -> list[SessionLink]:
         record = self._get_tenant_course(request.tenant_id, course_id)

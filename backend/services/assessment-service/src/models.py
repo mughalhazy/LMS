@@ -93,3 +93,15 @@ class AuditEvent:
     tenant_id: str
     payload: Dict
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class AssessmentAttempt:
+    attempt_id: str
+    assessment_id: str
+    tenant_id: str
+    user_id: str
+    course_id: str
+    score_percent: float
+    passed: bool
+    attempted_at: datetime = field(default_factory=datetime.utcnow)

@@ -8,6 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from src.audit import AuditLogger
+from shared.models.university import UniversityCompletionPayload
 
 from .models import BadgeExtensionProfile, Certificate, CertificateStatus, CertificateTemplate, CompletionRef, VerificationMetadata
 from .store import CertificateStore
@@ -54,6 +55,7 @@ class CertificateApplicationService:
     def issue_certificate(self, *, tenant_id: str, request: dict[str, Any]) -> Certificate:
         if self.store.has_active_certificate(tenant_id=tenant_id, user_id=request["user_id"], course_id=request["course_id"]):
             raise DomainError("CERTIFICATE_ALREADY_EXISTS", "A certificate already exists for tenant/user/course.")
+        self._validate_completion_flow(tenant_id=tenant_id, request=request)
 
         now = datetime.utcnow()
         cert = Certificate(
@@ -159,3 +161,27 @@ class CertificateApplicationService:
         if cert is None:
             raise DomainError("CERTIFICATE_NOT_FOUND", "Certificate not found.")
         return cert
+
+
+    def _validate_completion_flow(self, *, tenant_id: str, request: dict[str, Any]) -> None:
+        completion_ref = request.get("completion_ref", {})
+        source_event = completion_ref.get("source_event", "")
+        if "completed" not in source_event:
+            raise DomainError("INVALID_COMPLETION_EVENT", "completion_ref.source_event must indicate completion.")
+
+        metadata = request.get("metadata", {})
+        progress = metadata.get("assessment_progression")
+        if progress:
+            required = int(progress.get("required_assessment_count", 0))
+            passed = int(progress.get("passed_assessment_count", 0))
+            if passed < required:
+                raise DomainError("ASSESSMENT_PROGRESSION_INCOMPLETE", "All required assessments must be passed before certificate issuance.")
+
+        UniversityCompletionPayload(
+            tenant_id=tenant_id,
+            user_id=request["user_id"],
+            course_id=request["course_id"],
+            program_id=metadata.get("program_id"),
+            completed_at=request["completion_ref"]["completed_at"],
+            metadata=metadata,
+        )

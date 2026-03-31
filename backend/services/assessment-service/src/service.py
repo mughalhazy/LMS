@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .models import (
     Assessment,
+    AssessmentAttempt,
     AssessmentStatus,
     AssessmentType,
     AuditEvent,
@@ -244,6 +245,86 @@ class AssessmentService:
             "published_at": published.published_at.isoformat(),
             "published_by": published_by,
             "audit_event": "AssessmentPublished",
+        }
+
+    def record_assessment_progression(
+        self,
+        *,
+        tenant_id: str,
+        assessment_id: str,
+        user_id: str,
+        score_percent: float,
+    ) -> Dict:
+        if score_percent < 0 or score_percent > 100:
+            raise AssessmentServiceError("score_percent must be between 0 and 100")
+
+        assessment = self._get_tenant_assessment(tenant_id=tenant_id, assessment_id=assessment_id)
+        if assessment.status != AssessmentStatus.PUBLISHED:
+            raise AssessmentServiceError("assessment must be published before progression can be recorded")
+        if not assessment.grading_rule_id:
+            raise AssessmentServiceError("assessment must have grading rule for progression")
+
+        grading_rule = self._get_tenant_grading_rule(tenant_id=tenant_id, grading_rule_id=assessment.grading_rule_id)
+        passed = score_percent >= grading_rule.pass_threshold
+        attempt = AssessmentAttempt(
+            attempt_id=str(uuid4()),
+            assessment_id=assessment_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            course_id=assessment.course_id,
+            score_percent=score_percent,
+            passed=passed,
+        )
+        self.repository.create_assessment_attempt(attempt)
+        self._audit(
+            "AssessmentProgressRecorded",
+            assessment_id,
+            tenant_id,
+            {
+                "user_id": user_id,
+                "course_id": assessment.course_id,
+                "attempt_id": attempt.attempt_id,
+                "score_percent": score_percent,
+                "passed": passed,
+            },
+        )
+        return {
+            "attempt_id": attempt.attempt_id,
+            "assessment_id": assessment_id,
+            "course_id": assessment.course_id,
+            "score_percent": score_percent,
+            "pass_threshold": grading_rule.pass_threshold,
+            "passed": passed,
+        }
+
+    def get_course_assessment_progression(self, *, tenant_id: str, user_id: str, course_id: str) -> Dict:
+        assessments = [
+            assessment
+            for assessment in self.repository.list_assessments(tenant_id)
+            if assessment.course_id == course_id and assessment.status == AssessmentStatus.PUBLISHED
+        ]
+        assessments.sort(key=lambda item: item.created_at)
+        attempts = self.repository.list_assessment_attempts(tenant_id=tenant_id, user_id=user_id, course_id=course_id)
+        passing_attempts = {attempt.assessment_id for attempt in attempts if attempt.passed}
+
+        steps: List[Dict] = []
+        next_assessment_id: Optional[str] = None
+        for assessment in assessments:
+            passed = assessment.assessment_id in passing_attempts
+            if not passed and next_assessment_id is None:
+                next_assessment_id = assessment.assessment_id
+            steps.append({"assessment_id": assessment.assessment_id, "title": assessment.title, "passed": passed})
+
+        completed = bool(assessments) and all(step["passed"] for step in steps)
+        return {
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "course_id": course_id,
+            "required_assessment_count": len(assessments),
+            "passed_assessment_count": len([step for step in steps if step["passed"]]),
+            "completed": completed,
+            "next_assessment_id": None if completed else next_assessment_id,
+            "steps": steps,
         }
 
     def list_assessments(self, tenant_id: str) -> List[Dict]:
