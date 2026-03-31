@@ -15,6 +15,8 @@ class Capability:
     default_enabled: bool = False
     price: Decimal = Decimal("0")
     usage_based: bool = False
+    included_in_plans: tuple[str, ...] = ()
+    included_in_add_ons: tuple[str, ...] = ()
 
     @property
     def pricing(self) -> CapabilityPricing:

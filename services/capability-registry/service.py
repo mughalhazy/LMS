@@ -12,6 +12,30 @@ from store import capability_index, feature_capability_mapping
 
 
 class CapabilityRegistryService:
+    def register_capability(self, capability: Capability, *, feature_ids: tuple[str, ...] = ()) -> None:
+        normalized_capability = Capability(
+            capability_id=capability.capability_id.strip(),
+            name=capability.name.strip(),
+            description=capability.description.strip(),
+            category=capability.category.strip(),
+            default_enabled=bool(capability.default_enabled),
+            price=capability.price,
+            usage_based=bool(capability.usage_based),
+            included_in_plans=tuple(sorted({plan.strip().lower() for plan in capability.included_in_plans if plan.strip()})),
+            included_in_add_ons=tuple(sorted({addon.strip().lower() for addon in capability.included_in_add_ons if addon.strip()})),
+        )
+        if not normalized_capability.capability_id:
+            raise ValueError("capability_id is required")
+
+        index = capability_index()
+        index[normalized_capability.capability_id] = normalized_capability
+
+        mapping = feature_capability_mapping()
+        for feature_id in feature_ids:
+            normalized_feature = feature_id.strip()
+            if normalized_feature:
+                mapping[normalized_feature] = normalized_capability.capability_id
+
     def get_capability(self, capability_id: str) -> Capability | None:
         return capability_index().get(capability_id.strip())
 
