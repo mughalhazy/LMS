@@ -43,8 +43,10 @@ def test_api_authorize_enforces_tenant_scope_and_rbac() -> None:
 
     assert ok_status == 200
     assert ok_payload["allowed"] is True
+    assert ok_payload["audit_event_id"]
     assert denied_status == 403
     assert denied_payload["reason"] == "tenant_context_mismatch"
+    assert denied_payload["audit_event_id"]
 
 
 def test_api_list_audit_logs_requires_audit_read_permission() -> None:
@@ -70,6 +72,7 @@ def test_api_list_audit_logs_requires_audit_read_permission() -> None:
     assert ok_payload["count"] >= 1
     assert denied_status == 403
     assert denied_payload["error"] == "strict_access_control_denied"
+    assert denied_payload["audit_event_id"]
 
 
 def test_api_assign_role_permission_requires_rbac_manage() -> None:
@@ -97,6 +100,28 @@ def test_api_assign_role_permission_requires_rbac_manage() -> None:
     assert "audit.read" in ok_payload["permissions"]
     assert denied_status == 403
     assert denied_payload["error"] == "strict_access_control_denied"
+    assert denied_payload["audit_event_id"]
+
+
+def test_tenant_mismatch_is_audited_for_critical_endpoints() -> None:
+    service = EnterpriseControlService()
+    service.set_role_permissions(tenant_id="tenant_1", role="security-admin", permissions={"rbac.manage", "audit.read"})
+    outsider = IdentityContext(tenant_id="tenant_2", actor_id="user_2", roles=("security-admin",))
+
+    assign_status, assign_payload = service.api_assign_role_permission(
+        identity=outsider,
+        tenant_id="tenant_1",
+        role="viewer",
+        permission="report.read",
+    )
+    audit_status, audit_payload = service.api_list_audit_logs(identity=outsider, tenant_id="tenant_1")
+
+    assert assign_status == 403
+    assert assign_payload["error"] == "tenant_context_mismatch"
+    assert assign_payload["audit_event_id"]
+    assert audit_status == 403
+    assert audit_payload["error"] == "tenant_context_mismatch"
+    assert audit_payload["audit_event_id"]
 
 
 def test_config_integration_can_disable_strict_reason_path() -> None:

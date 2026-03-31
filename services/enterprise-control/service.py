@@ -138,6 +138,42 @@ class EnterpriseControlService:
         self._audit_log.append(entry)
         return entry
 
+    def _authorize_and_audit(
+        self,
+        *,
+        identity: IdentityContext,
+        tenant_id: str,
+        permission: str,
+        action: str,
+        resource: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[bool, str, AuditLogEntry]:
+        normalized = identity.normalized()
+        target_tenant = tenant_id.strip()
+        normalized_metadata = metadata or {}
+
+        if normalized.tenant_id != target_tenant:
+            audit = self._append_audit(
+                identity=normalized,
+                action=action,
+                resource=resource,
+                decision="deny",
+                reason="tenant_context_mismatch",
+                metadata={**normalized_metadata, "target_tenant": target_tenant, "permission": permission.strip().lower()},
+            )
+            return False, "tenant_context_mismatch", audit
+
+        allowed, reason = self._evaluate_permission(identity=normalized, permission=permission)
+        audit = self._append_audit(
+            identity=normalized,
+            action=action,
+            resource=resource,
+            decision="allow" if allowed else "deny",
+            reason=reason,
+            metadata={**normalized_metadata, "permission": permission.strip().lower()},
+        )
+        return allowed, reason, audit
+
     # API layer
     def api_authorize(
         self,
@@ -148,28 +184,12 @@ class EnterpriseControlService:
         permission: str,
         tenant_id: str,
     ) -> tuple[int, dict[str, Any]]:
-        normalized = identity.normalized()
-        target_tenant = tenant_id.strip()
-
-        if normalized.tenant_id != target_tenant:
-            audit = self._append_audit(
-                identity=normalized,
-                action=action,
-                resource=resource,
-                decision="deny",
-                reason="tenant_context_mismatch",
-                metadata={"target_tenant": target_tenant},
-            )
-            return 403, {"allowed": False, "reason": audit.reason, "audit_event_id": audit.event_id}
-
-        allowed, reason = self._evaluate_permission(identity=normalized, permission=permission)
-        audit = self._append_audit(
-            identity=normalized,
+        allowed, reason, audit = self._authorize_and_audit(
+            identity=identity,
+            tenant_id=tenant_id,
+            permission=permission,
             action=action,
             resource=resource,
-            decision="allow" if allowed else "deny",
-            reason=reason,
-            metadata={"permission": permission.strip().lower()},
         )
 
         if not allowed:
@@ -185,19 +205,16 @@ class EnterpriseControlService:
         limit: int = 50,
     ) -> tuple[int, dict[str, Any]]:
         normalized = identity.normalized()
-        if normalized.tenant_id != tenant_id.strip():
-            return 403, {"error": "tenant_context_mismatch"}
-
-        allowed, reason = self._evaluate_permission(identity=normalized, permission="audit.read")
-        self._append_audit(
+        allowed, reason, audit = self._authorize_and_audit(
             identity=normalized,
+            tenant_id=tenant_id,
+            permission="audit.read",
             action="audit.list",
             resource="audit_log",
-            decision="allow" if allowed else "deny",
-            reason=reason,
+            metadata={"limit": max(limit, 0)},
         )
         if not allowed:
-            return 403, {"error": reason}
+            return 403, {"error": reason, "audit_event_id": audit.event_id}
 
         tenant_logs = [entry for entry in self._audit_log if entry.tenant_id == normalized.tenant_id]
         rows = [
@@ -225,20 +242,16 @@ class EnterpriseControlService:
         permission: str,
     ) -> tuple[int, dict[str, Any]]:
         normalized = identity.normalized()
-        if normalized.tenant_id != tenant_id.strip():
-            return 403, {"error": "tenant_context_mismatch"}
-
-        allowed, reason = self._evaluate_permission(identity=normalized, permission="rbac.manage")
-        self._append_audit(
+        allowed, reason, audit = self._authorize_and_audit(
             identity=normalized,
+            tenant_id=tenant_id,
+            permission="rbac.manage",
             action="rbac.assign_permission",
             resource=f"role:{role.strip().lower()}",
-            decision="allow" if allowed else "deny",
-            reason=reason,
             metadata={"permission": permission.strip().lower()},
         )
         if not allowed:
-            return 403, {"error": reason}
+            return 403, {"error": reason, "audit_event_id": audit.event_id}
 
         self.grant_role_permission(tenant_id=tenant_id, role=role, permission=permission)
         return 200, {
