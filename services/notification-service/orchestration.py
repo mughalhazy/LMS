@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Sequence
+from dataclasses import asdict, dataclass
+from typing import Any, Sequence
 
 from integrations.communication import (
     CommunicationRouter,
@@ -11,7 +11,9 @@ from integrations.communication import (
     SMSAdapter,
     Tenant,
     WhatsAppAdapter,
+    WhatsAppOperationType,
 )
+from shared.models.workflow import WorkflowAction, WorkflowDefinition
 
 
 @dataclass(frozen=True)
@@ -25,20 +27,126 @@ class NotificationOrchestrationConfig:
 
 
 class NotificationOrchestrator:
-    """Adapter-driven orchestration for outbound notification delivery."""
+    """Workflow-driven WhatsApp operations engine (attendance/reminders/updates)."""
 
     def __init__(self, config: NotificationOrchestrationConfig | None = None) -> None:
         cfg = config or NotificationOrchestrationConfig()
 
+        self.whatsapp_adapter = WhatsAppAdapter(disabled_recipients=cfg.whatsapp_disabled_recipients)
+        self.sms_adapter = SMSAdapter(disabled_recipients=cfg.sms_disabled_recipients)
+
         adapters = {
-            "whatsapp": WhatsAppAdapter(disabled_recipients=cfg.whatsapp_disabled_recipients),
-            "sms": SMSAdapter(disabled_recipients=cfg.sms_disabled_recipients),
+            "whatsapp": self.whatsapp_adapter,
+            "sms": self.sms_adapter,
             "email": EmailAdapter(disabled_recipients=cfg.email_disabled_recipients),
         }
 
         self._router = CommunicationRouter(adapters=adapters, fallback_order=cfg.fallback_order)
+        self.interactive_reply_log: list[dict[str, Any]] = []
 
     def send_notification(self, *, tenant_country_code: str, user_id: str, message: str) -> DeliveryAttempt:
         tenant = Tenant(country_code=tenant_country_code)
         user = CommunicationUser(user_id=user_id)
         return self._router.send_message(tenant=tenant, user=user, message=message)
+
+    def send_whatsapp_operation(
+        self,
+        *,
+        tenant_country_code: str,
+        user_id: str,
+        workflow_id: str,
+        operation: WhatsAppOperationType,
+        message: str,
+        choices: list[str] | None = None,
+    ) -> DeliveryAttempt:
+        interactive_message = self.whatsapp_adapter.build_workflow_message(
+            operation=operation,
+            workflow_id=workflow_id,
+            message=message,
+            choices=choices,
+        )
+        return self.send_notification(
+            tenant_country_code=tenant_country_code,
+            user_id=user_id,
+            message=interactive_message,
+        )
+
+    def execute_workflow(
+        self,
+        *,
+        workflow: WorkflowDefinition,
+        tenant_country_code: str,
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Run notification actions from a workflow, including WhatsApp operations."""
+
+        results: list[dict[str, Any]] = []
+        for action in workflow.actions:
+            if action.action_type != "send_notification":
+                continue
+            results.append(
+                self._execute_notification_action(
+                    action=action,
+                    workflow_id=workflow.workflow_id,
+                    tenant_country_code=tenant_country_code,
+                    context=context,
+                )
+            )
+
+        return {
+            "workflow_id": workflow.workflow_id,
+            "name": workflow.name,
+            "executed_actions": len(results),
+            "results": results,
+        }
+
+    def handle_interactive_reply(self, *, user_id: str, reply: str) -> dict[str, Any]:
+        parsed = self.whatsapp_adapter.parse_interactive_reply(user_id=user_id, reply=reply)
+        if parsed is None:
+            return {"status": "ignored", "reason": "invalid_reply_format"}
+
+        item = asdict(parsed)
+        item["status"] = "accepted"
+        self.interactive_reply_log.append(item)
+        return item
+
+    def _execute_notification_action(
+        self,
+        *,
+        action: WorkflowAction,
+        workflow_id: str,
+        tenant_country_code: str,
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        recipients = list(action.config.get("recipients") or context.get("recipients") or [])
+        operation = str(action.config.get("operation", "update")).lower()
+        channel = str(action.config.get("channel", "whatsapp")).lower()
+        message = str(action.config.get("message", "Workflow notification"))
+        choices = list(action.config.get("choices") or ["ACK"])
+
+        delivery_results: list[dict[str, Any]] = []
+        for recipient in recipients:
+            if channel == "whatsapp":
+                attempt = self.send_whatsapp_operation(
+                    tenant_country_code=tenant_country_code,
+                    user_id=recipient,
+                    workflow_id=workflow_id,
+                    operation=operation if operation in {"attendance", "reminder", "update"} else "update",
+                    message=message,
+                    choices=choices,
+                )
+            else:
+                attempt = self.send_notification(
+                    tenant_country_code=tenant_country_code,
+                    user_id=recipient,
+                    message=message,
+                )
+            delivery_results.append(asdict(attempt))
+
+        return {
+            "action_type": action.action_type,
+            "channel": channel,
+            "operation": operation,
+            "recipients": recipients,
+            "deliveries": delivery_results,
+        }

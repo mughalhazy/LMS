@@ -1,7 +1,7 @@
 from .base_adapter import CommunicationRouter, CommunicationUser, DeliveryAttempt, Tenant
 from .email_adapter import EmailAdapter
 from .sms_adapter import SMSAdapter
-from .whatsapp_adapter import WhatsAppAdapter
+from .whatsapp_adapter import WhatsAppAdapter, WhatsAppInteractiveReply, WhatsAppOperationType
 
 __all__ = [
     "CommunicationRouter",
@@ -10,5 +10,7 @@ __all__ = [
     "Tenant",
     "SMSAdapter",
     "WhatsAppAdapter",
+    "WhatsAppInteractiveReply",
+    "WhatsAppOperationType",
     "EmailAdapter",
 ]
