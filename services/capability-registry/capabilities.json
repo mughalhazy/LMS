@@ -1,6 +1,34 @@
 {
   "capabilities": [
     {
+      "capability_id": "ai.tutor",
+      "name": "AI Tutor",
+      "description": "Enable AI tutor chat and guidance workflows.",
+      "category": "intelligence",
+      "default_enabled": false,
+      "price": "0.20",
+      "usage_based": true,
+      "included_in_plans": [],
+      "included_in_add_ons": [
+        "ai_tutor_pack"
+      ]
+    },
+    {
+      "capability_id": "assessment.attempt",
+      "name": "Assessment Attempt",
+      "description": "Attempt and submit assessments.",
+      "category": "assessment",
+      "default_enabled": true,
+      "price": "0.05",
+      "usage_based": true,
+      "included_in_plans": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
       "capability_id": "assessment.author",
       "name": "Assessment Authoring",
       "description": "Create and publish assessments.",
@@ -15,13 +43,13 @@
       "included_in_add_ons": []
     },
     {
-      "capability_id": "assessment.attempt",
-      "name": "Assessment Attempt",
-      "description": "Attempt and submit assessments.",
-      "category": "assessment",
+      "capability_id": "commerce.catalog.basic",
+      "name": "Basic Catalog",
+      "description": "Enable standard catalog operations.",
+      "category": "commerce",
       "default_enabled": true,
-      "price": "0.05",
-      "usage_based": true,
+      "price": "15.00",
+      "usage_based": false,
       "included_in_plans": [
         "free",
         "pro",
@@ -44,12 +72,27 @@
       "included_in_add_ons": []
     },
     {
-      "capability_id": "recommendation.basic",
-      "name": "Recommendations",
-      "description": "Serve baseline course and content recommendations.",
-      "category": "intelligence",
+      "capability_id": "learning.analytics.advanced",
+      "name": "Advanced Analytics",
+      "description": "Enable advanced analytics capabilities.",
+      "category": "analytics",
+      "default_enabled": false,
+      "price": "0.10",
+      "usage_based": true,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": [
+        "analytics_advanced"
+      ]
+    },
+    {
+      "capability_id": "learning.analytics.basic",
+      "name": "Basic Analytics",
+      "description": "Enable baseline analytics dashboards.",
+      "category": "analytics",
       "default_enabled": true,
-      "price": "9.00",
+      "price": "19.00",
       "usage_based": false,
       "included_in_plans": [
         "free",
@@ -59,16 +102,19 @@
       "included_in_add_ons": []
     },
     {
-      "capability_id": "ai.tutor",
-      "name": "AI Tutor",
-      "description": "Enable AI tutor chat and guidance workflows.",
-      "category": "intelligence",
+      "capability_id": "media.security.enforcement",
+      "name": "Media Security Enforcement",
+      "description": "Enforce tokenized playback, forensic watermarking, and anti-piracy restrictions.",
+      "category": "media-security",
       "default_enabled": false,
-      "price": "0.20",
-      "usage_based": true,
-      "included_in_plans": [],
+      "price": "49.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
       "included_in_add_ons": [
-        "ai_tutor_pack"
+        "media_security_pack"
       ]
     },
     {
@@ -100,12 +146,12 @@
       ]
     },
     {
-      "capability_id": "commerce.catalog.basic",
-      "name": "Basic Catalog",
-      "description": "Enable standard catalog operations.",
-      "category": "commerce",
+      "capability_id": "recommendation.basic",
+      "name": "Recommendations",
+      "description": "Serve baseline course and content recommendations.",
+      "category": "intelligence",
       "default_enabled": true,
-      "price": "15.00",
+      "price": "9.00",
       "usage_based": false,
       "included_in_plans": [
         "free",
@@ -113,36 +159,6 @@
         "enterprise"
       ],
       "included_in_add_ons": []
-    },
-    {
-      "capability_id": "learning.analytics.basic",
-      "name": "Basic Analytics",
-      "description": "Enable baseline analytics dashboards.",
-      "category": "analytics",
-      "default_enabled": true,
-      "price": "19.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "free",
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
-      "capability_id": "learning.analytics.advanced",
-      "name": "Advanced Analytics",
-      "description": "Enable advanced analytics capabilities.",
-      "category": "analytics",
-      "default_enabled": false,
-      "price": "0.10",
-      "usage_based": true,
-      "included_in_plans": [
-        "enterprise"
-      ],
-      "included_in_add_ons": [
-        "analytics_advanced"
-      ]
     }
   ],
   "feature_to_capability": {
@@ -156,6 +172,7 @@
     "assessment.attempt": "assessment.attempt",
     "course.write": "course.write",
     "recommendation.basic": "recommendation.basic",
-    "ai.tutor": "ai.tutor"
+    "ai.tutor": "ai.tutor",
+    "media.security.enforcement": "media.security.enforcement"
   }
 }
