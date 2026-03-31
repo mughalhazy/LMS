@@ -25,9 +25,9 @@ Production-ready tenant root service for lifecycle + configuration + isolation.
 See `api_endpoints.yaml` for full list.
 
 ## Migration notes
-- Migration `0001_create_tenants.sql` adds `plan_id` + `plan_name` and constrains `isolation_mode` to `schema_per_tenant|database_per_tenant`.
+- Migration `0001_create_tenants.sql` persists canonical tenant contract fields (`tenant_id`, `name`, `country_code`, `segment_type`, `plan_type`, `addon_flags`) and constrains `isolation_mode` to `schema_per_tenant|database_per_tenant`.
 - Adds `tenant_lifecycle_events` table for immutable state transition history.
-- For existing data, map `subscription_plan -> plan_name` and backfill `plan_id` from billing catalog before cutover.
+- Existing records should normalize legacy aliases (`display_name` -> `name`, `enabled_addons` -> `addon_flags`) before cutover.
 
 ## Running tests
 ```bash
