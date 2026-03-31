@@ -18,6 +18,7 @@ def test_get_capability_and_list_capabilities() -> None:
     assert capability is not None
     assert capability.capability_id == "assessment.author"
     assert capability.name == "Assessment Authoring"
+    assert capability.price > 0
     assert len(registry.list_capabilities()) >= 1
 
 
@@ -35,4 +36,6 @@ def test_qc_gate_score_is_perfect() -> None:
 
     assert report["checks"]["all_features_mapped_to_capability"] is True
     assert report["checks"]["no_orphan_features"] is True
+    assert report["checks"]["all_capabilities_billable"] is True
+    assert report["checks"]["no_pricing_leakage"] is True
     assert report["score"] == 10
