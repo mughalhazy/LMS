@@ -1,12 +1,24 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, service
 
 
 client = TestClient(app)
 
 
+class StubProvider:
+    def get_course(self, tenant_id: str, course_id: str) -> dict:
+        return {"course_id": course_id, "title": "Python Foundations"}
+
+    def get_course_progress(self, tenant_id: str, learner_id: str, course_id: str) -> dict:
+        return {"course_id": course_id, "progress_percentage": 72.5}
+
+    def get_analytics(self, tenant_id: str, learner_id: str, course_id: str) -> dict:
+        return {"learner_id": learner_id, "trend_direction": "declining"}
+
+
 def test_ai_tutor_capabilities_flow() -> None:
+    service._data_provider = StubProvider()
     base_payload = {
         "tenant_id": "tenant-a",
         "learner_id": "learner-1",
@@ -25,6 +37,7 @@ def test_ai_tutor_capabilities_flow() -> None:
     assert explanation.status_code == 200
     explanation_data = explanation.json()
     assert explanation_data["interaction_type"] == "explanation"
+    assert "Python Foundations" in explanation_data["message"]
 
     question = client.post(
         "/ai-tutor/questions",
@@ -56,14 +69,17 @@ def test_ai_tutor_capabilities_flow() -> None:
     assert guidance.status_code == 200
     assert guidance.json()["interaction_type"] == "guidance"
 
-    summary = client.get(
-        f"/ai-tutor/sessions/{explanation_data['session_id']}?tenant_id=tenant-a"
-    )
+    summary = client.get(f"/ai-tutor/sessions/{explanation_data['session_id']}?tenant_id=tenant-a")
     assert summary.status_code == 200
-    assert len(summary.json()["interactions"]) == 4
+    summary_json = summary.json()
+    assert len(summary_json["interactions"]) == 4
+    assert summary_json["context"]["course_data"]["title"] == "Python Foundations"
+    assert summary_json["context"]["progress_data"]["progress_percentage"] == 72.5
+    assert summary_json["context"]["analytics_data"]["trend_direction"] == "declining"
 
 
 def test_session_scoped_by_tenant() -> None:
+    service._data_provider = StubProvider()
     response = client.post(
         "/ai-tutor/explanations",
         json={
