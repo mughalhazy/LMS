@@ -34,6 +34,7 @@ def test_cohort_batch_and_membership_flow() -> None:
             "name": "Data Science Academy Batch 2026",
             "code": "DSA-2026",
             "kind": "formal_cohort",
+            "program_id": "academy-program-1",
             "created_by": "academy-admin",
             "schedule": {"timezone": "UTC"},
         },
@@ -63,6 +64,41 @@ def test_cohort_batch_and_membership_flow() -> None:
     payload = read_response.json()
     assert payload["cohort"]["cohort_id"] == cohort["cohort_id"]
     assert payload["memberships"][0]["membership_id"] == membership["membership_id"]
+
+
+def test_academy_batch_requires_program_and_limited_roles() -> None:
+    missing_program = client.post(
+        "/api/v1/batches",
+        headers=_headers(),
+        json={
+            "name": "No Program Batch",
+            "code": "NPB-1",
+            "kind": "formal_cohort",
+            "created_by": "academy-admin",
+            "schedule": {"timezone": "UTC"},
+        },
+    )
+    assert missing_program.status_code == 422
+
+    batch = client.post(
+        "/api/v1/batches",
+        headers=_headers(),
+        json={
+            "name": "Academy Batch B",
+            "code": "AB-B",
+            "kind": "formal_cohort",
+            "program_id": "academy-program-2",
+            "created_by": "academy-admin",
+            "schedule": {"timezone": "UTC"},
+        },
+    ).json()
+
+    invalid_role = client.post(
+        f"/api/v1/cohorts/{batch['cohort_id']}/memberships",
+        headers=_headers(),
+        json={"user_id": "learner-99", "role": "student", "added_by": "academy-admin"},
+    )
+    assert invalid_role.status_code == 422
 
 
 def test_tenant_isolation_and_metrics() -> None:
