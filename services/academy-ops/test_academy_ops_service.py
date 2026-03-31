@@ -26,7 +26,9 @@ AttendanceRecord = _service_module.AttendanceRecord
 Batch = _service_module.Batch
 Branch = _service_module.Branch
 FeePayment = _service_module.FeePayment
+RevenueShareAgreement = _service_module.RevenueShareAgreement
 TeacherAssignment = _service_module.TeacherAssignment
+TeacherPerformanceSnapshot = _service_module.TeacherPerformanceSnapshot
 TimetableSlot = _service_module.TimetableSlot
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
@@ -157,3 +159,95 @@ def test_qc_fix_prevents_learning_core_overlap() -> None:
 
     assert service.has_learning_core_overlap() is False
     assert service.is_single_source_of_truth() is True
+
+
+def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> None:
+    service = AcademyOpsService()
+    service.register_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_eco",
+            student_id="learner_eco_1",
+            display_name="Eco Learner",
+            email="eco@example.edu",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+    service.upsert_branch(
+        Branch(
+            tenant_id="tenant_eco",
+            branch_id="branch_la",
+            academy_id="academy_eco",
+            name="LA Campus",
+            timezone="America/Los_Angeles",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_eco",
+            branch_id="branch_la",
+            batch_id="batch_eco_1",
+            academy_id="academy_eco",
+            title="Data Systems",
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 7, 31),
+            learner_ids=("learner_eco_1",),
+        )
+    )
+    service.assign_teacher(
+        TeacherAssignment(
+            tenant_id="tenant_eco",
+            branch_id="branch_la",
+            batch_id="batch_eco_1",
+            teacher_id="teacher_eco_1",
+        )
+    )
+
+    teacher_batches = service.teacher_batches(tenant_id="tenant_eco", teacher_id="teacher_eco_1")
+    assert tuple(batch.batch_id for batch in teacher_batches) == ("batch_eco_1",)
+
+    service.configure_revenue_share(
+        RevenueShareAgreement(
+            tenant_id="tenant_eco",
+            batch_id="batch_eco_1",
+            teacher_id="teacher_eco_1",
+            share_ratio=Decimal("0.30"),
+        )
+    )
+    snapshot = service.record_teacher_performance(
+        TeacherPerformanceSnapshot(
+            tenant_id="tenant_eco",
+            batch_id="batch_eco_1",
+            teacher_id="teacher_eco_1",
+            attendance_rate=Decimal("0.95"),
+            completion_rate=Decimal("0.88"),
+            learner_satisfaction=Decimal("0.90"),
+        )
+    )
+    assert snapshot.score() == Decimal("0.9130")
+    assert (
+        service.latest_teacher_performance(
+            tenant_id="tenant_eco",
+            batch_id="batch_eco_1",
+            teacher_id="teacher_eco_1",
+        )
+        == snapshot
+    )
+
+    commerce_invoice = InvoiceRecord(
+        invoice_id="inv_eco_1",
+        order_id="order_eco_1",
+        tenant_id="tenant_eco",
+        amount=Decimal("100.00"),
+        currency="USD",
+        state=InvoiceState.ISSUED,
+        invoice_type="one_time",
+    )
+    service.ingest_commerce_invoice_for_batch(
+        learner_id="learner_eco_1",
+        batch_id="batch_eco_1",
+        invoice_record=commerce_invoice,
+    )
+    payouts = service.teacher_payouts(tenant_id="tenant_eco", batch_id="batch_eco_1")
+    assert len(payouts) == 1
+    assert payouts[0].payout_amount == Decimal("30.00")
