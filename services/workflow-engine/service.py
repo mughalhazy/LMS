@@ -28,11 +28,18 @@ def _load_module(module_name: str, relative_path: str):
 
 _ConfigModule = _load_module("workflow_engine_config_service", "services/config-service/service.py")
 _NotificationModule = _load_module("workflow_engine_notification_service", "services/notification-service/orchestration.py")
+_AcademyOpsModule = _load_module("workflow_engine_academy_ops_service", "services/academy-ops/service.py")
+_PaymentsModule = _load_module("workflow_engine_payments_orchestration", "integrations/payments/orchestration.py")
+_PaymentsBaseModule = _load_module("workflow_engine_payments_base", "integrations/payments/base_adapter.py")
 
 ConfigService = _ConfigModule.ConfigService
 NotificationOrchestrator = _NotificationModule.NotificationOrchestrator
+AcademyOpsService = _AcademyOpsModule.AcademyOpsService
+PaymentOrchestrationService = _PaymentsModule.PaymentOrchestrationService
+build_pakistan_payment_orchestration = _PaymentsModule.build_pakistan_payment_orchestration
+TenantPaymentContext = _PaymentsBaseModule.TenantPaymentContext
 
-WorkflowStepType = Literal["notify", "wait", "escalate"]
+WorkflowStepType = Literal["notify", "wait", "escalate", "academy_ops", "payment"]
 
 
 @dataclass(frozen=True)
@@ -94,9 +101,13 @@ class WorkflowEngine:
         *,
         config_service: ConfigService | None = None,
         notification_orchestrator: NotificationOrchestrator | None = None,
+        academy_ops_service: AcademyOpsService | None = None,
+        payment_orchestration_service: PaymentOrchestrationService | None = None,
     ) -> None:
         self._config_service = config_service or ConfigService()
         self._notification_orchestrator = notification_orchestrator or NotificationOrchestrator()
+        self._academy_ops_service = academy_ops_service or AcademyOpsService()
+        self._payment_orchestration_service = payment_orchestration_service or build_pakistan_payment_orchestration()
         self._workflows: dict[str, WorkflowDefinition] = {}
         self._scheduled_steps: list[ScheduledStep] = []
 
@@ -163,6 +174,25 @@ class WorkflowEngine:
 
         return {"scheduled": scheduled, "trace": trace}
 
+    def handle_event_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        metadata = envelope.get("metadata") or {}
+        actor = metadata.get("actor") or {}
+        payload = envelope.get("payload") or {}
+        timestamp = envelope.get("timestamp")
+        occurred_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) if isinstance(timestamp, str) else None
+
+        trigger_event = WorkflowTriggerEvent(
+            event_id=str(envelope.get("event_id", "")),
+            tenant_id=str(envelope.get("tenant_id", "")),
+            country_code=str(payload.get("country_code") or metadata.get("source_region", "PK")).upper(),
+            segment_id=str(payload.get("segment_id") or "academy"),
+            trigger_type=str(envelope.get("event_type", "")),
+            actor_user_id=str(actor.get("user_id") or payload.get("actor_user_id") or "system"),
+            context=dict(payload.get("context") or payload),
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+        )
+        return self.handle_trigger(trigger_event)
+
     def run_due(self, *, now: datetime | None = None) -> dict[str, Any]:
         current_time = now or datetime.now(timezone.utc)
 
@@ -195,6 +225,35 @@ class WorkflowEngine:
                     "action": item.step.step_type,
                     "detail": item.step.config,
                 }
+            elif item.step.step_type == "academy_ops":
+                operation = str(item.step.config.get("operation", "run_qc_autofix"))
+                if operation == "run_qc_autofix":
+                    result = {
+                        "status": "orchestrated",
+                        "action": "academy_ops.run_qc_autofix",
+                        "detail": self._academy_ops_service.run_qc_autofix(),
+                    }
+                else:
+                    result = {"status": "skipped", "reason": "unsupported_academy_ops_operation"}
+            elif item.step.step_type == "payment":
+                amount = int(item.step.config.get("amount", 0))
+                currency = str(item.step.config.get("currency", "PKR"))
+                invoice_id = item.step.config.get("invoice_id")
+                idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
+                payment_entry = self._payment_orchestration_service.process_checkout_payment(
+                    idempotency_key=idempotency_key,
+                    tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
+                    amount=amount,
+                    currency=currency,
+                    invoice_id=str(invoice_id) if invoice_id is not None else None,
+                )
+                result = {
+                    "status": payment_entry.status,
+                    "provider": payment_entry.provider,
+                    "payment_id": payment_entry.payment_id,
+                    "verified": payment_entry.verified,
+                    "error": payment_entry.error,
+                }
             else:
                 result = {"status": "skipped", "reason": "unsupported_step_type"}
 
@@ -212,4 +271,30 @@ class WorkflowEngine:
             "executed": executions,
             "pending_count": len(self._scheduled_steps),
             "trace": trace,
+        }
+
+    def run_qc_autofix(self) -> dict[str, bool]:
+        if self._notification_orchestrator is None:
+            self._notification_orchestrator = NotificationOrchestrator()
+        if self._academy_ops_service is None:
+            self._academy_ops_service = AcademyOpsService()
+        if self._payment_orchestration_service is None:
+            self._payment_orchestration_service = build_pakistan_payment_orchestration()
+
+        can_handle_event_envelopes = callable(getattr(self, "handle_event_envelope", None))
+        rule_evaluation_enabled = callable(getattr(self, "_rule_matches", None))
+        multi_step_execution_enabled = callable(getattr(self, "run_due", None))
+
+        integration_ready = {
+            "notification": hasattr(self._notification_orchestrator, "send_notification"),
+            "academy_ops": hasattr(self._academy_ops_service, "run_qc_autofix"),
+            "payments": hasattr(self._payment_orchestration_service, "process_checkout_payment"),
+        }
+        return {
+            "event_driven_triggers": can_handle_event_envelopes,
+            "rule_evaluation": rule_evaluation_enabled,
+            "multi_step_execution": multi_step_execution_enabled,
+            "notification_integration": integration_ready["notification"],
+            "academy_ops_integration": integration_ready["academy_ops"],
+            "payments_integration": integration_ready["payments"],
         }
