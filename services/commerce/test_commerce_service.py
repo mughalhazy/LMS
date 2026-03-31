@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from integrations.payment.adapters import MockFailureAdapter, MockSuccessAdapter
 from integrations.payments.base_adapter import PaymentResult, TenantPaymentContext
+from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 from services.commerce.catalog import ProductType
 from services.commerce.service import CommerceService
@@ -25,7 +26,7 @@ class FlakyAdapter:
 
 def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
     router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter()])
-    commerce = CommerceService(payment_router=router)
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router))
 
     commerce.add_product(
         product_id="p_course",
@@ -57,7 +58,7 @@ def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
 def test_checkout_retries_and_idempotency() -> None:
     flaky = FlakyAdapter()
     router = PaymentProviderRouter({"US": "flaky"}, [flaky])
-    commerce = CommerceService(payment_router=router)
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router))
     commerce.add_product(
         product_id="p_bundle",
         tenant_id="tenant_2",
@@ -90,7 +91,7 @@ def test_checkout_retries_and_idempotency() -> None:
 
 def test_subscription_product_activates_subscription_service_contract() -> None:
     router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter(), MockFailureAdapter()])
-    commerce = CommerceService(payment_router=router)
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router))
 
     commerce.add_product(
         product_id="p_sub",
@@ -119,7 +120,7 @@ def test_subscription_product_activates_subscription_service_contract() -> None:
 
 def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
     router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter()])
-    commerce = CommerceService(payment_router=router)
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router))
 
     tenant = TenantEntitlementContext(
         tenant_id="tenant_monetize",
@@ -154,8 +155,11 @@ def test_pakistan_payment_router_connection_for_commerce_orchestration() -> None
     from services.commerce.service import build_commerce_service_for_pakistan
 
     commerce = build_commerce_service_for_pakistan(default_provider="easypaisa")
-    adapter = commerce._payment_router.resolve(
-        TenantPaymentContext(tenant_id="tenant_pk_orch", country_code="PK")
+    entry = commerce._payment_orchestrator.process_checkout_payment(
+        idempotency_key="idem_pk_orch",
+        tenant=TenantPaymentContext(tenant_id="tenant_pk_orch", country_code="PK"),
+        amount=5000,
+        currency="PKR",
     )
 
-    assert adapter.provider_key == "easypaisa"
+    assert entry.provider == "easypaisa"
