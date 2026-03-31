@@ -1,6 +1,76 @@
 {
   "capabilities": [
     {
+      "capability_id": "academy.ops.attendance",
+      "name": "Academy Attendance Operations",
+      "description": "Capture and manage academy attendance operations.",
+      "category": "academy-ops",
+      "default_enabled": false,
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "academy.ops.batch",
+      "name": "Academy Batch Operations",
+      "description": "Create and operate academy batches and branch schedules.",
+      "category": "academy-ops",
+      "default_enabled": false,
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "academy.ops.fee_tracking",
+      "name": "Academy Fee Operations Tracking",
+      "description": "Track fee operations status and synchronize with system of record ledger.",
+      "category": "academy-ops",
+      "default_enabled": false,
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "academy.ops.teacher_assignment",
+      "name": "Academy Teacher Assignment Operations",
+      "description": "Assign and manage teacher staffing per academy batch.",
+      "category": "academy-ops",
+      "default_enabled": false,
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "academy.ops.timetable",
+      "name": "Academy Timetable Operations",
+      "description": "Publish and manage academy timetable slots.",
+      "category": "academy-ops",
+      "default_enabled": false,
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
       "capability_id": "ai.tutor",
       "name": "AI Tutor",
       "description": "Enable AI tutor chat and guidance workflows.",
@@ -170,6 +240,11 @@
     "feature.analytics": "learning.analytics.basic",
     "assessment.author": "assessment.author",
     "assessment.attempt": "assessment.attempt",
+    "academy.batch": "academy.ops.batch",
+    "academy.attendance": "academy.ops.attendance",
+    "academy.timetable": "academy.ops.timetable",
+    "academy.teacher_assignment": "academy.ops.teacher_assignment",
+    "academy.fee_tracking": "academy.ops.fee_tracking",
     "course.write": "course.write",
     "recommendation.basic": "recommendation.basic",
     "ai.tutor": "ai.tutor",
