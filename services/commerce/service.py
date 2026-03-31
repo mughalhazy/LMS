@@ -12,8 +12,8 @@ from .checkout import CheckoutService, OrderRecord
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
-from integrations.payment.router import PaymentProviderRouter
-from integrations.payment.base_adapter import TenantPaymentContext
+from integrations.payments.router import PaymentProviderRouter
+from integrations.payments.base_adapter import TenantPaymentContext
 from shared.utils.entitlement import TenantEntitlementContext
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -158,3 +158,9 @@ class CommerceService:
 
     def calculate_capability_charges(self, tenant: TenantEntitlementContext) -> list[CapabilityCharge]:
         return self.monetization.calculate_tenant_capability_charges(tenant)
+
+
+def build_commerce_service_for_pakistan(default_provider: str = "jazzcash") -> CommerceService:
+    from integrations.payments.orchestration import build_pakistan_payment_router
+
+    return CommerceService(payment_router=build_pakistan_payment_router(default_provider=default_provider))
