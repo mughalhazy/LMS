@@ -95,6 +95,43 @@ class FeePayment:
     paid_at: datetime = field(default_factory=datetime.utcnow)
 
 
+@dataclass(frozen=True)
+class RevenueShareAgreement:
+    tenant_id: str
+    batch_id: str
+    teacher_id: str
+    share_ratio: Decimal
+
+
+@dataclass(frozen=True)
+class TeacherPerformanceSnapshot:
+    tenant_id: str
+    batch_id: str
+    teacher_id: str
+    attendance_rate: Decimal
+    completion_rate: Decimal
+    learner_satisfaction: Decimal
+    captured_at: datetime = field(default_factory=datetime.utcnow)
+
+    def score(self) -> Decimal:
+        return (
+            (self.attendance_rate * Decimal("0.40"))
+            + (self.completion_rate * Decimal("0.35"))
+            + (self.learner_satisfaction * Decimal("0.25"))
+        ).quantize(Decimal("0.0001"))
+
+
+@dataclass(frozen=True)
+class TeacherPayoutRecord:
+    tenant_id: str
+    batch_id: str
+    teacher_id: str
+    invoice_id: str
+    revenue_amount: Decimal
+    payout_amount: Decimal
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
 class AcademyOpsService:
     """Academy operations bounded context for branch-level execution data."""
 
@@ -108,6 +145,9 @@ class AcademyOpsService:
         self._attendance: dict[tuple[str, str], list[AttendanceRecord]] = {}
         self._fee_invoices: dict[tuple[str, str], list[Invoice]] = {}
         self._fee_payments: dict[tuple[str, str], list[FeePayment]] = {}
+        self._revenue_share_agreements: dict[tuple[str, str], RevenueShareAgreement] = {}
+        self._teacher_performance: dict[tuple[str, str], list[TeacherPerformanceSnapshot]] = {}
+        self._teacher_payouts: dict[tuple[str, str], list[TeacherPayoutRecord]] = {}
 
         self._domain_owner = {
             "academy.branch": "academy-ops",
@@ -146,6 +186,42 @@ class AcademyOpsService:
         self._teacher_assignments[batch_key] = assignment
         return assignment
 
+    def teacher_batches(self, *, tenant_id: str, teacher_id: str) -> tuple[Batch, ...]:
+        teacher_batch_ids = [
+            batch_id
+            for (assignment_tenant, batch_id), assignment in self._teacher_assignments.items()
+            if assignment_tenant == tenant_id and assignment.teacher_id == teacher_id
+        ]
+        return tuple(
+            self._batches[self._key(tenant_id, batch_id)]
+            for batch_id in teacher_batch_ids
+            if self._key(tenant_id, batch_id) in self._batches
+        )
+
+    def configure_revenue_share(self, agreement: RevenueShareAgreement) -> RevenueShareAgreement:
+        if agreement.share_ratio < Decimal("0") or agreement.share_ratio > Decimal("1"):
+            raise ValueError("share ratio must be between 0 and 1")
+        assignment = self._teacher_assignments.get(self._key(agreement.tenant_id, agreement.batch_id))
+        if assignment is None or assignment.teacher_id != agreement.teacher_id:
+            raise ValueError("teacher must be assigned to batch before configuring revenue share")
+        self._revenue_share_agreements[self._key(agreement.tenant_id, agreement.batch_id)] = agreement
+        return agreement
+
+    def record_teacher_performance(self, snapshot: TeacherPerformanceSnapshot) -> TeacherPerformanceSnapshot:
+        batch_key = self._key(snapshot.tenant_id, snapshot.batch_id)
+        assignment = self._teacher_assignments.get(batch_key)
+        if assignment is None or assignment.teacher_id != snapshot.teacher_id:
+            raise ValueError("teacher must be assigned to batch before recording performance")
+        self._teacher_performance.setdefault(batch_key, []).append(snapshot)
+        return snapshot
+
+    def latest_teacher_performance(
+        self, *, tenant_id: str, batch_id: str, teacher_id: str
+    ) -> TeacherPerformanceSnapshot | None:
+        snapshots = self._teacher_performance.get(self._key(tenant_id, batch_id), [])
+        teacher_snapshots = [snapshot for snapshot in snapshots if snapshot.teacher_id == teacher_id]
+        return teacher_snapshots[-1] if teacher_snapshots else None
+
     def publish_timetable_slot(self, slot: TimetableSlot) -> TimetableSlot:
         batch_key = self._key(slot.tenant_id, slot.batch_id)
         assignment = self._teacher_assignments.get(batch_key)
@@ -183,6 +259,33 @@ class AcademyOpsService:
         )
         self.record_fee_invoice(learner_id=learner_id, invoice=invoice)
         return invoice
+
+    def ingest_commerce_invoice_for_batch(
+        self,
+        *,
+        learner_id: str,
+        batch_id: str,
+        invoice_record: Any,
+    ) -> Invoice:
+        invoice = self.ingest_commerce_invoice(learner_id=learner_id, invoice_record=invoice_record)
+        batch_key = self._key(invoice.tenant_id, batch_id)
+        agreement = self._revenue_share_agreements.get(batch_key)
+        assignment = self._teacher_assignments.get(batch_key)
+        if agreement is not None and assignment is not None:
+            payout_amount = (Decimal(invoice.amount) * agreement.share_ratio).quantize(Decimal("0.01"))
+            payout = TeacherPayoutRecord(
+                tenant_id=invoice.tenant_id,
+                batch_id=batch_id,
+                teacher_id=assignment.teacher_id,
+                invoice_id=invoice.invoice_id,
+                revenue_amount=Decimal(invoice.amount),
+                payout_amount=payout_amount,
+            )
+            self._teacher_payouts.setdefault(batch_key, []).append(payout)
+        return invoice
+
+    def teacher_payouts(self, *, tenant_id: str, batch_id: str) -> tuple[TeacherPayoutRecord, ...]:
+        return tuple(self._teacher_payouts.get(self._key(tenant_id, batch_id), ()))
 
     def record_fee_payment(self, payment: FeePayment) -> FeePayment:
         key = self._key(payment.tenant_id, payment.learner_id)
