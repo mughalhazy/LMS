@@ -6,14 +6,16 @@
 {
   "event_id": "evt_01J9...",
   "event_type": "auth.login.succeeded",
-  "occurred_at": "2026-01-15T10:00:00Z",
+  "timestamp": "2026-01-15T10:00:00Z",
   "tenant_id": "tenant-acme",
-  "subject_user_id": "usr_321",
-  "actor_user_id": "usr_321",
   "correlation_id": "corr-123",
-  "trace_id": "trace-789",
-  "schema_version": "1.0",
-  "payload": {}
+  "payload": {},
+  "metadata": {
+    "trace_id": "trace-789",
+    "schema_version": "1.0",
+    "subject_user_id": "usr_321",
+    "actor_user_id": "usr_321"
+  }
 }
 ```
 

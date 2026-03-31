@@ -3,7 +3,7 @@
 ## 1) Architecture Overview
 The LMS uses an event-driven architecture to decouple operational services (users, content, enrollment, assessments, learning activity, and AI orchestration) from downstream consumers (analytics, AI feature services, notifications, certificates, and audit).
 
-Events are published with a canonical envelope and domain-specific payload, transported through a durable event bus with replay capability, schema governance, and routing by event name.
+Events are published with a canonical envelope and domain-specific payload, transported through a durable event bus with replay capability, schema governance, and routing by event type.
 
 ---
 
@@ -50,32 +50,30 @@ All events MUST use this envelope for interoperability:
 ```json
 {
   "event_id": "uuid",
-  "event_name": "progress.updated",
-  "event_version": "1.0",
-  "occurred_at": "2026-01-15T10:30:00Z",
-  "producer": {
-    "service": "learning-service",
-    "domain": "learning"
-  },
+  "event_type": "progress.updated",
+  "timestamp": "2026-01-15T10:30:00Z",
   "tenant_id": "tenant_123",
-  "actor": {
-    "user_id": "user_789",
-    "role": "learner"
-  },
-  "entity": {
-    "type": "lesson",
-    "id": "lesson_456"
-  },
-  "correlation": {
-    "trace_id": "trace_abc",
-    "causation_id": "event_xyz"
-  },
-  "compliance": {
-    "contains_pii": false,
-    "classification": "internal"
-  },
+  "correlation_id": "corr_abc",
   "payload": {},
   "metadata": {
+    "schema_version": "1.0",
+    "producer": {
+      "service": "learning-service",
+      "domain": "learning"
+    },
+    "actor": {
+      "user_id": "user_789",
+      "role": "learner"
+    },
+    "entity": {
+      "type": "lesson",
+      "id": "lesson_456"
+    },
+    "causation_id": "event_xyz",
+    "compliance": {
+      "contains_pii": false,
+      "classification": "internal"
+    },
     "source_region": "us-east-1",
     "schema_uri": "schema://lms/learning/progress.updated/1.0"
   }
@@ -83,11 +81,12 @@ All events MUST use this envelope for interoperability:
 ```
 
 ### Schema Rules
-- `event_name` format: lower snake segments with dots (`domain.action` or `domain.subdomain.action`).
-- `event_version` follows semantic versioning; incompatible changes require major bump.
+- `event_type` format: lower snake segments with dots (`domain.action` or `domain.subdomain.action`).
+- Schema versioning follows semantic versioning and is stored in `metadata.schema_version`; incompatible changes require major bump.
 - `tenant_id` is mandatory for multi-tenant routing and analytics partitioning.
-- `correlation.trace_id` is mandatory for end-to-end observability.
+- `correlation_id` is mandatory for end-to-end observability.
 - `payload` contains event-specific business fields only.
+- All non-canonical envelope details belong in `metadata`.
 
 ---
 
@@ -127,7 +126,7 @@ The event bus (Kafka/Pulsar equivalent) is responsible for:
 
 ### Analytics Compatibility
 - All events are streamed to `analytics-ingestion` and landed in raw immutable storage.
-- Canonical fields (`tenant_id`, `event_name`, `occurred_at`, `entity.id`, `actor.user_id`) enable star-schema and time-series modeling.
+- Canonical fields (`tenant_id`, `event_type`, `timestamp`) plus normalized metadata keys (for example `metadata.entity.id`, `metadata.actor.user_id`) enable star-schema and time-series modeling.
 - Version-aware transforms support mixed event versions during migrations.
 
 ### AI Compatibility
