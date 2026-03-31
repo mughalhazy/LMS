@@ -72,3 +72,40 @@ class AnalyticsRecommendationRequest(BaseModel):
     engagement_score: float = Field(ge=0, le=100)
     average_sentiment: float
     trend_direction: str = "stable"
+
+
+class AnalyticsSnapshot(BaseModel):
+    completion_rate: float = Field(ge=0, le=100)
+    average_engagement_score: float = Field(ge=0, le=100)
+    average_sentiment: float = Field(ge=-1.0, le=1.0)
+    trend_direction: str = "stable"
+
+
+class InferredSkillSignal(BaseModel):
+    skill_id: str
+    inferred_level: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ProgressSnapshot(BaseModel):
+    completed_course_ids: List[str] = Field(default_factory=list)
+    in_progress_course_ids: List[str] = Field(default_factory=list)
+    learning_path_completion_rate: float = Field(default=0.0, ge=0.0, le=100.0)
+    weekly_active_minutes: int = Field(default=0, ge=0)
+
+
+class IntegratedRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    goal: str
+    target_skills: List[str] = Field(default_factory=list)
+    mandatory_course_ids: List[str] = Field(default_factory=list)
+    available_hours_per_week: int = Field(default=4, gt=0)
+    analytics: AnalyticsSnapshot
+    skill_inference: List[InferredSkillSignal] = Field(default_factory=list)
+    progress: ProgressSnapshot
+
+
+class IntegratedRecommendationResponse(BaseModel):
+    personalized_courses: List[PersonalizedCourseRecommendation]
+    learning_paths: List[LearningPathSuggestion]
