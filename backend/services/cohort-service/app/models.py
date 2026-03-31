@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from .schemas import CohortKind, CohortSchedule, CohortStatus
 
@@ -35,12 +36,13 @@ class MembershipRecord:
 
 @dataclass
 class EventRecord:
-    event_name: str
-    topic: str
+    event_id: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
-    aggregate_id: str
-    payload: dict[str, str]
-    occurred_at: datetime
+    correlation_id: str
+    payload: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass

@@ -75,11 +75,11 @@ class UserLifecycleEvent(BaseModel):
 
     event_id: str
     event_type: UserLifecycleEventType
+    timestamp: datetime = Field(default_factory=utc_now)
     tenant_id: str
-    user_id: str
-    occurred_at: datetime = Field(default_factory=utc_now)
-    actor_id: str
+    correlation_id: str
     payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class UserAggregate(BaseModel):

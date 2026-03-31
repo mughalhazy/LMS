@@ -65,11 +65,13 @@ class AuditLogEntry:
 
 @dataclass(slots=True)
 class Event:
-    name: str
+    event_id: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
-    enrollment_id: str
+    correlation_id: str
     payload: dict[str, Any]
-    emitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

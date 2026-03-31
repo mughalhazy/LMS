@@ -93,7 +93,8 @@ class AuditLog:
 class EventMessage:
     event_id: str
     event_type: str
+    timestamp: datetime
     tenant_id: str
-    aggregate_id: str
+    correlation_id: str
     payload: Dict
-    occurred_at: datetime = field(default_factory=datetime.utcnow)
+    metadata: Dict = field(default_factory=dict)

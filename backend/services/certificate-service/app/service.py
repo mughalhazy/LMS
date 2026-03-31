@@ -25,7 +25,15 @@ class EventPublisher:
         self.published: list[dict[str, Any]] = []
 
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
-        self.published.append({"event_name": event_name, "payload": payload})
+        self.published.append({
+            "event_id": str(uuid4()),
+            "event_type": event_name,
+            "timestamp": datetime.utcnow().isoformat(),
+            "tenant_id": payload.get("tenant_id", "unknown"),
+            "correlation_id": str(uuid4()),
+            "payload": payload,
+            "metadata": {"producer": "certificate-service"},
+        })
 
 
 class ObservabilityHooks:

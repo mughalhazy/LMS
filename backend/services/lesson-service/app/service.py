@@ -6,6 +6,8 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
+from uuid import uuid4
+
 from .models import AuditRecord, LifecycleAction, Lesson, LessonStatus, OutboxEvent
 from .store import LessonStore
 
@@ -108,10 +110,13 @@ class LessonService:
         self._record(tenant_id, actor_id, lesson.lesson_id, LifecycleAction.PROGRESSION_HOOK, detail)
         self.store.append_event(
             OutboxEvent(
+                event_id=str(uuid4()),
+                event_type="lesson_progression_hook_triggered",
+                timestamp=datetime.now(timezone.utc),
                 tenant_id=tenant_id,
-                topic="lms.lesson.progression_hook.v1",
-                event_name="lesson_progression_hook_triggered",
+                correlation_id=str(uuid4()),
                 payload={"lesson_id": lesson_id, "hook_type": hook_type, "payload": payload, "course_id": lesson.course_id},
+                metadata={"topic": "lms.lesson.progression_hook.v1", "producer": "lesson-service"},
             )
         )
 
@@ -121,10 +126,13 @@ class LessonService:
         self._record(tenant_id, actor_id, lesson_id, LifecycleAction.DELETE, {})
         self.store.append_event(
             OutboxEvent(
+                event_id=str(uuid4()),
+                event_type="lesson_deleted",
+                timestamp=datetime.now(timezone.utc),
                 tenant_id=tenant_id,
-                topic="lms.lesson.deleted.v1",
-                event_name="lesson_deleted",
+                correlation_id=str(uuid4()),
                 payload={"lesson_id": lesson_id},
+                metadata={"topic": "lms.lesson.deleted.v1", "producer": "lesson-service"},
             )
         )
 
@@ -136,4 +144,4 @@ class LessonService:
     def _emit(self, topic: str, tenant_id: str, event_name: str, lesson: Lesson) -> None:
         payload = asdict(lesson)
         payload["status"] = lesson.status.value
-        self.store.append_event(OutboxEvent(tenant_id=tenant_id, topic=topic, event_name=event_name, payload=payload))
+        self.store.append_event(OutboxEvent(event_id=str(uuid4()), event_type=event_name, timestamp=datetime.now(timezone.utc), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"topic": topic, "producer": "lesson-service"}))

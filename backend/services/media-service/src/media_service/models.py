@@ -121,8 +121,10 @@ class MediaAsset:
 
 @dataclass
 class EventRecord:
-    event_name: str
+    event_id: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
-    media_asset_id: str
+    correlation_id: str
     payload: Dict[str, str]
-    emitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: Dict[str, str] = field(default_factory=dict)

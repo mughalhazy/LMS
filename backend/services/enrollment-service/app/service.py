@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Protocol
+from uuid import uuid4
 
 from .models import AuditLogEntry, Enrollment, EnrollmentStatus, Event, TenantContext
 from .schemas import EnrollmentCreateRequest
@@ -147,10 +149,13 @@ class EnrollmentService:
             payload["from_status"] = from_status
         self.event_publisher.publish(
             Event(
-                name=event_name,
+                event_id=str(uuid4()),
+                event_type=event_name,
+                timestamp=datetime.now(timezone.utc),
                 tenant_id=enrollment.tenant_id,
-                enrollment_id=enrollment.id,
+                correlation_id=str(uuid4()),
                 payload=payload,
+                metadata={"aggregate_id": enrollment.id, "producer": "enrollment-service"},
             )
         )
 
