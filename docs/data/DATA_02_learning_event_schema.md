@@ -4,23 +4,17 @@
 Define a canonical event model for learner activity and system activity in Enterprise LMS V2, with explicit compatibility to existing repository entities: **User**, **Course**, **Lesson**, **Enrollment**, **Progress**, and **Certificate**.
 
 ## Canonical Event Envelope
-All LMS V2 events MUST use this shared envelope.
+All LMS V2 events MUST use the shared envelope defined in `docs/anchors/event_envelope.md`.
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `event_name` | string | Yes | Dot-delimited event identifier (example: `progress.updated`). |
-| `event_version` | string | Yes | Schema version for event contract evolution (example: `v1`). |
-| `event_family` | enum | Yes | One of: `user`, `course`, `lesson`, `enrollment`, `progress`, `assessment`, `certificate`, `ai`. |
-| `producer_service` | string | Yes | Service that owns and emits the event. |
-| `consumer_services` | string[] | Yes | Services expected to subscribe/process the event. |
-| `tenant_id` | string | Yes | Tenant context for multi-tenant isolation. |
-| `organization_id` | string | Optional | Sub-tenant org/business unit context where available. |
+| `event_id` | string | Yes | Globally unique event identifier. |
+| `event_type` | string | Yes | Dot-delimited event identifier (example: `progress.updated`). |
 | `timestamp` | string (ISO-8601 UTC) | Yes | Event creation time from producer clock. |
+| `tenant_id` | string | Yes | Tenant context for multi-tenant isolation. |
 | `correlation_id` | string (UUID) | Yes | End-to-end trace key for workflows spanning services. |
-| `causation_id` | string (UUID) | Optional | Upstream triggering event/command id. |
-| `actor_id` | string | Optional | User/service principal that initiated the action. |
 | `payload` | object | Yes | Event-specific domain fields. |
-| `metadata` | object | Optional | Optional metadata for analytics, AI context, and debugging. |
+| `metadata` | object | Yes | Operational context such as schema version, producer, actor, compliance, and optional lineage identifiers. |
 
 ## Event Families and Definitions
 
@@ -178,7 +172,7 @@ All LMS V2 events MUST use this shared envelope.
 - `ai-recommendation-service` and `ai-tutor-service` are authoritative for `ai.*` events.
 
 ## Analytics and AI Readiness Controls
-- **Analytics-ready conventions:** append-only immutable events, required `timestamp`, required `tenant_id`, deterministic `event_name`, and explicit producer ownership.
+- **Analytics-ready conventions:** append-only immutable events, required `timestamp`, required `tenant_id`, deterministic `event_type`, and explicit producer ownership.
 - **AI-ready conventions:** `metadata.model_version`, `metadata.confidence_score`, and `reason_code`/`trigger_type` fields where AI inference influences actions.
 - **Traceability conventions:** mandatory `correlation_id`, optional `causation_id` for chain-of-events lineage.
 
