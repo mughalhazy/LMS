@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from backend.services.shared.models.tenant import TenantContract
-from backend.services.shared.utils.entitlements import is_capability_enabled
+from backend.services.shared.utils.capability_check import is_capability_enabled
 
 from .schemas import (
     ConceptExplanationRequest,

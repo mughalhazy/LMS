@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from backend.services.shared.models.tenant import TenantContract
+from backend.services.shared.utils.capability_check import is_capability_enabled
+
 from .models import (
     BehavioralLearningRecommendation,
     LearnerRecommendationBundle,

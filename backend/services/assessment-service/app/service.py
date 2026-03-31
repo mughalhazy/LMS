@@ -11,7 +11,7 @@ from .events import DomainEvent, EventPublisher
 from backend.services.shared.context.correlation import ensure_correlation_id
 from backend.services.shared.events.envelope import build_event
 from backend.services.shared.models.tenant import TenantContract
-from backend.services.shared.utils.entitlements import is_capability_enabled
+from backend.services.shared.utils.capability_check import is_capability_enabled
 from .models import AssessmentDefinition, AssessmentStatus, AssessmentType, AttemptRecord, AttemptStatus, SubmissionRecord
 from .observability import ServiceMetrics
 from .schemas import (
