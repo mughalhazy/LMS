@@ -28,10 +28,18 @@ def build_subscription_payment_service(
     return PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
 
-def process_payment(amount: int, tenant: Tenant | TenantPaymentContext) -> dict[str, str | int | None]:
+def process_payment(
+    amount: int,
+    tenant: str | Tenant | TenantPaymentContext,
+) -> dict[str, str | int | None]:
     """Subscription service payment entrypoint via adapter-only country routing."""
     service = build_subscription_payment_service()
-    result = service.process_payment(amount=amount, tenant=tenant)
+    tenant_context = tenant
+    if isinstance(tenant, str):
+        # Backward-compatible support for legacy subscription callers.
+        tenant_context = TenantPaymentContext(tenant_id=tenant, country_code="PK")
+
+    result = service.process_payment(amount=amount, tenant=tenant_context)
     if result.get("status") == "failure":
         result["event_type"] = "billing.missed_payment"
         result["workflow_action"] = "reminder"
