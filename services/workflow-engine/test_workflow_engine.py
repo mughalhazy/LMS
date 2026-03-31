@@ -136,3 +136,76 @@ def test_config_service_can_disable_workflow_rule_set() -> None:
 
     assert scheduled["scheduled"] == []
     assert all(entry["step"] != "workflow.matched" for entry in scheduled["trace"])
+
+
+def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 3, 31, 2, 0, tzinfo=timezone.utc)
+
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_ops_and_payment",
+            name="Ops + Payment",
+            enabled=True,
+            rules=(
+                WorkflowRule(
+                    rule_id="rule_fee_due",
+                    trigger_type="payment.missed",
+                    required_context={"invoice_status": "overdue"},
+                ),
+            ),
+            steps=(
+                WorkflowStep(
+                    step_id="step_notify",
+                    step_type="notify",
+                    config={"message": "Your invoice is overdue."},
+                ),
+                WorkflowStep(
+                    step_id="step_ops_qc",
+                    step_type="academy_ops",
+                    config={"operation": "run_qc_autofix"},
+                ),
+                WorkflowStep(
+                    step_id="step_collect_payment",
+                    step_type="payment",
+                    config={"amount": 5000, "currency": "PKR", "invoice_id": "inv_5000"},
+                ),
+            ),
+        )
+    )
+
+    scheduled = engine.handle_event_envelope(
+        {
+            "event_id": "evt_003",
+            "event_type": "payment.missed",
+            "timestamp": now.isoformat().replace("+00:00", "Z"),
+            "tenant_id": "tenant_pk",
+            "payload": {
+                "country_code": "PK",
+                "segment_id": "academy",
+                "invoice_status": "overdue",
+            },
+            "metadata": {"actor": {"user_id": "user_55"}},
+        }
+    )
+
+    assert len(scheduled["scheduled"]) == 3
+    run = engine.run_due(now=now + timedelta(minutes=1))
+    assert len(run["executed"]) == 3
+    results = {item["step_id"]: item["result"] for item in run["executed"]}
+    assert results["step_notify"]["status"] == "sent"
+    assert results["step_ops_qc"]["status"] == "orchestrated"
+    assert results["step_collect_payment"]["status"] in {"pending_verification", "verified"}
+    assert run["pending_count"] == 0
+
+
+def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
+    engine = WorkflowEngine()
+    qc = engine.run_qc_autofix()
+
+    assert qc["event_driven_triggers"] is True
+    assert qc["rule_evaluation"] is True
+    assert qc["multi_step_execution"] is True
+    assert qc["notification_integration"] is True
+    assert qc["academy_ops_integration"] is True
+    assert qc["payments_integration"] is True
