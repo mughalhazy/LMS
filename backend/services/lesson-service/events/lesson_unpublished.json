@@ -1,5 +1,5 @@
 {
-  "event_name": "lesson_unpublished",
+  "event_type": "lesson_unpublished",
   "event_version": "v1",
   "topic": "lms.lesson.unpublished.v1",
   "producer_service": "lesson-service",

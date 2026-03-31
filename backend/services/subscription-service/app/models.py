@@ -24,7 +24,7 @@ class LifecycleRecord:
     event: SubscriptionEvent
     from_state: SubscriptionState
     to_state: SubscriptionState
-    occurred_at: datetime
+    timestamp: datetime
 
 
 @dataclass

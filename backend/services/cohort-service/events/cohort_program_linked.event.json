@@ -1,5 +1,5 @@
 {
-  "event_name": "cohort.program.linked",
+  "event_type": "cohort.program.linked",
   "topic": "lms.cohort.program_linked.v1",
   "producer_service": "cohort-service",
   "schema_version": 1,

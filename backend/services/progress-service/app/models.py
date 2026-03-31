@@ -98,7 +98,7 @@ class ProgressAuditEntry:
     action: str
     progress_id: Optional[str]
     idempotency_key: Optional[str]
-    occurred_at: datetime
+    timestamp: datetime
     details: dict[str, object]
 
 

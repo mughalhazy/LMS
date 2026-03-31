@@ -93,7 +93,7 @@ class ProgressService:
             if existing:
                 return self._record_response(existing)
 
-        now = request.occurred_at
+        now = request.timestamp
         existing = self.store.get_progress(request.tenant_id, request.enrollment_id, lesson_id)
         status = request.status
         completed_at = now if status in {"completed", "passed"} else None
@@ -134,7 +134,7 @@ class ProgressService:
             status="completed",
             time_spent_seconds_delta=request.time_spent_seconds,
             attempt_count=request.attempt_count,
-            occurred_at=request.completed_at,
+            timestamp=request.completed_at,
             idempotency_key=request.idempotency_key,
             workforce_policy_id=request.workforce_policy_id,
             workforce_manager_id=request.workforce_manager_id,
@@ -408,7 +408,7 @@ class ProgressService:
                 action=action,
                 progress_id=progress_id,
                 idempotency_key=idempotency_key,
-                occurred_at=utc_now(),
+                timestamp=utc_now(),
                 details=details,
             )
         )

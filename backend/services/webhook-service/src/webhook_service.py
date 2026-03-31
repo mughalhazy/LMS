@@ -133,7 +133,7 @@ class WebhookService:
         event_type: str,
         tenant_id: str,
         data: Dict[str, object],
-        occurred_at: Optional[datetime] = None,
+        timestamp: Optional[datetime] = None,
         now: Optional[datetime] = None,
     ) -> List[DeliveryAttempt]:
         timestamp = now or datetime.utcnow()
@@ -141,7 +141,7 @@ class WebhookService:
             event_id=event_id,
             event_type=event_type,
             tenant_id=tenant_id,
-            occurred_at=occurred_at or timestamp,
+            timestamp=timestamp or timestamp,
             data=data,
         )
         deliveries: List[DeliveryAttempt] = []
@@ -245,7 +245,7 @@ class WebhookService:
             {
                 "event_id": event.event_id,
                 "event_type": event.event_type,
-                "occurred_at": event.occurred_at.isoformat() + "Z",
+                "timestamp": event.timestamp.isoformat() + "Z",
                 "tenant_id": event.tenant_id,
                 "data": event.data,
             },
@@ -275,7 +275,7 @@ class WebhookService:
             event_id=f"evt_{uuid.uuid4().hex[:10]}",
             event_type=event_type,
             tenant_id=subscription.tenant_id,
-            occurred_at=now,
+            timestamp=now,
             data=payload,
         )
         delivery = self._build_delivery(subscription=subscription, event=event, now=now)

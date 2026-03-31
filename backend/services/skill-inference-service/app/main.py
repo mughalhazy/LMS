@@ -26,7 +26,7 @@ class SkillInferenceAPI:
                 signal_type=item.signal_type,
                 score=item.score,
                 confidence=item.confidence,
-                occurred_at=item.occurred_at,
+                timestamp=item.timestamp,
                 verified=item.verified,
                 metadata=item.metadata,
             )

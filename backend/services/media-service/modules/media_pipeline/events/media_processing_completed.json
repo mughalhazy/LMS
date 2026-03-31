@@ -1,5 +1,5 @@
 {
-  "event_name": "media_processing_completed",
+  "event_type": "media_processing_completed",
   "topic": "lms.media.processing.completed.v1",
   "producer_service": "media-pipeline-service",
   "consumer_services": [
@@ -13,14 +13,14 @@
     "required": [
       "event_id",
       "event_type",
-      "occurred_at",
+      "timestamp",
       "tenant_id",
       "data"
     ],
     "properties": {
       "event_id": { "type": "string" },
       "event_type": { "const": "media_processing_completed" },
-      "occurred_at": { "type": "string", "format": "date-time" },
+      "timestamp": { "type": "string", "format": "date-time" },
       "tenant_id": { "type": "string" },
       "data": {
         "type": "object",

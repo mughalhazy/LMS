@@ -41,7 +41,7 @@ class NormalizedEvent(BaseModel):
     family: EventFamily
     event_type: str
     source: str
-    occurred_at: datetime
+    timestamp: datetime
     ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     trace: EventTrace
     actor: Optional[EventActor] = None

@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable
 
-from backend.services.shared.models.tenant import TenantContract
-from backend.services.shared.utils.capability_check import is_capability_enabled
+from shared.control_plane import ConfigService, EntitlementService
+from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
 from .models import (
@@ -28,6 +28,8 @@ from .schemas import (
 class RecommendationService:
     def __init__(self) -> None:
         self._store: dict[str, dict[str, LearnerRecommendationBundle]] = defaultdict(dict)
+        self._config_service = ConfigService()
+        self._entitlement_service = EntitlementService(config_service=self._config_service)
 
     def generate_personalized_courses(
         self, req: PersonalizedRecommendationRequest
@@ -253,11 +255,18 @@ class RecommendationService:
     def get_bundle(self, tenant_id: str, learner_id: str) -> LearnerRecommendationBundle:
         return self._store.get(tenant_id, {}).get(learner_id, LearnerRecommendationBundle(learner_id=learner_id))
 
-    def _tenant_contract(self, tenant_id: str) -> TenantContract:
-        return tenant_contract_from_inputs(tenant_id=tenant_id)
+    def _tenant_context(self, tenant_id: str) -> TenantEntitlementContext:
+        tenant = tenant_contract_from_inputs(tenant_id=tenant_id)
+        return TenantEntitlementContext(
+            tenant_id=tenant.tenant_id,
+            country_code=tenant.country_code,
+            segment_id=tenant.segment_type,
+            plan_type=tenant.plan_type,
+            add_ons=tuple(tenant.addon_flags),
+        )
 
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
-        if not is_capability_enabled(self._tenant_contract(tenant_id), capability):
+        if not self._entitlement_service.is_enabled(self._tenant_context(tenant_id), capability):
             raise ValueError(f"capability disabled: {capability}")
 
     @staticmethod

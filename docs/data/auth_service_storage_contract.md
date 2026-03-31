@@ -58,7 +58,7 @@
 - `correlation_id`
 - `trace_id`
 - `metadata` (jsonb)
-- `occurred_at`
+- `timestamp`
 
 ### `auth_outbox_events`
 - `outbox_id` (pk)

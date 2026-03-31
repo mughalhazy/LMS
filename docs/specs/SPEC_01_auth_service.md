@@ -32,7 +32,7 @@
 | `refresh_token_family` | `family_id`, `tenant_id`, `user_id`, `issued_at`, `revoked_at`, `revocation_reason` | Enables rotation and replay detection. |
 | `refresh_token` | `jti`, `family_id`, `session_id`, `expires_at`, `rotated_from_jti`, `state` | Opaque or JWT; one-time rotation semantics. |
 | `password_reset_challenge` | `challenge_id`, `tenant_id`, `user_id`, `channel`, `token_hash`, `expires_at`, `consumed_at`, `attempt_count`, `state` | No plain-text token stored. |
-| `login_audit_event` | `event_id`, `tenant_id`, `user_id?`, `event_type`, `result`, `reason_code`, `ip`, `user_agent`, `occurred_at`, `correlation_id` | Append-only for compliance and forensics. |
+| `login_audit_event` | `event_id`, `tenant_id`, `user_id?`, `event_type`, `result`, `reason_code`, `ip`, `user_agent`, `timestamp`, `correlation_id` | Append-only for compliance and forensics. |
 | `key_metadata` | `kid`, `algorithm`, `status`, `activated_at`, `retire_at` | Supports signing key rotation and JWKS publication. |
 
 ### Data Retention
@@ -211,13 +211,13 @@ Success `200` returns active public signing keys.
 
 | event | trigger | payload (minimum) |
 |---|---|---|
-| `auth.login.succeeded.v1` | successful login | `event_id`, `occurred_at`, `tenant_id`, `user_id`, `session_id`, `ip`, `user_agent`, `correlation_id` |
-| `auth.login.failed.v1` | failed login | `event_id`, `occurred_at`, `tenant_id`, `identifier_hash`, `reason_code`, `ip`, `correlation_id` |
-| `auth.session.revoked.v1` | logout/admin revoke/replay revoke | `event_id`, `tenant_id`, `user_id`, `session_id`, `reason_code`, `occurred_at` |
-| `auth.token.refreshed.v1` | successful refresh | `event_id`, `tenant_id`, `user_id`, `session_id`, `new_jti`, `occurred_at` |
-| `auth.password.reset.requested.v1` | reset requested | `event_id`, `tenant_id`, `user_id?`, `channel`, `occurred_at` |
-| `auth.password.reset.completed.v1` | reset confirmed | `event_id`, `tenant_id`, `user_id`, `occurred_at`, `global_logout` |
-| `auth.account.locked.v1` | lock threshold reached | `event_id`, `tenant_id`, `user_id?`, `reason_code`, `occurred_at` |
+| `auth.login.succeeded.v1` | successful login | `event_id`, `timestamp`, `tenant_id`, `user_id`, `session_id`, `ip`, `user_agent`, `correlation_id` |
+| `auth.login.failed.v1` | failed login | `event_id`, `timestamp`, `tenant_id`, `identifier_hash`, `reason_code`, `ip`, `correlation_id` |
+| `auth.session.revoked.v1` | logout/admin revoke/replay revoke | `event_id`, `tenant_id`, `user_id`, `session_id`, `reason_code`, `timestamp` |
+| `auth.token.refreshed.v1` | successful refresh | `event_id`, `tenant_id`, `user_id`, `session_id`, `new_jti`, `timestamp` |
+| `auth.password.reset.requested.v1` | reset requested | `event_id`, `tenant_id`, `user_id?`, `channel`, `timestamp` |
+| `auth.password.reset.completed.v1` | reset confirmed | `event_id`, `tenant_id`, `user_id`, `timestamp`, `global_logout` |
+| `auth.account.locked.v1` | lock threshold reached | `event_id`, `tenant_id`, `user_id?`, `reason_code`, `timestamp` |
 
 ## 7) Events Consumed
 

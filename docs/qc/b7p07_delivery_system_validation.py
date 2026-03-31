@@ -38,7 +38,7 @@ class OfflineSyncEvent:
     sync_item_id: str
     enrollment_id: str
     operation: str
-    occurred_at: str
+    timestamp: str
     payload: dict[str, Any]
 
 
@@ -202,21 +202,21 @@ def run_validation() -> dict[str, Any]:
             sync_item_id="sync_001",
             enrollment_id="enr_001",
             operation="progress_upsert",
-            occurred_at="2026-03-31T00:00:00Z",
+            timestamp="2026-03-31T00:00:00Z",
             payload={"progress_pct": 55},
         ),
         OfflineSyncEvent(
             sync_item_id="sync_002",
             enrollment_id="enr_001",
             operation="attempt_event_append",
-            occurred_at="2026-03-31T00:00:10Z",
+            timestamp="2026-03-31T00:00:10Z",
             payload={"attempt_id": "att_001", "score": 82},
         ),
         OfflineSyncEvent(
             sync_item_id="sync_001",
             enrollment_id="enr_001",
             operation="progress_upsert",
-            occurred_at="2026-03-31T00:00:00Z",
+            timestamp="2026-03-31T00:00:00Z",
             payload={"progress_pct": 55},
         ),
     ]

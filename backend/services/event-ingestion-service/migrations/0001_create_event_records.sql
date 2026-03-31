@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS event_records (
     family TEXT NOT NULL,
     event_type TEXT NOT NULL,
     source TEXT NOT NULL,
-    occurred_at TIMESTAMPTZ NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL,
     trace_id TEXT NOT NULL,
     correlation_id TEXT NOT NULL,

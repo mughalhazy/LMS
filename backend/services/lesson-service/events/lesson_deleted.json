@@ -1,5 +1,5 @@
 {
-  "event_name": "lesson_deleted",
+  "event_type": "lesson_deleted",
   "event_version": "v1",
   "topic": "lms.lesson.deleted.v1",
   "producer_service": "lesson-service",

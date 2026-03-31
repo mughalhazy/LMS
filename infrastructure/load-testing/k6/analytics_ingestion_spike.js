@@ -29,7 +29,7 @@ export default function () {
     tenant_id: `tenant-${(__VU % 20) + 1}`,
     actor_id: `user-${__VU}`,
     session_id: `session-${__VU}`,
-    occurred_at: now,
+    timestamp: now,
     schema_version: '1.0',
     payload: {
       attempt_id: `attempt-${__ITER}`,

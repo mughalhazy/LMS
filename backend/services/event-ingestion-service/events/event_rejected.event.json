@@ -1,5 +1,5 @@
 {
-  "event_name": "event_rejected",
+  "event_type": "event_rejected",
   "producer_service": "event-ingestion-service",
   "topic": "lms.analytics_ingestion.event_rejected.v1",
   "consumer_services": [

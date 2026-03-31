@@ -22,7 +22,7 @@ class OfflineProgressOperation:
     score: float | None
     time_spent_seconds: int
     attempt_count: int
-    occurred_at: str
+    timestamp: str
 
 
 class OfflineProgressSyncEngine:
@@ -46,7 +46,7 @@ class OfflineProgressSyncEngine:
         score: float | None,
         time_spent_seconds: int,
         attempt_count: int,
-        occurred_at: datetime | None = None,
+        timestamp: datetime | None = None,
         operation_id: str | None = None,
     ) -> OfflineProgressOperation:
         op = OfflineProgressOperation(
@@ -60,7 +60,7 @@ class OfflineProgressSyncEngine:
             score=score,
             time_spent_seconds=time_spent_seconds,
             attempt_count=attempt_count,
-            occurred_at=(occurred_at or datetime.now(timezone.utc)).isoformat(),
+            timestamp=(timestamp or datetime.now(timezone.utc)).isoformat(),
         )
 
         self._state["pending"].append(asdict(op))
@@ -83,7 +83,7 @@ class OfflineProgressSyncEngine:
         return [OfflineProgressOperation(**row) for row in self._state["pending"]]
 
     def sync_to_server(self, server_service: ProgressTrackingService) -> Dict[str, Any]:
-        pending_rows = sorted(self._state["pending"], key=lambda row: (row["occurred_at"], row["operation_id"]))
+        pending_rows = sorted(self._state["pending"], key=lambda row: (row["timestamp"], row["operation_id"]))
         applied_ids = set(self._state["applied_operation_ids"])
 
         succeeded = 0

@@ -31,10 +31,10 @@ It **does not** own source entities; each event retains `producer_service` and s
 - `trace_id`, `span_id`, `correlation_id`
 - `tenant_id`, `tenant_partition_key`
 - `event_family` (`user|course|lesson|enrollment|progress|assessment|certificate|ai`)
-- `event_name`
+- `event_type`
 - `topic`
 - `producer_service`
-- `occurred_at`, `received_at`, `normalized_at`, `forwarded_at`
+- `timestamp`, `received_at`, `normalized_at`, `forwarded_at`
 - `schema_version` (source), `normalization_version` (ingestion)
 - `raw_payload` (JSONB/blob)
 - `normalized_payload` (JSONB)
@@ -50,7 +50,7 @@ It **does not** own source entities; each event retains `producer_service` and s
 
 ## 4) Ingestion interfaces
 ### 4.1 Event bus ingestion (primary)
-- Subscribes to LMS topics matching existing envelope contract (`event_id`, `event_name`, `topic`, `producer_service`, `tenant_id`, `occurred_at`, `schema_version`, `payload`).
+- Subscribes to LMS topics matching existing envelope contract (`event_id`, `event_type`, `topic`, `producer_service`, `tenant_id`, `timestamp`, `schema_version`, `payload`).
 - Compatible with current runtime topic conventions (`lms.<domain>.<event>.vN`).
 
 ### 4.2 HTTP ingestion API (secondary)
@@ -69,11 +69,11 @@ It **does not** own source entities; each event retains `producer_service` and s
 ### 5.1 Canonical envelope (runtime-compatible)
 Required fields align with existing runtime envelope schema:
 - `event_id: string`
-- `event_name: string`
+- `event_type: string`
 - `topic: string`
 - `producer_service: string`
 - `tenant_id: string`
-- `occurred_at: date-time`
+- `timestamp: date-time`
 - `schema_version: vN`
 - `payload: object`
 
@@ -141,7 +141,7 @@ Additional ingestion metadata (added by this service):
 
 ## 11) Compatibility requirements
 - Must accept the existing event envelope contract currently defined in repo runtime artifacts.
-- Must preserve source `event_name/topic/schema_version` values without rewrite.
+- Must preserve source `event_type/topic/schema_version` values without rewrite.
 - Must not require domain services to change entity ownership or transactional boundaries.
 
 ## 12) QC LOOP

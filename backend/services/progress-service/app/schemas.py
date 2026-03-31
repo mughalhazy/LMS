@@ -22,7 +22,7 @@ class LessonProgressUpsertRequest(BaseModel):
     status: ProgressStatus
     time_spent_seconds_delta: int = Field(ge=0)
     attempt_count: int = Field(ge=0)
-    occurred_at: datetime
+    timestamp: datetime
     idempotency_key: str
     workforce_policy_id: str | None = None
     workforce_manager_id: str | None = None

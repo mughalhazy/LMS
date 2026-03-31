@@ -1,4 +1,4 @@
-event_name | issue_description | severity | recommended_fix
+event_type | issue_description | severity | recommended_fix
 ---|---|---|---
 EmployeeCreated | No ownership issue found. Single producer (`employee-service`), domain-aligned to employee lifecycle, and not duplicated across services. | none | No change required.
 EmployeeUpdated | No ownership issue found. Single producer (`employee-service`), domain-aligned to employee lifecycle, and not duplicated across services. | none | No change required.

@@ -1,5 +1,5 @@
 {
-  "event_name": "enrollment.status_transitioned",
+  "event_type": "enrollment.status_transitioned",
   "producer_service": "enrollment-service",
   "topic": "lms.enrollment.status-transitioned.v1",
   "schema_version": "1.0.0",

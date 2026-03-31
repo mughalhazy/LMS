@@ -53,7 +53,7 @@ The canonical identity entity remains `User`.
 - Uniqueness: `(tenant_id, identity_provider, external_subject_id)`.
 
 ### `user_lifecycle_events` (owned, append-only)
-- `event_id`, `tenant_id`, `user_id`, `event_type`, `actor_id`, `occurred_at`, `reason_code`, `detail` (jsonb), `correlation_id`.
+- `event_id`, `tenant_id`, `user_id`, `event_type`, `actor_id`, `timestamp`, `reason_code`, `detail` (jsonb), `correlation_id`.
 
 ## 3.2 Data not owned
 - Password hashes, MFA secrets, refresh tokens, auth sessions.
@@ -197,7 +197,7 @@ Base path: `/api/v1/users`
 
 ## 6) Events Produced
 
-All events include envelope: `event_id`, `event_type`, `occurred_at`, `tenant_id`, `user_id`, `actor_id`, `trace_id`, `schema_version`, `payload`.
+All events include envelope: `event_id`, `event_type`, `timestamp`, `tenant_id`, `user_id`, `actor_id`, `trace_id`, `schema_version`, `payload`.
 
 - `user.created`
 - `user.activated`

@@ -332,7 +332,7 @@ class SessionService:
     def observability_snapshot(self) -> Dict[str, int]:
         return dict(self._metrics)
 
-    def _transition(self, session: Session, target: SessionStatus, actor_id: str, event_name: str) -> Session:
+    def _transition(self, session: Session, target: SessionStatus, actor_id: str, event_type: str) -> Session:
         allowed = self._transitions[session.status]
         if target not in allowed:
             raise InvalidSessionTransitionError(f"Cannot transition {session.status.value} -> {target.value}")
@@ -346,8 +346,8 @@ class SessionService:
         )
         self.repository.update(updated)
         self._metrics["status_transitions"] += 1
-        self._record_audit(updated, f"session.{event_name}", actor_id, {"status": target.value})
-        self._publish_event(event_name, updated, {"status": target.value})
+        self._record_audit(updated, f"session.{event_type}", actor_id, {"status": target.value})
+        self._publish_event(event_type, updated, {"status": target.value})
         return updated
 
     def _get_scoped_session(self, tenant_id: str, session_id: str) -> Session:

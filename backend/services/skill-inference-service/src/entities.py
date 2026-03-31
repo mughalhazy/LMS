@@ -40,7 +40,7 @@ class LearnerSkillEvidence:
     evidence_type: str
     normalized_score: float
     confidence_weight: float
-    occurred_at: datetime
+    timestamp: datetime
     verified: bool = False
     metadata: Dict[str, str] = field(default_factory=dict)
 

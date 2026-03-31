@@ -46,7 +46,7 @@ class AuditAndEventsTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(AUDIT_LOGGER.list_events()[-1].event_type, "certificate.issued")
-        self.assertEqual(EVENT_PUBLISHER.published[-1]["event_name"], "lms.certificate.issued.v1")
+        self.assertEqual(EVENT_PUBLISHER.published[-1]["event_type"], "lms.certificate.issued.v1")
         self.assertGreaterEqual(OBS_HOOKS.counters.get("certificate_issued_total", 0), 1)
 
 

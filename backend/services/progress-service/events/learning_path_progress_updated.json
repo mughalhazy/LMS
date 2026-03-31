@@ -1,5 +1,5 @@
 {
-  "event_name": "learning_path_progress_updated",
+  "event_type": "learning_path_progress_updated",
   "event_version": "v1",
   "topic": "lms.progress.learning_path_progress_updated.v1",
   "producer_service": "progress-service",

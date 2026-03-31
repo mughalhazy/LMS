@@ -286,7 +286,7 @@ Return normalized result payload for downstream consumers.
 
 ## 6) Events Produced
 
-All events include envelope: `event_id`, `event_type`, `occurred_at`, `tenant_id`, `trace_id`, `producer`, `schema_version`.
+All events include envelope: `event_id`, `event_type`, `timestamp`, `tenant_id`, `trace_id`, `producer`, `schema_version`.
 
 1. `assessment.created`
    - payload: `assessment_id`, `course_id`, `lesson_id`, `assessment_type`, `status`.

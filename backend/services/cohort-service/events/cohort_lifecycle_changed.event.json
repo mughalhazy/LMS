@@ -1,5 +1,5 @@
 {
-  "event_name": "cohort.lifecycle.changed",
+  "event_type": "cohort.lifecycle.changed",
   "topic": "lms.cohort.lifecycle.v1",
   "producer_service": "cohort-service",
   "schema_version": 1,

@@ -102,7 +102,7 @@ Request:
   "status": "in_progress",
   "time_spent_seconds_delta": 240,
   "attempt_count": 2,
-  "occurred_at": "2026-01-20T10:15:00Z",
+  "timestamp": "2026-01-20T10:15:00Z",
   "idempotency_key": "evt-lesson-abc"
 }
 ```

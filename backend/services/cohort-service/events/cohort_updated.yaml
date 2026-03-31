@@ -1,4 +1,4 @@
-event_name: cohort_updated
+event_type: cohort_updated
 version: 1
 producer_service: cohort-service
 topic: lms.cohort.cohort_updated.v1

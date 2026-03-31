@@ -1,5 +1,5 @@
 {
-  "event_name": "lesson_published",
+  "event_type": "lesson_published",
   "event_version": "v1",
   "topic": "lms.lesson.published.v1",
   "producer_service": "lesson-service",
@@ -9,7 +9,7 @@
     "required": [
       "event_id",
       "event_type",
-      "occurred_at",
+      "timestamp",
       "tenant_id",
       "correlation_id",
       "data"
@@ -21,7 +21,7 @@
       "event_type": {
         "const": "lesson_published"
       },
-      "occurred_at": {
+      "timestamp": {
         "type": "string",
         "format": "date-time"
       },

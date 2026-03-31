@@ -1,4 +1,4 @@
-event_name: assessment_published
+event_type: assessment_published
 producer_service: assessment-service
 topic: lms.assessment.assessment_published.v1
 consumer_services:

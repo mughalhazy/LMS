@@ -75,5 +75,5 @@ class AuditRecord:
     action: str
     entity_type: str
     entity_id: str
-    occurred_at: datetime
+    timestamp: datetime
     details: dict[str, object] = field(default_factory=dict)

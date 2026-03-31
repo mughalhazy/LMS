@@ -50,7 +50,7 @@ class SubscriptionLifecycleService:
                 event=event,
                 from_state=previous_state,
                 to_state=next_state,
-                occurred_at=at,
+                timestamp=at,
             )
         )
         return subscription

@@ -1,5 +1,5 @@
 {
-  "event_name": "lesson_progression_hook_triggered",
+  "event_type": "lesson_progression_hook_triggered",
   "event_version": "v1",
   "topic": "lms.lesson.progression_hook.v1",
   "producer_service": "lesson-service",

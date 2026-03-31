@@ -1,5 +1,5 @@
 {
-  "event_name": "lesson_delivery_state_changed",
+  "event_type": "lesson_delivery_state_changed",
   "event_version": "v1",
   "topic": "lms.lesson.delivery_state_changed.v1",
   "producer_service": "lesson-service",

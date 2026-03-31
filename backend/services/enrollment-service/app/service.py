@@ -140,7 +140,7 @@ class EnrollmentService:
     def list_audit_logs(self, context: TenantContext) -> list[AuditLogEntry]:
         return self.audit_log.list(context.tenant_id)
 
-    def _publish(self, event_name: str, enrollment: Enrollment, actor_id: str, change_reason: str, from_status: str | None = None) -> None:
+    def _publish(self, event_type: str, enrollment: Enrollment, actor_id: str, change_reason: str, from_status: str | None = None) -> None:
         payload = asdict(enrollment)
         payload["status"] = enrollment.status.value
         payload["actor_id"] = actor_id
@@ -150,7 +150,7 @@ class EnrollmentService:
         self.event_publisher.publish(
             Event(
                 event_id=str(uuid4()),
-                event_type=event_name,
+                event_type=event_type,
                 timestamp=datetime.now(timezone.utc),
                 tenant_id=enrollment.tenant_id,
                 correlation_id=str(uuid4()),

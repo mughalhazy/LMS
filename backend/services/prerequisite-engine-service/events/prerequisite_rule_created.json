@@ -1,5 +1,5 @@
 {
-  "event_name": "prerequisite_rule_created",
+  "event_type": "prerequisite_rule_created",
   "domain": "prerequisite_engine",
   "version": "1.0.0",
   "producer_service": "prerequisite-engine-service",

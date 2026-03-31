@@ -10,8 +10,8 @@ from fastapi import HTTPException
 from .audit import AuditLogger
 from backend.services.shared.context.correlation import ensure_correlation_id
 from backend.services.shared.events.envelope import build_event
-from backend.services.shared.models.tenant import TenantContract
-from backend.services.shared.utils.capability_check import is_capability_enabled
+from shared.control_plane import ConfigService, EntitlementService
+from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
 from .schemas import (
@@ -102,6 +102,8 @@ class CourseService:
         self.storage = storage or InMemoryCourseStorage()
         self.audit_logger = AuditLogger("course.audit")
         self.event_publisher = EventPublisher()
+        self._config_service = ConfigService()
+        self._entitlement_service = EntitlementService(config_service=self._config_service)
         self.metrics: dict[str, int] = {
             "courses_created_total": 0,
             "workforce_mandatory_courses_total": 0,
@@ -254,9 +256,9 @@ class CourseService:
             raise HTTPException(status_code=404, detail="Course not found for tenant")
         return record
 
-    def _publish_event(self, event_name: str, record: CourseRecord, actor_id: str, payload: dict, correlation_id: str | None = None) -> None:
+    def _publish_event(self, event_type: str, record: CourseRecord, actor_id: str, payload: dict, correlation_id: str | None = None) -> None:
         event = build_event(
-            event_type=event_name,
+            event_type=event_type,
             tenant_id=record.tenant_id,
             correlation_id=ensure_correlation_id(correlation_id),
             payload=payload,
@@ -266,8 +268,8 @@ class CourseService:
 
 
     @staticmethod
-    def _tenant_from_request(request: object) -> TenantContract:
-        return tenant_contract_from_inputs(
+    def _tenant_from_request(request: object) -> TenantEntitlementContext:
+        tenant = tenant_contract_from_inputs(
             tenant_id=request.tenant_id,
             tenant_name=getattr(request, "tenant_name", None),
             country_code=getattr(request, "country_code", None),
@@ -275,10 +277,17 @@ class CourseService:
             plan_type=getattr(request, "plan_type", None),
             addon_flags=getattr(request, "addon_flags", []),
         )
+        return TenantEntitlementContext(
+            tenant_id=tenant.tenant_id,
+            country_code=tenant.country_code,
+            segment_id=tenant.segment_type,
+            plan_type=tenant.plan_type,
+            add_ons=tuple(tenant.addon_flags),
+        )
 
     def _assert_capability(self, request: object, capability: str) -> None:
         tenant = self._tenant_from_request(request)
-        if not is_capability_enabled(tenant, capability):
+        if not self._entitlement_service.is_enabled(tenant, capability):
             raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     @staticmethod

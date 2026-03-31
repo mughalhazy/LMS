@@ -24,7 +24,7 @@ class NotificationEvent:
     actor_id: str | None
     recipients: list[str]
     payload: dict[str, Any]
-    occurred_at: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=datetime.utcnow)
 
 
 @dataclass

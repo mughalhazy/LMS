@@ -287,7 +287,7 @@ Scalability mechanism:
 
 ```json
 {
-  "event_name": "ops.enrollment.state_changed",
+  "event_type": "ops.enrollment.state_changed",
   "tenant_id": "t_001",
   "branch_id": "b_karachi_01",
   "student_id": "stu_1001",
@@ -295,13 +295,13 @@ Scalability mechanism:
   "previous_state": "commerce_clearance_pending",
   "new_state": "active_in_batch",
   "reason_code": "commerce_clearance_confirmed",
-  "occurred_at": "2026-03-30T09:30:00Z"
+  "timestamp": "2026-03-30T09:30:00Z"
 }
 ```
 
 ```json
 {
-  "event_name": "ops.fee.watchlist.updated",
+  "event_type": "ops.fee.watchlist.updated",
   "tenant_id": "t_001",
   "branch_id": "b_lahore_central",
   "student_id": "stu_3344",
@@ -312,7 +312,7 @@ Scalability mechanism:
     "payment_plan_id": "pp_442"
   },
   "next_action": "counselor_followup",
-  "occurred_at": "2026-03-30T10:10:00Z"
+  "timestamp": "2026-03-30T10:10:00Z"
 }
 ```
 

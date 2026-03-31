@@ -19,7 +19,7 @@ class EventPublisher:
     def publish(
         self,
         *,
-        event_name: str,
+        event_type: str,
         topic: str,
         tenant_id: str,
         aggregate_id: str,
@@ -27,7 +27,7 @@ class EventPublisher:
     ) -> EventRecord:
         event = EventRecord(
             event_id=str(uuid4()),
-            event_type=event_name,
+            event_type=event_type,
             timestamp=datetime.now(timezone.utc),
             tenant_id=tenant_id,
             correlation_id=str(uuid4()),

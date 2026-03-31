@@ -1,5 +1,5 @@
 {
-  "event_name": "enrollment.lifecycle.changed",
+  "event_type": "enrollment.lifecycle.changed",
   "producer_service": "enrollment-service",
   "topic": "lms.enrollment.lifecycle-changed.v1",
   "schema_version": "1.0.0",
@@ -16,7 +16,7 @@
     "status": "assigned|active|completed|withdrawn|cancelled",
     "actor_id": "string",
     "change_reason": "string",
-    "occurred_at": "datetime"
+    "timestamp": "datetime"
   },
   "consumer_services": [
     "progress-service",
