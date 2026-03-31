@@ -60,7 +60,7 @@ class CapabilityMonetizationService:
 
     def plan_capability_mapping(self, plan_type: str) -> set[str]:
         """Single billing unit is capability_id; plans resolve to sets of capability_ids."""
-        return self._subscription_service.get_plan_capabilities(plan_type)
+        return self._capability_registry.list_plan_capabilities(plan_type)
 
     def enable_add_on(self, *, tenant_id: str, capability_id: str) -> None:
         if self._capability_registry.get_capability(capability_id) is None:

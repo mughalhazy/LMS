@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 from decimal import Decimal
+import re
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
@@ -11,6 +12,8 @@ from store import capability_index, feature_capability_mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 SUBSCRIPTION_SERVICE_FILE = ROOT / "services/subscription-service/service.py"
+MONETIZATION_FILE = ROOT / "services/commerce/monetization.py"
+CAPABILITY_REGISTRY_DIR = ROOT / "services/capability-registry"
 
 FEATURE_SOURCE_FILES = [
     ROOT / "backend/services/subscription-service/tests/test_pricing.py",
@@ -25,16 +28,8 @@ def _extract_declared_features() -> set[str]:
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8")
-        for feature in [
-            "dedicated_isolation",
-            "priority_support",
-            "catalog_basic",
-            "analytics_basic",
-            "analytics_advanced",
-            "feature.analytics",
-        ]:
-            if feature in content:
-                discovered.add(feature)
+        quoted_tokens = re.findall(r"['\"](feature\.[A-Za-z0-9_.-]+)['\"]", content)
+        discovered.update(quoted_tokens)
 
     # Use capability-registry mapping as the source of truth for declared features.
     discovered.update(feature_capability_mapping().keys())
@@ -57,9 +52,19 @@ def run_qc() -> dict[str, object]:
     missing_pricing_fields = sorted(
         capability_id for capability_id, capability in capabilities.items() if capability.price == Decimal("0")
     )
-    pricing_leakage_patterns = ["plan_price", "plan_pricing", "plan_rate"]
-    subscription_source = SUBSCRIPTION_SERVICE_FILE.read_text(encoding="utf-8") if SUBSCRIPTION_SERVICE_FILE.exists() else ""
-    pricing_leakage_hits = sorted(pattern for pattern in pricing_leakage_patterns if pattern in subscription_source)
+    pricing_leakage_patterns = ["plan_price", "plan_pricing", "plan_rate", "feature_price", "feature_pricing", "feature_rate"]
+    leakage_targets = [SUBSCRIPTION_SERVICE_FILE, MONETIZATION_FILE, *sorted(CAPABILITY_REGISTRY_DIR.glob("*.py"))]
+    pricing_leakage_hits: list[str] = []
+    for target in leakage_targets:
+        if not target.exists():
+            continue
+        if target.name == "qc.py":
+            continue
+        source = target.read_text(encoding="utf-8")
+        for pattern in pricing_leakage_patterns:
+            if pattern in source:
+                pricing_leakage_hits.append(f"{target.relative_to(ROOT)}:{pattern}")
+    pricing_leakage_hits = sorted(set(pricing_leakage_hits))
 
     passed = (
         not unmapped_features

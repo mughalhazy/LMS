@@ -133,6 +133,10 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
 
     pro_mapping = commerce.monetization.plan_capability_mapping("pro")
     assert "assessment.author" in pro_mapping
+    assert "learning.analytics.advanced" not in pro_mapping
+
+    enterprise_mapping = commerce.monetization.plan_capability_mapping(" Enterprise ")
+    assert "learning.analytics.advanced" in enterprise_mapping
 
     commerce.enable_capability_add_on(tenant_id="tenant_monetize", capability_id="learning.analytics.advanced")
     purchased = commerce.subscription_service.get_purchased_capability_add_ons("tenant_monetize")
