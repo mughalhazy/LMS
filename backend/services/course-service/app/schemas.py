@@ -62,15 +62,15 @@ class SessionLink(BaseModel):
 class TenantContext(BaseModel):
     tenant_id: str
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
 
 class CreateCourseRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -95,8 +95,8 @@ class CreateCourseRequest(BaseModel):
 
 class UpdateCourseRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -122,8 +122,8 @@ class UpdateCourseRequest(BaseModel):
 
 class PublishCourseRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -135,8 +135,8 @@ class PublishCourseRequest(BaseModel):
 
 class ArchiveCourseRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -145,8 +145,8 @@ class ArchiveCourseRequest(BaseModel):
 
 class UpsertProgramLinksRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
@@ -163,8 +163,8 @@ class UpsertProgramLinksRequest(BaseModel):
 
 class UpsertSessionLinksRequest(BaseModel):
     tenant_name: str = "tenant"
-    country_code: str = "US"
-    segment_type: str = "enterprise"
+    country_code: str = "ZZ"
+    segment_type: str = "default"
     plan_type: str = "free"
     addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str

@@ -87,7 +87,7 @@ class NotificationService:
         tenant_id: str,
         workflows: list[WorkflowDefinition],
         context: dict[str, Any],
-        tenant_country_code: str = "US",
+        tenant_country_code: str = "ZZ",
     ) -> tuple[int, dict[str, Any]]:
         if not workflows:
             return 200, {"tenant_id": tenant_id, "matched_workflows": 0, "executed_actions": 0, "results": []}
@@ -338,7 +338,7 @@ class NotificationService:
                 continue
 
             if message.channel in {"whatsapp", "sms"}:
-                tenant = Tenant(country_code=message.metadata.get("tenant_country_code", "US"))
+                tenant = Tenant(country_code=message.metadata.get("tenant_country_code", "ZZ"))
                 attempt = self.communication_router.send_message(
                     tenant=tenant,
                     user=CommunicationUser(user_id=message.user_id),

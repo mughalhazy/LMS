@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from backend.services.shared.models.tenant import TenantContract
 from backend.services.shared.utils.capability_check import is_capability_enabled
+from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
 from .schemas import (
     AnalyticsTutorRequest,
@@ -282,14 +283,7 @@ class AITutorService:
         )
 
     def _tenant_contract(self, tenant_id: str) -> TenantContract:
-        return TenantContract(
-            tenant_id=tenant_id,
-            name=tenant_id,
-            country_code="US",
-            segment_type="enterprise",
-            plan_type="enterprise",
-            addon_flags=["ai_tutor"],
-        ).normalized()
+        return tenant_contract_from_inputs(tenant_id=tenant_id)
 
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
         if not is_capability_enabled(self._tenant_contract(tenant_id), capability):

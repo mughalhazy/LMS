@@ -36,14 +36,13 @@ def resolve_subscription_plan(plan_type: str):
         return None
     return module.resolve_plan(plan_type)
 
-SUPPORTED_COUNTRIES = {"US", "GB", "DE", "IN", "SG"}
 DEFAULT_EFFECTIVE_SETTINGS = {
     "security.require_mfa": True,
     "security.session_ttl_minutes": 60,
     "feature.analytics": True,
 }
-COUNTRY_BEHAVIOR_DEFAULT_KEY = "default"
-COUNTRY_BEHAVIOR_FIELDS = ("payment_adapter", "communication_adapter", "delivery_mode")
+SETTINGS_PROFILE_DEFAULT_KEY = "default"
+SETTINGS_PROFILE_FIELDS = ("payment_adapter", "communication_adapter", "delivery_mode")
 
 
 class TenantService:
@@ -64,8 +63,8 @@ class TenantService:
         errors: list[dict[str, str]] = []
         if self.store.by_code(name.lower()):
             errors.append({"field": "name", "code": "duplicate", "message": "name already exists"})
-        if country_code.upper() not in SUPPORTED_COUNTRIES:
-            errors.append({"field": "country_code", "code": "unsupported", "message": "country_code is not supported"})
+        if not country_code.strip():
+            errors.append({"field": "country_code", "code": "invalid", "message": "country_code cannot be empty"})
         if not segment_type.strip():
             errors.append({"field": "segment_type", "code": "invalid", "message": "segment_type cannot be empty"})
         if not plan_type.strip():
@@ -210,7 +209,7 @@ class TenantService:
 
     def effective_settings(self, tenant: Tenant, include_defaults: bool) -> dict:
         cfg = asdict(tenant.configuration)
-        country_behavior = self._resolve_country_behavior(tenant, cfg.get("country_behavior_profiles", {}))
+        country_behavior = self._resolve_profile_overrides(cfg.get("country_behavior_profiles", {}))
         if include_defaults:
             merged = DEFAULT_EFFECTIVE_SETTINGS.copy()
             merged.update(cfg.get("security_baseline", {}))
@@ -220,7 +219,7 @@ class TenantService:
         cfg.update(country_behavior)
         return cfg
 
-    def _resolve_country_behavior(self, tenant: Tenant, profiles: dict[str, dict[str, str]]) -> dict[str, str]:
+    def _resolve_profile_overrides(self, profiles: dict[str, dict[str, str]]) -> dict[str, str]:
         normalized_profiles = {key.upper(): value for key, value in profiles.items() if isinstance(value, dict)}
-        profile = normalized_profiles.get(tenant.country_code.upper()) or normalized_profiles.get(COUNTRY_BEHAVIOR_DEFAULT_KEY.upper(), {})
-        return {key: value for key, value in profile.items() if key in COUNTRY_BEHAVIOR_FIELDS}
+        profile = normalized_profiles.get(SETTINGS_PROFILE_DEFAULT_KEY.upper(), {})
+        return {key: value for key, value in profile.items() if key in SETTINGS_PROFILE_FIELDS}

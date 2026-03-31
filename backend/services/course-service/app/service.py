@@ -12,6 +12,7 @@ from backend.services.shared.context.correlation import ensure_correlation_id
 from backend.services.shared.events.envelope import build_event
 from backend.services.shared.models.tenant import TenantContract
 from backend.services.shared.utils.capability_check import is_capability_enabled
+from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
 from .schemas import (
     CourseMetadata,
@@ -266,14 +267,14 @@ class CourseService:
 
     @staticmethod
     def _tenant_from_request(request: object) -> TenantContract:
-        return TenantContract(
+        return tenant_contract_from_inputs(
             tenant_id=request.tenant_id,
-            name=getattr(request, "tenant_name", "tenant"),
-            country_code=getattr(request, "country_code", "US"),
-            segment_type=getattr(request, "segment_type", "enterprise"),
-            plan_type=getattr(request, "plan_type", "free"),
+            tenant_name=getattr(request, "tenant_name", None),
+            country_code=getattr(request, "country_code", None),
+            segment_type=getattr(request, "segment_type", None),
+            plan_type=getattr(request, "plan_type", None),
             addon_flags=getattr(request, "addon_flags", []),
-        ).normalized()
+        )
 
     def _assert_capability(self, request: object, capability: str) -> None:
         tenant = self._tenant_from_request(request)
