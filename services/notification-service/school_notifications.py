@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Callable
 
 from shared.models.school import GuardianNotification, PerformanceAlert
 
@@ -11,6 +12,7 @@ class SchoolNotificationService:
     """Guardian and school alert notification helper built on notification-service boundary."""
 
     _notification_log: list[GuardianNotification] = field(default_factory=list)
+    entitlement: Callable[[str], bool] = field(default=lambda _capability_id: True)
 
     def notify_guardians_for_attendance(
         self,
@@ -20,6 +22,9 @@ class SchoolNotificationService:
         course_id: str,
         attendance_state: str,
     ) -> list[GuardianNotification]:
+        is_enabled = self.entitlement("notification.guardian.attendance.send")
+        if not is_enabled:
+            raise PermissionError("capability denied: notification.guardian.attendance.send")
         message = f"Attendance update: student {student_id} is marked {attendance_state} in course {course_id}."
         return self._emit_batch(
             guardian_ids=guardian_ids,
@@ -35,6 +40,9 @@ class SchoolNotificationService:
         guardian_ids: list[str],
         alert: PerformanceAlert,
     ) -> list[GuardianNotification]:
+        is_enabled = self.entitlement("notification.guardian.performance.send")
+        if not is_enabled:
+            raise PermissionError("capability denied: notification.guardian.performance.send")
         message = f"Performance alert ({alert.severity}): {alert.reason}"
         return self._emit_batch(
             guardian_ids=guardian_ids,

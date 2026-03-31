@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Callable
 
 from shared.models.school import PerformanceAlert
 
@@ -12,6 +13,7 @@ class SchoolAssessmentService:
 
     _scores: dict[str, list[float]] = field(default_factory=dict)
     _alerts: list[PerformanceAlert] = field(default_factory=list)
+    entitlement: Callable[[str], bool] = field(default=lambda _capability_id: True)
 
     def record_score(
         self,
@@ -21,6 +23,9 @@ class SchoolAssessmentService:
         score_percent: float,
         low_score_threshold: float = 60.0,
     ) -> PerformanceAlert | None:
+        is_enabled = self.entitlement("assessment.score.record")
+        if not is_enabled:
+            raise PermissionError("capability denied: assessment.score.record")
         key = f"{course_id}:{student_id}"
         self._scores.setdefault(key, []).append(score_percent)
 
