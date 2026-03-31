@@ -5,6 +5,7 @@ from .knowledge_graph import (
     KnowledgeNode,
     KnowledgeNodeType,
 )
+from .product import Product, ProductType
 
 __all__ = [
     "KnowledgeEdge",
@@ -12,4 +13,6 @@ __all__ = [
     "KnowledgeGraph",
     "KnowledgeNode",
     "KnowledgeNodeType",
+    "Product",
+    "ProductType",
 ]
