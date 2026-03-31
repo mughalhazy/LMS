@@ -70,3 +70,14 @@ def test_tenant_lifecycle_configuration_and_isolation() -> None:
     )
     assert cross_tenant.status_code == 200
     assert cross_tenant.json()["allowed"] is False
+
+
+def test_tenant_creation_rejects_unknown_plan_type() -> None:
+    validate = client.post(
+        "/api/v1/tenants/validate",
+        json={"name": "Plan Check", "country_code": "US", "segment_type": "enterprise", "plan_type": "does-not-exist"},
+    )
+    assert validate.status_code == 200
+    payload = validate.json()
+    assert payload["validation_passed"] is False
+    assert any(error["field"] == "plan_type" for error in payload["errors"])

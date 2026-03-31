@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from functools import lru_cache
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -12,6 +13,28 @@ from app.observability import MetricsRegistry
 from app.schemas import IsolationContext, IsolationDecision
 from app.store import TenantStore
 from backend.services.shared.utils.entitlements import resolve_capabilities
+
+
+@lru_cache(maxsize=1)
+def _subscription_pricing_module():
+    from importlib.util import module_from_spec, spec_from_file_location
+    from pathlib import Path
+
+    pricing_path = Path(__file__).resolve().parents[2] / "subscription-service" / "app" / "pricing.py"
+    spec = spec_from_file_location("subscription_service_pricing", pricing_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("subscription pricing module unavailable")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def resolve_subscription_plan(plan_type: str):
+    try:
+        module = _subscription_pricing_module()
+    except RuntimeError:
+        return None
+    return module.resolve_plan(plan_type)
 
 SUPPORTED_COUNTRIES = {"US", "GB", "DE", "IN", "SG"}
 DEFAULT_EFFECTIVE_SETTINGS = {
@@ -45,14 +68,16 @@ class TenantService:
             errors.append({"field": "segment_type", "code": "invalid", "message": "segment_type cannot be empty"})
         if not plan_type.strip():
             errors.append({"field": "plan_type", "code": "invalid", "message": "plan_type cannot be empty"})
+        elif resolve_subscription_plan(plan_type) is None:
+            errors.append({"field": "plan_type", "code": "unknown", "message": "plan_type is not recognized"})
         normalized_addons = addon_flags or []
         if any(not addon.strip() for addon in normalized_addons):
             errors.append({"field": "addon_flags", "code": "invalid", "message": "addon_flags cannot contain empty values"})
         return errors
 
     def _select_isolation_mode(self, plan_type: str) -> IsolationMode:
-        plan = plan_type.lower()
-        if plan in {"enterprise", "regulated"}:
+        plan = resolve_subscription_plan(plan_type)
+        if plan and "dedicated_isolation" in plan.included_features:
             return IsolationMode.DATABASE_PER_TENANT
         return IsolationMode.SCHEMA_PER_TENANT
 
