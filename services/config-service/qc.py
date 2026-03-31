@@ -8,7 +8,13 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parent))
 
 from service import ConfigService
-from shared.models.config import ConfigLevel, ConfigOverride, ConfigResolutionContext, ConfigScope
+from shared.models.config import (
+    ConfigLevel,
+    ConfigOverride,
+    ConfigResolutionContext,
+    ConfigScope,
+    segment_behavior_from_effective_config,
+)
 
 
 def run_qc() -> dict[str, object]:
@@ -17,7 +23,10 @@ def run_qc() -> dict[str, object]:
         ConfigOverride(
             scope=ConfigScope(level=ConfigLevel.GLOBAL, scope_id="global"),
             capability_enabled={"assessment.author": True},
-            behavior_tuning={"notifications": {"retry_limit": 2, "channel": "email"}},
+            behavior_tuning={
+                "notifications": {"retry_limit": 2, "channel": "email"},
+                "segment_behavior": {"attendance_enabled": False, "cohort_enabled": False},
+            },
         )
     )
     service.upsert_override(
@@ -29,9 +38,12 @@ def run_qc() -> dict[str, object]:
     )
     service.upsert_override(
         ConfigOverride(
-            scope=ConfigScope(level=ConfigLevel.SEGMENT, scope_id="enterprise"),
+            scope=ConfigScope(level=ConfigLevel.SEGMENT, scope_id="school"),
             capability_enabled={"analytics.advanced": True},
-            behavior_tuning={"grading": {"automation": "strict"}},
+            behavior_tuning={
+                "grading": {"automation": "strict"},
+                "segment_behavior": {"attendance_enabled": True, "guardian_notifications_enabled": True},
+            },
         )
     )
     service.upsert_override(
@@ -43,8 +55,9 @@ def run_qc() -> dict[str, object]:
     )
 
     effective = service.resolve(
-        ConfigResolutionContext(tenant_id="tenant_001", country_code="US", segment_id="enterprise")
+        ConfigResolutionContext(tenant_id="tenant_001", country_code="US", segment_id="school")
     )
+    segment_behavior = segment_behavior_from_effective_config(effective)
 
     overrides_work = (
         effective.capability_enabled.get("assessment.author") is True
@@ -53,12 +66,18 @@ def run_qc() -> dict[str, object]:
         and effective.behavior_tuning.get("notifications", {}).get("retry_limit") == 5
         and effective.behavior_tuning.get("grading", {}).get("automation") == "strict"
     )
+    behavior_controlled_via_config = (
+        segment_behavior.attendance_enabled is True
+        and segment_behavior.guardian_notifications_enabled is True
+        and segment_behavior.cohort_enabled is False
+    )
     no_conflicts = not service.has_conflicting_config_paths()
 
-    passed = overrides_work and no_conflicts
+    passed = overrides_work and no_conflicts and behavior_controlled_via_config
     return {
         "checks": {
             "overrides_work_correctly": overrides_work,
+            "behavior_controlled_via_config": behavior_controlled_via_config,
             "no_conflicting_config_paths": no_conflicts,
         },
         "score": 10 if passed else 0,

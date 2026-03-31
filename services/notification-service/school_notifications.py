@@ -8,11 +8,15 @@ from shared.models.school import GuardianNotification, PerformanceAlert
 
 
 @dataclass
-class SchoolNotificationService:
-    """Guardian and school alert notification helper built on notification-service boundary."""
+class SegmentNotificationService:
+    """Config-driven guardian notification helper for segment behavior."""
 
+    behavior_config: dict[str, bool] = field(default_factory=dict)
     _notification_log: list[GuardianNotification] = field(default_factory=list)
     entitlement: Callable[[str], bool] = field(default=lambda _capability_id: True)
+
+    def _is_behavior_enabled(self, key: str, *, default: bool = False) -> bool:
+        return bool(self.behavior_config.get(key, default))
 
     def notify_guardians_for_attendance(
         self,
@@ -22,6 +26,8 @@ class SchoolNotificationService:
         course_id: str,
         attendance_state: str,
     ) -> list[GuardianNotification]:
+        if not self._is_behavior_enabled("guardian_notifications_enabled"):
+            raise RuntimeError("segment behavior disabled: guardian_notifications_enabled")
         is_enabled = self.entitlement("notification.guardian.attendance.send")
         if not is_enabled:
             raise PermissionError("capability denied: notification.guardian.attendance.send")
@@ -40,6 +46,8 @@ class SchoolNotificationService:
         guardian_ids: list[str],
         alert: PerformanceAlert,
     ) -> list[GuardianNotification]:
+        if not self._is_behavior_enabled("guardian_notifications_enabled"):
+            raise RuntimeError("segment behavior disabled: guardian_notifications_enabled")
         is_enabled = self.entitlement("notification.guardian.performance.send")
         if not is_enabled:
             raise PermissionError("capability denied: notification.guardian.performance.send")
@@ -81,3 +89,6 @@ class SchoolNotificationService:
 
     def notifications_for_guardian(self, guardian_id: str) -> list[GuardianNotification]:
         return [n for n in self._notification_log if n.guardian_id == guardian_id]
+
+
+SchoolNotificationService = SegmentNotificationService
