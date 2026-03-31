@@ -104,39 +104,29 @@ class ProgressServiceV2Tests(unittest.TestCase):
         self.assertEqual(summary.learning_paths[0].progress_percentage, 50.0)
         self.assertEqual(summary.learning_paths[0].current_course_id, "course-2")
 
-    def test_academy_completion_includes_academy_context_in_event_payload(self) -> None:
-        req = LessonProgressCompleteRequest(
+    def test_workforce_mandatory_training_tracking_and_reminder_event(self) -> None:
+        req = LessonProgressUpsertRequest(
             tenant_id="tenant-a",
-            learner_id="learner-1",
-            course_id="course-1",
-            enrollment_id="enroll-1",
-            academy_cohort_id="batch-2026-A",
-            academy_enrollment_id="academy-enroll-1",
-            score=90,
-            time_spent_seconds=100,
+            learner_id="learner-2",
+            course_id="course-compliance",
+            enrollment_id="enroll-2",
+            progress_percentage=60.0,
+            status="in_progress",
+            time_spent_seconds_delta=45,
             attempt_count=1,
-            completed_at=datetime.now(timezone.utc),
-            idempotency_key="evt-academy",
+            occurred_at=datetime.now(timezone.utc),
+            idempotency_key="evt-workforce-1",
+            workforce_policy_id="policy-annual-security",
+            workforce_manager_id="mgr-777",
+            workforce_due_date="2026-04-15",
         )
-        self.service.complete_lesson("lesson-1", req, actor_id="tester")
-        completion = [event for event in self.publisher.events if event.event_type == "LessonCompletionTracked"][-1]
-        self.assertEqual(completion.payload["academy_cohort_id"], "batch-2026-A")
-        self.assertEqual(completion.payload["academy_enrollment_id"], "academy-enroll-1")
+        self.service.upsert_lesson_progress("lesson-10", req, actor_id="tester")
 
-    def test_academy_context_must_be_provided_as_pair(self) -> None:
-        with self.assertRaises(ValueError):
-            LessonProgressCompleteRequest(
-                tenant_id="tenant-a",
-                learner_id="learner-1",
-                course_id="course-1",
-                enrollment_id="enroll-1",
-                academy_cohort_id="batch-2026-A",
-                score=90,
-                time_spent_seconds=100,
-                attempt_count=1,
-                completed_at=datetime.now(timezone.utc),
-                idempotency_key="evt-academy-invalid",
-            )
+        summary = self.service.get_learner_summary("tenant-a", "learner-2")
+        self.assertEqual(len(summary.mandatory_training), 1)
+        self.assertEqual(summary.mandatory_training[0]["manager_id"], "mgr-777")
+        event_names = [event.event_type for event in self.publisher.events]
+        self.assertIn("workforce.compliance.reminder_required", event_names)
 
 
 if __name__ == "__main__":

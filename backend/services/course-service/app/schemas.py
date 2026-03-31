@@ -33,7 +33,18 @@ class CourseMetadata(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=1)
     tags: list[str] = Field(default_factory=list)
     objectives: list[str] = Field(default_factory=list)
+    audience: str = "general"
+    mandatory_training: bool = False
+    compliance_policy_id: str | None = None
+    renewal_cycle_days: int | None = Field(default=None, ge=1)
+    manager_visibility_enabled: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_workforce_fields(self) -> "CourseMetadata":
+        if self.mandatory_training and self.audience == "workforce" and not self.compliance_policy_id:
+            raise ValueError("compliance_policy_id is required for workforce mandatory training")
+        return self
 
 
 class ProgramLink(BaseModel):

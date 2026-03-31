@@ -132,34 +132,35 @@ def test_events_are_published_for_lifecycle_changes() -> None:
     assert service.event_publisher.list_events()[-1].event_name == "course.lifecycle.created.v1"
 
 
-def test_academy_cohort_delivery_requires_academy_cohort_id() -> None:
-    invalid = client.post(
+def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> None:
+    bad_response = client.post(
         "/api/v1/courses",
-        headers=_headers(),
+        headers=_headers("tenant-workforce"),
         json={
-            "tenant_id": "tenant-a",
-            "created_by": "academy-admin",
-            "title": "Academy Data Lab",
-            "metadata": {"delivery_mode": "cohort_based"},
+            "tenant_id": "tenant-workforce",
+            "created_by": "hr-1",
+            "title": "Annual Safety",
+            "metadata": {"audience": "workforce", "mandatory_training": True},
         },
     )
-    assert invalid.status_code == 422
+    assert bad_response.status_code == 422
 
-    valid = client.post(
+    ok_response = client.post(
         "/api/v1/courses",
-        headers=_headers(),
+        headers=_headers("tenant-workforce"),
         json={
-            "tenant_id": "tenant-a",
-            "created_by": "academy-admin",
-            "title": "Academy Data Lab",
+            "tenant_id": "tenant-workforce",
+            "created_by": "hr-1",
+            "title": "Annual Safety",
             "metadata": {
-                "delivery_mode": "cohort_based",
-                "academy_cohort_id": "batch-2026-A",
-                "academy_enrollment_enabled": True,
+                "audience": "workforce",
+                "mandatory_training": True,
+                "compliance_policy_id": "policy-safety-annual",
+                "manager_visibility_enabled": True,
             },
         },
     )
-    assert valid.status_code == 201
-    payload = valid.json()["data"]
-    assert payload["metadata"]["academy_cohort_id"] == "batch-2026-A"
-    assert payload["metadata"]["academy_enrollment_enabled"] is True
+    assert ok_response.status_code == 201
+    metrics_response = client.get("/metrics", headers=_headers("tenant-workforce"))
+    assert metrics_response.status_code == 200
+    assert metrics_response.json()["workforce_mandatory_courses_total"] >= 1

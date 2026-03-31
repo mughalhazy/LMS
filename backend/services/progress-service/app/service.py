@@ -14,6 +14,7 @@ from .models import (
     ProgressAuditEntry,
     ProgressEvent,
     ProgressRecord,
+    MandatoryTrainingProgress,
     utc_now,
 )
 from .schemas import (
@@ -80,6 +81,7 @@ class ProgressService:
         self.publisher = publisher
         self.metrics = metrics
         self.enrollment_gateway = enrollment_gateway or AllowAllEnrollmentGateway()
+        self._mandatory_training: dict[tuple[str, str, str], MandatoryTrainingProgress] = {}
 
     def upsert_lesson_progress(self, lesson_id: str, request: LessonProgressUpsertRequest, actor_id: str) -> ProgressRecordResponse:
         if not self.enrollment_gateway.is_active(request.tenant_id, request.enrollment_id):
@@ -117,6 +119,7 @@ class ProgressService:
         snapshot = self._recompute_course_snapshot(request.tenant_id, request.learner_id, request.course_id, request.enrollment_id)
         self._update_metrics_daily(snapshot)
         self.metrics.increment("progress.write.success")
+        self._track_mandatory_training(request, row)
         return self._record_response(row)
 
     def complete_lesson(self, lesson_id: str, request: LessonProgressCompleteRequest, actor_id: str) -> LessonCompleteResponse:
@@ -133,6 +136,9 @@ class ProgressService:
             attempt_count=request.attempt_count,
             occurred_at=request.completed_at,
             idempotency_key=request.idempotency_key,
+            workforce_policy_id=request.workforce_policy_id,
+            workforce_manager_id=request.workforce_manager_id,
+            workforce_due_date=request.workforce_due_date,
         )
         lesson_progress = self.upsert_lesson_progress(lesson_id, upsert, actor_id)
         course = self.store.get_course_snapshot(request.tenant_id, request.learner_id, request.course_id)
@@ -229,7 +235,27 @@ class ProgressService:
         lessons = [self._record_response(r) for r in self.store.list_learner_progress(tenant_id, learner_id) if r.lesson_id]
         courses = [self._course_response(row) for row in self.store.list_course_snapshots(tenant_id, learner_id)]
         paths = [self._path_response(row) for row in self.store.list_path_snapshots(tenant_id, learner_id)]
-        return LearnerProgressSummaryResponse(tenant_id=tenant_id, learner_id=learner_id, courses=courses, lessons=lessons, learning_paths=paths)
+        mandatory_training = [
+            {
+                "course_id": row.course_id,
+                "policy_id": row.policy_id,
+                "manager_id": row.manager_id,
+                "due_date": row.due_date,
+                "completion_status": row.completion_status,
+                "completion_percentage": row.completion_percentage,
+                "reminder_required": row.reminder_required,
+            }
+            for (row_tenant, row_learner, _), row in self._mandatory_training.items()
+            if row_tenant == tenant_id and row_learner == learner_id
+        ]
+        return LearnerProgressSummaryResponse(
+            tenant_id=tenant_id,
+            learner_id=learner_id,
+            courses=courses,
+            lessons=lessons,
+            learning_paths=paths,
+            mandatory_training=mandatory_training,
+        )
 
     def get_course_progress(self, tenant_id: str, learner_id: str, course_id: str) -> CourseProgressResponse | None:
         row = self.store.get_course_snapshot(tenant_id, learner_id, course_id)
@@ -319,6 +345,44 @@ class ProgressService:
         }
         self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="progress.updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
         self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="course_progress_updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
+
+    def _track_mandatory_training(self, request: LessonProgressUpsertRequest, row: ProgressRecord) -> None:
+        if not request.workforce_policy_id or not request.workforce_manager_id or not request.workforce_due_date:
+            return
+        status = "completed" if row.status in {"completed", "passed"} else "in_progress"
+        reminder_required = status != "completed"
+        tracking = MandatoryTrainingProgress(
+            tenant_id=request.tenant_id,
+            learner_id=request.learner_id,
+            manager_id=request.workforce_manager_id,
+            course_id=request.course_id,
+            policy_id=request.workforce_policy_id,
+            due_date=request.workforce_due_date,
+            completion_status=status,
+            completion_percentage=row.progress_percentage,
+            reminder_required=reminder_required,
+            last_activity_at=row.last_activity_at,
+        )
+        self._mandatory_training[(request.tenant_id, request.learner_id, request.course_id)] = tracking
+        if reminder_required and row.progress_percentage < 100:
+            self.publisher.publish(
+                ProgressEvent(
+                    event_id=str(uuid4()),
+                    event_type="workforce.compliance.reminder_required",
+                    timestamp=utc_now(),
+                    tenant_id=request.tenant_id,
+                    correlation_id=str(uuid4()),
+                    payload={
+                        "tenant_id": request.tenant_id,
+                        "learner_id": request.learner_id,
+                        "manager_id": request.workforce_manager_id,
+                        "course_id": request.course_id,
+                        "policy_id": request.workforce_policy_id,
+                        "due_date": request.workforce_due_date,
+                    },
+                    metadata={"producer": "progress-service"},
+                )
+            )
 
     def _update_metrics_daily(self, snapshot: CourseProgressSnapshot) -> None:
         started_count = 1 if snapshot.total_lessons > 0 else 0

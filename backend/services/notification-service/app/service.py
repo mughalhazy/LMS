@@ -49,6 +49,20 @@ WORKFLOW_EVENT_ROUTES: dict[str, dict[str, Any]] = {
         "body_template": "Learner {learner_id} requires performance escalation in {course_id}.",
         "workflow_action": "escalation",
     },
+    "workforce.compliance.reminder_required": {
+        "category": "compliance",
+        "channels": ["email", "in_app"],
+        "subject_template": "Mandatory training due soon: {course_id}",
+        "body_template": "Learner {learner_id} must complete mandatory training {course_id} by {due_date}.",
+        "workflow_action": "reminder",
+    },
+    "workforce.manager.digest": {
+        "category": "compliance",
+        "channels": ["email"],
+        "subject_template": "Manager compliance digest",
+        "body_template": "You have {non_compliant_count} direct reports with incomplete mandatory training.",
+        "workflow_action": "manager_visibility",
+    },
 }
 
 
@@ -217,6 +231,13 @@ class NotificationService:
         }
 
     def process_event(self, req: EventNotificationRequest) -> tuple[int, dict[str, Any]]:
+        if req.event_type.startswith("workforce.") and req.payload.get("audience", "workforce") != "workforce":
+            return 202, {
+                "status": "ignored",
+                "reason": "non_workforce_audience",
+                "tenant_id": req.tenant_id,
+                "event_type": req.event_type,
+            }
         try:
             self._ensure_service_available()
             route = self._with_database_retry(lambda: self.store.get_route(req.tenant_id, req.event_type))

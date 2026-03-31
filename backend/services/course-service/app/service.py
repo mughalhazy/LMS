@@ -103,6 +103,7 @@ class CourseService:
         self.event_publisher = EventPublisher()
         self.metrics: dict[str, int] = {
             "courses_created_total": 0,
+            "workforce_mandatory_courses_total": 0,
             "courses_published_total": 0,
             "courses_archived_total": 0,
             "course_link_updates_total": 0,
@@ -136,8 +137,20 @@ class CourseService:
         )
         self.storage.save(record)
         self.metrics["courses_created_total"] += 1
+        if request.metadata.audience == "workforce" and request.metadata.mandatory_training:
+            self.metrics["workforce_mandatory_courses_total"] += 1
         self.audit_logger.log(event_type="course.created", tenant_id=request.tenant_id, actor_id=request.created_by, details={"course_id": record.course_id})
-        self._publish_event("course.lifecycle.created.v1", record, request.created_by, {"status": record.status.value})
+        self._publish_event(
+            "course.lifecycle.created.v1",
+            record,
+            request.created_by,
+            {
+                "status": record.status.value,
+                "audience": request.metadata.audience,
+                "mandatory_training": request.metadata.mandatory_training,
+                "compliance_policy_id": request.metadata.compliance_policy_id,
+            },
+        )
         return self._to_response(record)
 
     def list_courses(self, tenant_id: str) -> list[CourseResponse]:

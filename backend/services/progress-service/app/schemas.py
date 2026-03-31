@@ -24,6 +24,9 @@ class LessonProgressUpsertRequest(BaseModel):
     attempt_count: int = Field(ge=0)
     occurred_at: datetime
     idempotency_key: str
+    workforce_policy_id: str | None = None
+    workforce_manager_id: str | None = None
+    workforce_due_date: str | None = None
 
     @model_validator(mode="after")
     def validate_academy_context(self) -> "LessonProgressUpsertRequest":
@@ -44,6 +47,9 @@ class LessonProgressCompleteRequest(BaseModel):
     attempt_count: int = Field(ge=0)
     completed_at: datetime
     idempotency_key: str
+    workforce_policy_id: str | None = None
+    workforce_manager_id: str | None = None
+    workforce_due_date: str | None = None
 
     @model_validator(mode="after")
     def validate_academy_context(self) -> "LessonProgressCompleteRequest":
@@ -108,6 +114,7 @@ class LearnerProgressSummaryResponse(BaseModel):
     courses: list[CourseProgressResponse]
     lessons: list[ProgressRecordResponse]
     learning_paths: list[LearningPathProgressResponse]
+    mandatory_training: list[dict[str, str | float | bool]]
 
 
 class LessonCompleteResponse(BaseModel):
