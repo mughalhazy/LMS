@@ -3,8 +3,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from integrations.payment.adapters import MockFailureAdapter, MockSuccessAdapter
-from integrations.payment.base_adapter import PaymentResult, TenantPaymentContext
-from integrations.payment.router import PaymentProviderRouter
+from integrations.payments.base_adapter import PaymentResult, TenantPaymentContext
+from integrations.payments.router import PaymentProviderRouter
 from services.commerce.catalog import ProductType
 from services.commerce.service import CommerceService
 from shared.utils.entitlement import TenantEntitlementContext
@@ -145,3 +145,14 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
     assert charge_map["learning.analytics.advanced"].amount == Decimal("0.70")
     assert charge_map["learning.analytics.advanced"].units == 7
     assert charge_map["assessment.author"].amount == Decimal("29.00")
+
+
+def test_pakistan_payment_router_connection_for_commerce_orchestration() -> None:
+    from services.commerce.service import build_commerce_service_for_pakistan
+
+    commerce = build_commerce_service_for_pakistan(default_provider="easypaisa")
+    adapter = commerce._payment_router.resolve(
+        TenantPaymentContext(tenant_id="tenant_pk_orch", country_code="PK")
+    )
+
+    assert adapter.provider_key == "easypaisa"
