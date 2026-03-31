@@ -20,6 +20,16 @@ def _parse_price(value: object) -> Decimal:
         return Decimal("0")
 
 
+def _parse_string_list(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(
+        item.strip().lower()
+        for item in value
+        if isinstance(item, str) and item.strip()
+    )
+
+
 @lru_cache(maxsize=1)
 def _registry_payload() -> dict[str, object]:
     payload = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
@@ -47,6 +57,8 @@ def capability_index() -> dict[str, Capability]:
             default_enabled=bool(item.get("default_enabled", False)),
             price=_parse_price(item.get("price", "0")),
             usage_based=bool(item.get("usage_based", False)),
+            included_in_plans=_parse_string_list(item.get("included_in_plans", [])),
+            included_in_add_ons=_parse_string_list(item.get("included_in_add_ons", [])),
         )
         if not capability.capability_id:
             continue

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+import importlib.util
 from typing import Callable
 
 import sys
@@ -10,6 +11,20 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.capability_pricing import CapabilityPricing
+
+_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_registry_service():
+    module_path = _ROOT / "services/capability-registry/service.py"
+    sys.path.append(str(module_path.parent))
+    spec = importlib.util.spec_from_file_location("capability_registry_for_subscription", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError("Unable to load capability registry service")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.CapabilityRegistryService
 
 
 @dataclass(frozen=True)
@@ -33,6 +48,7 @@ class SubscriptionService:
         self._tenant_subscriptions: dict[str, TenantSubscription] = {}
         self._tenant_add_on_purchases: dict[str, set[str]] = {}
         self._tenant_usage_ledger: dict[str, dict[str, int]] = {}
+        self._capability_registry = _load_registry_service()()
 
     def upsert_tenant_subscription(self, subscription: TenantSubscription) -> None:
         normalized = subscription.normalized()
@@ -72,33 +88,12 @@ class SubscriptionService:
         return normalized_pricing.price
 
     def get_plan_capabilities(self, plan_type: str) -> set[str]:
-        plan_capabilities = {
-            "free": {
-                "assessment.attempt",
-                "recommendation.basic",
-                "commerce.catalog.basic",
-                "learning.analytics.basic",
-            },
-            "pro": {
-                "assessment.attempt",
-                "assessment.author",
-                "course.write",
-                "recommendation.basic",
-                "commerce.catalog.basic",
-                "learning.analytics.basic",
-            },
-            "enterprise": {
-                "assessment.attempt",
-                "assessment.author",
-                "course.write",
-                "recommendation.basic",
-                "commerce.catalog.basic",
-                "learning.analytics.basic",
-                "learning.analytics.advanced",
-                "platform.support.priority",
-            },
+        normalized_plan = plan_type.strip().lower()
+        return {
+            capability.capability_id
+            for capability in self._capability_registry.list_capabilities()
+            if normalized_plan in capability.included_in_plans
         }
-        return set(plan_capabilities.get(plan_type.strip().lower(), set()))
 
     def is_enabled_for_subscription(
         self,
@@ -121,10 +116,9 @@ class SubscriptionService:
         return False
 
     def get_add_on_capabilities(self, add_on: str) -> set[str]:
-        add_on_capabilities = {
-            "analytics_advanced": {"learning.analytics.advanced"},
-            "ai_tutor_pack": {"ai.tutor"},
-            "dedicated_isolation": {"platform.isolation.dedicated"},
-            "priority_support": {"platform.support.priority"},
+        normalized_add_on = add_on.strip().lower()
+        return {
+            capability.capability_id
+            for capability in self._capability_registry.list_capabilities()
+            if normalized_add_on in capability.included_in_add_ons
         }
-        return set(add_on_capabilities.get(add_on.strip().lower(), set()))

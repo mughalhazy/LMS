@@ -7,7 +7,12 @@
       "category": "assessment",
       "default_enabled": false,
       "price": "29.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "assessment.attempt",
@@ -16,7 +21,13 @@
       "category": "assessment",
       "default_enabled": true,
       "price": "0.05",
-      "usage_based": true
+      "usage_based": true,
+      "included_in_plans": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "course.write",
@@ -25,7 +36,12 @@
       "category": "course",
       "default_enabled": false,
       "price": "39.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "recommendation.basic",
@@ -34,7 +50,13 @@
       "category": "intelligence",
       "default_enabled": true,
       "price": "9.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "ai.tutor",
@@ -43,7 +65,11 @@
       "category": "intelligence",
       "default_enabled": false,
       "price": "0.20",
-      "usage_based": true
+      "usage_based": true,
+      "included_in_plans": [],
+      "included_in_add_ons": [
+        "ai_tutor_pack"
+      ]
     },
     {
       "capability_id": "platform.isolation.dedicated",
@@ -52,7 +78,11 @@
       "category": "platform",
       "default_enabled": false,
       "price": "299.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [],
+      "included_in_add_ons": [
+        "dedicated_isolation"
+      ]
     },
     {
       "capability_id": "platform.support.priority",
@@ -61,7 +91,13 @@
       "category": "platform",
       "default_enabled": false,
       "price": "149.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": [
+        "priority_support"
+      ]
     },
     {
       "capability_id": "commerce.catalog.basic",
@@ -70,7 +106,13 @@
       "category": "commerce",
       "default_enabled": true,
       "price": "15.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "learning.analytics.basic",
@@ -79,7 +121,13 @@
       "category": "analytics",
       "default_enabled": true,
       "price": "19.00",
-      "usage_based": false
+      "usage_based": false,
+      "included_in_plans": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "learning.analytics.advanced",
@@ -88,7 +136,13 @@
       "category": "analytics",
       "default_enabled": false,
       "price": "0.10",
-      "usage_based": true
+      "usage_based": true,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": [
+        "analytics_advanced"
+      ]
     }
   ],
   "feature_to_capability": {
