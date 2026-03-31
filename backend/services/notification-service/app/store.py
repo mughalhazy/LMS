@@ -19,11 +19,11 @@ class EventRoute:
 
 
 class DatabaseUnavailableError(RuntimeError):
-    pass
+    """Domain-specific exception."""
 
 
 class ServiceUnavailableError(RuntimeError):
-    pass
+    """Domain-specific exception."""
 
 
 class InMemoryNotificationStore:

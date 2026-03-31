@@ -10,7 +10,7 @@ from typing import Dict, Tuple
 
 
 class SecurityError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 def hash_password(password: str, salt: str | None = None) -> str:

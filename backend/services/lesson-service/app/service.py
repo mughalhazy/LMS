@@ -13,11 +13,11 @@ from .store import LessonStore
 
 
 class NotFoundError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class ValidationError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class LessonService:

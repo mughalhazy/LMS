@@ -142,6 +142,6 @@ def test_tenant_isolation_on_question_bank_mutation() -> None:
             points=1,
         )
     except TenantScopeError:
-        pass
+        return
     else:
         raise AssertionError("cross-tenant write should fail")

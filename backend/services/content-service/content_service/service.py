@@ -10,11 +10,11 @@ from .repository import ContentRepository
 
 
 class AccessDeniedError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class NotFoundError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class ContentService:

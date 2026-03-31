@@ -9,19 +9,19 @@ from .models import QuizDefinition, QuizQuestion, QuizScore, QuizSession
 
 
 class QuizEngineError(Exception):
-    pass
+    """Domain-specific exception."""
 
 
 class NotFoundError(QuizEngineError):
-    pass
+    """Domain-specific exception."""
 
 
 class ValidationError(QuizEngineError):
-    pass
+    """Domain-specific exception."""
 
 
 class SessionExpiredError(QuizEngineError):
-    pass
+    """Domain-specific exception."""
 
 
 class QuizEngine:

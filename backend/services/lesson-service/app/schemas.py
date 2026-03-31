@@ -25,7 +25,7 @@ class LessonBase(BaseModel):
 
 
 class LessonCreateRequest(LessonBase):
-    pass
+    """Payload for creating a lesson."""
 
 
 class LessonUpdateRequest(BaseModel):

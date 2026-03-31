@@ -4,7 +4,7 @@ import os
 
 
 class SecretConfigurationError(RuntimeError):
-    pass
+    """Domain-specific exception."""
 
 
 def get_required_secret(name: str) -> str:
