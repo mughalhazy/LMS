@@ -50,6 +50,3 @@ def resolve_capabilities(tenant: TenantContract) -> EntitlementResolution:
     capabilities.difference_update(COUNTRY_RESTRICTIONS.get(normalized.country_code, set()))
     return EntitlementResolution(capabilities=capabilities)
 
-
-def is_capability_enabled(tenant: TenantContract, capability: str) -> bool:
-    return capability in resolve_capabilities(tenant).capabilities
