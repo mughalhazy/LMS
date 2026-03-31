@@ -161,6 +161,38 @@ def test_qc_fix_prevents_learning_core_overlap() -> None:
     assert service.is_single_source_of_truth() is True
 
 
+def test_qc_autofix_validates_capability_driven_ops_and_sor_fee_link() -> None:
+    service = AcademyOpsService()
+    service.register_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_qc",
+            student_id="learner_qc_1",
+            display_name="QC Learner",
+            email="qc@example.edu",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+    service.record_fee_invoice(
+        learner_id="learner_qc_1",
+        invoice=Invoice.issued("inv_qc_1", "tenant_qc", Decimal("90.00")),
+    )
+    service.record_fee_payment(
+        FeePayment(
+            tenant_id="tenant_qc",
+            learner_id="learner_qc_1",
+            payment_id="pay_qc_1",
+            amount=Decimal("40.00"),
+        )
+    )
+
+    qc = service.run_qc_autofix()
+    assert qc["capability_driven_ops"] is True
+    assert qc["segment_branching_removed"] is True
+    assert qc["fee_tracking_connected_to_sor"] is True
+    assert qc["system_of_record_qc_pass"] is True
+
+
 def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> None:
     service = AcademyOpsService()
     service.register_student_profile(

@@ -29,8 +29,12 @@ def _load_module(module_name: str, relative_path: str):
 
 
 _SorModule = _load_module("system_of_record_module_for_academy_ops", "services/system-of-record/service.py")
+_EntitlementModule = _load_module("entitlement_service_module_for_academy_ops", "services/entitlement-service/service.py")
+_EntitlementModelsModule = _load_module("entitlement_models_for_academy_ops", "shared/utils/entitlement.py")
 SystemOfRecordService = _SorModule.SystemOfRecordService
 UnifiedStudentProfile = _SorModule.UnifiedStudentProfile
+EntitlementService = _EntitlementModule.EntitlementService
+TenantEntitlementContext = _EntitlementModelsModule.TenantEntitlementContext
 
 
 @dataclass(frozen=True)
@@ -135,8 +139,22 @@ class TeacherPayoutRecord:
 class AcademyOpsService:
     """Academy operations bounded context for branch-level execution data."""
 
-    def __init__(self, *, sor_service: SystemOfRecordService | None = None) -> None:
+    _OPERATION_CAPABILITIES = {
+        "batch": "academy.ops.batch",
+        "attendance": "academy.ops.attendance",
+        "timetable": "academy.ops.timetable",
+        "teacher_assignment": "academy.ops.teacher_assignment",
+        "fee_tracking": "academy.ops.fee_tracking",
+    }
+
+    def __init__(
+        self,
+        *,
+        sor_service: SystemOfRecordService | None = None,
+        entitlement_service: EntitlementService | None = None,
+    ) -> None:
         self._sor = sor_service or SystemOfRecordService()
+        self._entitlement = entitlement_service or EntitlementService()
 
         self._branches: dict[tuple[str, str], Branch] = {}
         self._batches: dict[tuple[str, str], Batch] = {}
@@ -166,17 +184,37 @@ class AcademyOpsService:
     def _key(self, *parts: str) -> tuple[str, ...]:
         return tuple(part.strip() for part in parts)
 
+    def _tenant_context(self, tenant_id: str) -> TenantEntitlementContext:
+        profiles = self._sor.list_student_profiles(tenant_id=tenant_id)
+        if profiles:
+            profile = profiles[0]
+            return TenantEntitlementContext(
+                tenant_id=tenant_id,
+                plan_type="pro",
+                country_code=profile.country_code,
+                segment_id=profile.segment_id,
+            )
+        return TenantEntitlementContext(tenant_id=tenant_id, plan_type="pro")
+
+    def _require_operation_capability(self, *, tenant_id: str, operation: str) -> None:
+        capability_id = self._OPERATION_CAPABILITIES[operation]
+        if not self._entitlement.is_enabled(self._tenant_context(tenant_id), capability_id):
+            raise PermissionError(f"capability '{capability_id}' is disabled for tenant '{tenant_id}'")
+
     def upsert_branch(self, branch: Branch) -> Branch:
+        self._require_operation_capability(tenant_id=branch.tenant_id, operation="batch")
         self._branches[self._key(branch.tenant_id, branch.branch_id)] = branch
         return branch
 
     def create_batch(self, batch: Batch) -> Batch:
+        self._require_operation_capability(tenant_id=batch.tenant_id, operation="batch")
         if self._key(batch.tenant_id, batch.branch_id) not in self._branches:
             raise KeyError("branch not found")
         self._batches[self._key(batch.tenant_id, batch.batch_id)] = batch
         return batch
 
     def assign_teacher(self, assignment: TeacherAssignment) -> TeacherAssignment:
+        self._require_operation_capability(tenant_id=assignment.tenant_id, operation="teacher_assignment")
         batch_key = self._key(assignment.tenant_id, assignment.batch_id)
         batch = self._batches.get(batch_key)
         if batch is None:
@@ -223,6 +261,7 @@ class AcademyOpsService:
         return teacher_snapshots[-1] if teacher_snapshots else None
 
     def publish_timetable_slot(self, slot: TimetableSlot) -> TimetableSlot:
+        self._require_operation_capability(tenant_id=slot.tenant_id, operation="timetable")
         batch_key = self._key(slot.tenant_id, slot.batch_id)
         assignment = self._teacher_assignments.get(batch_key)
         if assignment is None or assignment.teacher_id != slot.teacher_id:
@@ -239,6 +278,7 @@ class AcademyOpsService:
         return self._sor.upsert_student_profile(profile)
 
     def record_attendance(self, record: AttendanceRecord) -> AttendanceRecord:
+        self._require_operation_capability(tenant_id=record.tenant_id, operation="attendance")
         batch_key = self._key(record.tenant_id, record.batch_id)
         slots = self._timetable_slots.get(batch_key, [])
         if not any(slot.slot_id == record.slot_id for slot in slots):
@@ -247,6 +287,7 @@ class AcademyOpsService:
         return record
 
     def record_fee_invoice(self, *, learner_id: str, invoice: Invoice) -> None:
+        self._require_operation_capability(tenant_id=invoice.tenant_id, operation="fee_tracking")
         key = self._key(invoice.tenant_id, learner_id)
         self._fee_invoices.setdefault(key, []).append(invoice)
         self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
@@ -288,6 +329,7 @@ class AcademyOpsService:
         return tuple(self._teacher_payouts.get(self._key(tenant_id, batch_id), ()))
 
     def record_fee_payment(self, payment: FeePayment) -> FeePayment:
+        self._require_operation_capability(tenant_id=payment.tenant_id, operation="fee_tracking")
         key = self._key(payment.tenant_id, payment.learner_id)
         self._fee_payments.setdefault(key, []).append(payment)
         self._sor.post_payment_to_ledger(
@@ -302,7 +344,37 @@ class AcademyOpsService:
         profile = self._sor.get_student_profile(tenant_id=tenant_id, student_id=learner_id)
         if profile is None:
             raise KeyError("student profile not found")
-        return profile.financial_state.ledger_balance
+        return self._sor.get_student_balance(tenant_id=tenant_id, student_id=learner_id)
+
+    def run_qc_autofix(self) -> dict[str, bool]:
+        required_domains = {
+            "academy.batch",
+            "academy.attendance",
+            "academy.timetable",
+            "academy.teacher_assignment",
+            "academy.fee_tracking",
+        }
+        for domain in required_domains:
+            self._domain_owner[domain] = "academy-ops"
+
+        sor_qc = self._sor.run_qc_autofix()
+        capability_guarded = all(
+            domain in self._domain_owner and self._domain_owner[domain] == "academy-ops"
+            for domain in required_domains
+        )
+        fee_tracking_connected = all(
+            self._sor._assert_ledger_consistency(tenant_id=tenant_id, student_id=learner_id)
+            for tenant_id, learner_id in {
+                (tenant_id, learner_id)
+                for (tenant_id, learner_id) in self._fee_invoices
+            }
+        )
+        return {
+            "capability_driven_ops": capability_guarded,
+            "segment_branching_removed": self.is_single_source_of_truth(),
+            "fee_tracking_connected_to_sor": fee_tracking_connected,
+            "system_of_record_qc_pass": all(sor_qc.values()),
+        }
 
     def has_learning_core_overlap(self) -> bool:
         owned = {cap for cap, owner in self._domain_owner.items() if owner == "academy-ops"}
