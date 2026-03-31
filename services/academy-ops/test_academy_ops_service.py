@@ -139,7 +139,7 @@ def test_fee_tracking_integrates_system_of_record_ledger() -> None:
     )
 
     assert service.learner_fee_balance(tenant_id="tenant_2", learner_id="learner_2") == Decimal("100.00")
-    assert service._sor.get_student_balance(tenant_id="tenant_2", student_id="learner_2") == Decimal("150.00")
+    assert service._sor.get_student_balance(tenant_id="tenant_2", student_id="learner_2") == Decimal("100.00")
 
     commerce_invoice = InvoiceRecord(
         invoice_id="inv_3",

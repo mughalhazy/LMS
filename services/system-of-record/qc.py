@@ -18,7 +18,9 @@ SystemOfRecordService = module.SystemOfRecordService
 
 def run_qc() -> dict[str, bool]:
     service = SystemOfRecordService()
+    qc_report = service.run_qc_autofix()
     return {
         "single_source_of_truth": service.is_single_source_of_truth(),
         "duplicate_data_ownership": not service.has_duplicate_data_ownership(),
+        **qc_report,
     }

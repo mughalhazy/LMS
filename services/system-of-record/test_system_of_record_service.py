@@ -21,6 +21,7 @@ sys.modules[_service_spec.name] = _service_module
 _service_spec.loader.exec_module(_service_module)
 
 StudentLifecycleState = _service_module.StudentLifecycleState
+LifecycleTransitionError = _service_module.LifecycleTransitionError
 SystemOfRecordService = _service_module.SystemOfRecordService
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
@@ -42,6 +43,11 @@ def test_student_lifecycle_profile_and_learning_path_are_canonical() -> None:
 
     assert profile.lifecycle_state == StudentLifecycleState.PROSPECT
 
+    service.transition_student_lifecycle(
+        tenant_id="tenant_1",
+        student_id="student_1",
+        state=StudentLifecycleState.ENROLLED,
+    )
     active = service.transition_student_lifecycle(
         tenant_id="tenant_1",
         student_id="student_1",
@@ -70,6 +76,8 @@ def test_student_lifecycle_profile_and_learning_path_are_canonical() -> None:
     assert persisted is not None
     assert "lp_python" in persisted.learning_path_ids
     assert "lp_python" in progress["learning_paths"]
+    assert persisted.academic_state.lifecycle_state == StudentLifecycleState.ACTIVE
+    assert persisted.academic_state.active_learning_path_count == 1
 
 
 def test_student_financial_ledger_uses_shared_invoice_model() -> None:
@@ -90,10 +98,21 @@ def test_student_financial_ledger_uses_shared_invoice_model() -> None:
 
     service.post_invoice_to_ledger(student_id="student_2", invoice=first)
     service.post_invoice_to_ledger(student_id="student_2", invoice=second)
+    service.post_payment_to_ledger(
+        tenant_id="tenant_2",
+        student_id="student_2",
+        payment_id="pay_200",
+        amount=Decimal("20.00"),
+    )
 
     ledger = service.get_student_ledger(tenant_id="tenant_2", student_id="student_2")
-    assert len(ledger) == 2
-    assert service.get_student_balance(tenant_id="tenant_2", student_id="student_2") == Decimal("69.00")
+    assert len(ledger) == 3
+    assert service.get_student_balance(tenant_id="tenant_2", student_id="student_2") == Decimal("49.00")
+    profile = service.get_student_profile(tenant_id="tenant_2", student_id="student_2")
+    assert profile is not None
+    assert profile.financial_state.total_invoiced == Decimal("69.00")
+    assert profile.financial_state.total_paid == Decimal("20.00")
+    assert profile.financial_state.ledger_balance == Decimal("49.00")
 
 
 def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -> None:
@@ -135,5 +154,22 @@ def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -
     )
 
     assert profile.metadata["sis_id"] == "S-33"
+    assert service.transition_student_lifecycle(
+        tenant_id="tenant_3", student_id="student_3", state=StudentLifecycleState.ENROLLED
+    ).lifecycle_state == StudentLifecycleState.ENROLLED
+    try:
+        service.transition_student_lifecycle(
+            tenant_id="tenant_3", student_id="student_3", state=StudentLifecycleState.PROSPECT
+        )
+        assert False, "expected invalid lifecycle transition"
+    except LifecycleTransitionError:
+        pass
+
+    qc = service.run_qc_autofix()
+    assert qc["student_profile_unified_state"] is True
+    assert qc["ledger_consistency"] is True
+    assert qc["lifecycle_transitions"] is True
+    assert qc["payments_update_ledger"] is True
+    assert qc["fragmented_state_removed"] is True
     assert service.is_single_source_of_truth() is True
     assert service.has_duplicate_data_ownership() is False
