@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Mapping, Protocol, Sequence
 
 
 @dataclass(frozen=True)
@@ -30,42 +30,35 @@ class CommunicationAdapter(Protocol):
 
 
 class CommunicationRouter:
-    """Country-aware communication router with SMS fallback from WhatsApp."""
+    """Adapter-driven communication router with configurable fallback order."""
 
-    def __init__(
-        self,
-        whatsapp_adapter: CommunicationAdapter,
-        sms_adapter: CommunicationAdapter,
-        whatsapp_country_codes: set[str] | None = None,
-    ) -> None:
-        self.whatsapp_adapter = whatsapp_adapter
-        self.sms_adapter = sms_adapter
-        self.whatsapp_country_codes = whatsapp_country_codes or {"IN", "BR", "MX", "ZA", "AE"}
+    def __init__(self, adapters: Mapping[str, CommunicationAdapter], fallback_order: Sequence[str]) -> None:
+        self._adapters = dict(adapters)
+        self._fallback_order = tuple(fallback_order)
 
-    def _select_primary(self, tenant: Tenant) -> CommunicationAdapter:
-        if tenant.country_code.upper() in self.whatsapp_country_codes:
-            return self.whatsapp_adapter
-        return self.sms_adapter
+        if not self._fallback_order:
+            raise ValueError("fallback_order must include at least one channel")
+
+        unknown_channels = [channel for channel in self._fallback_order if channel not in self._adapters]
+        if unknown_channels:
+            raise ValueError(f"Unknown channels in fallback_order: {unknown_channels}")
 
     def send_message(self, tenant: Tenant, user: CommunicationUser, message: str) -> DeliveryAttempt:
-        primary = self._select_primary(tenant)
-        primary_ok = primary.send_message(user, message)
-        if primary_ok:
-            return DeliveryAttempt(ok=True, provider=primary.provider_key)
+        del tenant  # Routing is adapter-driven; no tenant/provider hardcoding in router.
 
-        if primary.provider_key == self.sms_adapter.provider_key:
-            return DeliveryAttempt(ok=False, provider=primary.provider_key, error="sms_delivery_failed")
+        last_channel = self._fallback_order[-1]
+        for idx, channel in enumerate(self._fallback_order):
+            adapter = self._adapters[channel]
+            if adapter.send_message(user, message):
+                return DeliveryAttempt(
+                    ok=True,
+                    provider=adapter.provider_key,
+                    fallback_used=idx > 0,
+                )
 
-        sms_ok = self.sms_adapter.send_message(user, message)
-        if sms_ok:
-            return DeliveryAttempt(
-                ok=True,
-                provider=self.sms_adapter.provider_key,
-                fallback_used=True,
-            )
         return DeliveryAttempt(
             ok=False,
-            provider=self.sms_adapter.provider_key,
-            fallback_used=True,
-            error="fallback_sms_delivery_failed",
+            provider=self._adapters[last_channel].provider_key,
+            fallback_used=len(self._fallback_order) > 1,
+            error=f"{last_channel}_delivery_failed",
         )
