@@ -5,9 +5,11 @@ from .knowledge_graph import (
     KnowledgeNode,
     KnowledgeNodeType,
 )
-from .revenue import RevenueRecord
+from .plan import BillingCycle, Plan
 
 __all__ = [
+    "BillingCycle",
+    "Plan",
     "KnowledgeEdge",
     "KnowledgeEdgeType",
     "KnowledgeGraph",
