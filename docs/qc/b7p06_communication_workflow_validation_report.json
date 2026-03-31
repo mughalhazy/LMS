@@ -1,0 +1,255 @@
+{
+  "batch": "B7P06",
+  "title": "Communication & Workflow Validation",
+  "scope": {
+    "whatsapp_engine": true,
+    "sms_fallback": true,
+    "workflow_engine": true,
+    "communication_adapter_contract": "docs/architecture/communication_adapter_interface_contract.md",
+    "communication_capabilities": "docs/architecture/B0P06_communication_capabilities.json",
+    "workflow_domain_design": "docs/architecture/B5P02_school_engagement_domain_design.md"
+  },
+  "flow_checks": {
+    "trigger_to_workflow_to_delivery": true,
+    "fallback_routing": true,
+    "adapter_based_delivery_only": true,
+    "no_hardcoded_flows": true,
+    "clean_workflow_execution": true
+  },
+  "adapter_validation": {
+    "adapter_count": 2,
+    "adapters": [
+      "whatsapp",
+      "sms"
+    ],
+    "contract_issues": []
+  },
+  "scenario_results": [
+    {
+      "trigger": {
+        "trigger_id": "trg_001",
+        "tenant_id": "tenant_school_a",
+        "workflow_key": "attendance_alert",
+        "recipient_user_id": "parent_001",
+        "recipient_phone": "+15550000001",
+        "payload": {
+          "student_name": "Amina"
+        }
+      },
+      "execution": {
+        "status": "delivered",
+        "delivered_channel": "whatsapp",
+        "delivery_attempts": [
+          {
+            "channel": "whatsapp",
+            "result": {
+              "ok": true,
+              "value": {
+                "channel": "whatsapp",
+                "provider_message_id": "wa_trg_001_whatsapp",
+                "status": "sent"
+              }
+            }
+          }
+        ],
+        "trace": [
+          {
+            "step": "trigger.received",
+            "trigger_id": "trg_001"
+          },
+          {
+            "step": "workflow.resolved",
+            "workflow_key": "attendance_alert"
+          },
+          {
+            "step": "delivery.attempted",
+            "channel": "whatsapp"
+          },
+          {
+            "step": "delivery.succeeded",
+            "channel": "whatsapp"
+          }
+        ]
+      },
+      "trace_hash": "b6f4ff387c36af690f8ccdac3f048afcd49bb445038be56b457e16dc86bf5f2c"
+    },
+    {
+      "trigger": {
+        "trigger_id": "trg_wa_fail_002",
+        "tenant_id": "tenant_school_a",
+        "workflow_key": "attendance_alert",
+        "recipient_user_id": "parent_002",
+        "recipient_phone": "+15550000002",
+        "payload": {
+          "student_name": "Bilal"
+        }
+      },
+      "execution": {
+        "status": "delivered",
+        "delivered_channel": "sms",
+        "delivery_attempts": [
+          {
+            "channel": "whatsapp",
+            "result": {
+              "ok": false,
+              "error": {
+                "code": "wa_unreachable",
+                "retryable": true,
+                "channel": "whatsapp"
+              }
+            }
+          },
+          {
+            "channel": "sms",
+            "result": {
+              "ok": true,
+              "value": {
+                "channel": "sms",
+                "provider_message_id": "sms_trg_wa_fail_002_sms",
+                "status": "sent"
+              }
+            }
+          }
+        ],
+        "trace": [
+          {
+            "step": "trigger.received",
+            "trigger_id": "trg_wa_fail_002"
+          },
+          {
+            "step": "workflow.resolved",
+            "workflow_key": "attendance_alert"
+          },
+          {
+            "step": "delivery.attempted",
+            "channel": "whatsapp"
+          },
+          {
+            "step": "delivery.failed",
+            "channel": "whatsapp",
+            "error": "wa_unreachable"
+          },
+          {
+            "step": "fallback.routed",
+            "from": "whatsapp"
+          },
+          {
+            "step": "delivery.attempted",
+            "channel": "sms"
+          },
+          {
+            "step": "delivery.succeeded",
+            "channel": "sms"
+          }
+        ]
+      },
+      "trace_hash": "ca27144054fa78101d5348efbca6e7477d8103cb0962eaa364dd59216f019764"
+    },
+    {
+      "trigger": {
+        "trigger_id": "trg_wa_fail_sms_fail_003",
+        "tenant_id": "tenant_school_a",
+        "workflow_key": "attendance_alert",
+        "recipient_user_id": "parent_003",
+        "recipient_phone": "+15550000003",
+        "payload": {
+          "student_name": "Chen"
+        }
+      },
+      "execution": {
+        "status": "failed",
+        "delivered_channel": null,
+        "delivery_attempts": [
+          {
+            "channel": "whatsapp",
+            "result": {
+              "ok": false,
+              "error": {
+                "code": "wa_unreachable",
+                "retryable": true,
+                "channel": "whatsapp"
+              }
+            }
+          },
+          {
+            "channel": "sms",
+            "result": {
+              "ok": false,
+              "error": {
+                "code": "sms_rejected",
+                "retryable": false,
+                "channel": "sms"
+              }
+            }
+          }
+        ],
+        "trace": [
+          {
+            "step": "trigger.received",
+            "trigger_id": "trg_wa_fail_sms_fail_003"
+          },
+          {
+            "step": "workflow.resolved",
+            "workflow_key": "attendance_alert"
+          },
+          {
+            "step": "delivery.attempted",
+            "channel": "whatsapp"
+          },
+          {
+            "step": "delivery.failed",
+            "channel": "whatsapp",
+            "error": "wa_unreachable"
+          },
+          {
+            "step": "fallback.routed",
+            "from": "whatsapp"
+          },
+          {
+            "step": "delivery.attempted",
+            "channel": "sms"
+          },
+          {
+            "step": "delivery.failed",
+            "channel": "sms",
+            "error": "sms_rejected"
+          },
+          {
+            "step": "fallback.routed",
+            "from": "sms"
+          },
+          {
+            "step": "delivery.exhausted"
+          }
+        ]
+      },
+      "trace_hash": "ede0dd74bd95e7f3f6ec3712a442eb76b45857b98281fe3ac4b2eaeb99700e57"
+    }
+  ],
+  "issue_report": {
+    "issues": [],
+    "issue_count": 0,
+    "status": "no_issues"
+  },
+  "workflow_validation": {
+    "trigger_to_workflow_to_delivery": true,
+    "fallback_routing": true,
+    "no_duplicate_messaging_logic": true
+  },
+  "communication_flow_report": {
+    "primary_channel": "whatsapp",
+    "fallback_channel": "sms",
+    "scenarios_validated": 3,
+    "successful_deliveries": 2,
+    "failed_deliveries": 1
+  },
+  "qc_fix_re_qc_10_10": {
+    "no_duplicate_messaging_paths": true,
+    "clean_workflow_execution": true,
+    "adapter_based_delivery_only": true,
+    "no_hardcoded_flows": true,
+    "proper_fallback_behavior": true
+  },
+  "validation_score": 10,
+  "validated_at": "2026-03-31T00:00:00Z"
+}
