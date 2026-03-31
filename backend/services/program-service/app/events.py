@@ -10,9 +10,11 @@ from uuid import uuid4
 class EventEnvelope:
     event_id: str
     event_type: str
-    occurred_at: datetime
+    timestamp: datetime
     tenant_id: str
+    correlation_id: str
     payload: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class EventPublisher:
@@ -23,9 +25,11 @@ class EventPublisher:
         envelope = EventEnvelope(
             event_id=str(uuid4()),
             event_type=event_type,
-            occurred_at=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc),
             tenant_id=tenant_id,
+            correlation_id=str(uuid4()),
             payload=payload,
+            metadata={"producer": "program-service"},
         )
         self._events.append(envelope)
         return envelope

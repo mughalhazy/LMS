@@ -60,6 +60,7 @@ class InstitutionService:
         self._audit("institution.created", request.actor_id, request.tenant_id, institution.institution_id)
         self._publish(
             "institution.created.v1",
+            institution.tenant_id,
             institution.institution_id,
             {
                 "institution_id": institution.institution_id,
@@ -103,6 +104,7 @@ class InstitutionService:
         self._audit(f"institution.{target_status.value}", actor_id, institution.tenant_id, institution_id, {"reason": reason})
         self._publish(
             f"institution.{target_status.value}.v1",
+            institution.tenant_id,
             institution_id,
             {"institution_id": institution_id, "reason": reason, "status": target_status.value},
         )
@@ -135,6 +137,7 @@ class InstitutionService:
         self._audit("institution.hierarchy_linked", request.actor_id, child.tenant_id, child_id, {"parent": parent.institution_id})
         self._publish(
             "institution.hierarchy_linked.v1",
+            child.tenant_id,
             child_id,
             {
                 "parent_institution_id": parent.institution_id,
@@ -176,7 +179,7 @@ class InstitutionService:
                 governance_profile=request.governance_profile,
             )
         )
-        self._publish("institution.type_updated.v1", request.type_code, {"type_code": request.type_code})
+        self._publish("institution.type_updated.v1", "system", request.type_code, {"type_code": request.type_code})
         return created
 
     def list_types(self) -> list[InstitutionType]:
@@ -202,6 +205,7 @@ class InstitutionService:
         self._audit("institution.tenant_linked", request.actor_id, request.tenant_id, institution_id, {"link_scope": request.link_scope})
         self._publish(
             "institution.tenant_linked.v1",
+            request.tenant_id,
             institution_id,
             {
                 "institution_id": institution_id,
@@ -284,12 +288,15 @@ class InstitutionService:
             )
         )
 
-    def _publish(self, event_type: str, aggregate_id: str, payload: dict) -> None:
+    def _publish(self, event_type: str, tenant_id: str, aggregate_id: str, payload: dict) -> None:
         self.event_publisher.publish(
             DomainEvent(
                 event_id=f"evt_{uuid4().hex[:12]}",
                 event_type=event_type,
-                aggregate_id=aggregate_id,
+                timestamp=datetime.now(timezone.utc),
+                tenant_id=tenant_id,
+                correlation_id=str(uuid4()),
                 payload=payload,
+                metadata={"aggregate_id": aggregate_id, "producer": "institution-service"},
             )
         )

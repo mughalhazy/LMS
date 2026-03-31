@@ -83,6 +83,8 @@ class InstitutionTenantLink:
 class DomainEvent:
     event_id: str
     event_type: str
-    aggregate_id: str
+    timestamp: datetime
+    tenant_id: str
+    correlation_id: str
     payload: dict[str, Any]
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = field(default_factory=dict)

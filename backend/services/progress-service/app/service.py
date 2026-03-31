@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import date
 from typing import Protocol
+from uuid import uuid4
 
 from .models import (
     CompletionMetricDaily,
@@ -139,8 +140,11 @@ class ProgressService:
             self.store.save_course_snapshot(course)
         self.publisher.publish(
             ProgressEvent(
-                name="LessonCompletionTracked",
+                event_id=str(uuid4()),
+                event_type="LessonCompletionTracked",
+                timestamp=utc_now(),
                 tenant_id=request.tenant_id,
+                correlation_id=str(uuid4()),
                 payload={
                     "tenant_id": request.tenant_id,
                     "learner_id": request.learner_id,
@@ -153,6 +157,7 @@ class ProgressService:
                     "completed_at": request.completed_at.isoformat(),
                     "attempt_count": request.attempt_count,
                 },
+                metadata={"producer": "progress-service"},
             )
         )
         return LessonCompleteResponse(lesson_progress=lesson_progress, course_progress=self._course_response(course))
@@ -187,7 +192,7 @@ class ProgressService:
         self.store.save_path_snapshot(row)
         self.idempotency.remember(request.tenant_id, request.idempotency_key)
         self._write_audit(request.tenant_id, actor_id, "learning_path_assigned", None, request.idempotency_key, asdict(row))
-        self.publisher.publish(ProgressEvent(name="LearningPathProgressUpdated", tenant_id=request.tenant_id, payload=asdict(row)))
+        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=request.tenant_id, correlation_id=str(uuid4()), payload=asdict(row), metadata={"producer": "progress-service"}))
         return LearningPathAssignmentResponse(
             learning_path_id=learning_path_id,
             status=row.status,
@@ -235,11 +240,14 @@ class ProgressService:
         self.store.save_course_snapshot(snapshot)
         self._refresh_learning_paths_for_course(tenant_id, learner_id, course_id)
         if status == "completed":
-            self.publisher.publish(ProgressEvent(name="CourseCompletionTracked", tenant_id=tenant_id, payload=asdict(snapshot)))
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="CourseCompletionTracked", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=asdict(snapshot), metadata={"producer": "progress-service"}))
             self.publisher.publish(
                 ProgressEvent(
-                    name="progress.completed",
+                    event_id=str(uuid4()),
+                    event_type="progress.completed",
+                    timestamp=utc_now(),
                     tenant_id=tenant_id,
+                    correlation_id=str(uuid4()),
                     payload={
                         "progress_id": f"course:{enrollment_id}:{course_id}",
                         "enrollment_id": enrollment_id,
@@ -247,6 +255,7 @@ class ProgressService:
                         "course_id": course_id,
                         "completed_at": snapshot.completed_at.isoformat() if snapshot.completed_at else None,
                     },
+                    metadata={"producer": "progress-service"},
                 )
             )
         return snapshot
@@ -265,7 +274,7 @@ class ProgressService:
             path.status = "completed" if not remaining else "in_progress"
             path.last_activity_at = utc_now()
             self.store.save_path_snapshot(path)
-            self.publisher.publish(ProgressEvent(name="LearningPathProgressUpdated", tenant_id=tenant_id, payload=asdict(path)))
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=asdict(path), metadata={"producer": "progress-service"}))
 
     def _publish_progress_updated(self, row: ProgressRecord) -> None:
         payload = {
@@ -279,7 +288,7 @@ class ProgressService:
             "status": row.status,
             "last_activity_at": row.last_activity_at.isoformat(),
         }
-        self.publisher.publish(ProgressEvent(name="progress.updated", tenant_id=row.tenant_id, payload=payload))
+        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="progress.updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
 
     def _update_metrics_daily(self, snapshot: CourseProgressSnapshot) -> None:
         started_count = 1 if snapshot.total_lessons > 0 else 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from .models import EventRecord
 
@@ -25,12 +26,13 @@ class EventPublisher:
         payload: dict[str, str],
     ) -> EventRecord:
         event = EventRecord(
-            event_name=event_name,
-            topic=topic,
+            event_id=str(uuid4()),
+            event_type=event_name,
+            timestamp=datetime.now(timezone.utc),
             tenant_id=tenant_id,
-            aggregate_id=aggregate_id,
+            correlation_id=str(uuid4()),
             payload=payload,
-            occurred_at=datetime.now(timezone.utc),
+            metadata={"topic": topic, "aggregate_id": aggregate_id, "producer": "cohort-service"},
         )
         self.published_events.append(event)
         return event

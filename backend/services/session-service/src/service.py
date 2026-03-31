@@ -387,9 +387,11 @@ class SessionService:
             EventMessage(
                 event_id=str(uuid4()),
                 event_type=SESSION_EVENT_TYPES[action],
+                timestamp=datetime.utcnow(),
                 tenant_id=session.tenant_id,
-                aggregate_id=session.session_id,
+                correlation_id=str(uuid4()),
                 payload=envelope,
+                metadata={"aggregate_id": session.session_id, "producer": "session-service"},
             )
         )
         self._metrics["events_published"] += 1

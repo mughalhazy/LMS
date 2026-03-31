@@ -90,7 +90,10 @@ class ProgressAuditEntry:
 
 @dataclass
 class ProgressEvent:
-    name: str
+    event_id: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
+    correlation_id: str
     payload: dict[str, object]
-    occurred_at: datetime = field(default_factory=utc_now)
+    metadata: dict[str, object] = field(default_factory=dict)

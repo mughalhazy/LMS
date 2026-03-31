@@ -64,8 +64,10 @@ class AuditRecord:
 
 @dataclass
 class OutboxEvent:
+    event_id: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
-    topic: str
-    event_name: str
+    correlation_id: str
     payload: dict[str, Any]
-    emitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict[str, Any] = field(default_factory=dict)

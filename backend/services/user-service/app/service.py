@@ -73,9 +73,9 @@ class UserService:
             event_id=str(uuid4()),
             event_type=event_type,
             tenant_id=user.tenant_id,
-            user_id=user.user_id,
-            actor_id=actor_id,
+            correlation_id=str(uuid4()),
             payload=payload,
+            metadata={"user_id": user.user_id, "actor_id": actor_id, "producer": "user-service"},
         )
         self.event_publisher.publish(event)
         self.observability.increment(f"event.{event_type.value}")
