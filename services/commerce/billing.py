@@ -6,7 +6,7 @@ from decimal import Decimal
 from enum import Enum
 
 from .catalog import ProductType
-from .checkout import CheckoutStatus, OrderRecord
+from .checkout import Order, OrderStatus
 
 
 class InvoiceState(str, Enum):
@@ -35,9 +35,9 @@ class BillingService:
         self._invoices: dict[str, InvoiceRecord] = {}
         self._order_to_invoice: dict[str, str] = {}
 
-    def create_invoice_for_order(self, order: OrderRecord) -> InvoiceRecord:
-        if order.status != CheckoutStatus.COMPLETED:
-            raise ValueError("cannot invoice order that is not completed")
+    def create_invoice_for_order(self, order: Order) -> InvoiceRecord:
+        if order.status not in {OrderStatus.PAID, OrderStatus.RECONCILED}:
+            raise ValueError("cannot invoice order that is not paid")
         if order.order_id in self._order_to_invoice:
             return self._invoices[self._order_to_invoice[order.order_id]]
 
