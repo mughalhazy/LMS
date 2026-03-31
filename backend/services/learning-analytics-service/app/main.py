@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from .repository import AnalyticsRepository
 from .schemas import CourseAnalyticsQuery, LearningPathAnalyticsQuery, TimeWindowQuery
 from .service import LearningAnalyticsService
@@ -57,6 +59,18 @@ class LearningAnalyticsAPI:
         return self.service.learning_path_completion_analysis(
             tenant_id=query.tenant_id,
             learning_path_id=learning_path_id,
+            start_at=query.start_at,
+            end_at=query.end_at,
+            cohort_id=query.cohort_id,
+        )
+
+    def ingest_events(self, events: list[dict[str, Any]]) -> dict[str, int | float]:
+        return self.service.ingest_events(events)
+
+    def get_learning_and_performance_metrics(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
+        return self.service.learning_and_performance_metrics(
+            tenant_id=query.tenant_id,
+            course_id=course_id,
             start_at=query.start_at,
             end_at=query.end_at,
             cohort_id=query.cohort_id,

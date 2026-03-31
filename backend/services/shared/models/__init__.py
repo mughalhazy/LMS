@@ -1,3 +1,15 @@
-from .risk_insight import LearnerRiskInsight, LearnerRiskInsightSummary, LearnerRiskSignals
+from .knowledge_graph import (
+    KnowledgeEdge,
+    KnowledgeEdgeType,
+    KnowledgeGraph,
+    KnowledgeNode,
+    KnowledgeNodeType,
+)
 
-__all__ = ["LearnerRiskInsight", "LearnerRiskInsightSummary", "LearnerRiskSignals"]
+__all__ = [
+    "KnowledgeEdge",
+    "KnowledgeEdgeType",
+    "KnowledgeGraph",
+    "KnowledgeNode",
+    "KnowledgeNodeType",
+]

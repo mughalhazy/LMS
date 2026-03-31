@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
+
+from backend.services.shared.models.knowledge_graph import (
+    KnowledgeEdge,
+    KnowledgeEdgeType,
+    KnowledgeGraph,
+    KnowledgeNode,
+    KnowledgeNodeType,
+)
 
 from .entities import (
     CourseSkillMapping,
@@ -30,6 +38,8 @@ class SkillInferenceService:
         self._course_skill_mappings: List[CourseSkillMapping] = []
         self._evidence_store: Dict[str, Dict[str, Dict[str, List[LearnerSkillEvidence]]]] = {}
         self._learner_skill_states: Dict[str, Dict[str, Dict[str, LearnerSkillState]]] = {}
+        self._knowledge_graph = KnowledgeGraph()
+        self._course_skill_index: dict[str, dict[str, list[CourseSkillMapping]]] = {}
 
     def upsert_skill(self, skill: SkillNode) -> None:
         self._skills[skill.skill_id] = skill
@@ -44,6 +54,139 @@ class SkillInferenceService:
         tenant_bucket = self._evidence_store.setdefault(evidence.tenant_id, {})
         learner_bucket = tenant_bucket.setdefault(evidence.learner_id, {})
         learner_bucket.setdefault(evidence.skill_id, []).append(evidence)
+
+    def integrate_course_catalog(self, tenant_id: str, course_payload: dict[str, Any]) -> None:
+        """Integrates course-service metadata into graph + mapping index."""
+        course_id = str(course_payload["course_id"])
+        title = course_payload.get("title")
+        metadata = course_payload.get("metadata") or {}
+        extra = metadata.get("extra") if isinstance(metadata, dict) else {}
+        extra = extra if isinstance(extra, dict) else {}
+
+        self._knowledge_graph.upsert_node(
+            KnowledgeNode(node_id=course_id, node_type=KnowledgeNodeType.COURSE, tenant_id=tenant_id, label=title)
+        )
+
+        required_skills = [str(skill_id) for skill_id in extra.get("required_skill_ids", [])]
+        improved_skills = [str(skill_id) for skill_id in extra.get("skill_ids", [])]
+
+        for skill_id in required_skills:
+            self._knowledge_graph.upsert_node(KnowledgeNode(node_id=skill_id, node_type=KnowledgeNodeType.SKILL, tenant_id=tenant_id))
+            self._knowledge_graph.upsert_edge(
+                KnowledgeEdge(
+                    source_id=course_id,
+                    target_id=skill_id,
+                    edge_type=KnowledgeEdgeType.REQUIRES,
+                    tenant_id=tenant_id,
+                )
+            )
+
+        for skill_id in improved_skills:
+            self._knowledge_graph.upsert_node(KnowledgeNode(node_id=skill_id, node_type=KnowledgeNodeType.SKILL, tenant_id=tenant_id))
+            self._knowledge_graph.upsert_edge(
+                KnowledgeEdge(
+                    source_id=course_id,
+                    target_id=skill_id,
+                    edge_type=KnowledgeEdgeType.IMPROVES,
+                    tenant_id=tenant_id,
+                )
+            )
+            mapping = CourseSkillMapping(
+                course_id=course_id,
+                skill_id=skill_id,
+                coverage_level="course",
+                skill_gain_expected=0.7,
+                evidence_weight=1.0,
+            )
+            self.map_course_to_skill(mapping)
+            self._course_skill_index.setdefault(tenant_id, {}).setdefault(course_id, []).append(mapping)
+
+        lesson_skill_map = extra.get("lesson_skill_map", {})
+        if isinstance(lesson_skill_map, dict):
+            for lesson_id, lesson_skills in lesson_skill_map.items():
+                self._knowledge_graph.upsert_node(
+                    KnowledgeNode(node_id=str(lesson_id), node_type=KnowledgeNodeType.LESSON, tenant_id=tenant_id)
+                )
+                for skill_id in lesson_skills:
+                    self._knowledge_graph.upsert_node(KnowledgeNode(node_id=str(skill_id), node_type=KnowledgeNodeType.SKILL, tenant_id=tenant_id))
+                    self._knowledge_graph.upsert_edge(
+                        KnowledgeEdge(
+                            source_id=str(lesson_id),
+                            target_id=str(skill_id),
+                            edge_type=KnowledgeEdgeType.IMPROVES,
+                            tenant_id=tenant_id,
+                            metadata={"course_id": course_id},
+                        )
+                    )
+
+    def integrate_progress_update(self, progress_payload: dict[str, Any]) -> SkillInferenceResult:
+        """Consumes progress-service updates and updates graph + inferred skills."""
+        tenant_id = str(progress_payload["tenant_id"])
+        learner_id = str(progress_payload.get("learner_id") or progress_payload.get("user_id"))
+        course_id = str(progress_payload["course_id"])
+        lesson_id = str(progress_payload.get("lesson_id")) if progress_payload.get("lesson_id") else None
+        status = str(progress_payload.get("status", "in_progress"))
+        percent = float(progress_payload.get("percent_complete", progress_payload.get("progress_percentage", 0.0)))
+
+        self._knowledge_graph.upsert_node(
+            KnowledgeNode(node_id=learner_id, node_type=KnowledgeNodeType.USER, tenant_id=tenant_id)
+        )
+        self._knowledge_graph.upsert_node(
+            KnowledgeNode(node_id=course_id, node_type=KnowledgeNodeType.COURSE, tenant_id=tenant_id)
+        )
+        self._knowledge_graph.upsert_edge(
+            KnowledgeEdge(
+                source_id=learner_id,
+                target_id=course_id,
+                edge_type=KnowledgeEdgeType.ENROLLED_IN,
+                tenant_id=tenant_id,
+                weight=max(0.0, min(percent / 100.0, 1.0)),
+            )
+        )
+
+        if lesson_id:
+            self._knowledge_graph.upsert_node(KnowledgeNode(node_id=lesson_id, node_type=KnowledgeNodeType.LESSON, tenant_id=tenant_id))
+            self._knowledge_graph.upsert_edge(
+                KnowledgeEdge(
+                    source_id=learner_id,
+                    target_id=lesson_id,
+                    edge_type=KnowledgeEdgeType.ENROLLED_IN,
+                    tenant_id=tenant_id,
+                    weight=max(0.0, min(percent / 100.0, 1.0)),
+                    metadata={"course_id": course_id},
+                )
+            )
+
+        course_mappings = self._course_skill_index.get(tenant_id, {}).get(course_id, [])
+        if not course_mappings:
+            course_mappings = [m for m in self._course_skill_mappings if m.course_id == course_id]
+
+        completion_score = max(0.0, min(percent / 100.0, 1.0))
+        if status in {"completed", "passed"} and completion_score > 0 and course_mappings:
+            for mapping in course_mappings:
+                self._knowledge_graph.upsert_node(
+                    KnowledgeNode(node_id=mapping.skill_id, node_type=KnowledgeNodeType.SKILL, tenant_id=tenant_id)
+                )
+                self._knowledge_graph.upsert_edge(
+                    KnowledgeEdge(
+                        source_id=learner_id,
+                        target_id=mapping.skill_id,
+                        edge_type=KnowledgeEdgeType.LEARNED,
+                        tenant_id=tenant_id,
+                        weight=completion_score,
+                        metadata={"course_id": course_id, "source": "progress-service"},
+                    )
+                )
+
+            return self.infer_skills_from_course_completion(
+                tenant_id=tenant_id,
+                learner_id=learner_id,
+                course_id=course_id,
+                completion_score=completion_score,
+                occurred_at=datetime.utcnow(),
+            )
+
+        return self.infer_learner_skills(tenant_id=tenant_id, learner_id=learner_id)
 
     def infer_learner_skills(self, tenant_id: str, learner_id: str, as_of: datetime | None = None) -> SkillInferenceResult:
         inference_time = as_of or datetime.utcnow()
@@ -156,12 +299,15 @@ class SkillInferenceService:
         learner_states = self._learner_skill_states.get(tenant_id, {}).get(learner_id, {})
         return {skill_id: asdict(state) for skill_id, state in learner_states.items()}
 
-    def get_skill_graph(self) -> Dict[str, object]:
-        return {
+    def get_skill_graph(self, tenant_id: str | None = None) -> Dict[str, object]:
+        graph = {
             "skills": [asdict(skill) for skill in self._skills.values()],
             "relations": [asdict(edge) for edge in self._skill_edges],
             "course_skill_mappings": [asdict(mapping) for mapping in self._course_skill_mappings],
         }
+        if tenant_id:
+            graph["knowledge_graph"] = self._knowledge_graph.as_dict(tenant_id)
+        return graph
 
     def update_skill_graph(self, *, add_edges: List[SkillEdge] | None = None, remove_edges: List[SkillEdge] | None = None) -> None:
         add_edges = add_edges or []

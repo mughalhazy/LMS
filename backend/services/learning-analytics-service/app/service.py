@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Any
 
 from .repository import AnalyticsRepository
 
@@ -27,6 +28,16 @@ class LearningAnalyticsService:
         if score <= -0.25:
             return "negative"
         return "neutral"
+
+    def ingest_events(self, events: list[dict[str, Any]]) -> dict[str, int | float]:
+        result = self.repository.ingest_events(events)
+        total = result["processed"] + result["rejected"]
+        success_rate = self._safe_rate(result["processed"], total)
+        return {
+            "processed": result["processed"],
+            "rejected": result["rejected"],
+            "success_rate": success_rate,
+        }
 
     def course_completion_analytics(
         self,
@@ -289,6 +300,54 @@ class LearningAnalyticsService:
             },
         }
 
+    def learning_and_performance_metrics(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        completion = self.course_completion_analytics(tenant_id, course_id, start_at, end_at, cohort_id)
+        engagement = self.learner_engagement_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
+        attempts = self.repository.list_assessment_attempts(tenant_id, cohort_id or "", start_at, end_at) if cohort_id else [
+            row
+            for row in self.repository.assessment_attempts
+            if row.tenant_id == tenant_id
+            and row.course_id == course_id
+            and self.repository._in_window(row.submitted_at, start_at, end_at)
+        ]
+
+        performance_by_learner: dict[str, dict[str, float]] = defaultdict(lambda: {"score_sum": 0.0, "attempts": 0.0})
+        for attempt in attempts:
+            score_percent = (attempt.score / attempt.max_score) * 100 if attempt.max_score else 0.0
+            performance_by_learner[attempt.learner_id]["score_sum"] += score_percent
+            performance_by_learner[attempt.learner_id]["attempts"] += 1
+
+        learner_performance = {
+            learner_id: self._round(values["score_sum"] / values["attempts"])
+            for learner_id, values in performance_by_learner.items()
+            if values["attempts"] > 0
+        }
+        avg_performance = self._round(sum(learner_performance.values()) / len(learner_performance)) if learner_performance else 0.0
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "learning_metrics": {
+                "completion_rate": completion["completion_rate"],
+                "active_learners": engagement["active_learners"],
+                "average_engagement_score": engagement["average_engagement_score"],
+                "average_sentiment": engagement["average_sentiment"],
+            },
+            "performance_metrics": {
+                "average_assessment_score": avg_performance,
+                "assessed_learners": len(learner_performance),
+                "learner_performance": learner_performance,
+            },
+        }
+
     def learning_path_completion_analysis(
         self,
         tenant_id: str,
@@ -340,6 +399,7 @@ class LearningAnalyticsService:
         end_at: datetime | None = None,
         cohort_id: str | None = None,
     ) -> dict:
+        aggregated = self.learning_and_performance_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
         completion = self.course_completion_analytics(tenant_id, course_id, start_at, end_at, cohort_id)
         engagement = self.learner_engagement_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
         trends = self.engagement_trends(tenant_id, course_id, start_at, end_at, cohort_id)
@@ -354,6 +414,8 @@ class LearningAnalyticsService:
             "tenant_id": tenant_id,
             "course_id": course_id,
             "cohort_id": cohort_id,
+            "learning_metrics": aggregated["learning_metrics"],
+            "performance_metrics": aggregated["performance_metrics"],
             "completion_rate": completion["completion_rate"],
             "active_learners": engagement["active_learners"],
             "trend_direction": trends["direction"],

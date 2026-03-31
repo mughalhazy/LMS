@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Iterable
 
 from backend.services.shared.models.tenant import TenantContract
 from backend.services.shared.utils.capability_check import is_capability_enabled
@@ -19,6 +20,7 @@ from .schemas import (
     PersonalizedRecommendationRequest,
     SkillGapRecommendationRequest,
     AnalyticsRecommendationRequest,
+    IntegratedRecommendationRequest,
 )
 
 
@@ -31,7 +33,7 @@ class RecommendationService:
     ) -> list[PersonalizedCourseRecommendation]:
         self._assert_capability(req.tenant_id, "recommendation.basic")
         modalities = req.preferred_modalities or ["self-paced"]
-        skills = req.target_skills or ["general-upskilling"]
+        skills = req.target_skills or [f"{modalities[0]}-fluency"]
         base_score = min(1.0, 0.45 + (req.available_minutes_per_week / 600))
 
         items = [
@@ -92,7 +94,9 @@ class RecommendationService:
         self, req: LearningPathSuggestionRequest
     ) -> list[LearningPathSuggestion]:
         self._assert_capability(req.tenant_id, "recommendation.basic")
-        tracks = ["core", "accelerated", "project-based"]
+        pace_track = "accelerated" if req.available_hours_per_week >= 8 else "steady"
+        depth_track = "deep-practice" if len(req.mandatory_course_ids) <= 2 else "coverage"
+        tracks = [pace_track, depth_track]
         suggestions: list[LearningPathSuggestion] = []
         for index, track in enumerate(tracks):
             ordered = [*req.mandatory_course_ids, f"elective-{track}-1", f"elective-{track}-2"]
@@ -113,6 +117,66 @@ class RecommendationService:
 
         self._upsert(req.tenant_id, req.learner_id, learning_paths=suggestions)
         return suggestions
+
+    def generate_integrated_recommendations(
+        self, req: IntegratedRecommendationRequest
+    ) -> tuple[list[PersonalizedCourseRecommendation], list[LearningPathSuggestion]]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
+        inferred_by_skill = {row.skill_id: row for row in req.skill_inference}
+        candidate_skills = set(req.target_skills) | set(inferred_by_skill)
+        if not candidate_skills:
+            candidate_skills = {f"{req.goal.lower().replace(' ', '-')}-foundation"}
+
+        completed_or_active = set(req.progress.completed_course_ids) | set(req.progress.in_progress_course_ids)
+        max_courses = min(6, max(2, len(candidate_skills)))
+        ranked_skills = sorted(
+            candidate_skills,
+            key=lambda skill: self._skill_priority(skill, inferred_by_skill.get(skill)),
+            reverse=True,
+        )[:max_courses]
+
+        hours_budget = req.available_hours_per_week * 60
+        engagement_factor = req.analytics.average_engagement_score / 100
+        completion_factor = req.analytics.completion_rate / 100
+        trend_boost = 0.07 if req.analytics.trend_direction == "up" else -0.08 if req.analytics.trend_direction == "down" else 0.0
+
+        personalized: list[PersonalizedCourseRecommendation] = []
+        goal_slug = req.goal.lower().replace(" ", "-")
+        for index, skill in enumerate(ranked_skills):
+            signal = inferred_by_skill.get(skill)
+            inferred_level = signal.inferred_level if signal else 0.0
+            confidence = signal.confidence if signal else 0.35
+            gap = max(0.0, 0.85 - inferred_level)
+            tier = "advanced" if inferred_level >= 0.7 else "intermediate" if inferred_level >= 0.4 else "foundation"
+            course_id = f"course-{goal_slug}-{skill.lower().replace(' ', '-')}-{tier}-{index + 1}"
+            if course_id in completed_or_active:
+                continue
+            score = min(1.0, max(0.15, 0.42 + (0.45 * gap) + (0.2 * confidence) + trend_boost - (0.12 * completion_factor)))
+            estimated = max(45, int((hours_budget * (0.8 + (0.4 * gap))) / max(1, len(ranked_skills))))
+            personalized.append(
+                PersonalizedCourseRecommendation(
+                    tenant_id=req.tenant_id,
+                    learner_id=req.learner_id,
+                    course_id=course_id,
+                    score=round(score, 3),
+                    estimated_minutes=estimated,
+                    difficulty_tier=tier,
+                    rationale=RecommendationRationale(
+                        tags=[
+                            f"skill:{skill}",
+                            f"analytics:engagement:{round(req.analytics.average_engagement_score, 1)}",
+                            f"progress:path_completion:{round(req.progress.learning_path_completion_rate, 1)}",
+                        ],
+                        explanation=f"Prioritized from skill inference gap ({round(gap, 2)}) and learner analytics/progress signals.",
+                    ),
+                )
+            )
+
+        personalized.sort(key=lambda row: row.score, reverse=True)
+        selected_course_ids = [row.course_id for row in personalized]
+        learning_paths = self._build_learning_paths(req, selected_course_ids, engagement_factor)
+        self._upsert(req.tenant_id, req.learner_id, personalized_courses=personalized, learning_paths=learning_paths)
+        return personalized, learning_paths
 
     def generate_behavioral_recommendations(
         self, req: BehavioralRecommendationRequest
@@ -194,6 +258,56 @@ class RecommendationService:
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
         if not is_capability_enabled(self._tenant_contract(tenant_id), capability):
             raise ValueError(f"capability disabled: {capability}")
+
+    @staticmethod
+    def _skill_priority(skill: str, signal: object | None) -> float:
+        if not signal:
+            return 0.5 + (0.02 * len(skill))
+        inferred_level = getattr(signal, "inferred_level", 0.0)
+        confidence = getattr(signal, "confidence", 0.0)
+        return (1.0 - inferred_level) * 0.8 + (confidence * 0.2)
+
+    def _build_learning_paths(
+        self,
+        req: IntegratedRecommendationRequest,
+        selected_course_ids: Iterable[str],
+        engagement_factor: float,
+    ) -> list[LearningPathSuggestion]:
+        selected = [course_id for course_id in selected_course_ids if course_id not in req.progress.completed_course_ids]
+        baseline = [*req.mandatory_course_ids, *selected]
+        if not baseline:
+            baseline = [f"course-{req.goal.lower().replace(' ', '-')}-starter"]
+        deduped = list(dict.fromkeys(baseline))
+
+        pace_variant = "accelerated" if req.progress.weekly_active_minutes >= 180 and engagement_factor >= 0.55 else "steady"
+        support_variant = "checkpoint-heavy" if req.analytics.trend_direction == "down" else "project-heavy"
+        variants = [pace_variant, support_variant]
+        suggestions: list[LearningPathSuggestion] = []
+        for index, variant in enumerate(variants):
+            if variant == "accelerated":
+                ordered = deduped
+            elif variant == "checkpoint-heavy":
+                midpoint = max(1, len(deduped) // 2)
+                ordered = deduped[:midpoint] + [f"checkpoint-{req.goal.lower().replace(' ', '-')}-{midpoint}"] + deduped[midpoint:]
+            else:
+                ordered = deduped + [f"project-{req.goal.lower().replace(' ', '-')}-{len(deduped)}"]
+            estimated_days = max(7, int((len(ordered) * 2.5) / max(1, req.available_hours_per_week)))
+            score = min(1.0, max(0.2, 0.86 - (0.14 * index) + (0.1 * (req.progress.learning_path_completion_rate / 100))))
+            suggestions.append(
+                LearningPathSuggestion(
+                    tenant_id=req.tenant_id,
+                    learner_id=req.learner_id,
+                    learning_path_id=f"path-{req.goal.lower().replace(' ', '-')}-{variant}",
+                    ordered_course_ids=ordered,
+                    estimated_completion_days=estimated_days,
+                    score=round(score, 3),
+                    rationale=RecommendationRationale(
+                        tags=[f"variant:{variant}", f"trend:{req.analytics.trend_direction}", "integrated-signals"],
+                        explanation="Built from analytics trend, inferred skill gaps, and current completion momentum.",
+                    ),
+                )
+            )
+        return suggestions
 
     def _upsert(
         self,
