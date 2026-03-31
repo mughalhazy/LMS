@@ -10,6 +10,7 @@ from .schemas import (
     LearningGuidanceRequest,
     TutorResponse,
     TutorSessionSummary,
+    AnalyticsTutorRequest,
 )
 from .service import AITutorService
 
@@ -37,6 +38,11 @@ def contextual_tutoring(request: ContextualTutoringRequest) -> TutorResponse:
 @app.post("/ai-tutor/guidance", response_model=TutorResponse)
 def learning_guidance(request: LearningGuidanceRequest) -> TutorResponse:
     return service.generate_guidance(request)
+
+
+@app.post("/ai-tutor/analytics-guidance", response_model=TutorResponse)
+def analytics_guidance(request: AnalyticsTutorRequest) -> TutorResponse:
+    return service.generate_analytics_guidance(request)
 
 
 @app.get("/ai-tutor/sessions/{session_id}", response_model=TutorSessionSummary)

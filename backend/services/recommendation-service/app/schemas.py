@@ -63,3 +63,12 @@ class BehavioralRecommendationResponse(BaseModel):
 
 class LearnerRecommendationBundleResponse(BaseModel):
     bundle: LearnerRecommendationBundle
+
+
+class AnalyticsRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    completion_rate: float = Field(ge=0, le=100)
+    engagement_score: float = Field(ge=0, le=100)
+    average_sentiment: float
+    trend_direction: str = "stable"

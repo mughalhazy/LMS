@@ -17,6 +17,7 @@ from .schemas import (
     LearningGuidanceRequest,
     TutorResponse,
     TutorSessionSummary,
+    AnalyticsTutorRequest,
 )
 
 
@@ -122,6 +123,31 @@ class AITutorService:
         resources = [
             f"course://{request.context.course_id}/roadmap",
             "course://learning-path/recommended-next-steps",
+        ]
+        return self._store_interaction(
+            request.tenant_id,
+            request.learner_id,
+            request.context.model_dump(),
+            InteractionType.GUIDANCE,
+            message,
+            follow_up,
+            resources,
+        )
+
+    def generate_analytics_guidance(self, request: AnalyticsTutorRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
+        risk_hint = "high" if request.completion_rate < 60 or request.average_sentiment < -0.2 else "moderate"
+        message = (
+            f"Analytics signal indicates {risk_hint} learner-risk with {request.completion_rate:.1f}% completion and "
+            f"{request.trend_direction} engagement trend. Focus next tutoring turn on {request.suggested_focus}."
+        )
+        follow_up = [
+            "Review the last missed concept and explain it back in one sentence.",
+            "Complete one short practice item before moving to new material.",
+        ]
+        resources = [
+            f"course://{request.context.course_id}/interventions/{request.suggested_focus}",
+            "course://learning-support/at-risk-playbook",
         ]
         return self._store_interaction(
             request.tenant_id,

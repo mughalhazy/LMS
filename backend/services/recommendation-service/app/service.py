@@ -18,6 +18,7 @@ from .schemas import (
     LearningPathSuggestionRequest,
     PersonalizedRecommendationRequest,
     SkillGapRecommendationRequest,
+    AnalyticsRecommendationRequest,
 )
 
 
@@ -169,6 +170,20 @@ class RecommendationService:
 
         self._upsert(req.tenant_id, req.learner_id, behavioral=recommendations)
         return recommendations
+
+    def generate_from_analytics(self, req: AnalyticsRecommendationRequest) -> list[BehavioralLearningRecommendation]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
+        dropoff_rate = max(0.0, 1 - (req.completion_rate / 100))
+        streak_days = 1 if req.trend_direction == "down" else 4
+        avg_minutes = 10 if req.engagement_score < 40 else 22
+        behavior_req = BehavioralRecommendationRequest(
+            tenant_id=req.tenant_id,
+            learner_id=req.learner_id,
+            activity_streak_days=streak_days,
+            average_session_minutes=avg_minutes,
+            dropoff_rate=round(dropoff_rate, 2),
+        )
+        return self.generate_behavioral_recommendations(behavior_req)
 
     def get_bundle(self, tenant_id: str, learner_id: str) -> LearnerRecommendationBundle:
         return self._store.get(tenant_id, {}).get(learner_id, LearnerRecommendationBundle(learner_id=learner_id))

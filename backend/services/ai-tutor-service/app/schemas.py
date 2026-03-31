@@ -65,3 +65,10 @@ class TutorSessionSummary(BaseModel):
     learner_id: str
     context: LearningContext
     interactions: list[TutorResponse] = Field(default_factory=list)
+
+
+class AnalyticsTutorRequest(BaseTutorRequest):
+    completion_rate: float = Field(ge=0, le=100)
+    average_sentiment: float
+    trend_direction: str = "stable"
+    suggested_focus: str = "practice-coaching"

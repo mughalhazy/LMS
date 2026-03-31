@@ -192,7 +192,9 @@ class ProgressService:
         self.store.save_path_snapshot(row)
         self.idempotency.remember(request.tenant_id, request.idempotency_key)
         self._write_audit(request.tenant_id, actor_id, "learning_path_assigned", None, request.idempotency_key, asdict(row))
-        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=request.tenant_id, correlation_id=str(uuid4()), payload=asdict(row), metadata={"producer": "progress-service"}))
+        path_payload = asdict(row)
+        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=request.tenant_id, correlation_id=str(uuid4()), payload=path_payload, metadata={"producer": "progress-service"}))
+        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="learning_path_progress_updated", timestamp=utc_now(), tenant_id=request.tenant_id, correlation_id=str(uuid4()), payload=path_payload, metadata={"producer": "progress-service"}))
         return LearningPathAssignmentResponse(
             learning_path_id=learning_path_id,
             status=row.status,
@@ -240,7 +242,9 @@ class ProgressService:
         self.store.save_course_snapshot(snapshot)
         self._refresh_learning_paths_for_course(tenant_id, learner_id, course_id)
         if status == "completed":
-            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="CourseCompletionTracked", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=asdict(snapshot), metadata={"producer": "progress-service"}))
+            snapshot_payload = asdict(snapshot)
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="CourseCompletionTracked", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=snapshot_payload, metadata={"producer": "progress-service"}))
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="course_completed", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=snapshot_payload, metadata={"producer": "progress-service"}))
             self.publisher.publish(
                 ProgressEvent(
                     event_id=str(uuid4()),
@@ -274,7 +278,9 @@ class ProgressService:
             path.status = "completed" if not remaining else "in_progress"
             path.last_activity_at = utc_now()
             self.store.save_path_snapshot(path)
-            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=asdict(path), metadata={"producer": "progress-service"}))
+            path_payload = asdict(path)
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="LearningPathProgressUpdated", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=path_payload, metadata={"producer": "progress-service"}))
+            self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="learning_path_progress_updated", timestamp=utc_now(), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=path_payload, metadata={"producer": "progress-service"}))
 
     def _publish_progress_updated(self, row: ProgressRecord) -> None:
         payload = {
@@ -289,6 +295,7 @@ class ProgressService:
             "last_activity_at": row.last_activity_at.isoformat(),
         }
         self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="progress.updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
+        self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="course_progress_updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
 
     def _update_metrics_daily(self, snapshot: CourseProgressSnapshot) -> None:
         started_count = 1 if snapshot.total_lessons > 0 else 0
