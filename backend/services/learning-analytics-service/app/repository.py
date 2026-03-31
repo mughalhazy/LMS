@@ -6,6 +6,7 @@ from typing import Any
 
 from .models import (
     AssessmentAttempt,
+    CashflowRecord,
     CourseCompletion,
     CourseEnrollment,
     LearningActivityEvent,
@@ -22,6 +23,7 @@ class AnalyticsRepository:
     assessment_attempts: list[AssessmentAttempt] = field(default_factory=list)
     path_snapshots: list[PathProgressSnapshot] = field(default_factory=list)
     revenue_records: list[RevenueRecord] = field(default_factory=list)
+    cashflow_records: list[CashflowRecord] = field(default_factory=list)
 
     @staticmethod
     def _parse_datetime(value: Any) -> datetime:
@@ -45,7 +47,18 @@ class AnalyticsRepository:
 
     def ingest_event(self, event: dict[str, Any]) -> bool:
         event_type = str(event.get("event_type", "")).strip().lower()
-        supported_types = {"enrollment", "completion", "activity", "assessment_attempt", "path_snapshot", "revenue"}
+        supported_types = {
+            "enrollment",
+            "completion",
+            "activity",
+            "assessment_attempt",
+            "path_snapshot",
+            "revenue",
+            "cashflow",
+            "commerce_transaction",
+            "commerce_refund",
+            "commerce_expense",
+        }
         if event_type not in supported_types:
             return False
 
@@ -60,9 +73,9 @@ class AnalyticsRepository:
             return False
 
         required = [tenant_id]
-        if event_type not in {"path_snapshot", "revenue"}:
+        if event_type not in {"path_snapshot", "revenue", "cashflow", "commerce_transaction", "commerce_refund", "commerce_expense"}:
             required.append(learner_id)
-        if event_type not in {"path_snapshot", "revenue"}:
+        if event_type not in {"path_snapshot", "revenue", "cashflow", "commerce_transaction", "commerce_refund", "commerce_expense"}:
             required.append(course_id)
         if any(not value for value in required):
             return False
@@ -152,10 +165,72 @@ class AnalyticsRepository:
             self.revenue_records.append(
                 RevenueRecord(
                     tenant_id=tenant_id,
+                    owner_id=str(event.get("owner_id") or "unknown"),
                     plan_id=plan_id,
                     amount=amount,
                     billed_at=timestamp,
                     currency=str(event.get("currency") or "USD"),
+                    source_event_id=event.get("event_id"),
+                    channel=str(event.get("channel") or "direct"),
+                )
+            )
+            return True
+
+        if event_type in {"cashflow", "commerce_transaction", "commerce_refund", "commerce_expense"}:
+            owner_id = str(event.get("owner_id") or "unknown")
+            currency = str(event.get("currency") or "USD")
+            if event_type == "commerce_transaction":
+                gross_amount = self._to_float(event.get("amount") or event.get("gross_amount"))
+                if gross_amount < 0:
+                    return False
+                plan_id = str(event.get("plan_id") or event.get("plan_type") or "unknown")
+                self.revenue_records.append(
+                    RevenueRecord(
+                        tenant_id=tenant_id,
+                        owner_id=owner_id,
+                        plan_id=plan_id,
+                        amount=gross_amount,
+                        billed_at=timestamp,
+                        currency=currency,
+                        source_event_id=event.get("event_id"),
+                        channel=str(event.get("channel") or "commerce"),
+                    )
+                )
+                settlement_amount = self._to_float(event.get("settlement_amount"), default=gross_amount)
+                if settlement_amount < 0:
+                    return False
+                self.cashflow_records.append(
+                    CashflowRecord(
+                        tenant_id=tenant_id,
+                        owner_id=owner_id,
+                        amount=settlement_amount,
+                        flow_type="inflow",
+                        occurred_at=timestamp,
+                        currency=currency,
+                        category="commerce_settlement",
+                        source_event_id=event.get("event_id"),
+                    )
+                )
+                return True
+
+            amount = self._to_float(event.get("amount"))
+            if amount < 0:
+                return False
+            flow_type = str(event.get("flow_type") or "").lower().strip()
+            if event_type in {"commerce_refund", "commerce_expense"}:
+                flow_type = "outflow"
+            if flow_type not in {"inflow", "outflow"}:
+                return False
+            category = str(event.get("category") or ("commerce_refund" if event_type == "commerce_refund" else "operations"))
+            self.cashflow_records.append(
+                CashflowRecord(
+                    tenant_id=tenant_id,
+                    owner_id=owner_id,
+                    amount=amount,
+                    flow_type=flow_type,
+                    occurred_at=timestamp,
+                    currency=currency,
+                    category=category,
                     source_event_id=event.get("event_id"),
                 )
             )
@@ -268,9 +343,27 @@ class AnalyticsRepository:
         start_at: datetime | None = None,
         end_at: datetime | None = None,
         tenant_id: str | None = None,
+        owner_id: str | None = None,
     ) -> list[RevenueRecord]:
         return [
             row
             for row in self.revenue_records
-            if (tenant_id is None or row.tenant_id == tenant_id) and self._in_window(row.billed_at, start_at, end_at)
+            if (tenant_id is None or row.tenant_id == tenant_id)
+            and (owner_id is None or row.owner_id == owner_id)
+            and self._in_window(row.billed_at, start_at, end_at)
+        ]
+
+    def list_cashflow_records(
+        self,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        tenant_id: str | None = None,
+        owner_id: str | None = None,
+    ) -> list[CashflowRecord]:
+        return [
+            row
+            for row in self.cashflow_records
+            if (tenant_id is None or row.tenant_id == tenant_id)
+            and (owner_id is None or row.owner_id == owner_id)
+            and self._in_window(row.occurred_at, start_at, end_at)
         ]

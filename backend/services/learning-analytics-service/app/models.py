@@ -64,8 +64,22 @@ class PathProgressSnapshot:
 @dataclass(frozen=True)
 class RevenueRecord:
     tenant_id: str
+    owner_id: str
     plan_id: str
     amount: float
     billed_at: datetime
     currency: str = "USD"
+    source_event_id: str | None = None
+    channel: str = "direct"
+
+
+@dataclass(frozen=True)
+class CashflowRecord:
+    tenant_id: str
+    owner_id: str
+    amount: float
+    flow_type: str
+    occurred_at: datetime
+    currency: str = "USD"
+    category: str = "operations"
     source_event_id: str | None = None

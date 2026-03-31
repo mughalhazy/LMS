@@ -55,6 +55,7 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
             {
                 "event_type": "revenue",
                 "tenant_id": "tenant-a",
+                "owner_id": "owner-a",
                 "plan_id": "pro",
                 "amount": 150.0,
                 "timestamp": now.isoformat(),
@@ -62,6 +63,7 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
             {
                 "event_type": "revenue",
                 "tenant_id": "tenant-a",
+                "owner_id": "owner-a",
                 "plan_id": "enterprise",
                 "amount": 300.0,
                 "timestamp": now.isoformat(),
@@ -69,6 +71,7 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
             {
                 "event_type": "revenue",
                 "tenant_id": "tenant-b",
+                "owner_id": "owner-b",
                 "plan_id": "pro",
                 "amount": 500.0,
                 "timestamp": now.isoformat(),
@@ -115,6 +118,7 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
     revenue = api.service.revenue_metrics()
     assert revenue["total_revenue"] == 950.0
     assert revenue["per_tenant_revenue"] == {"tenant-a": 450.0, "tenant-b": 500.0}
+    assert revenue["per_owner_revenue"] == {"owner-a": 450.0, "owner-b": 500.0}
     assert revenue["per_plan_revenue"] == {"enterprise": 300.0, "pro": 650.0}
 
 
@@ -166,6 +170,7 @@ def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
             {
                 "event_type": "revenue",
                 "tenant_id": "tenant-x",
+                "owner_id": "owner-x",
                 "plan_id": "starter",
                 "amount": 199.99,
                 "currency": "USD",
@@ -184,6 +189,65 @@ def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
     assert ai_payload["revenue_metrics"]["total_revenue"] == 199.99
     assert ai_payload["learning_metrics"]["completion_rate"] == 100.0
     assert ai_payload["performance_metrics"]["average_assessment_score"] == 85.0
+
+
+def test_owner_economics_financial_layer_with_commerce_events() -> None:
+    api = LearningAnalyticsAPI(AnalyticsRepository())
+    ingest = api.ingest_events(
+        [
+            {
+                "event_type": "commerce_transaction",
+                "event_id": "evt-1",
+                "tenant_id": "tenant-fin",
+                "owner_id": "owner-fin-1",
+                "plan_id": "pro",
+                "amount": 200.0,
+                "settlement_amount": 190.0,
+                "currency": "USD",
+                "timestamp": "2026-01-05T00:00:00+00:00",
+            },
+            {
+                "event_type": "commerce_expense",
+                "event_id": "evt-2",
+                "tenant_id": "tenant-fin",
+                "owner_id": "owner-fin-1",
+                "amount": 40.0,
+                "category": "platform_fee",
+                "currency": "USD",
+                "timestamp": "2026-01-05T01:00:00+00:00",
+            },
+            {
+                "event_type": "commerce_refund",
+                "event_id": "evt-3",
+                "tenant_id": "tenant-fin",
+                "owner_id": "owner-fin-1",
+                "amount": 20.0,
+                "currency": "USD",
+                "timestamp": "2026-01-06T01:00:00+00:00",
+            },
+        ]
+    )
+    assert ingest == {"processed": 3, "rejected": 0, "success_rate": 100.0}
+
+    query = TimeWindowQuery(tenant_id="tenant-fin", owner_id="owner-fin-1")
+    revenue = api.get_revenue_metrics(query)
+    assert revenue["total_revenue"] == 200.0
+    assert revenue["per_owner_revenue"] == {"owner-fin-1": 200.0}
+
+    cashflow = api.get_cashflow_metrics(query)
+    assert cashflow["inflow"] == 190.0
+    assert cashflow["outflow"] == 60.0
+    assert cashflow["net_cashflow"] == 130.0
+
+    profitability = api.get_profitability_metrics(query)
+    assert profitability["revenue"] == 200.0
+    assert profitability["operating_cost"] == 60.0
+    assert profitability["gross_profit"] == 140.0
+    assert profitability["profit_margin_percent"] == 70.0
+
+    owner_economics = api.get_owner_economics(query)
+    assert owner_economics["cashflow"]["net_cashflow"] == 130.0
+    assert owner_economics["profitability"]["gross_profit"] == 140.0
 
 
 def test_risk_insights_emit_automation_events() -> None:
