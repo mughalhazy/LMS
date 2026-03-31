@@ -272,3 +272,109 @@ def test_sms_fallback_used_when_whatsapp_fails() -> None:
     assert payload["delivered"] == 1
     assert payload["delivered_messages"][0]["metadata"]["adapter_provider"] == "sms"
     assert payload["delivered_messages"][0]["metadata"]["adapter_fallback_used"] is True
+
+from shared.models.workflow import WorkflowAction, WorkflowDefinition, WorkflowTrigger
+
+
+def test_workflow_engine_executes_low_performance_actions() -> None:
+    service = make_service()
+    workflow = WorkflowDefinition(
+        workflow_id="wf-low-performance",
+        name="Low Performance Escalation",
+        trigger=WorkflowTrigger(trigger_type="low_performance", config={"threshold": 70}),
+        actions=[
+            WorkflowAction(
+                action_type="send_notification",
+                config={
+                    "subject": "Performance intervention",
+                    "body": "Learner score dropped below threshold",
+                    "channels": ["in_app"],
+                    "recipients": ["coach@acme.com"],
+                },
+            ),
+            WorkflowAction(action_type="raise_alert", config={"severity": "critical"}),
+            WorkflowAction(action_type="create_follow_up_task", config={"assignee": "advisor@acme.com"}),
+        ],
+    )
+
+    status, payload = service.execute_workflows(
+        tenant_id="tenant-acme",
+        workflows=[workflow],
+        context={"performance_score": 55, "recipients": ["learner@acme.com"]},
+    )
+
+    assert status == 200
+    assert payload["matched_workflows"] == 1
+    assert payload["executed_actions"] == 3
+    assert len(service.raised_alerts) == 1
+    assert len(service.follow_up_tasks) == 1
+
+
+def test_workflow_engine_executes_missed_payment_trigger() -> None:
+    service = make_service()
+    workflow = WorkflowDefinition(
+        workflow_id="wf-payment",
+        name="Payment Recovery",
+        trigger=WorkflowTrigger(trigger_type="missed_payment", config={}),
+        actions=[
+            WorkflowAction(
+                action_type="send_notification",
+                config={
+                    "subject": "Payment missed",
+                    "body": "Please update billing details",
+                    "channels": ["email"],
+                    "recipients": ["billing@acme.com"],
+                },
+            ),
+            WorkflowAction(action_type="create_follow_up_task", config={"task_type": "billing_follow_up"}),
+        ],
+    )
+
+    status, payload = service.execute_workflows(
+        tenant_id="tenant-acme",
+        workflows=[workflow],
+        context={"payment_status": "overdue", "recipients": ["owner@acme.com"]},
+    )
+
+    assert status == 200
+    assert payload["matched_workflows"] == 1
+    assert payload["executed_actions"] == 2
+    assert service.follow_up_tasks[0]["task_type"] == "billing_follow_up"
+
+
+def test_workflow_engine_executes_inactivity_trigger_without_false_positives() -> None:
+    service = make_service()
+    inactivity_workflow = WorkflowDefinition(
+        workflow_id="wf-inactive",
+        name="Inactivity Nudges",
+        trigger=WorkflowTrigger(trigger_type="inactivity", config={"days": 14}),
+        actions=[
+            WorkflowAction(
+                action_type="send_notification",
+                config={
+                    "subject": "We miss you",
+                    "body": "Resume your learning path",
+                    "channels": ["push"],
+                    "recipients": ["learner@acme.com"],
+                },
+            )
+        ],
+    )
+
+    status, payload = service.execute_workflows(
+        tenant_id="tenant-acme",
+        workflows=[inactivity_workflow],
+        context={"inactive_days": 5, "recipients": ["learner@acme.com"]},
+    )
+    assert status == 200
+    assert payload["matched_workflows"] == 0
+    assert payload["executed_actions"] == 0
+
+    status, payload = service.execute_workflows(
+        tenant_id="tenant-acme",
+        workflows=[inactivity_workflow],
+        context={"inactive_days": 21, "recipients": ["learner@acme.com"]},
+    )
+    assert status == 200
+    assert payload["matched_workflows"] == 1
+    assert payload["executed_actions"] == 1

@@ -22,6 +22,8 @@ from .store import (
     InMemoryNotificationStore,
     ServiceUnavailableError,
 )
+from workflows import WorkflowEngine
+from shared.models.workflow import WorkflowDefinition
 
 T = TypeVar("T")
 
@@ -37,6 +39,28 @@ class NotificationService:
             whatsapp_adapter=WhatsAppAdapter(),
             sms_adapter=SMSAdapter(),
         )
+        self.raised_alerts: list[dict[str, Any]] = []
+        self.follow_up_tasks: list[dict[str, Any]] = []
+        self.workflow_engine = WorkflowEngine(self)
+
+
+    def execute_workflows(
+        self,
+        tenant_id: str,
+        workflows: list[WorkflowDefinition],
+        context: dict[str, Any],
+        tenant_country_code: str = "US",
+    ) -> tuple[int, dict[str, Any]]:
+        if not workflows:
+            return 200, {"tenant_id": tenant_id, "matched_workflows": 0, "executed_actions": 0, "results": []}
+
+        result = self.workflow_engine.execute(
+            tenant_id=tenant_id,
+            workflows=workflows,
+            context=context,
+            tenant_country_code=tenant_country_code,
+        )
+        return 200, result
 
     def upsert_preference(self, req: PreferenceUpsertRequest) -> tuple[int, dict[str, Any]]:
         if not req.channels:
