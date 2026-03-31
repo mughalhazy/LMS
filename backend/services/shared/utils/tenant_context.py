@@ -35,14 +35,19 @@ def tenant_contract_from_inputs(
     tenant_id: str,
     tenant_name: str | None = None,
     country_code: str | None = None,
-    segment_type: str | None = None,
+    segment_context: dict[str, Any] | None = None,
     plan_type: str | None = None,
     addon_flags: list[str] | None = None,
 ) -> TenantContract:
     context = _load_tenant_context().get(tenant_id, {})
 
     resolved_country = str(country_code or context.get("country_code") or "ZZ")
-    resolved_segment = str(segment_type or context.get("segment_type") or "default")
+    resolved_segment_context = segment_context or context.get("segment_context") or {
+        "type": "default",
+        "attributes": {},
+    }
+    if not isinstance(resolved_segment_context, dict):
+        resolved_segment_context = {"type": "default", "attributes": {}}
     resolved_plan = str(plan_type or context.get("plan_type") or os.getenv(_DEFAULT_PLAN_ENV, "free"))
     resolved_flags = addon_flags if addon_flags is not None else context.get("addon_flags", [])
 
@@ -50,8 +55,10 @@ def tenant_contract_from_inputs(
         tenant_id=tenant_id,
         name=tenant_name or tenant_id,
         country_code=resolved_country,
-        segment_type=resolved_segment,
         plan_type=resolved_plan,
+        segment_context={
+            "type": str(resolved_segment_context.get("type", "default")),
+            "attributes": dict(resolved_segment_context.get("attributes", {})),
+        },
         addon_flags=resolved_flags if isinstance(resolved_flags, list) else [],
     ).normalized()
-

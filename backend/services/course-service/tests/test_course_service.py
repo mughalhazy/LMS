@@ -4,12 +4,28 @@ import hmac
 import json
 import os
 import time
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 os.environ["JWT_SHARED_SECRET"] = "test-secret"
 
-from app.main import app, service
+_APP_ROOT = Path(__file__).resolve().parents[1] / "app"
+
+
+def _load_module(module_name: str, path: Path):
+    spec = spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module {module_name} from {path}")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_MAIN = _load_module("course_service_main", _APP_ROOT / "main.py")
+app = _MAIN.app
+service = _MAIN.service
 
 client = TestClient(app)
 
@@ -132,7 +148,7 @@ def test_events_are_published_for_lifecycle_changes() -> None:
     assert service.event_publisher.list_events()[-1].event_type == "course.lifecycle.created.v1"
 
 
-def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> None:
+def test_mandatory_course_requires_policy_and_updates_metrics() -> None:
     bad_response = client.post(
         "/api/v1/courses",
         headers=_headers("tenant-workforce"),
@@ -163,9 +179,9 @@ def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> Non
     assert ok_response.status_code == 201
     metrics_response = client.get("/metrics", headers=_headers("tenant-workforce"))
     assert metrics_response.status_code == 200
-    assert metrics_response.json()["workforce_mandatory_courses_total"] >= 1
+    assert metrics_response.json()["mandatory_courses_total"] >= 1
 
-def test_program_link_upsert_deduplicates_and_tracks_university_metadata() -> None:
+def test_program_link_upsert_deduplicates_and_tracks_linkage_metadata() -> None:
     create_response = client.post(
         "/api/v1/courses",
         headers=_headers("tenant-link"),
@@ -193,6 +209,6 @@ def test_program_link_upsert_deduplicates_and_tracks_university_metadata() -> No
 
     course_response = client.get(f"/api/v1/courses/{course_id}", headers=_headers("tenant-link"))
     assert course_response.status_code == 200
-    university_meta = course_response.json()["data"]["metadata"]["extra"]["university"]
-    assert university_meta["program_link_count"] == 2
-    assert university_meta["has_primary_program"] is True
+    linkage_meta = course_response.json()["data"]["metadata"]["extra"]["linkage"]
+    assert linkage_meta["program_link_count"] == 2
+    assert linkage_meta["has_primary_program"] is True
