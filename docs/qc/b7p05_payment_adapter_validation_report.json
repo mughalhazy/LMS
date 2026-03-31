@@ -1,0 +1,173 @@
+{
+  "batch": "B7P05",
+  "title": "Payment & Adapter Validation",
+  "scope": {
+    "jazzcash": true,
+    "easypaisa": true,
+    "payment_interface": "docs/architecture/payment_provider_adapter_interface_contract.md",
+    "checkout_integration": "docs/architecture/B3P03_checkout_service_design.md",
+    "commerce_boundary": "docs/architecture/B3P01_commerce_domain_architecture.md"
+  },
+  "flow_checks": {
+    "payment_initiation": true,
+    "verification": true,
+    "failure_handling": true,
+    "adapter_isolation": true,
+    "config_based_selection": true
+  },
+  "adapter_validation": {
+    "interface_issues": [],
+    "adapter_count": 2,
+    "selection_mode": "config_based"
+  },
+  "scenario_results": [
+    {
+      "scenario": "jazzcash_success",
+      "tenant_id": "tenant_academy_pk",
+      "adapter": "jazzcash",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "jazzcash"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_jc_001_ok",
+              "status": "authorized",
+              "context": {
+                "provider": "jazzcash",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        },
+        {
+          "step": "payment.verified",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_jc_001_ok",
+              "status": "captured",
+              "verified_at": "2026-03-31T00:00:00Z",
+              "context": {
+                "provider": "jazzcash",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        }
+      ],
+      "trace_hash": "b07bbd8323e397a635ccfd254d33995815cfc64711b544c91fd4ebdb88b1e2f6"
+    },
+    {
+      "scenario": "easypaisa_success",
+      "tenant_id": "tenant_enterprise_pk",
+      "adapter": "easypaisa",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "easypaisa"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_ep_001_ok",
+              "status": "requires_action",
+              "next_action_url": "https://sandbox.easypaisa.example/redirect",
+              "context": {
+                "provider": "easypaisa",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        },
+        {
+          "step": "payment.verified",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_ep_001_ok",
+              "status": "captured",
+              "verified_at": "2026-03-31T00:00:00Z",
+              "context": {
+                "provider": "easypaisa",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        }
+      ],
+      "trace_hash": "21c1306396fad235e0b1ed3d36929164ee71ddf65cc99cd4c9594b67748302c9"
+    },
+    {
+      "scenario": "jazzcash_terminal_failure",
+      "tenant_id": "tenant_academy_pk",
+      "adapter": "jazzcash",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "jazzcash"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": false,
+            "error": {
+              "code": "provider_rejected",
+              "message": "wallet blocked",
+              "retryable": false,
+              "provider": "jazzcash"
+            }
+          }
+        }
+      ],
+      "trace_hash": "6a685453d1aef09cae58ea7b24fd930a6589595751754b2b1595ad33a4751a2d"
+    },
+    {
+      "scenario": "easypaisa_retryable_failure",
+      "tenant_id": "tenant_enterprise_pk",
+      "adapter": "easypaisa",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "easypaisa"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": false,
+            "error": {
+              "code": "timeout",
+              "message": "provider timeout",
+              "retryable": true,
+              "provider": "easypaisa"
+            }
+          }
+        }
+      ],
+      "trace_hash": "10a05ffc1e08450c63cbd0d1e7642a011d9ffa0c615f8ff0758b0b17699b91c4"
+    }
+  ],
+  "issue_report": {
+    "issues": [],
+    "issue_count": 0,
+    "status": "no_issues"
+  },
+  "qc_fix_re_qc_10_10": {
+    "no_provider_logic_leakage": true,
+    "all_adapters_follow_interface": true,
+    "clean_separation_from_core": true,
+    "no_duplicated_flows": true,
+    "failure_scenarios_handled": true
+  },
+  "validation_score": 10
+}
