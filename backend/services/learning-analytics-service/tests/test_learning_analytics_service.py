@@ -81,3 +81,65 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
     path = api.get_learning_path_completion_analysis("lp1", LearningPathAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
     assert path["completion_rate"] == 33.33
     assert path["dominant_drop_off_stage"] == "midpoint"
+
+    combined = api.get_learning_and_performance_metrics("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
+    assert combined["learning_metrics"]["completion_rate"] == 66.67
+    assert combined["performance_metrics"]["average_assessment_score"] == 79.0
+
+
+def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
+    api = LearningAnalyticsAPI(AnalyticsRepository())
+    result = api.ingest_events(
+        [
+            {
+                "event_type": "enrollment",
+                "tenant_id": "tenant-x",
+                "learner_id": "lx1",
+                "course_id": "cx1",
+                "cohort_id": "cox1",
+                "enrollment_status": "enrolled",
+                "timestamp": "2026-01-01T00:00:00+00:00",
+            },
+            {
+                "event_type": "completion",
+                "tenant_id": "tenant-x",
+                "learner_id": "lx1",
+                "course_id": "cx1",
+                "completion_status": "completed",
+                "total_time_spent_seconds": 4500,
+                "timestamp": "2026-01-02T00:00:00+00:00",
+            },
+            {
+                "event_type": "activity",
+                "tenant_id": "tenant-x",
+                "learner_id": "lx1",
+                "course_id": "cx1",
+                "cohort_id": "cox1",
+                "active_minutes": 45,
+                "content_interactions": 8,
+                "assessment_attempts": 1,
+                "discussion_actions": 2,
+                "sentiment_score": 0.4,
+                "event_timestamp": "2026-01-02T00:15:00+00:00",
+            },
+            {
+                "event_type": "assessment_attempt",
+                "tenant_id": "tenant-x",
+                "learner_id": "lx1",
+                "course_id": "cx1",
+                "cohort_id": "cox1",
+                "score": 85,
+                "max_score": 100,
+                "timestamp": "2026-01-02T00:30:00+00:00",
+            },
+            {"event_type": "unknown", "tenant_id": "tenant-x"},
+        ]
+    )
+
+    assert result == {"processed": 4, "rejected": 1, "success_rate": 80.0}
+
+    ai_payload = api.get_ai_service_signals("cx1", CourseAnalyticsQuery(tenant_id="tenant-x", cohort_id="cox1"))
+    assert "learning_metrics" in ai_payload
+    assert "performance_metrics" in ai_payload
+    assert ai_payload["learning_metrics"]["completion_rate"] == 100.0
+    assert ai_payload["performance_metrics"]["average_assessment_score"] == 85.0

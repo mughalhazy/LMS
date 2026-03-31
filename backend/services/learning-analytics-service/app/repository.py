@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from .models import (
     AssessmentAttempt,
@@ -19,6 +20,137 @@ class AnalyticsRepository:
     activities: list[LearningActivityEvent] = field(default_factory=list)
     assessment_attempts: list[AssessmentAttempt] = field(default_factory=list)
     path_snapshots: list[PathProgressSnapshot] = field(default_factory=list)
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        raise ValueError("timestamp must be ISO string or datetime")
+
+    @staticmethod
+    def _to_int(value: Any, default: int = 0) -> int:
+        if value is None:
+            return default
+        return int(value)
+
+    @staticmethod
+    def _to_float(value: Any, default: float = 0.0) -> float:
+        if value is None:
+            return default
+        return float(value)
+
+    def ingest_event(self, event: dict[str, Any]) -> bool:
+        event_type = str(event.get("event_type", "")).strip().lower()
+        supported_types = {"enrollment", "completion", "activity", "assessment_attempt", "path_snapshot"}
+        if event_type not in supported_types:
+            return False
+
+        tenant_id = event.get("tenant_id")
+        learner_id = event.get("learner_id")
+        course_id = event.get("course_id")
+        cohort_id = event.get("cohort_id") or ""
+        timestamp_raw = event.get("timestamp") or event.get("event_timestamp")
+        try:
+            timestamp = self._parse_datetime(timestamp_raw)
+        except ValueError:
+            return False
+
+        required = [tenant_id, learner_id]
+        if event_type != "path_snapshot":
+            required.append(course_id)
+        if any(not value for value in required):
+            return False
+
+        if event_type == "enrollment":
+            self.enrollments.append(
+                CourseEnrollment(
+                    tenant_id=tenant_id,
+                    learner_id=learner_id,
+                    course_id=course_id,
+                    cohort_id=cohort_id,
+                    enrollment_status=str(event.get("enrollment_status") or "enrolled"),
+                    enrolled_at=timestamp,
+                )
+            )
+            return True
+
+        if event_type == "completion":
+            self.completions.append(
+                CourseCompletion(
+                    tenant_id=tenant_id,
+                    learner_id=learner_id,
+                    course_id=course_id,
+                    completion_status=str(event.get("completion_status") or "completed"),
+                    completion_timestamp=timestamp,
+                    total_time_spent_seconds=self._to_int(event.get("total_time_spent_seconds")),
+                )
+            )
+            return True
+
+        if event_type == "activity":
+            self.activities.append(
+                LearningActivityEvent(
+                    tenant_id=tenant_id,
+                    learner_id=learner_id,
+                    course_id=course_id,
+                    cohort_id=cohort_id,
+                    active_minutes=self._to_float(event.get("active_minutes")),
+                    content_interactions=self._to_int(event.get("content_interactions")),
+                    assessment_attempts=self._to_int(event.get("assessment_attempts")),
+                    discussion_actions=self._to_int(event.get("discussion_actions")),
+                    event_timestamp=timestamp,
+                    sentiment_score=self._to_float(event.get("sentiment_score")),
+                )
+            )
+            return True
+
+        if event_type == "assessment_attempt":
+            self.assessment_attempts.append(
+                AssessmentAttempt(
+                    tenant_id=tenant_id,
+                    learner_id=learner_id,
+                    course_id=course_id,
+                    cohort_id=cohort_id,
+                    score=self._to_float(event.get("score")),
+                    max_score=max(1.0, self._to_float(event.get("max_score"), default=100.0)),
+                    submitted_at=timestamp,
+                )
+            )
+            return True
+
+        if event_type == "path_snapshot":
+            learning_path_id = event.get("learning_path_id")
+            if not learning_path_id:
+                return False
+            completed_modules = self._to_int(event.get("completed_modules"))
+            total_modules = max(1, self._to_int(event.get("total_modules"), default=1))
+            self.path_snapshots.append(
+                PathProgressSnapshot(
+                    tenant_id=tenant_id,
+                    learner_id=learner_id,
+                    learning_path_id=learning_path_id,
+                    cohort_id=cohort_id,
+                    progress_percent=self._to_float(event.get("progress_percent")),
+                    completed_modules=completed_modules,
+                    total_modules=total_modules,
+                    snapshot_timestamp=timestamp,
+                )
+            )
+            return True
+
+        return False
+
+    def ingest_events(self, events: list[dict[str, Any]]) -> dict[str, int]:
+        processed = 0
+        rejected = 0
+        for event in events:
+            if self.ingest_event(event):
+                processed += 1
+            else:
+                rejected += 1
+        return {"processed": processed, "rejected": rejected}
 
     @staticmethod
     def _in_window(timestamp: datetime, start_at: datetime | None, end_at: datetime | None) -> bool:
