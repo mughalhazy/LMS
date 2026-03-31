@@ -22,10 +22,7 @@ class InMemoryTenantStore(TenantStore):
         return self._tenants.get(tenant_id)
 
     def by_code(self, tenant_code: str) -> Tenant | None:
-        return next((t for t in self._tenants.values() if t.tenant_code == tenant_code), None)
-
-    def by_domain(self, primary_domain: str) -> Tenant | None:
-        return next((t for t in self._tenants.values() if t.primary_domain == primary_domain), None)
+        return next((t for t in self._tenants.values() if t.name.lower() == tenant_code.lower()), None)
 
     def namespace_for(self, tenant_id: str) -> TenantNamespace | None:
         return self._namespace_by_tenant.get(tenant_id)

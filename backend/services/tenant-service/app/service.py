@@ -7,12 +7,13 @@ from uuid import uuid4
 from app.audit import AuditLogger
 from app.errors import TenantServiceError
 from app.events import EventPublisher, build_lifecycle_event
-from app.models import IsolationMode, LifecycleEvent, LifecycleState, PlanLink, Tenant, TenantConfiguration, TenantNamespace
+from app.models import IsolationMode, LifecycleEvent, LifecycleState, Tenant, TenantConfiguration, TenantNamespace
 from app.observability import MetricsRegistry
 from app.schemas import IsolationContext, IsolationDecision
 from app.store import TenantStore
+from backend.services.shared.utils.entitlements import resolve_capabilities
 
-SUPPORTED_REGIONS = {"us-east", "us-west", "eu-central", "ap-southeast"}
+SUPPORTED_COUNTRIES = {"US", "GB", "DE", "IN", "SG"}
 DEFAULT_EFFECTIVE_SETTINGS = {
     "security.require_mfa": True,
     "security.session_ttl_minutes": 60,
@@ -27,58 +28,61 @@ class TenantService:
         self.metrics = metrics
         self.audit_logger = AuditLogger("tenant.audit")
 
-    def validate_creation(self, tenant_code: str, primary_domain: str, requested_region: str) -> list[dict[str, str]]:
+    def validate_creation(self, name: str, country_code: str, segment_type: str, plan_type: str) -> list[dict[str, str]]:
         errors: list[dict[str, str]] = []
-        if self.store.by_code(tenant_code):
-            errors.append({"field": "tenant_code", "code": "duplicate", "message": "tenant_code already exists"})
-        if self.store.by_domain(primary_domain):
-            errors.append({"field": "primary_domain", "code": "duplicate", "message": "primary_domain already exists"})
-        if requested_region not in SUPPORTED_REGIONS:
-            errors.append({"field": "requested_region", "code": "unsupported", "message": "requested region is not supported"})
+        if self.store.by_code(name.lower()):
+            errors.append({"field": "name", "code": "duplicate", "message": "name already exists"})
+        if country_code.upper() not in SUPPORTED_COUNTRIES:
+            errors.append({"field": "country_code", "code": "unsupported", "message": "country_code is not supported"})
+        if not segment_type.strip():
+            errors.append({"field": "segment_type", "code": "invalid", "message": "segment_type cannot be empty"})
+        if not plan_type.strip():
+            errors.append({"field": "plan_type", "code": "invalid", "message": "plan_type cannot be empty"})
         return errors
 
-    def _select_isolation_mode(self, plan_name: str) -> IsolationMode:
-        plan = plan_name.lower()
+    def _select_isolation_mode(self, plan_type: str) -> IsolationMode:
+        plan = plan_type.lower()
         if plan in {"enterprise", "regulated"}:
             return IsolationMode.DATABASE_PER_TENANT
         return IsolationMode.SCHEMA_PER_TENANT
 
-    def _initialize_namespace(self, tenant_code: str, isolation_mode: IsolationMode) -> TenantNamespace:
-        locator = f"db://lms_{tenant_code}" if isolation_mode == IsolationMode.DATABASE_PER_TENANT else f"schema://tenant_{tenant_code}"
+    def _initialize_namespace(self, tenant_id: str, isolation_mode: IsolationMode) -> TenantNamespace:
+        locator = f"db://lms_{tenant_id}" if isolation_mode == IsolationMode.DATABASE_PER_TENANT else f"schema://tenant_{tenant_id}"
         return TenantNamespace(resource_locator=locator)
 
     def create_tenant(self, **kwargs) -> tuple[Tenant, TenantNamespace]:
         with self.metrics.timer("tenant.create"):
-            errors = self.validate_creation(kwargs["tenant_code"], kwargs["primary_domain"], kwargs["data_residency_region"])
+            errors = self.validate_creation(kwargs["name"], kwargs["country_code"], kwargs["segment_type"], kwargs["plan_type"])
             if errors:
                 self.metrics.inc("tenant.create.conflict")
                 raise TenantServiceError("tenant creation conflict", status_code=409, detail=errors)
 
-            isolation_mode = self._select_isolation_mode(kwargs["plan_name"])
+            tenant_id = f"tnt_{uuid4().hex[:12]}"
+            isolation_mode = self._select_isolation_mode(kwargs["plan_type"])
+            addon_flags = sorted(set(kwargs.get("addon_flags", [])))
             tenant = Tenant(
-                tenant_id=f"tnt_{uuid4().hex[:12]}",
+                tenant_id=tenant_id,
                 isolation_mode=isolation_mode,
                 lifecycle_state=LifecycleState.ACTIVE,
-                plan_link=PlanLink(plan_id=kwargs["plan_id"], plan_name=kwargs["plan_name"]),
-                tenant_name=kwargs["tenant_name"],
-                tenant_code=kwargs["tenant_code"],
-                primary_domain=kwargs["primary_domain"],
-                admin_user=kwargs["admin_user"],
-                data_residency_region=kwargs["data_residency_region"],
+                name=kwargs["name"],
+                country_code=kwargs["country_code"].upper(),
+                segment_type=kwargs["segment_type"],
+                plan_type=kwargs["plan_type"],
+                addon_flags=addon_flags,
             )
             tenant.state_history.append(
                 LifecycleEvent(
                     state=LifecycleState.ACTIVE,
                     reason="tenant_created",
-                    actor_id=tenant.admin_user,
+                    actor_id=kwargs["admin_user"],
                     effective_at=datetime.now(timezone.utc),
                 )
             )
-            namespace = self._initialize_namespace(tenant.tenant_code, isolation_mode)
+            namespace = self._initialize_namespace(tenant.tenant_id, isolation_mode)
             self.store.add(tenant, namespace)
             self.metrics.inc("tenant.create.success")
-            self.audit_logger.log(event_type="admin.tenant.created", tenant_id=tenant.tenant_id, actor_id=tenant.admin_user, details={"tenant_code": tenant.tenant_code})
-            self.publisher.publish(build_lifecycle_event("tenant.lifecycle.created", tenant.tenant_id, {"state": "active"}))
+            self.audit_logger.log(event_type="admin.tenant.created", tenant_id=tenant.tenant_id, actor_id=kwargs["admin_user"], details={"name": tenant.name})
+            self.publisher.publish(build_lifecycle_event("tenant.lifecycle.created", tenant.tenant_id, "tenant.create", {"state": "active"}))
             return tenant, namespace
 
     def get_tenant(self, tenant_id: str) -> Tenant:
@@ -86,6 +90,10 @@ class TenantService:
         if not tenant:
             raise TenantServiceError("tenant not found", status_code=404)
         return tenant
+
+    def get_tenant_capabilities(self, tenant_id: str) -> set[str]:
+        tenant = self.get_tenant(tenant_id)
+        return resolve_capabilities(tenant.contract()).capabilities
 
     def initialize_configuration(self, tenant_id: str, configuration: TenantConfiguration, actor_id: str) -> TenantConfiguration:
         tenant = self.get_tenant(tenant_id)
@@ -154,7 +162,7 @@ class TenantService:
         tenant.state_history.append(LifecycleEvent(state=next_state, reason=reason, actor_id=actor_id, effective_at=effective_at))
         self.store.update(tenant)
         self.audit_logger.log(event_type="admin.tenant.lifecycle.changed", tenant_id=tenant.tenant_id, actor_id=actor_id, details={"next_state": next_state.value, "reason": reason})
-        self.publisher.publish(build_lifecycle_event("tenant.lifecycle.changed", tenant.tenant_id, {"state": next_state.value, "reason": reason}))
+        self.publisher.publish(build_lifecycle_event("tenant.lifecycle.changed", tenant.tenant_id, "tenant.lifecycle", {"state": next_state.value, "reason": reason}))
         return tenant
 
     def effective_settings(self, tenant: Tenant, include_defaults: bool) -> dict:

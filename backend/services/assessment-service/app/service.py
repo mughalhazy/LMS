@@ -8,6 +8,10 @@ from fastapi import HTTPException
 
 from .audit import AuditLogger
 from .events import DomainEvent, EventPublisher
+from backend.services.shared.context.correlation import ensure_correlation_id
+from backend.services.shared.events.envelope import build_event
+from backend.services.shared.models.tenant import TenantContract
+from backend.services.shared.utils.entitlements import is_capability_enabled
 from .models import AssessmentDefinition, AssessmentStatus, AssessmentType, AttemptRecord, AttemptStatus, SubmissionRecord
 from .observability import ServiceMetrics
 from .schemas import (
@@ -42,6 +46,7 @@ class AssessmentService:
         return datetime.now(timezone.utc)
 
     def create_assessment(self, tenant_id: str, request: AssessmentCreateRequest) -> AssessmentResponse:
+        self._assert_capability(tenant_id, "assessment.author")
         if request.passing_score > request.max_score:
             raise HTTPException(status_code=422, detail="passing_score cannot exceed max_score")
 
@@ -80,6 +85,7 @@ class AssessmentService:
         return self._to_assessment_response(record)
 
     def update_assessment(self, tenant_id: str, assessment_id: str, request: AssessmentUpdateRequest) -> AssessmentResponse:
+        self._assert_capability(tenant_id, "assessment.author")
         current = self.store.get_assessment(tenant_id, assessment_id)
         if not current:
             raise HTTPException(status_code=404, detail="assessment not found")
@@ -139,6 +145,7 @@ class AssessmentService:
         self._event("assessment.deleted", tenant_id, assessment_id, {})
 
     def start_attempt(self, tenant_id: str, assessment_id: str, request: AttemptStartRequest) -> AttemptResponse:
+        self._assert_capability(tenant_id, "assessment.attempt")
         assessment = self.store.get_assessment(tenant_id, assessment_id)
         if not assessment:
             raise HTTPException(status_code=404, detail="assessment not found")
@@ -160,6 +167,7 @@ class AssessmentService:
         return self._to_attempt_response(persisted)
 
     def submit_attempt(self, tenant_id: str, attempt_id: str, request: SubmissionCreateRequest) -> SubmissionResponse:
+        self._assert_capability(tenant_id, "assessment.attempt")
         attempt = self.store.get_attempt(tenant_id, attempt_id)
         if not attempt:
             raise HTTPException(status_code=404, detail="attempt not found")
@@ -184,6 +192,7 @@ class AssessmentService:
         return self._to_submission_response(persisted_submission)
 
     def grade_attempt(self, tenant_id: str, attempt_id: str, request: GradeAttemptRequest) -> AttemptResponse:
+        self._assert_capability(tenant_id, "assessment.author")
         attempt = self.store.get_attempt(tenant_id, attempt_id)
         if not attempt:
             raise HTTPException(status_code=404, detail="attempt not found")
@@ -214,13 +223,13 @@ class AssessmentService:
 
     def _event(self, event_type: str, tenant_id: str, entity_id: str, payload: dict[str, object]) -> None:
         self.event_publisher.publish(
-            DomainEvent(
+            DomainEvent(**build_event(
                 event_type=event_type,
                 tenant_id=tenant_id,
-                entity_id=entity_id,
-                occurred_at=self._now(),
+                correlation_id=ensure_correlation_id(None),
                 payload=payload,
-            )
+                metadata={"entity_id": entity_id, "producer": "assessment-service"},
+            ).__dict__)
         )
 
     def _audit(self, tenant_id: str, actor_id: str, action: str, entity_id: str, details: dict[str, object]) -> None:
@@ -235,6 +244,14 @@ class AssessmentService:
                 "details": details,
             }
         )
+
+
+    def _tenant_contract(self, tenant_id: str) -> TenantContract:
+        return TenantContract(tenant_id=tenant_id, name=tenant_id, country_code="US", segment_type="enterprise", plan_type="enterprise", addon_flags=[]).normalized()
+
+    def _assert_capability(self, tenant_id: str, capability: str) -> None:
+        if not is_capability_enabled(self._tenant_contract(tenant_id), capability):
+            raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     @staticmethod
     def _to_assessment_response(record: AssessmentDefinition) -> AssessmentResponse:

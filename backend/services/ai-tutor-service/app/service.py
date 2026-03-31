@@ -6,6 +6,9 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from backend.services.shared.models.tenant import TenantContract
+from backend.services.shared.utils.entitlements import is_capability_enabled
+
 from .schemas import (
     ConceptExplanationRequest,
     ContextualTutoringRequest,
@@ -35,6 +38,7 @@ class AITutorService:
         return datetime.now(timezone.utc)
 
     def explain_concept(self, request: ConceptExplanationRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
         message = (
             f"{request.concept} can be understood as a practical tool for {request.learner_goal or 'solving the current lesson objective'}. "
             f"Start with the core definition, then relate it to your course {request.context.course_id}, and finish with one quick self-check question."
@@ -58,6 +62,7 @@ class AITutorService:
         )
 
     def answer_question(self, request: LearnerQuestionRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
         message = (
             f"Answer: {request.question.strip('?')} relies on understanding {', '.join(request.context.struggling_topics) or 'the lesson prerequisites'}. "
             "Break the question into parts, verify assumptions, and test with a short example before committing to a final answer."
@@ -80,6 +85,7 @@ class AITutorService:
         )
 
     def provide_contextual_tutoring(self, request: ContextualTutoringRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
         message = (
             f"For {request.activity_type}, compare your submission against the expected outcome: {request.expected_outcome}. "
             "Focus first on correctness, then on clarity, and finally on efficiency."
@@ -103,6 +109,7 @@ class AITutorService:
         )
 
     def generate_guidance(self, request: LearningGuidanceRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
         pace = "accelerated" if request.current_progress < 40 else "balanced"
         message = (
             f"Use a {pace} plan: reserve {request.time_available_minutes} minutes today for review, practice, and recap. "
@@ -138,6 +145,13 @@ class AITutorService:
             context=session.context,
             interactions=session.interactions,
         )
+
+    def _tenant_contract(self, tenant_id: str) -> TenantContract:
+        return TenantContract(tenant_id=tenant_id, name=tenant_id, country_code="US", segment_type="enterprise", plan_type="enterprise", addon_flags=["ai_tutor"]).normalized()
+
+    def _assert_capability(self, tenant_id: str, capability: str) -> None:
+        if not is_capability_enabled(self._tenant_contract(tenant_id), capability):
+            raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     def _store_interaction(
         self,

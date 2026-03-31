@@ -46,7 +46,7 @@ class TenantAPI:
         self.service = service
 
     def validate_tenant_creation(self, request: ValidateTenantCreationRequest) -> ValidationResponse:
-        errors = self.service.validate_creation(request.tenant_code, request.primary_domain, request.requested_region)
+        errors = self.service.validate_creation(request.name, request.country_code, request.segment_type, request.plan_type)
         return ValidationResponse(validation_passed=not errors, errors=errors)
 
     def create_tenant(self, request: CreateTenantRequest) -> CreateTenantResponse:

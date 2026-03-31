@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from backend.services.shared.models.tenant import TenantContract
+
 
 class IsolationMode(str, Enum):
     SCHEMA_PER_TENANT = "schema_per_tenant"
@@ -17,12 +19,6 @@ class LifecycleState(str, Enum):
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
     DECOMMISSIONED = "decommissioned"
-
-
-@dataclass
-class PlanLink:
-    plan_id: str
-    plan_name: str
 
 
 @dataclass
@@ -48,18 +44,27 @@ class TenantConfiguration:
 @dataclass
 class Tenant:
     tenant_id: str
-    tenant_name: str
-    tenant_code: str
-    primary_domain: str
-    admin_user: str
-    data_residency_region: str
-    plan_link: PlanLink
+    name: str
+    country_code: str
+    segment_type: str
+    plan_type: str
+    addon_flags: list[str]
     isolation_mode: IsolationMode
     lifecycle_state: LifecycleState = LifecycleState.PROVISIONING
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     configuration: TenantConfiguration = field(default_factory=TenantConfiguration)
     state_history: list[LifecycleEvent] = field(default_factory=list)
+
+    def contract(self) -> TenantContract:
+        return TenantContract(
+            tenant_id=self.tenant_id,
+            name=self.name,
+            country_code=self.country_code,
+            segment_type=self.segment_type,
+            plan_type=self.plan_type,
+            addon_flags=self.addon_flags,
+        ).normalized()
 
 
 @dataclass
