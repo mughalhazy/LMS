@@ -4,11 +4,12 @@ import importlib.util
 from pathlib import Path
 
 from integrations.payment import (
+    EasyPaisaAdapter,
     InMemoryInvoiceStore,
-    MockFailureAdapter,
-    MockSuccessAdapter,
+    JazzCashAdapter,
     PaymentFlowService,
     PaymentProviderRouter,
+    TenantPaymentContext,
 )
 
 
@@ -21,34 +22,42 @@ def _load_subscription_module():
     return module
 
 
-def test_success_flow_links_payment_to_invoice() -> None:
+def test_jazzcash_success_flow_links_payment_to_invoice() -> None:
     router = PaymentProviderRouter(
-        tenant_provider_config={"tenant_success": "mock_success"},
-        adapters=[MockSuccessAdapter(), MockFailureAdapter()],
+        country_provider_config={"PK": "jazzcash"},
+        adapters=[JazzCashAdapter(), EasyPaisaAdapter()],
     )
     service = PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
-    result = service.process_payment(amount=1500, tenant="tenant_success")
+    result = service.process_payment(
+        amount=1500,
+        tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
+    )
 
     assert result["status"] == "success"
+    assert result["provider"] == "jazzcash"
     assert result["invoice_id"] is not None
     assert result["payment_id"] is not None
     assert result["invoice_payment_status"] == "paid"
 
 
-def test_failure_flow_marks_invoice_payment_failed() -> None:
+def test_easypaisa_success_flow_links_payment_to_invoice() -> None:
     router = PaymentProviderRouter(
-        tenant_provider_config={"tenant_failure": "mock_failure"},
-        adapters=[MockSuccessAdapter(), MockFailureAdapter()],
+        country_provider_config={"PK": "easypaisa"},
+        adapters=[JazzCashAdapter(), EasyPaisaAdapter()],
     )
     service = PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
-    result = service.process_payment(amount=1500, tenant="tenant_failure")
+    result = service.process_payment(
+        amount=1500,
+        tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
+    )
 
-    assert result["status"] == "failure"
-    assert result["payment_id"] is None
+    assert result["status"] == "success"
+    assert result["provider"] == "easypaisa"
+    assert result["payment_id"] is not None
     assert result["invoice_id"] is not None
-    assert result["invoice_payment_status"] == "payment_failed"
+    assert result["invoice_payment_status"] == "paid"
 
 
 def test_subscription_entrypoint_supports_process_payment_signature() -> None:
@@ -62,9 +71,12 @@ def test_subscription_entrypoint_supports_process_payment_signature() -> None:
 def test_no_provider_lock_in_with_runtime_config() -> None:
     mod = _load_subscription_module()
     service = mod.build_subscription_payment_service(
-        tenant_provider_config={"tenant_dynamic": "mock_failure"}
+        country_provider_config={"PK": "easypaisa"}
     )
 
-    result = service.process_payment(amount=2000, tenant="tenant_dynamic")
-    assert result["status"] == "failure"
-    assert result["provider"] == "mock_failure"
+    result = service.process_payment(
+        amount=2000,
+        tenant=TenantPaymentContext(tenant_id="tenant_dynamic", country_code="PK"),
+    )
+    assert result["status"] == "success"
+    assert result["provider"] == "easypaisa"

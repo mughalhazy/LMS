@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .adapters import PaymentRequest, PaymentResult
+from .base_adapter import PaymentResult, normalize_tenant
 from .router import PaymentProviderRouter
 
 
@@ -39,14 +39,17 @@ class PaymentFlowService:
         self._router = router
         self._invoice_store = invoice_store
 
-    def process_payment(self, amount: int, tenant: str) -> dict[str, str | int | None]:
+    def process_payment(self, amount: int, tenant: object) -> dict[str, str | int | None]:
         if amount <= 0:
             raise ValueError("amount must be greater than 0")
 
-        invoice = self._invoice_store.create(tenant=tenant, amount=amount)
-        adapter = self._router.resolve(tenant)
+        tenant_context = normalize_tenant(tenant)
+        invoice = self._invoice_store.create(tenant=tenant_context.tenant_id, amount=amount)
+        adapter = self._router.resolve(tenant_context)
         result: PaymentResult = adapter.process_payment(
-            PaymentRequest(amount=amount, tenant=tenant, invoice_id=invoice.invoice_id)
+            amount=amount,
+            tenant=tenant_context,
+            invoice_id=invoice.invoice_id,
         )
 
         if result.ok:
