@@ -7,6 +7,7 @@ from integrations.payment.base_adapter import PaymentResult, TenantPaymentContex
 from integrations.payment.router import PaymentProviderRouter
 from services.commerce.catalog import ProductType
 from services.commerce.service import CommerceService
+from shared.utils.entitlement import TenantEntitlementContext
 
 
 class FlakyAdapter:
@@ -111,3 +112,36 @@ def test_subscription_product_activates_subscription_service_contract() -> None:
     assert invoice.invoice_type == "subscription"
     assert contract is not None
     assert contract.status == "active"
+
+
+def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
+    router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter()])
+    commerce = CommerceService(payment_router=router)
+
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_monetize",
+        plan_type="pro",
+        add_ons=("ai_tutor_pack",),
+        country_code="US",
+        segment_id="academy",
+    )
+    commerce.entitlement_service.upsert_tenant_context(tenant)
+
+    pro_mapping = commerce.monetization.plan_capability_mapping("pro")
+    assert "assessment.author" in pro_mapping
+
+    commerce.enable_capability_add_on(tenant_id="tenant_monetize", capability_id="learning.analytics.advanced")
+    purchased = commerce.subscription_service.get_purchased_capability_add_ons("tenant_monetize")
+    assert "learning.analytics.advanced" in purchased
+
+    commerce.record_capability_usage(
+        tenant_id="tenant_monetize",
+        capability_id="learning.analytics.advanced",
+        units=7,
+    )
+    charges = commerce.calculate_capability_charges(tenant)
+    charge_map = {charge.capability_id: charge for charge in charges}
+
+    assert charge_map["learning.analytics.advanced"].amount == Decimal("0.70")
+    assert charge_map["learning.analytics.advanced"].units == 7
+    assert charge_map["assessment.author"].amount == Decimal("29.00")

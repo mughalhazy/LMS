@@ -114,6 +114,42 @@ class EntitlementService:
             sources=tuple(sources),
         )
 
+
+    def resolve_enabled_capabilities(self, tenant: TenantEntitlementContext) -> set[str]:
+        normalized_tenant = tenant.normalized()
+        subscription = self._subscription_service.get_tenant_subscription(normalized_tenant.tenant_id)
+        if subscription is None:
+            subscription = TenantSubscription(
+                tenant_id=normalized_tenant.tenant_id,
+                plan_type=normalized_tenant.plan_type,
+                add_ons=normalized_tenant.add_ons,
+            ).normalized()
+
+        candidates = {
+            capability.capability_id
+            for capability in self._capability_registry.list_capabilities()
+            if capability.default_enabled
+        }
+        candidates.update(self._subscription_service.get_plan_capabilities(subscription.plan_type))
+
+        for add_on in subscription.add_ons:
+            candidates.update(self._subscription_service.get_add_on_capabilities(add_on))
+
+        effective_config = self._config_service.resolve(
+            ConfigResolutionContext(
+                tenant_id=normalized_tenant.tenant_id,
+                country_code=normalized_tenant.country_code,
+                segment_id=normalized_tenant.segment_id,
+            )
+        )
+        for capability_id, enabled in effective_config.capability_enabled.items():
+            if enabled:
+                candidates.add(capability_id)
+            else:
+                candidates.discard(capability_id)
+
+        return {capability_id for capability_id in candidates if self.is_enabled(normalized_tenant, capability_id)}
+
     def is_enabled(self, tenant: TenantEntitlementContext, capability: str) -> bool:
         return self.decide(tenant=tenant, capability=capability).is_enabled
 

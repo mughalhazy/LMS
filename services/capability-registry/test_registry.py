@@ -39,3 +39,14 @@ def test_qc_gate_score_is_perfect() -> None:
     assert report["checks"]["all_capabilities_billable"] is True
     assert report["checks"]["no_pricing_leakage"] is True
     assert report["score"] == 10
+
+
+def test_plan_and_add_on_capability_mappings_use_capability_billing_unit() -> None:
+    registry = CapabilityRegistryService()
+
+    pro_capabilities = registry.list_plan_capabilities("pro")
+    ai_add_on_capabilities = registry.list_add_on_capabilities("ai_tutor_pack")
+
+    assert "assessment.author" in pro_capabilities
+    assert "ai.tutor" in ai_add_on_capabilities
+    assert registry.assert_capability_is_single_billing_unit("ai.tutor") is True
