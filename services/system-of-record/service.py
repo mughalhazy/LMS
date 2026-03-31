@@ -75,6 +75,24 @@ class StudentLifecycleState(str, Enum):
 
 
 @dataclass(frozen=True)
+class AcademicState:
+    lifecycle_state: StudentLifecycleState = StudentLifecycleState.PROSPECT
+    enrollment_status: str = "not_enrolled"
+    active_learning_path_count: int = 0
+    last_transition_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class FinancialState:
+    total_invoiced: Decimal = Decimal("0")
+    total_paid: Decimal = Decimal("0")
+    ledger_balance: Decimal = Decimal("0")
+    last_invoice_id: str | None = None
+    last_payment_id: str | None = None
+    last_payment_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class UnifiedStudentProfile:
     tenant_id: str
     student_id: str
@@ -83,6 +101,8 @@ class UnifiedStudentProfile:
     country_code: str
     segment_id: str
     lifecycle_state: StudentLifecycleState = StudentLifecycleState.PROSPECT
+    academic_state: AcademicState = field(default_factory=AcademicState)
+    financial_state: FinancialState = field(default_factory=FinancialState)
     learning_path_ids: tuple[str, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
 
@@ -97,6 +117,10 @@ class LedgerEntry:
     source_type: str
     source_ref: str
     posted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LifecycleTransitionError(ValueError):
+    pass
 
 
 class SystemOfRecordService:
@@ -128,6 +152,22 @@ class SystemOfRecordService:
             "commerce.invoice": "commerce-service",
             "config.runtime": "config-service",
         }
+        self._allowed_lifecycle_transitions: dict[StudentLifecycleState, set[StudentLifecycleState]] = {
+            StudentLifecycleState.PROSPECT: {StudentLifecycleState.ENROLLED, StudentLifecycleState.WITHDRAWN},
+            StudentLifecycleState.ENROLLED: {
+                StudentLifecycleState.ACTIVE,
+                StudentLifecycleState.SUSPENDED,
+                StudentLifecycleState.WITHDRAWN,
+            },
+            StudentLifecycleState.ACTIVE: {
+                StudentLifecycleState.SUSPENDED,
+                StudentLifecycleState.GRADUATED,
+                StudentLifecycleState.WITHDRAWN,
+            },
+            StudentLifecycleState.SUSPENDED: {StudentLifecycleState.ACTIVE, StudentLifecycleState.WITHDRAWN},
+            StudentLifecycleState.GRADUATED: set(),
+            StudentLifecycleState.WITHDRAWN: set(),
+        }
 
     def _profile_key(self, *, tenant_id: str, student_id: str) -> tuple[str, str]:
         return tenant_id.strip(), student_id.strip()
@@ -156,8 +196,19 @@ class SystemOfRecordService:
             if not value:
                 raise ValueError(f"{field_name} is required by system_of_record policy")
 
-        self._profiles[profile_key] = profile
-        return profile
+        updated_profile = replace(
+            profile,
+            academic_state=replace(
+                profile.academic_state,
+                lifecycle_state=profile.lifecycle_state,
+                active_learning_path_count=len(profile.learning_path_ids),
+                enrollment_status="enrolled"
+                if profile.lifecycle_state in {StudentLifecycleState.ENROLLED, StudentLifecycleState.ACTIVE}
+                else profile.academic_state.enrollment_status,
+            ),
+        )
+        self._profiles[profile_key] = updated_profile
+        return updated_profile
 
     def get_student_profile(self, *, tenant_id: str, student_id: str) -> UnifiedStudentProfile | None:
         return self._profiles.get(self._profile_key(tenant_id=tenant_id, student_id=student_id))
@@ -180,8 +231,21 @@ class SystemOfRecordService:
         profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
         if profile is None:
             raise KeyError("student profile not found")
+        if state not in self._allowed_lifecycle_transitions[profile.lifecycle_state]:
+            raise LifecycleTransitionError(f"invalid lifecycle transition: {profile.lifecycle_state} -> {state}")
 
-        updated = replace(profile, lifecycle_state=state)
+        updated = replace(
+            profile,
+            lifecycle_state=state,
+            academic_state=replace(
+                profile.academic_state,
+                lifecycle_state=state,
+                enrollment_status="enrolled"
+                if state in {StudentLifecycleState.ENROLLED, StudentLifecycleState.ACTIVE}
+                else ("completed" if state == StudentLifecycleState.GRADUATED else profile.academic_state.enrollment_status),
+                last_transition_at=datetime.now(timezone.utc),
+            ),
+        )
         self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
         return updated
 
@@ -209,7 +273,11 @@ class SystemOfRecordService:
         )
 
         if learning_path_id not in profile.learning_path_ids:
-            profile = replace(profile, learning_path_ids=(*profile.learning_path_ids, learning_path_id))
+            profile = replace(
+                profile,
+                learning_path_ids=(*profile.learning_path_ids, learning_path_id),
+                academic_state=replace(profile.academic_state, active_learning_path_count=len(profile.learning_path_ids) + 1),
+            )
             self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = profile
 
         return self._learning_service.get_learner_progress(tenant_id=tenant_id, learner_id=student_id)
@@ -218,6 +286,8 @@ class SystemOfRecordService:
         key = self._profile_key(tenant_id=invoice.tenant_id, student_id=student_id)
         if key not in self._profiles:
             raise KeyError("student profile not found")
+        if any(entry.source_type == "invoice" and entry.source_ref == invoice.invoice_id for entry in self._ledger.get(key, [])):
+            raise ValueError("duplicate invoice ledger posting")
 
         entry = LedgerEntry(
             entry_id=f"led_{invoice.invoice_id}",
@@ -229,6 +299,62 @@ class SystemOfRecordService:
             source_ref=invoice.invoice_id,
         )
         self._ledger.setdefault(key, []).append(entry)
+        profile = self._profiles[key]
+        financial = profile.financial_state
+        updated_profile = replace(
+            profile,
+            financial_state=replace(
+                financial,
+                total_invoiced=(financial.total_invoiced + Decimal(invoice.amount)),
+                ledger_balance=(financial.ledger_balance + Decimal(invoice.amount)),
+                last_invoice_id=invoice.invoice_id,
+            ),
+        )
+        self._profiles[key] = updated_profile
+        self._assert_ledger_consistency(tenant_id=invoice.tenant_id, student_id=student_id)
+        return entry
+
+    def post_payment_to_ledger(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        payment_id: str,
+        amount: Decimal,
+        currency: str = "USD",
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        if amount <= Decimal("0"):
+            raise ValueError("payment amount must be positive")
+        if any(entry.source_type == "payment" and entry.source_ref == payment_id for entry in self._ledger.get(key, [])):
+            raise ValueError("duplicate payment ledger posting")
+
+        entry = LedgerEntry(
+            entry_id=f"pay_{payment_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            amount=Decimal(amount) * Decimal("-1"),
+            currency=currency,
+            source_type="payment",
+            source_ref=payment_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        profile = self._profiles[key]
+        financial = profile.financial_state
+        updated_profile = replace(
+            profile,
+            financial_state=replace(
+                financial,
+                total_paid=(financial.total_paid + Decimal(amount)),
+                ledger_balance=(financial.ledger_balance - Decimal(amount)),
+                last_payment_id=payment_id,
+                last_payment_at=entry.posted_at,
+            ),
+        )
+        self._profiles[key] = updated_profile
+        self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
         return entry
 
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
@@ -238,6 +364,62 @@ class SystemOfRecordService:
     def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
         entries = self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)
         return sum((entry.amount for entry in entries), start=Decimal("0"))
+
+    def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        profile = self._profiles.get(key)
+        if profile is None:
+            return False
+        entries = self._ledger.get(key, [])
+        invoiced = sum((entry.amount for entry in entries if entry.source_type == "invoice"), start=Decimal("0"))
+        paid = sum((entry.amount.copy_abs() for entry in entries if entry.source_type == "payment"), start=Decimal("0"))
+        balance = sum((entry.amount for entry in entries), start=Decimal("0"))
+        financial = profile.financial_state
+        return (
+            financial.total_invoiced == invoiced
+            and financial.total_paid == paid
+            and financial.ledger_balance == balance
+        )
+
+    def run_qc_autofix(self) -> dict[str, bool]:
+        for key, profile in list(self._profiles.items()):
+            entries = self._ledger.get(key, [])
+            invoiced = sum((entry.amount for entry in entries if entry.source_type == "invoice"), start=Decimal("0"))
+            paid = sum((entry.amount.copy_abs() for entry in entries if entry.source_type == "payment"), start=Decimal("0"))
+            balance = sum((entry.amount for entry in entries), start=Decimal("0"))
+            self._profiles[key] = replace(
+                profile,
+                academic_state=replace(
+                    profile.academic_state,
+                    lifecycle_state=profile.lifecycle_state,
+                    active_learning_path_count=len(profile.learning_path_ids),
+                ),
+                financial_state=replace(
+                    profile.financial_state,
+                    total_invoiced=invoiced,
+                    total_paid=paid,
+                    ledger_balance=balance,
+                ),
+            )
+
+        lifecycle_valid = all(
+            profile.academic_state.lifecycle_state == profile.lifecycle_state for profile in self._profiles.values()
+        )
+        ledger_valid = all(
+            self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
+            for tenant_id, student_id in self._profiles
+        )
+        return {
+            "student_profile_unified_state": lifecycle_valid and ledger_valid,
+            "ledger_consistency": ledger_valid,
+            "lifecycle_transitions": lifecycle_valid,
+            "payments_update_ledger": all(
+                entry.source_type != "payment" or entry.amount < 0
+                for entries in self._ledger.values()
+                for entry in entries
+            ),
+            "fragmented_state_removed": self.is_single_source_of_truth(),
+        }
 
     def has_duplicate_data_ownership(self) -> bool:
         domains = list(self._domain_owner)

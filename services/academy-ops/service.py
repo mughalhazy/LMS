@@ -290,13 +290,19 @@ class AcademyOpsService:
     def record_fee_payment(self, payment: FeePayment) -> FeePayment:
         key = self._key(payment.tenant_id, payment.learner_id)
         self._fee_payments.setdefault(key, []).append(payment)
+        self._sor.post_payment_to_ledger(
+            tenant_id=payment.tenant_id,
+            student_id=payment.learner_id,
+            payment_id=payment.payment_id,
+            amount=payment.amount,
+        )
         return payment
 
     def learner_fee_balance(self, *, tenant_id: str, learner_id: str) -> Decimal:
-        key = self._key(tenant_id, learner_id)
-        invoiced = sum((Decimal(inv.amount) for inv in self._fee_invoices.get(key, [])), start=Decimal("0"))
-        paid = sum((p.amount for p in self._fee_payments.get(key, [])), start=Decimal("0"))
-        return invoiced - paid
+        profile = self._sor.get_student_profile(tenant_id=tenant_id, student_id=learner_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        return profile.financial_state.ledger_balance
 
     def has_learning_core_overlap(self) -> bool:
         owned = {cap for cap, owner in self._domain_owner.items() if owner == "academy-ops"}
