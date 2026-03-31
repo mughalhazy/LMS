@@ -1,5 +1,5 @@
 {
-  "event_name": "enrollment.created",
+  "event_type": "enrollment.created",
   "producer_service": "enrollment-service",
   "topic": "lms.enrollment.created.v1",
   "schema_version": "1.0.0",

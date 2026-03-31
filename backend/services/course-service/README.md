@@ -50,10 +50,10 @@ This supports repository swap to SQL/ORM without changing domain service API.
 ## Event publishing
 Lifecycle and linkage changes publish envelope events with:
 - `event_id`
-- `event_name`
+- `event_type`
 - `tenant_id`
 - `aggregate_id`
-- `occurred_at`
+- `timestamp`
 - `actor_id`
 - `payload`
 

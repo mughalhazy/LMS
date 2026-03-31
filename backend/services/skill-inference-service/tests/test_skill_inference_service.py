@@ -44,7 +44,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="assessment",
                 normalized_score=0.92,
                 confidence_weight=1.0,
-                occurred_at=now - timedelta(days=2),
+                timestamp=now - timedelta(days=2),
                 verified=True,
             )
         )
@@ -57,7 +57,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="quiz",
                 normalized_score=0.85,
                 confidence_weight=0.9,
-                occurred_at=now - timedelta(days=3),
+                timestamp=now - timedelta(days=3),
                 verified=False,
             )
         )
@@ -83,7 +83,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="assessment",
                 normalized_score=0.2,
                 confidence_weight=1.0,
-                occurred_at=now,
+                timestamp=now,
             )
         )
         self.service.ingest_evidence(
@@ -95,7 +95,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="project",
                 normalized_score=0.9,
                 confidence_weight=1.0,
-                occurred_at=now,
+                timestamp=now,
             )
         )
         self.service.ingest_evidence(
@@ -107,7 +107,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="assessment",
                 normalized_score=1.0,
                 confidence_weight=1.0,
-                occurred_at=now,
+                timestamp=now,
             )
         )
 
@@ -184,7 +184,7 @@ class SkillInferenceServiceTests(unittest.TestCase):
                 evidence_type="assessment",
                 normalized_score=0.8,
                 confidence_weight=0.8,
-                occurred_at=now,
+                timestamp=now,
             )
         )
         self.service.infer_learner_skills("tenant-a", "learner-1", as_of=now)

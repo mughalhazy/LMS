@@ -5,21 +5,21 @@
   "type": "object",
   "required": [
     "event_id",
-    "event_name",
+    "event_type",
     "topic",
     "producer_service",
     "tenant_id",
-    "occurred_at",
+    "timestamp",
     "schema_version",
     "payload"
   ],
   "properties": {
     "event_id": { "type": "string", "minLength": 1 },
-    "event_name": { "type": "string", "minLength": 1 },
+    "event_type": { "type": "string", "minLength": 1 },
     "topic": { "type": "string", "pattern": "^lms\\.[a-z0-9_]+(?:\\.[a-z0-9_]+)+\\.v[0-9]+$" },
     "producer_service": { "type": "string", "pattern": "^[a-z0-9-]+-service$" },
     "tenant_id": { "type": "string", "minLength": 1 },
-    "occurred_at": { "type": "string", "format": "date-time" },
+    "timestamp": { "type": "string", "format": "date-time" },
     "schema_version": { "type": "string", "pattern": "^v[0-9]+$" },
     "payload": { "type": "object" }
   },

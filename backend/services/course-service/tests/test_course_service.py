@@ -129,7 +129,7 @@ def test_events_are_published_for_lifecycle_changes() -> None:
     assert response.status_code == 201
     after_count = len(service.event_publisher.list_events())
     assert after_count == before_count + 1
-    assert service.event_publisher.list_events()[-1].event_name == "course.lifecycle.created.v1"
+    assert service.event_publisher.list_events()[-1].event_type == "course.lifecycle.created.v1"
 
 
 def test_workforce_mandatory_course_requires_policy_and_updates_metrics() -> None:

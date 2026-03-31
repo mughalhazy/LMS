@@ -11,15 +11,15 @@ subscription.updated
 Delivered in-order per subscription using per-endpoint queue. Retries use same backoff policy with jitter to avoid thundering herd. If all retries fail, event is dead-lettered and visible in webhook delivery logs. Signature and timestamp verification required on every retry; payload is immutable across attempts.
 
 course.published
-{"event_id":"evt_90001","event_type":"course.published","occurred_at":"2026-01-22T14:20:00Z","tenant_id":"tenant_abc","data":{"course_id":"course_778","title":"Data Literacy 101","version":"1.0","published_by":"user_55"}}
+{"event_id":"evt_90001","event_type":"course.published","timestamp":"2026-01-22T14:20:00Z","tenant_id":"tenant_abc","data":{"course_id":"course_778","title":"Data Literacy 101","version":"1.0","published_by":"user_55"}}
 Fan-out only to active subscriptions that include `course.published`. Delivery target must return 2xx within 10 seconds; otherwise retry schedule starts. Duplicate deliveries are possible across retries, so consumers must use `event_id` or `X-LMS-Delivery-Id` for idempotency. Signature verification is mandatory before processing payload data.
 
 enrollment.completed
-{"event_id":"evt_90002","event_type":"enrollment.completed","occurred_at":"2026-01-22T15:05:11Z","tenant_id":"tenant_abc","data":{"enrollment_id":"enr_4421","user_id":"user_99","course_id":"course_778","completion_score":92}}
+{"event_id":"evt_90002","event_type":"enrollment.completed","timestamp":"2026-01-22T15:05:11Z","tenant_id":"tenant_abc","data":{"enrollment_id":"enr_4421","user_id":"user_99","course_id":"course_778","completion_score":92}}
 Delivered at-least-once to matching subscriptions. Retries stop early on first 2xx response. After max retries, endpoint is marked `degraded`; alert emitted to tenant admins. Security checks: verify HMAC signature, enforce TLS 1.2+, optionally validate source IP allowlist, and reject replayed `X-LMS-Delivery-Id` values seen within 24 hours.
 
 assessment.graded
-{"event_id":"evt_90003","event_type":"assessment.graded","occurred_at":"2026-01-22T16:40:44Z","tenant_id":"tenant_abc","data":{"assessment_id":"asm_883","submission_id":"subm_1201","user_id":"user_99","score":88,"passed":true}}
+{"event_id":"evt_90003","event_type":"assessment.graded","timestamp":"2026-01-22T16:40:44Z","tenant_id":"tenant_abc","data":{"assessment_id":"asm_883","submission_id":"subm_1201","user_id":"user_99","score":88,"passed":true}}
 Delivered only to subscriptions explicitly opted into `assessment.graded` (fine-grained event subscription). Retries follow exponential backoff and are paused during endpoint circuit-breaker windows after repeated 5xx responses. Resume attempts after health-check success. Receiver must verify signature against raw body and compare timestamp tolerance to prevent tampering/replay.
 
 subscription.deleted

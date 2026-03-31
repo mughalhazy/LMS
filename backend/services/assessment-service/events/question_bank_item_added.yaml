@@ -1,4 +1,4 @@
-event_name: question_bank_item_added
+event_type: question_bank_item_added
 producer_service: assessment-service
 topic: lms.assessment.question_bank_item_added.v1
 consumer_services:

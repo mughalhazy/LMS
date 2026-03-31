@@ -1,5 +1,5 @@
 {
-  "event_name": "event_collected",
+  "event_type": "event_collected",
   "producer_service": "event-ingestion-service",
   "topic": "lms.analytics_ingestion.event_collected.v1",
   "consumer_services": [
@@ -16,7 +16,7 @@
     "correlation_id": "string",
     "actor_id": "string",
     "session_id": "string",
-    "occurred_at": "datetime",
+    "timestamp": "datetime",
     "received_at": "datetime",
     "schema_version": "string",
     "payload": "object",

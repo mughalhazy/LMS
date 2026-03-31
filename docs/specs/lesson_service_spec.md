@@ -263,12 +263,12 @@ Contract rule: `delivery-state` may **read** enrollment/progress/prerequisite vi
 
 | Event | Trigger | Required payload |
 |---|---|---|
-| `lesson.created` | Lesson created | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `title`, `order_index`, `status`, `version`, `created_by` |
-| `lesson.updated` | Metadata or ordering update | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `changed_fields`, `status`, `version`, `updated_by` |
-| `lesson.published` | Publish transition successful | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `published_version`, `published_at`, `published_by` |
-| `lesson.archived` | Archive transition successful | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `archived_at`, `archived_by`, `reason_code` |
-| `lesson.delivery_state.changed` | Launchability-relevant policy/linkage changes | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `launchable`, `blocked_reasons`, `status` |
-| `lesson.progression_hook.requested` | Runtime checkpoint requiring downstream progress workflow | `event_id`, `occurred_at`, `tenant_id`, `lesson_id`, `course_id`, `learner_id`, `hook_type`, `session_id`, `context` |
+| `lesson.created` | Lesson created | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `title`, `order_index`, `status`, `version`, `created_by` |
+| `lesson.updated` | Metadata or ordering update | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `changed_fields`, `status`, `version`, `updated_by` |
+| `lesson.published` | Publish transition successful | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `published_version`, `published_at`, `published_by` |
+| `lesson.archived` | Archive transition successful | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `archived_at`, `archived_by`, `reason_code` |
+| `lesson.delivery_state.changed` | Launchability-relevant policy/linkage changes | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `launchable`, `blocked_reasons`, `status` |
+| `lesson.progression_hook.requested` | Runtime checkpoint requiring downstream progress workflow | `event_id`, `timestamp`, `tenant_id`, `lesson_id`, `course_id`, `learner_id`, `hook_type`, `session_id`, `context` |
 
 Event guarantees:
 - At-least-once delivery.

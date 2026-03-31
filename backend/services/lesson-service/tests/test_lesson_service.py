@@ -109,7 +109,7 @@ def test_course_linkage_tenant_isolation_and_hooks():
     assert hook.status_code == 202
 
     # ensure outbox and audit were populated for lifecycle + hooks
-    assert any(evt.event_name == "lesson_progression_hook_triggered" for evt in _store.events)
+    assert any(evt.event_type == "lesson_progression_hook_triggered" for evt in _store.events)
     assert any(record.action.value == "progression_hook" for record in _store.audit_log)
 
 

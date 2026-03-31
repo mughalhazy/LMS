@@ -262,7 +262,7 @@ Validation rules:
 
 ## 5) Events Produced
 
-All events use common envelope from platform event bus (`event_id`, `tenant_id`, `occurred_at`, `trace_id`, `producer`, `schema_version`).
+All events use common envelope from platform event bus (`event_id`, `tenant_id`, `timestamp`, `trace_id`, `producer`, `schema_version`).
 
 1. `session.created.v1`
 2. `session.updated.v1`
@@ -282,7 +282,7 @@ All events use common envelope from platform event bus (`event_id`, `tenant_id`,
 {
   "event_id": "evt-123",
   "tenant_id": "t-001",
-  "occurred_at": "2026-01-15T09:30:00Z",
+  "timestamp": "2026-01-15T09:30:00Z",
   "producer": "session_service",
   "schema_version": 1,
   "data": {

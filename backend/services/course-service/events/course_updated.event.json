@@ -1,5 +1,5 @@
 {
-  "event_name": "course_updated",
+  "event_type": "course_updated",
   "topic": "lms.course.updated.v1",
   "producer_service": "course-service",
   "schema_version": 1,

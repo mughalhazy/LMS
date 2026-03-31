@@ -12,7 +12,8 @@ from app.models import IsolationMode, LifecycleEvent, LifecycleState, Tenant, Te
 from app.observability import MetricsRegistry
 from app.schemas import IsolationContext, IsolationDecision
 from app.store import TenantStore
-from backend.services.shared.utils.entitlements import resolve_capabilities
+from shared.control_plane import ConfigService, EntitlementService
+from shared.utils.entitlement import TenantEntitlementContext
 
 
 @lru_cache(maxsize=1)
@@ -51,6 +52,8 @@ class TenantService:
         self.publisher = publisher
         self.metrics = metrics
         self.audit_logger = AuditLogger("tenant.audit")
+        self._config_service = ConfigService()
+        self._entitlement_service = EntitlementService(config_service=self._config_service)
 
     def validate_creation(
         self,
@@ -135,7 +138,18 @@ class TenantService:
 
     def get_tenant_capabilities(self, tenant_id: str) -> set[str]:
         tenant = self.get_tenant(tenant_id)
-        return resolve_capabilities(tenant.contract()).capabilities
+        capabilities: set[str] = set()
+        context = TenantEntitlementContext(
+            tenant_id=tenant.tenant_id,
+            country_code=tenant.country_code,
+            segment_id=tenant.segment_type,
+            plan_type=tenant.plan_type,
+            add_ons=tuple(tenant.addon_flags),
+        )
+        for capability_key in tenant.configuration.feature_flags.keys():
+            if self._entitlement_service.is_enabled(context, capability_key):
+                capabilities.add(capability_key)
+        return capabilities
 
     def initialize_configuration(self, tenant_id: str, configuration: TenantConfiguration, actor_id: str) -> TenantConfiguration:
         tenant = self.get_tenant(tenant_id)

@@ -48,7 +48,7 @@ This model defines how the LMS platform can evolve safely over a 20–30 year ho
   - Additive fields must be optional with safe defaults.
   - Field removal requires staged deprecation and topic versioning.
   - Semantic meaning of existing fields cannot change.
-- Use envelope metadata: `event_id`, `event_type`, `event_version`, `producer_version`, `occurred_at`, `trace_id`.
+- Use envelope metadata: `event_id`, `event_type`, `event_version`, `producer_version`, `timestamp`, `trace_id`.
 - For major semantic breaks, publish parallel topics and run shadow consumers before cutover.
 
 ### 5) AI Model Upgrades

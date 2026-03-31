@@ -277,8 +277,8 @@ Response `200` returns normalized set of course-session links.
 ```json
 {
   "event_id": "evt-001",
-  "event_name": "lms.course.published.v1",
-  "occurred_at": "2026-01-11T08:00:00Z",
+  "event_type": "lms.course.published.v1",
+  "timestamp": "2026-01-11T08:00:00Z",
   "tenant_id": "t-001",
   "producer": "course_service",
   "payload": {}

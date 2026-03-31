@@ -68,7 +68,7 @@ class CohortService:
             details={"cohort_id": cohort.cohort_id, "kind": cohort.kind.value},
         )
         self.event_publisher.publish(
-            event_name="cohort.lifecycle.changed",
+            event_type="cohort.lifecycle.changed",
             topic="lms.cohort.lifecycle.v1",
             tenant_id=tenant_id,
             aggregate_id=cohort.cohort_id,
@@ -109,7 +109,7 @@ class CohortService:
         if request.status is not None:
             cohort.status = request.status
             self.event_publisher.publish(
-                event_name="cohort.lifecycle.changed",
+                event_type="cohort.lifecycle.changed",
                 topic="lms.cohort.lifecycle.v1",
                 tenant_id=tenant_id,
                 aggregate_id=cohort.cohort_id,
@@ -140,7 +140,7 @@ class CohortService:
             details={"cohort_id": cohort.cohort_id, "program_id": request.program_id},
         )
         self.event_publisher.publish(
-            event_name="cohort.program.linked",
+            event_type="cohort.program.linked",
             topic="lms.cohort.program_linked.v1",
             tenant_id=tenant_id,
             aggregate_id=cohort.cohort_id,

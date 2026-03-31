@@ -246,7 +246,7 @@ Response `202`:
 ## 5. Events Produced
 
 All events include envelope:
-- `event_id`, `event_type`, `occurred_at`, `tenant_id`, `producer`, `schema_version`, `trace_id`
+- `event_id`, `event_type`, `timestamp`, `tenant_id`, `producer`, `schema_version`, `trace_id`
 
 ### 5.1 `enrollment.created`
 Payload:

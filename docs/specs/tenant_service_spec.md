@@ -232,7 +232,7 @@ Common event envelope:
 {
   "event_id": "evt_...",
   "event_type": "tenant.status.changed.v1",
-  "occurred_at": "2026-01-01T00:00:00Z",
+  "timestamp": "2026-01-01T00:00:00Z",
   "tenant_id": "e1f4...",
   "producer": "tenant_service",
   "payload": {}

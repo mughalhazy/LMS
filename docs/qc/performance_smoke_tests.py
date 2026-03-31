@@ -164,7 +164,7 @@ for i in range(iterations):
         tenant_id="tenant_perf",
         actor_id=f"user-{i}",
         session_id=f"session-{i}",
-        occurred_at=utc_now_iso(),
+        timestamp=utc_now_iso(),
         schema_version="1.0",
         payload={"attempt_id": f"attempt-{i}", "learner_id": f"user-{i}", "assessment_id": "a1", "course_id": "c1", "attempt_number": 1, "score": 88, "max_score": 100, "passed_flag": True, "submitted_at": utc_now_iso(), "time_spent_seconds": 120},
         ingestion_channel="api",

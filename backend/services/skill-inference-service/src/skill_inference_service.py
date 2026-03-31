@@ -183,7 +183,7 @@ class SkillInferenceService:
                 learner_id=learner_id,
                 course_id=course_id,
                 completion_score=completion_score,
-                occurred_at=datetime.utcnow(),
+                timestamp=datetime.utcnow(),
             )
 
         return self.infer_learner_skills(tenant_id=tenant_id, learner_id=learner_id)
@@ -208,7 +208,7 @@ class SkillInferenceService:
                 mastery_score=mastery_score,
                 predicted_mastery_band=predicted_band,
                 evidence_count=len(evidence_list),
-                last_assessed_at=max(item.occurred_at for item in evidence_list),
+                last_assessed_at=max(item.timestamp for item in evidence_list),
             )
             self._upsert_learner_skill_state(state)
             updated_skills[skill_id] = state
@@ -236,7 +236,7 @@ class SkillInferenceService:
         weight_sum = 0.0
 
         for ev in evidence_list:
-            recency_days = max((inference_time - ev.occurred_at).days, 0)
+            recency_days = max((inference_time - ev.timestamp).days, 0)
             recency_weight = max(0.25, 1 - (recency_days / 180))
             verification_boost = 1.1 if ev.verified else 1.0
             signal_weight = ev.confidence_weight * recency_weight * verification_boost
@@ -333,9 +333,9 @@ class SkillInferenceService:
         learner_id: str,
         course_id: str,
         completion_score: float,
-        occurred_at: datetime | None = None,
+        timestamp: datetime | None = None,
     ) -> SkillInferenceResult:
-        occurred = occurred_at or datetime.utcnow()
+        occurred = timestamp or datetime.utcnow()
         mappings = [m for m in self._course_skill_mappings if m.course_id == course_id]
 
         for mapping in mappings:
@@ -349,7 +349,7 @@ class SkillInferenceService:
                     evidence_type="course_completion",
                     normalized_score=normalized,
                     confidence_weight=max(0.1, mapping.skill_gain_expected),
-                    occurred_at=occurred,
+                    timestamp=occurred,
                     verified=True,
                     metadata={"course_id": course_id, "coverage_level": mapping.coverage_level},
                 )

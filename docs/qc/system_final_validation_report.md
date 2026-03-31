@@ -39,7 +39,7 @@ Executed checks and validations:
    - `backend/services/learning-path-service/events/learning_path_updated.event.json`
    - `backend/services/learning-path-service/events/learning_path_completed.event.json`
 
-   New canonical topic format: `lms.learning_path.<event_name>.v1`.
+   New canonical topic format: `lms.learning_path.<event_type>.v1`.
 
 2. Re-ran event bus validation and confirmed zero warnings.
 

@@ -4,8 +4,8 @@ export type SupportedEventName =
   | 'enrollment_lifecycle_changed';
 
 export interface EventEnvelope<TPayload> {
-  event_name: SupportedEventName;
-  occurred_at: string;
+  event_type: SupportedEventName;
+  timestamp: string;
   payload: TPayload;
 }
 

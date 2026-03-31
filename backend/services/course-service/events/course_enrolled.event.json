@@ -1,5 +1,5 @@
 {
-  "event_name": "course_enrolled",
+  "event_type": "course_enrolled",
   "topic": "lms.enrollment.created.v1",
   "producer_service": "enrollment-service",
   "schema_version": 1,

@@ -31,7 +31,7 @@ class SkillInferenceApplicationService:
                     evidence_type=signal.signal_type,
                     normalized_score=max(0.0, min(1.0, signal.score)),
                     confidence_weight=max(0.1, signal.confidence),
-                    occurred_at=signal.occurred_at,
+                    timestamp=signal.timestamp,
                     verified=signal.verified,
                     metadata=signal.metadata,
                 )

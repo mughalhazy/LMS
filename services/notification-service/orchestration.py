@@ -18,7 +18,7 @@ from integrations.communication import (
 class NotificationOrchestrationConfig:
     """Configuration for channel adapter ordering and adapter-level controls."""
 
-    fallback_order: Sequence[str] = ("whatsapp", "sms", "email")
+    fallback_order: Sequence[str] = ("whatsapp", "sms")
     whatsapp_disabled_recipients: set[str] | None = None
     sms_disabled_recipients: set[str] | None = None
     email_disabled_recipients: set[str] | None = None

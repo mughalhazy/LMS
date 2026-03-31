@@ -1,5 +1,5 @@
 {
-  "event_name": "prerequisite_validation_passed",
+  "event_type": "prerequisite_validation_passed",
   "domain": "prerequisite_engine",
   "version": "1.0.0",
   "producer_service": "prerequisite-engine-service",

@@ -222,7 +222,7 @@ Always returns `202` to avoid account enumeration.
 - Fields: `challenge_hash`, `delivery_channel`, `requested_at`, `expires_at`, `consumed_at`, `attempt_count`, `max_attempts`, `request_ip_hash`.
 
 ## 6.4 `AuthAuditEvent`
-- Keys: `event_id`, `tenant_id`, `occurred_at`.
+- Keys: `event_id`, `tenant_id`, `timestamp`.
 - Fields: `event_type`, `severity`, `actor_user_id`, `subject_user_id`, `session_id`, `result`, `reason_code`, `correlation_id`, `trace_id`, `metadata` (json).
 
 ---
@@ -269,7 +269,7 @@ No writes are allowed to shared or external service databases.
 - `auth_sessions (tenant_id, user_id, state)`
 - `auth_refresh_tokens (tenant_id, token_fingerprint)` unique
 - `auth_password_reset_challenges (tenant_id, challenge_hash)` unique
-- `auth_audit_log (tenant_id, occurred_at desc)`
+- `auth_audit_log (tenant_id, timestamp desc)`
 
 ### Retention
 - Audit log: 400 days hot + archive.
@@ -281,7 +281,7 @@ No writes are allowed to shared or external service databases.
 ## 9) Event Definitions (Published)
 
 Envelope fields for all events:
-`event_id`, `event_type`, `occurred_at`, `tenant_id`, `subject_user_id`, `actor_user_id`, `correlation_id`, `trace_id`, `schema_version`, `payload`.
+`event_id`, `event_type`, `timestamp`, `tenant_id`, `subject_user_id`, `actor_user_id`, `correlation_id`, `trace_id`, `schema_version`, `payload`.
 
 - `auth.login.succeeded`
 - `auth.login.failed`

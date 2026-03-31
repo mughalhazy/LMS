@@ -79,7 +79,7 @@ It is intentionally separated from billing and entitlement decisioning:
 {
   "event_id": "uuid",
   "event_type": "capability.usage.recorded.v1",
-  "occurred_at": "2026-03-30T10:15:00Z",
+  "timestamp": "2026-03-30T10:15:00Z",
   "producer": {
     "service": "ai-copilot-service",
     "version": "1.2.0"
@@ -126,14 +126,14 @@ Primary fields:
 - `metric_key`
 - `quantity`
 - `unit`
-- `occurred_at`
+- `timestamp`
 - `ingested_at`
 - `payload_json`
 
 Indexes/partitioning:
 
-- Time partition (`occurred_at` day/month)
-- Secondary index: (`tenant_id`, `capability_key`, `occurred_at`)
+- Time partition (`timestamp` day/month)
+- Secondary index: (`tenant_id`, `capability_key`, `timestamp`)
 
 ### 5.2 Aggregate Tables
 

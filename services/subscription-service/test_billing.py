@@ -1,59 +1,41 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import importlib.util
 from decimal import Decimal
+from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-
-from service import Subscription, SubscriptionService
-
-
-REQUIRED_FIELDS = {"invoice_id", "tenant_id", "amount", "status", "created_at"}
+from shared.models.capability_pricing import CapabilityPricing
 
 
-def test_generates_invoice_on_activation() -> None:
+ROOT = Path(__file__).resolve().parents[2]
+MODULE_PATH = ROOT / "services/subscription-service/service.py"
+spec = importlib.util.spec_from_file_location("subscription_service_module_for_tests", MODULE_PATH)
+if spec is None or spec.loader is None:
+    raise RuntimeError("Unable to load subscription service module")
+module = importlib.util.module_from_spec(spec)
+import sys
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+SubscriptionService = module.SubscriptionService
+TenantSubscription = module.TenantSubscription
+
+
+def test_upsert_and_get_tenant_subscription() -> None:
     service = SubscriptionService()
-    draft = Subscription(subscription_id="sub_1", tenant_id="tenant_1", amount=Decimal("49.99"))
+    service.upsert_tenant_subscription(TenantSubscription(tenant_id="tenant_1", plan_type="Pro", add_ons=("analytics_plus",)))
 
-    activated, invoice = service.activate_subscription(draft)
+    current = service.get_tenant_subscription("tenant_1")
 
-    assert activated.active is True
-    assert invoice.tenant_id == "tenant_1"
-    assert invoice.amount == Decimal("49.99")
-    assert invoice.status == "issued"
-    assert REQUIRED_FIELDS.issubset(invoice.__dict__.keys())
+    assert current is not None
+    assert current.plan_type == "pro"
+    assert current.add_ons == ("analytics_plus",)
 
 
-def test_generates_invoice_on_renewal() -> None:
+def test_calculate_usage_based_charge() -> None:
     service = SubscriptionService()
-    active_sub = Subscription(
-        subscription_id="sub_2",
-        tenant_id="tenant_2",
-        amount=Decimal("19.00"),
-        active=True,
-    )
+    pricing = CapabilityPricing(capability_id="analytics.reports.export", usage_based=True, price=Decimal("2.50"))
+    service.record_capability_usage(tenant_id="tenant_1", capability_id="analytics.reports.export", units=4)
 
-    invoice = service.renew_subscription(active_sub)
+    charge = service.calculate_capability_charge(tenant_id="tenant_1", pricing=pricing)
 
-    assert invoice.tenant_id == "tenant_2"
-    assert invoice.amount == Decimal("19.00")
-    assert invoice.status == "issued"
-    assert REQUIRED_FIELDS.issubset(invoice.__dict__.keys())
-
-
-def test_rejects_missing_invoice_data() -> None:
-    service = SubscriptionService()
-    active_sub = Subscription(
-        subscription_id="sub_3",
-        tenant_id="",
-        amount=Decimal("10.00"),
-        active=True,
-    )
-
-    try:
-        service.renew_subscription(active_sub)
-    except ValueError as exc:
-        assert "tenant_id is required" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for missing tenant_id")
+    assert charge == Decimal("10.00")

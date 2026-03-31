@@ -14,7 +14,7 @@ class IngestionRequest(BaseModel):
     family: EventFamily
     event_type: str
     source: str
-    occurred_at: datetime
+    timestamp: datetime
     trace: EventTrace
     actor: Optional[Dict[str, Any]] = None
     entity: Optional[Dict[str, Any]] = None

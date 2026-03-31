@@ -1,7 +1,7 @@
 {
   "events": [
     {
-      "event_name": "course.lifecycle.created.v1",
+      "event_type": "course.lifecycle.created.v1",
       "topic": "course.lifecycle",
       "description": "Emitted when a course aggregate is created in draft state.",
       "required_payload": [
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "event_name": "course.lifecycle.updated.v1",
+      "event_type": "course.lifecycle.updated.v1",
       "topic": "course.lifecycle",
       "description": "Emitted when course metadata changes.",
       "required_payload": [
@@ -21,7 +21,7 @@
       ]
     },
     {
-      "event_name": "course.lifecycle.published.v1",
+      "event_type": "course.lifecycle.published.v1",
       "topic": "course.lifecycle",
       "description": "Emitted when publish status changes.",
       "required_payload": [
@@ -31,7 +31,7 @@
       ]
     },
     {
-      "event_name": "course.lifecycle.archived.v1",
+      "event_type": "course.lifecycle.archived.v1",
       "topic": "course.lifecycle",
       "description": "Emitted when a course is archived.",
       "required_payload": [
@@ -41,7 +41,7 @@
       ]
     },
     {
-      "event_name": "course.linkage.program.updated.v1",
+      "event_type": "course.linkage.program.updated.v1",
       "topic": "course.linkage",
       "description": "Emitted when program links are replaced for a course.",
       "required_payload": [
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "event_name": "course.linkage.session.updated.v1",
+      "event_type": "course.linkage.session.updated.v1",
       "topic": "course.linkage",
       "description": "Emitted when session links are replaced for a course.",
       "required_payload": [

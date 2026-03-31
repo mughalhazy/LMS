@@ -33,7 +33,7 @@ class ProgressServiceV2Tests(unittest.TestCase):
             status="in_progress",
             time_spent_seconds_delta=30,
             attempt_count=1,
-            occurred_at=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc),
             idempotency_key="evt-1",
         )
         first = self.service.upsert_lesson_progress("lesson-1", req, actor_id="tester")
@@ -58,9 +58,9 @@ class ProgressServiceV2Tests(unittest.TestCase):
             result = self.service.complete_lesson(lesson, req, actor_id="tester")
 
         self.assertEqual(result.course_progress.completion_status, "completed")
-        event_names = [event.event_type for event in self.publisher.events]
-        self.assertIn("CourseCompletionTracked", event_names)
-        self.assertIn("progress.completed", event_names)
+        event_types = [event.event_type for event in self.publisher.events]
+        self.assertIn("CourseCompletionTracked", event_types)
+        self.assertIn("progress.completed", event_types)
 
     def test_low_performance_event_is_emitted_for_escalation(self) -> None:
         req = LessonProgressCompleteRequest(
@@ -114,7 +114,7 @@ class ProgressServiceV2Tests(unittest.TestCase):
             status="in_progress",
             time_spent_seconds_delta=45,
             attempt_count=1,
-            occurred_at=datetime.now(timezone.utc),
+            timestamp=datetime.now(timezone.utc),
             idempotency_key="evt-workforce-1",
             workforce_policy_id="policy-annual-security",
             workforce_manager_id="mgr-777",
@@ -125,8 +125,8 @@ class ProgressServiceV2Tests(unittest.TestCase):
         summary = self.service.get_learner_summary("tenant-a", "learner-2")
         self.assertEqual(len(summary.mandatory_training), 1)
         self.assertEqual(summary.mandatory_training[0]["manager_id"], "mgr-777")
-        event_names = [event.event_type for event in self.publisher.events]
-        self.assertIn("workforce.compliance.reminder_required", event_names)
+        event_types = [event.event_type for event in self.publisher.events]
+        self.assertIn("workforce.compliance.reminder_required", event_types)
 
 
 if __name__ == "__main__":

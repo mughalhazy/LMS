@@ -96,7 +96,7 @@ class MediaAsset:
 
 @dataclass
 class EventRecord:
-    event_name: str
+    event_type: str
     media_asset_id: str
     payload: Dict[str, str]
     emitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

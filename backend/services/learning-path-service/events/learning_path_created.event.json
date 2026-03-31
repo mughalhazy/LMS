@@ -1,5 +1,5 @@
 {
-  "event_name": "learning_path_created",
+  "event_type": "learning_path_created",
   "version": "1.0.0",
   "producer_service": "learning_path_service",
   "topic": "lms.learning_path.learning_path_created.v1",

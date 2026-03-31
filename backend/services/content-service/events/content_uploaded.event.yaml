@@ -1,4 +1,4 @@
-event_name: content_uploaded
+event_type: content_uploaded
 event_topic: lms.content.uploaded.v1
 producer_service: content-service
 consumer_services:
@@ -17,7 +17,7 @@ envelope_schema:
   source_system: content-service
   tenant_id: uuid
   actor_id: uuid
-  occurred_at: datetime
+  timestamp: datetime
   schema_version: v1
 payload_schema:
   content_id: uuid

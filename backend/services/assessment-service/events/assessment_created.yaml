@@ -1,4 +1,4 @@
-event_name: assessment_created
+event_type: assessment_created
 producer_service: assessment-service
 topic: lms.assessment.assessment_created.v1
 consumer_services:

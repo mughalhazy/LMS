@@ -33,7 +33,7 @@ class EventMessage:
     event_id: str
     event_type: str
     tenant_id: str
-    occurred_at: datetime
+    timestamp: datetime
     data: Dict[str, object]
 
 

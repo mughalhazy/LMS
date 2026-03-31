@@ -1,4 +1,4 @@
-event_name
+event_type
 producer_service
 issue_description
 severity

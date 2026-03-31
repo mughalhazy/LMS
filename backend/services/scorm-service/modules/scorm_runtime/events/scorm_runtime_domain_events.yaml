@@ -6,7 +6,7 @@ transport:
   ordering_key: [tenant_id, registration_id, session_id]
 
 events:
-  - event_name: scorm_session_started
+  - event_type: scorm_session_started
     topic: lms.scorm.session.started.v1
     producer_service: scorm-runtime-service
     consumer_services:
@@ -19,7 +19,7 @@ events:
       enabling downstream systems to begin attempt/session tracking.
     payload:
       event_id: uuid
-      occurred_at: datetime
+      timestamp: datetime
       tenant_id: string
       learner_id: string
       course_id: string
@@ -37,7 +37,7 @@ events:
         lesson_location: string|null
         suspend_data_present: boolean
 
-  - event_name: scorm_progress_updated
+  - event_type: scorm_progress_updated
     topic: lms.scorm.progress.updated.v1
     producer_service: scorm-runtime-service
     consumer_services:
@@ -50,7 +50,7 @@ events:
       interaction history, and session time are reflected asynchronously across dependent services.
     payload:
       event_id: uuid
-      occurred_at: datetime
+      timestamp: datetime
       tenant_id: string
       learner_id: string
       course_id: string
@@ -69,7 +69,7 @@ events:
         status: enum[not_started, in_progress, completed, passed, failed]
       commit_sequence: integer
 
-  - event_name: scorm_score_recorded
+  - event_type: scorm_score_recorded
     topic: lms.scorm.score.recorded.v1
     producer_service: scorm-runtime-service
     consumer_services:
@@ -82,7 +82,7 @@ events:
       analytics, and compliance evidence pipelines eventually consistent.
     payload:
       event_id: uuid
-      occurred_at: datetime
+      timestamp: datetime
       tenant_id: string
       learner_id: string
       course_id: string
@@ -99,7 +99,7 @@ events:
       is_mastery_achieved: boolean|null
       commit_sequence: integer
 
-  - event_name: scorm_session_completed
+  - event_type: scorm_session_completed
     topic: lms.scorm.session.completed.v1
     producer_service: scorm-runtime-service
     consumer_services:
@@ -114,7 +114,7 @@ events:
       completion evidence, reporting, and learner notifications can be processed asynchronously.
     payload:
       event_id: uuid
-      occurred_at: datetime
+      timestamp: datetime
       tenant_id: string
       learner_id: string
       course_id: string

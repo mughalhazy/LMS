@@ -42,7 +42,7 @@ def test_full_media_pipeline_generates_assets_and_events() -> None:
     assert "jpg" in process_result.media_asset.thumbnail_set_uris
     assert "webp" in process_result.media_asset.thumbnail_set_uris
     assert len(process_result.events) == 3
-    assert [evt.event_name for evt in process_result.events] == [
+    assert [evt.event_type for evt in process_result.events] == [
         "video.transcoded",
         "video.thumbnails_generated",
         "video.published",

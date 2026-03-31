@@ -80,7 +80,7 @@ This layer is intentionally separated from usage metering and entitlement busine
 **Responsibility:** Standardized event capture from all producing services.
 
 - Enforces required envelope:
-  - `event_id`, `event_type`, `occurred_at`, `tenant_id`, `actor_id?`,
+  - `event_id`, `event_type`, `timestamp`, `tenant_id`, `actor_id?`,
   - `target_ref`, `action`, `outcome`, `decision_id?`,
   - `request_id`, `correlation_id`, `source_service`, `schema_version`.
 - Rejects malformed events and emits producer error diagnostics.
@@ -235,19 +235,19 @@ This layer is intentionally separated from usage metering and entitlement busine
 - `entitlement_input` (`allow|deny|unknown`),
 - `policy_decision` (`allow|deny|challenge|jit_required`),
 - `policy_id`, `policy_version`, `reason_codes[]`, `obligations[]`,
-- `request_id`, `correlation_id`, `occurred_at`.
+- `request_id`, `correlation_id`, `timestamp`.
 
 ## `config.change.applied`
 - `change_id`, `tenant_id`, `actor_id`, `config_scope`, `config_key`,
 - `previous_value_hash`, `new_value_hash`,
 - `approval_ref`, `ticket_ref`, `policy_decision_id`,
-- `request_id`, `occurred_at`.
+- `request_id`, `timestamp`.
 
 ## `entitlement.change.applied`
 - `change_id`, `tenant_id`, `actor_id`, `subject_ref`,
 - `entitlement_before_hash`, `entitlement_after_hash`,
 - `approval_ref`, `policy_decision_id`, `reason_codes[]`,
-- `request_id`, `occurred_at`.
+- `request_id`, `timestamp`.
 
 ---
 

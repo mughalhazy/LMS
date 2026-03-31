@@ -1,5 +1,5 @@
 {
-  "event_name": "progress.completed",
+  "event_type": "progress.completed",
   "event_version": "v1",
   "topic": "lms.progress.completed.v1",
   "producer_service": "progress-service",

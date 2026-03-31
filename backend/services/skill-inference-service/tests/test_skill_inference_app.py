@@ -40,7 +40,7 @@ def test_inference_uses_analytics_and_knowledge_graph_and_returns_progression() 
                 signal_type="assessment",
                 score=0.95,
                 confidence=1.0,
-                occurred_at=now - timedelta(days=1),
+                timestamp=now - timedelta(days=1),
                 verified=True,
             ),
             AnalyticsSignal(
@@ -51,7 +51,7 @@ def test_inference_uses_analytics_and_knowledge_graph_and_returns_progression() 
                 signal_type="quiz",
                 score=1.0,
                 confidence=0.9,
-                occurred_at=now,
+                timestamp=now,
                 verified=False,
             ),
         ],

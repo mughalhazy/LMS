@@ -37,7 +37,7 @@ All event producers and consumers MUST implement exactly this single envelope sc
 ## Conflict Resolution and Normalization
 
 ### 1) Duplicate naming removed
-- `event_name` is deprecated.
+- `event_type` is deprecated.
 - `event_type` is the only allowed event-name field.
 
 ### 2) Nested correlation removed
@@ -46,14 +46,14 @@ All event producers and consumers MUST implement exactly this single envelope sc
 - Optional lineage IDs (e.g., `causation_id`, `trace_id`) belong in `metadata` when needed.
 
 ### 3) Timestamp unified
-- `occurred_at` is normalized to `timestamp`.
+- `timestamp` is normalized to `timestamp`.
 
 ## Source-to-Canonical Mapping
 
 | Source field | Canonical field | Action |
 |---|---|---|
-| `event_name` | `event_type` | Rename |
-| `occurred_at` | `timestamp` | Rename |
+| `event_type` | `event_type` | Rename |
+| `timestamp` | `timestamp` | Rename |
 | `correlation.trace_id` | `correlation_id` | Flatten |
 | `correlation.causation_id` | `metadata.causation_id` | Move to metadata |
 | `event_version` / `schema_version` | `metadata.schema_version` | Move to metadata |
@@ -74,7 +74,7 @@ Any envelope field not in the canonical schema MUST be represented under `metada
 ### Validation Checklist
 - [x] Single schema only (exactly 7 top-level fields).
 - [x] No conflicting top-level fields.
-- [x] `event_name` removed in favor of `event_type`.
+- [x] `event_type` removed in favor of `event_type`.
 - [x] Nested correlation removed from envelope.
 - [x] Cross-doc aliases mapped to canonical names.
 

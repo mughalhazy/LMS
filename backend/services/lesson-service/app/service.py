@@ -141,7 +141,7 @@ class LessonService:
             AuditRecord(tenant_id=tenant_id, actor_id=actor_id, lesson_id=lesson_id, action=action, detail=detail)
         )
 
-    def _emit(self, topic: str, tenant_id: str, event_name: str, lesson: Lesson) -> None:
+    def _emit(self, topic: str, tenant_id: str, event_type: str, lesson: Lesson) -> None:
         payload = asdict(lesson)
         payload["status"] = lesson.status.value
-        self.store.append_event(OutboxEvent(event_id=str(uuid4()), event_type=event_name, timestamp=datetime.now(timezone.utc), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"topic": topic, "producer": "lesson-service"}))
+        self.store.append_event(OutboxEvent(event_id=str(uuid4()), event_type=event_type, timestamp=datetime.now(timezone.utc), tenant_id=tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"topic": topic, "producer": "lesson-service"}))

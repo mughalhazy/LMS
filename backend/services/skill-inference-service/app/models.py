@@ -13,7 +13,7 @@ class AnalyticsSignal:
     signal_type: str
     score: float
     confidence: float
-    occurred_at: datetime
+    timestamp: datetime
     verified: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
 

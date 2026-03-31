@@ -77,7 +77,7 @@ class EventIngestionService:
             family=request.family,
             event_type=request.event_type,
             source=request.source,
-            occurred_at=request.occurred_at.astimezone(timezone.utc),
+            timestamp=request.timestamp.astimezone(timezone.utc),
             ingested_at=datetime.now(timezone.utc),
             trace=request.trace,
             actor=EventActor(**request.actor) if request.actor else None,
