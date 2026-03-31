@@ -40,4 +40,8 @@ def process_payment(amount: int, tenant: str | Tenant | TenantPaymentContext) ->
     tenant_payload = (
         TenantPaymentContext(tenant_id=tenant, country_code="PK") if isinstance(tenant, str) else tenant
     )
-    return service.process_payment(amount=amount, tenant=tenant_payload)
+    result = service.process_payment(amount=amount, tenant=tenant_payload)
+    if result.get("status") == "failure":
+        result["event_type"] = "billing.missed_payment"
+        result["workflow_action"] = "reminder"
+    return result
