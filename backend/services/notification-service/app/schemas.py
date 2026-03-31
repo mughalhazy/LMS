@@ -19,7 +19,7 @@ class NotificationOrchestrationRequest:
     recipients: list[str]
     subject: str
     body: str
-    tenant_country_code: str = "US"
+    tenant_country_code: str = "ZZ"
     channels: list[str] = field(default_factory=lambda: ["email", "push", "in_app"])
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -28,7 +28,7 @@ class NotificationOrchestrationRequest:
 class EventNotificationRequest:
     tenant_id: str
     event_type: str
-    tenant_country_code: str = "US"
+    tenant_country_code: str = "ZZ"
     actor_id: str | None = None
     recipients: list[str] = field(default_factory=list)
     payload: dict[str, Any] = field(default_factory=dict)
