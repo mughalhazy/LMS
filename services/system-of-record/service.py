@@ -162,6 +162,14 @@ class SystemOfRecordService:
     def get_student_profile(self, *, tenant_id: str, student_id: str) -> UnifiedStudentProfile | None:
         return self._profiles.get(self._profile_key(tenant_id=tenant_id, student_id=student_id))
 
+    def list_student_profiles(self, *, tenant_id: str) -> tuple[UnifiedStudentProfile, ...]:
+        normalized_tenant = tenant_id.strip()
+        return tuple(
+            profile
+            for (profile_tenant_id, _), profile in self._profiles.items()
+            if profile_tenant_id == normalized_tenant
+        )
+
     def transition_student_lifecycle(
         self,
         *,
