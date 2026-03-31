@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from .repository import AnalyticsRepository
@@ -582,6 +582,30 @@ class LearningAnalyticsService:
             )
 
         ranked_insights = sorted(insights, key=lambda x: x["risk_score"], reverse=True)
+        automation_events = []
+        for row in ranked_insights:
+            learner_id = row["learner_id"]
+            alerts = set(row["alerts"])
+            if "low_engagement" in alerts:
+                automation_events.append(
+                    {
+                        "event_type": "learning.low_engagement",
+                        "tenant_id": tenant_id,
+                        "course_id": course_id,
+                        "learner_id": learner_id,
+                        "workflow_action": "alert",
+                    }
+                )
+            if "poor_performance" in alerts:
+                automation_events.append(
+                    {
+                        "event_type": "learning.low_performance",
+                        "tenant_id": tenant_id,
+                        "course_id": course_id,
+                        "learner_id": learner_id,
+                        "workflow_action": "escalation",
+                    }
+                )
 
         return {
             "tenant_id": tenant_id,
@@ -589,6 +613,7 @@ class LearningAnalyticsService:
             "cohort_id": cohort_id,
             "generated_at": max_event_time.isoformat(),
             "risk_insights": ranked_insights,
+            "automation_events": automation_events,
             "summary": {
                 "total_learners": len(ranked_insights),
                 "high_risk_learners": len([row for row in ranked_insights if row["risk_score"] >= 70]),

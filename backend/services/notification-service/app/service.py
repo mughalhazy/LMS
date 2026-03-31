@@ -25,6 +25,30 @@ from .store import (
 
 T = TypeVar("T")
 
+WORKFLOW_EVENT_ROUTES: dict[str, dict[str, Any]] = {
+    "learning.low_engagement": {
+        "category": "alerts",
+        "channels": ["in_app", "push"],
+        "subject_template": "Low engagement detected for {course_id}",
+        "body_template": "Learner {learner_id} has low engagement in {course_id}.",
+        "workflow_action": "alert",
+    },
+    "billing.missed_payment": {
+        "category": "billing",
+        "channels": ["email", "in_app"],
+        "subject_template": "Payment reminder for subscription {subscription_id}",
+        "body_template": "Payment attempt failed for invoice {invoice_id}. Please retry.",
+        "workflow_action": "reminder",
+    },
+    "learning.low_performance": {
+        "category": "alerts",
+        "channels": ["email", "in_app"],
+        "subject_template": "Performance escalation for {course_id}",
+        "body_template": "Learner {learner_id} requires performance escalation in {course_id}.",
+        "workflow_action": "escalation",
+    },
+}
+
 
 class NotificationService:
     def __init__(self, store: InMemoryNotificationStore) -> None:
@@ -176,7 +200,8 @@ class NotificationService:
             return 503, {"error": "database_unavailable", "detail": str(exc)}
         except ServiceUnavailableError as exc:
             return 503, {"error": "service_restarting", "detail": str(exc)}
-        if route is None:
+        workflow_route = WORKFLOW_EVENT_ROUTES.get(req.event_type)
+        if route is None and workflow_route is None:
             return 202, {
                 "status": "ignored",
                 "reason": "no_route_configured",
@@ -200,18 +225,36 @@ class NotificationService:
         except DatabaseUnavailableError as exc:
             return 503, {"error": "database_unavailable", "detail": str(exc)}
 
-        subject = route.subject_template.format(**req.payload)
-        body = route.body_template.format(**req.payload)
+        if route is not None:
+            category = route.category
+            channels = route.channels
+            subject_template = route.subject_template
+            body_template = route.body_template
+            workflow_action = req.payload.get("workflow_action")
+        else:
+            assert workflow_route is not None
+            category = str(workflow_route["category"])
+            channels = list(workflow_route["channels"])
+            subject_template = str(workflow_route["subject_template"])
+            body_template = str(workflow_route["body_template"])
+            workflow_action = workflow_route["workflow_action"]
+
+        subject = subject_template.format(**req.payload)
+        body = body_template.format(**req.payload)
         status, payload = self.orchestrate_notification(
             NotificationOrchestrationRequest(
                 tenant_id=req.tenant_id,
                 tenant_country_code=req.tenant_country_code,
-                category=route.category,
+                category=category,
                 recipients=req.recipients,
-                channels=route.channels,
+                channels=channels,
                 subject=subject,
                 body=body,
-                metadata={"event_type": req.event_type, "actor_id": req.actor_id},
+                metadata={
+                    "event_type": req.event_type,
+                    "actor_id": req.actor_id,
+                    "workflow_action": workflow_action,
+                },
             ),
             event_id=event.event_id,
         )

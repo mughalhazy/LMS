@@ -94,6 +94,23 @@ def test_event_without_route_is_ignored() -> None:
     assert payload["status"] == "ignored"
 
 
+def test_workflow_trigger_event_uses_default_route_templates() -> None:
+    service = make_service()
+    status, payload = service.process_event(
+        EventNotificationRequest(
+            tenant_id="tenant-acme",
+            event_type="learning.low_engagement",
+            actor_id="analytics-service",
+            recipients=["learner@acme.com"],
+            payload={"learner_id": "learner-1", "course_id": "course-1"},
+        )
+    )
+    assert status == 202
+    assert payload["status"] == "accepted"
+    assert payload["queued"] == 2
+    assert payload["messages"][0]["metadata"]["workflow_action"] == "alert"
+
+
 def test_drain_delivery_queue_marks_failed_email_recipient() -> None:
     service = make_service()
     service.orchestrate_notification(

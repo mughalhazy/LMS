@@ -160,6 +160,25 @@ class ProgressService:
                 metadata={"producer": "progress-service"},
             )
         )
+        if request.score is not None and request.score < 65:
+            self.publisher.publish(
+                ProgressEvent(
+                    event_id=str(uuid4()),
+                    event_type="learning.low_performance",
+                    timestamp=utc_now(),
+                    tenant_id=request.tenant_id,
+                    correlation_id=str(uuid4()),
+                    payload={
+                        "tenant_id": request.tenant_id,
+                        "learner_id": request.learner_id,
+                        "course_id": request.course_id,
+                        "enrollment_id": request.enrollment_id,
+                        "score": request.score,
+                        "workflow_action": "escalation",
+                    },
+                    metadata={"producer": "progress-service"},
+                )
+            )
         return LessonCompleteResponse(lesson_progress=lesson_progress, course_progress=self._course_response(course))
 
     def assign_learning_path(self, learning_path_id: str, request: LearningPathAssignmentRequest, actor_id: str) -> LearningPathAssignmentResponse:

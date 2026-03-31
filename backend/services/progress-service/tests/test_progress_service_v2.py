@@ -58,9 +58,26 @@ class ProgressServiceV2Tests(unittest.TestCase):
             result = self.service.complete_lesson(lesson, req, actor_id="tester")
 
         self.assertEqual(result.course_progress.completion_status, "completed")
-        event_names = [event.name for event in self.publisher.events]
+        event_names = [event.event_type for event in self.publisher.events]
         self.assertIn("CourseCompletionTracked", event_names)
         self.assertIn("progress.completed", event_names)
+
+    def test_low_performance_event_is_emitted_for_escalation(self) -> None:
+        req = LessonProgressCompleteRequest(
+            tenant_id="tenant-a",
+            learner_id="learner-1",
+            course_id="course-1",
+            enrollment_id="enroll-1",
+            score=50,
+            time_spent_seconds=80,
+            attempt_count=1,
+            completed_at=datetime.now(timezone.utc),
+            idempotency_key="evt-low-performance",
+        )
+        self.service.complete_lesson("lesson-1", req, actor_id="tester")
+        low_performance_events = [event for event in self.publisher.events if event.event_type == "learning.low_performance"]
+        self.assertEqual(len(low_performance_events), 1)
+        self.assertEqual(low_performance_events[0].payload["workflow_action"], "escalation")
 
     def test_learning_path_updates_after_course_completion(self) -> None:
         assign = LearningPathAssignmentRequest(

@@ -184,3 +184,27 @@ def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
     assert ai_payload["revenue_metrics"]["total_revenue"] == 199.99
     assert ai_payload["learning_metrics"]["completion_rate"] == 100.0
     assert ai_payload["performance_metrics"]["average_assessment_score"] == 85.0
+
+
+def test_risk_insights_emit_automation_events() -> None:
+    now = datetime(2026, 1, 10, tzinfo=timezone.utc)
+    repository = AnalyticsRepository(
+        enrollments=[
+            CourseEnrollment("tenant-z", "learner-1", "course-9", "co-z", "enrolled", now),
+            CourseEnrollment("tenant-z", "learner-2", "course-9", "co-z", "enrolled", now),
+        ],
+        completions=[],
+        activities=[
+            LearningActivityEvent("tenant-z", "learner-1", "course-9", "co-z", 5, 1, 0, 0, now - timedelta(days=2), -0.7),
+            LearningActivityEvent("tenant-z", "learner-1", "course-9", "co-z", 4, 1, 0, 0, now - timedelta(days=1), -0.8),
+            LearningActivityEvent("tenant-z", "learner-2", "course-9", "co-z", 120, 30, 10, 9, now - timedelta(days=1), 0.6),
+        ],
+        assessment_attempts=[AssessmentAttempt("tenant-z", "learner-1", "course-9", "co-z", 40, 100, now - timedelta(days=1))],
+        path_snapshots=[],
+        revenue_records=[],
+    )
+    api = LearningAnalyticsAPI(repository)
+    payload = api.get_learner_risk_insights("course-9", CourseAnalyticsQuery(tenant_id="tenant-z", cohort_id="co-z"))
+    event_types = {row["event_type"] for row in payload["automation_events"]}
+    assert "learning.low_engagement" in event_types
+    assert "learning.low_performance" in event_types
