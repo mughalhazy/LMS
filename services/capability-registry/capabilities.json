@@ -1,0 +1,87 @@
+{
+  "capabilities": [
+    {
+      "capability_id": "assessment.author",
+      "name": "Assessment Authoring",
+      "description": "Create and publish assessments.",
+      "category": "assessment",
+      "default_enabled": false
+    },
+    {
+      "capability_id": "assessment.attempt",
+      "name": "Assessment Attempt",
+      "description": "Attempt and submit assessments.",
+      "category": "assessment",
+      "default_enabled": true
+    },
+    {
+      "capability_id": "course.write",
+      "name": "Course Authoring",
+      "description": "Create and manage course content.",
+      "category": "course",
+      "default_enabled": false
+    },
+    {
+      "capability_id": "recommendation.basic",
+      "name": "Recommendations",
+      "description": "Serve baseline course and content recommendations.",
+      "category": "intelligence",
+      "default_enabled": true
+    },
+    {
+      "capability_id": "ai.tutor",
+      "name": "AI Tutor",
+      "description": "Enable AI tutor chat and guidance workflows.",
+      "category": "intelligence",
+      "default_enabled": false
+    },
+    {
+      "capability_id": "platform.isolation.dedicated",
+      "name": "Dedicated Isolation",
+      "description": "Enable dedicated infrastructure isolation.",
+      "category": "platform",
+      "default_enabled": false
+    },
+    {
+      "capability_id": "platform.support.priority",
+      "name": "Priority Support",
+      "description": "Enable priority support SLAs.",
+      "category": "platform",
+      "default_enabled": false
+    },
+    {
+      "capability_id": "commerce.catalog.basic",
+      "name": "Basic Catalog",
+      "description": "Enable standard catalog operations.",
+      "category": "commerce",
+      "default_enabled": true
+    },
+    {
+      "capability_id": "learning.analytics.basic",
+      "name": "Basic Analytics",
+      "description": "Enable baseline analytics dashboards.",
+      "category": "analytics",
+      "default_enabled": true
+    },
+    {
+      "capability_id": "learning.analytics.advanced",
+      "name": "Advanced Analytics",
+      "description": "Enable advanced analytics capabilities.",
+      "category": "analytics",
+      "default_enabled": false
+    }
+  ],
+  "feature_to_capability": {
+    "dedicated_isolation": "platform.isolation.dedicated",
+    "priority_support": "platform.support.priority",
+    "catalog_basic": "commerce.catalog.basic",
+    "analytics_basic": "learning.analytics.basic",
+    "analytics_advanced": "learning.analytics.advanced",
+    "feature.analytics": "learning.analytics.basic",
+    "assessment.author": "assessment.author",
+    "assessment.attempt": "assessment.attempt",
+    "course.write": "course.write",
+    "recommendation.basic": "recommendation.basic",
+    "ai.tutor": "ai.tutor"
+  }
+}
