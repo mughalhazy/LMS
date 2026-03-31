@@ -4,13 +4,12 @@ from app.models import TenantConfiguration
 
 def test_admin_actions_are_audited_with_required_fields() -> None:
     tenant, _ = service.create_tenant(
-        tenant_name="Acme",
-        tenant_code="acme-audit",
-        primary_domain="acme-audit.example.com",
+        name="Acme",
+        country_code="US",
+        segment_type="enterprise",
+        plan_type="enterprise",
+        addon_flags=["ai_tutor"],
         admin_user="admin-1",
-        data_residency_region="us-east",
-        plan_id="plan_enterprise",
-        plan_name="enterprise",
     )
 
     service.patch_configuration(tenant.tenant_id, {"timezone": "UTC"}, actor_id="admin-1", reason="ops")

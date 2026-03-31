@@ -28,7 +28,14 @@ class TenantService:
         self.metrics = metrics
         self.audit_logger = AuditLogger("tenant.audit")
 
-    def validate_creation(self, name: str, country_code: str, segment_type: str, plan_type: str) -> list[dict[str, str]]:
+    def validate_creation(
+        self,
+        name: str,
+        country_code: str,
+        segment_type: str,
+        plan_type: str,
+        addon_flags: list[str] | None = None,
+    ) -> list[dict[str, str]]:
         errors: list[dict[str, str]] = []
         if self.store.by_code(name.lower()):
             errors.append({"field": "name", "code": "duplicate", "message": "name already exists"})
@@ -38,6 +45,9 @@ class TenantService:
             errors.append({"field": "segment_type", "code": "invalid", "message": "segment_type cannot be empty"})
         if not plan_type.strip():
             errors.append({"field": "plan_type", "code": "invalid", "message": "plan_type cannot be empty"})
+        normalized_addons = addon_flags or []
+        if any(not addon.strip() for addon in normalized_addons):
+            errors.append({"field": "addon_flags", "code": "invalid", "message": "addon_flags cannot contain empty values"})
         return errors
 
     def _select_isolation_mode(self, plan_type: str) -> IsolationMode:
@@ -52,7 +62,13 @@ class TenantService:
 
     def create_tenant(self, **kwargs) -> tuple[Tenant, TenantNamespace]:
         with self.metrics.timer("tenant.create"):
-            errors = self.validate_creation(kwargs["name"], kwargs["country_code"], kwargs["segment_type"], kwargs["plan_type"])
+            errors = self.validate_creation(
+                kwargs["name"],
+                kwargs["country_code"],
+                kwargs["segment_type"],
+                kwargs["plan_type"],
+                kwargs.get("addon_flags", []),
+            )
             if errors:
                 self.metrics.inc("tenant.create.conflict")
                 raise TenantServiceError("tenant creation conflict", status_code=409, detail=errors)

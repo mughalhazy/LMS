@@ -13,6 +13,7 @@ class ValidateTenantCreationRequest(BaseModel):
     country_code: str = Field(min_length=2, max_length=2)
     segment_type: str = Field(min_length=2)
     plan_type: str = Field(min_length=2)
+    addon_flags: list[str] = Field(default_factory=list)
 
 
 class ValidationResponse(BaseModel):
