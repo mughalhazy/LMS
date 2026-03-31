@@ -11,6 +11,7 @@ from .schemas import (
     PersonalizedRecommendationResponse,
     SkillGapRecommendationRequest,
     SkillGapRecommendationResponse,
+    AnalyticsRecommendationRequest,
 )
 from .service import RecommendationService
 
@@ -46,6 +47,13 @@ def generate_behavioral_learning_recommendations(
     request: BehavioralRecommendationRequest,
 ) -> BehavioralRecommendationResponse:
     return BehavioralRecommendationResponse(items=service.generate_behavioral_recommendations(request))
+
+
+@app.post("/recommendations/from-analytics", response_model=BehavioralRecommendationResponse)
+def generate_recommendations_from_analytics(
+    request: AnalyticsRecommendationRequest,
+) -> BehavioralRecommendationResponse:
+    return BehavioralRecommendationResponse(items=service.generate_from_analytics(request))
 
 
 @app.get("/learners/{learner_id}/recommendations", response_model=LearnerRecommendationBundleResponse)

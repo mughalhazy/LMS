@@ -331,3 +331,40 @@ class LearningAnalyticsService:
             "drop_off_rate_by_stage": drop_off,
             "dominant_drop_off_stage": dominant_stage,
         }
+
+    def ai_service_signals(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        completion = self.course_completion_analytics(tenant_id, course_id, start_at, end_at, cohort_id)
+        engagement = self.learner_engagement_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
+        trends = self.engagement_trends(tenant_id, course_id, start_at, end_at, cohort_id)
+
+        at_risk = [
+            learner_id
+            for learner_id, score in engagement["scores_by_learner"].items()
+            if score < 40 or engagement["sentiment_by_learner"].get(learner_id, {}).get("label") == "negative"
+        ]
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "completion_rate": completion["completion_rate"],
+            "active_learners": engagement["active_learners"],
+            "trend_direction": trends["direction"],
+            "average_sentiment": engagement["average_sentiment"],
+            "at_risk_learners": at_risk,
+            "tutor_signal": {
+                "needs_intervention": bool(at_risk or completion["completion_rate"] < 60),
+                "suggested_focus": "course-recap" if completion["completion_rate"] < 60 else "practice-coaching",
+            },
+            "recommendation_signal": {
+                "dropoff_rate": round(max(0.0, 1 - (completion["completion_rate"] / 100)), 2),
+                "engagement_band": "low" if engagement["average_engagement_score"] < 40 else "medium" if engagement["average_engagement_score"] < 70 else "high",
+            },
+        }

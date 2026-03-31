@@ -1,7 +1,7 @@
 export type SupportedEventName =
   | 'lesson_completed'
-  | 'course_enrolled'
-  | 'course_completed';
+  | 'course_completed'
+  | 'enrollment_lifecycle_changed';
 
 export interface EventEnvelope<TPayload> {
   event_name: SupportedEventName;
@@ -27,12 +27,14 @@ export interface LessonCompletedPayload {
   attempt_count?: number;
 }
 
-export interface CourseEnrolledPayload {
+export interface EnrollmentLifecycleChangedPayload {
+  id: string;
   tenant_id: string;
   learner_id: string;
   course_id: string;
-  enrollment_id: string;
-  enrolled_at: string;
+  status: 'assigned' | 'active' | 'completed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CourseCompletedPayload {
@@ -65,7 +67,7 @@ export interface CourseEnrollmentRecord {
   learner_id: string;
   course_id: string;
   enrollment_id: string;
-  status: 'enrolled' | 'in_progress' | 'completed';
+  status: 'enrolled' | 'in_progress' | 'completed' | 'cancelled';
   enrolled_at: string;
 }
 
