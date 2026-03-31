@@ -15,4 +15,5 @@ __all__ = [
     "KnowledgeGraph",
     "KnowledgeNode",
     "KnowledgeNodeType",
+    "RevenueRecord",
 ]

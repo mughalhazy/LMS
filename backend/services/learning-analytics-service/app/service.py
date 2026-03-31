@@ -39,6 +39,29 @@ class LearningAnalyticsService:
             "success_rate": success_rate,
         }
 
+    def revenue_metrics(
+        self,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        tenant_id: str | None = None,
+    ) -> dict:
+        records = self.repository.list_revenue_records(start_at=start_at, end_at=end_at, tenant_id=tenant_id)
+        total_revenue = self._round(sum(row.amount for row in records))
+
+        per_tenant_revenue: dict[str, float] = {}
+        per_plan_revenue: dict[str, float] = {}
+        for row in records:
+            per_tenant_revenue[row.tenant_id] = self._round(per_tenant_revenue.get(row.tenant_id, 0.0) + row.amount)
+            per_plan_revenue[row.plan_id] = self._round(per_plan_revenue.get(row.plan_id, 0.0) + row.amount)
+
+        return {
+            "tenant_id": tenant_id,
+            "total_revenue": total_revenue,
+            "per_tenant_revenue": dict(sorted(per_tenant_revenue.items())),
+            "per_plan_revenue": dict(sorted(per_plan_revenue.items())),
+            "transaction_count": len(records),
+        }
+
     def course_completion_analytics(
         self,
         tenant_id: str,
@@ -403,6 +426,7 @@ class LearningAnalyticsService:
         completion = self.course_completion_analytics(tenant_id, course_id, start_at, end_at, cohort_id)
         engagement = self.learner_engagement_metrics(tenant_id, course_id, start_at, end_at, cohort_id)
         trends = self.engagement_trends(tenant_id, course_id, start_at, end_at, cohort_id)
+        revenue = self.revenue_metrics(start_at=start_at, end_at=end_at, tenant_id=tenant_id)
 
         at_risk = [
             learner_id
@@ -420,6 +444,7 @@ class LearningAnalyticsService:
             "active_learners": engagement["active_learners"],
             "trend_direction": trends["direction"],
             "average_sentiment": engagement["average_sentiment"],
+            "revenue_metrics": revenue,
             "at_risk_learners": at_risk,
             "tutor_signal": {
                 "needs_intervention": bool(at_risk or completion["completion_rate"] < 60),

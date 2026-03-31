@@ -48,6 +48,32 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
             PathProgressSnapshot("tenant-a", "l3", "lp1", "co1", 20, 2, 10, now),
             PathProgressSnapshot("tenant-b", "l1", "lp1", "co1", 100, 10, 10, now),
         ],
+        revenue_records=[],
+    )
+    repository.ingest_events(
+        [
+            {
+                "event_type": "revenue",
+                "tenant_id": "tenant-a",
+                "plan_id": "pro",
+                "amount": 150.0,
+                "timestamp": now.isoformat(),
+            },
+            {
+                "event_type": "revenue",
+                "tenant_id": "tenant-a",
+                "plan_id": "enterprise",
+                "amount": 300.0,
+                "timestamp": now.isoformat(),
+            },
+            {
+                "event_type": "revenue",
+                "tenant_id": "tenant-b",
+                "plan_id": "pro",
+                "amount": 500.0,
+                "timestamp": now.isoformat(),
+            },
+        ]
     )
 
     api = LearningAnalyticsAPI(repository)
@@ -85,6 +111,11 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
     combined = api.get_learning_and_performance_metrics("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
     assert combined["learning_metrics"]["completion_rate"] == 66.67
     assert combined["performance_metrics"]["average_assessment_score"] == 79.0
+
+    revenue = api.service.revenue_metrics()
+    assert revenue["total_revenue"] == 950.0
+    assert revenue["per_tenant_revenue"] == {"tenant-a": 450.0, "tenant-b": 500.0}
+    assert revenue["per_plan_revenue"] == {"enterprise": 300.0, "pro": 650.0}
 
 
 def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
@@ -132,14 +163,24 @@ def test_event_ingestion_pipeline_and_ai_output_shape() -> None:
                 "max_score": 100,
                 "timestamp": "2026-01-02T00:30:00+00:00",
             },
+            {
+                "event_type": "revenue",
+                "tenant_id": "tenant-x",
+                "plan_id": "starter",
+                "amount": 199.99,
+                "currency": "USD",
+                "timestamp": "2026-01-02T00:30:30+00:00",
+            },
             {"event_type": "unknown", "tenant_id": "tenant-x"},
         ]
     )
 
-    assert result == {"processed": 4, "rejected": 1, "success_rate": 80.0}
+    assert result == {"processed": 5, "rejected": 1, "success_rate": 83.33}
 
     ai_payload = api.get_ai_service_signals("cx1", CourseAnalyticsQuery(tenant_id="tenant-x", cohort_id="cox1"))
     assert "learning_metrics" in ai_payload
     assert "performance_metrics" in ai_payload
+    assert "revenue_metrics" in ai_payload
+    assert ai_payload["revenue_metrics"]["total_revenue"] == 199.99
     assert ai_payload["learning_metrics"]["completion_rate"] == 100.0
     assert ai_payload["performance_metrics"]["average_assessment_score"] == 85.0
