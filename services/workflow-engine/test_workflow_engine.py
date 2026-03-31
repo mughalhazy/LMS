@@ -209,3 +209,7 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["notification_integration"] is True
     assert qc["academy_ops_integration"] is True
     assert qc["payments_integration"] is True
+    assert qc["commerce_payments_contract"] is True
+    assert qc["academy_sor_contract"] is True
+    assert qc["workflow_notifications_contract"] is True
+    assert qc["no_broken_dependencies"] is True

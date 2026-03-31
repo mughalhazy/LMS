@@ -10,6 +10,7 @@ from typing import Any, Literal
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.config import ConfigResolutionContext
+from shared.validation import summarize_contract_validation, validate_service_dependency_contracts
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -290,6 +291,12 @@ class WorkflowEngine:
             "academy_ops": hasattr(self._academy_ops_service, "run_qc_autofix"),
             "payments": hasattr(self._payment_orchestration_service, "process_checkout_payment"),
         }
+        contract_results = validate_service_dependency_contracts(
+            payment_orchestrator=self._payment_orchestration_service,
+            sor_service=self._academy_ops_service._sor,
+            notification_orchestrator=self._notification_orchestrator,
+        )
+        contract_summary = summarize_contract_validation(contract_results)
         return {
             "event_driven_triggers": can_handle_event_envelopes,
             "rule_evaluation": rule_evaluation_enabled,
@@ -297,4 +304,8 @@ class WorkflowEngine:
             "notification_integration": integration_ready["notification"],
             "academy_ops_integration": integration_ready["academy_ops"],
             "payments_integration": integration_ready["payments"],
+            "commerce_payments_contract": contract_summary["commerce_to_payments"],
+            "academy_sor_contract": contract_summary["academy_to_system_of_record"],
+            "workflow_notifications_contract": contract_summary["workflow_to_notifications"],
+            "no_broken_dependencies": all(contract_summary.values()),
         }
