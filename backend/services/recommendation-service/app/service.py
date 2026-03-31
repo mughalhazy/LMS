@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable
 
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import build_control_plane_client
 from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
@@ -28,8 +28,7 @@ from .schemas import (
 class RecommendationService:
     def __init__(self) -> None:
         self._store: dict[str, dict[str, LearnerRecommendationBundle]] = defaultdict(dict)
-        self._config_service = ConfigService()
-        self._entitlement_service = EntitlementService(config_service=self._config_service)
+        self._control_plane = build_control_plane_client()
 
     def generate_personalized_courses(
         self, req: PersonalizedRecommendationRequest
@@ -266,7 +265,7 @@ class RecommendationService:
         )
 
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
-        if not self._entitlement_service.is_enabled(self._tenant_context(tenant_id), capability):
+        if not self._control_plane.is_enabled(self._tenant_context(tenant_id), capability):
             raise ValueError(f"capability disabled: {capability}")
 
     @staticmethod

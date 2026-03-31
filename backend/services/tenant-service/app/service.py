@@ -12,7 +12,7 @@ from app.models import IsolationMode, LifecycleEvent, LifecycleState, Tenant, Te
 from app.observability import MetricsRegistry
 from app.schemas import IsolationContext, IsolationDecision
 from app.store import TenantStore
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import build_control_plane_client
 from shared.utils.entitlement import TenantEntitlementContext
 
 
@@ -52,8 +52,7 @@ class TenantService:
         self.publisher = publisher
         self.metrics = metrics
         self.audit_logger = AuditLogger("tenant.audit")
-        self._config_service = ConfigService()
-        self._entitlement_service = EntitlementService(config_service=self._config_service)
+        self._control_plane = build_control_plane_client()
 
     def validate_creation(
         self,
@@ -147,7 +146,7 @@ class TenantService:
             add_ons=tuple(tenant.addon_flags),
         )
         for capability_key in tenant.configuration.feature_flags.keys():
-            if self._entitlement_service.is_enabled(context, capability_key):
+            if self._control_plane.is_enabled(context, capability_key):
                 capabilities.add(capability_key)
         return capabilities
 

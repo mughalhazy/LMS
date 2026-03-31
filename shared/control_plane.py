@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from shared.models.config import ConfigResolutionContext
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -41,6 +43,22 @@ class ControlPlaneClients:
     capability_registry: CapabilityRegistryService
     config_service: ConfigService
     entitlement_service: EntitlementService
+
+
+@dataclass(frozen=True)
+class ControlPlaneClient:
+    capability_registry: CapabilityRegistryService
+    config_service: ConfigService
+    entitlement_service: EntitlementService
+
+    def get_capability(self, capability_id: str):
+        return self.capability_registry.get_capability(capability_id)
+
+    def is_enabled(self, tenant_context, capability_id: str) -> bool:
+        return self.entitlement_service.is_enabled(tenant_context, capability_id)
+
+    def get_config(self, context: ConfigResolutionContext):
+        return self.config_service.resolve(context)
 
 
 def _endpoint_for(service_name: str) -> str:
@@ -80,4 +98,22 @@ def build_control_plane_clients(
         capability_registry=capability_registry,
         config_service=config_service,
         entitlement_service=entitlement_service,
+    )
+
+
+def build_control_plane_client(
+    *,
+    config_factory: Callable[[], ConfigService] = ConfigService,
+    capability_registry_factory: Callable[[], CapabilityRegistryService] = CapabilityRegistryService,
+    entitlement_factory: Callable[..., EntitlementService] = EntitlementService,
+) -> ControlPlaneClient:
+    clients = build_control_plane_clients(
+        config_factory=config_factory,
+        capability_registry_factory=capability_registry_factory,
+        entitlement_factory=entitlement_factory,
+    )
+    return ControlPlaneClient(
+        capability_registry=clients.capability_registry,
+        config_service=clients.config_service,
+        entitlement_service=clients.entitlement_service,
     )

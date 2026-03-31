@@ -128,17 +128,13 @@ class ProgressService:
             learner_id=request.learner_id,
             course_id=request.course_id,
             enrollment_id=request.enrollment_id,
-            academy_cohort_id=request.academy_cohort_id,
-            academy_enrollment_id=request.academy_enrollment_id,
+            segment_context=request.segment_context,
             progress_percentage=100.0,
             status="completed",
             time_spent_seconds_delta=request.time_spent_seconds,
             attempt_count=request.attempt_count,
             timestamp=request.completed_at,
             idempotency_key=request.idempotency_key,
-            workforce_policy_id=request.workforce_policy_id,
-            workforce_manager_id=request.workforce_manager_id,
-            workforce_due_date=request.workforce_due_date,
         )
         lesson_progress = self.upsert_lesson_progress(lesson_id, upsert, actor_id)
         course = self.store.get_course_snapshot(request.tenant_id, request.learner_id, request.course_id)
@@ -159,8 +155,7 @@ class ProgressService:
                     "course_id": request.course_id,
                     "lesson_id": lesson_id,
                     "enrollment_id": request.enrollment_id,
-                    "academy_cohort_id": request.academy_cohort_id,
-                    "academy_enrollment_id": request.academy_enrollment_id,
+                    "segment_context": request.segment_context,
                     "completion_status": "completed",
                     "score": request.score,
                     "time_spent_seconds": request.time_spent_seconds,
@@ -347,17 +342,20 @@ class ProgressService:
         self.publisher.publish(ProgressEvent(event_id=str(uuid4()), event_type="course_progress_updated", timestamp=utc_now(), tenant_id=row.tenant_id, correlation_id=str(uuid4()), payload=payload, metadata={"producer": "progress-service"}))
 
     def _track_mandatory_training(self, request: LessonProgressUpsertRequest, row: ProgressRecord) -> None:
-        if not request.workforce_policy_id or not request.workforce_manager_id or not request.workforce_due_date:
+        policy_id = request.segment_context.get("policy_id")
+        manager_id = request.segment_context.get("manager_id")
+        due_date = request.segment_context.get("due_date")
+        if not policy_id or not manager_id or not due_date:
             return
         status = "completed" if row.status in {"completed", "passed"} else "in_progress"
         reminder_required = status != "completed"
         tracking = MandatoryTrainingProgress(
             tenant_id=request.tenant_id,
             learner_id=request.learner_id,
-            manager_id=request.workforce_manager_id,
+            manager_id=manager_id,
             course_id=request.course_id,
-            policy_id=request.workforce_policy_id,
-            due_date=request.workforce_due_date,
+            policy_id=policy_id,
+            due_date=due_date,
             completion_status=status,
             completion_percentage=row.progress_percentage,
             reminder_required=reminder_required,
@@ -375,10 +373,10 @@ class ProgressService:
                     payload={
                         "tenant_id": request.tenant_id,
                         "learner_id": request.learner_id,
-                        "manager_id": request.workforce_manager_id,
+                        "manager_id": manager_id,
                         "course_id": request.course_id,
-                        "policy_id": request.workforce_policy_id,
-                        "due_date": request.workforce_due_date,
+                        "policy_id": policy_id,
+                        "due_date": due_date,
                     },
                     metadata={"producer": "progress-service"},
                 )

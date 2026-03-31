@@ -22,8 +22,8 @@ class SubscriptionLifecycleService:
 
     def transition(self, subscription: Subscription, event: SubscriptionEvent, *, at: datetime | None = None) -> Subscription:
         at = at or datetime.now(timezone.utc)
-        if event in {SubscriptionEvent.ACTIVATION, SubscriptionEvent.RENEWAL} and subscription.academy_package_id:
-            if subscription.academy_seat_limit < subscription.academy_active_enrollments:
+        if event in {SubscriptionEvent.ACTIVATION, SubscriptionEvent.RENEWAL} and subscription.segment_context.get("package_id"):
+            if int(subscription.segment_context.get("seat_limit", 0)) < subscription.active_enrollments:
                 raise SubscriptionLifecycleError("academy enrollments exceed seat_limit")
         allowed_states, next_state = EVENT_TRANSITIONS[event]
         if subscription.state not in allowed_states:
@@ -64,19 +64,19 @@ class SubscriptionLifecycleService:
     def expire(self, subscription: Subscription, *, at: datetime | None = None) -> Subscription:
         return self.transition(subscription, SubscriptionEvent.EXPIRATION, at=at)
 
-    def reserve_academy_enrollment(self, subscription: Subscription) -> Subscription:
-        if not subscription.academy_package_id:
-            raise SubscriptionLifecycleError("academy package is required for academy enrollment")
-        if not subscription.academy_cohort_delivery_enabled:
+    def reserve_segment_enrollment(self, subscription: Subscription) -> Subscription:
+        if not subscription.segment_context.get("package_id"):
+            raise SubscriptionLifecycleError("package_id is required for enrollment")
+        if not bool(subscription.segment_context.get("cohort_delivery_enabled", False)):
             raise SubscriptionLifecycleError("cohort-based delivery is disabled for this subscription")
         if subscription.state != SubscriptionState.ACTIVE:
             raise SubscriptionLifecycleError("subscription must be active for academy enrollment")
-        if subscription.academy_active_enrollments >= subscription.academy_seat_limit:
-            raise SubscriptionLifecycleError("academy seat limit reached")
-        subscription.academy_active_enrollments += 1
+        if subscription.active_enrollments >= int(subscription.segment_context.get("seat_limit", 0)):
+            raise SubscriptionLifecycleError("seat limit reached")
+        subscription.active_enrollments += 1
         return subscription
 
-    def release_academy_enrollment(self, subscription: Subscription) -> Subscription:
-        if subscription.academy_active_enrollments > 0:
-            subscription.academy_active_enrollments -= 1
+    def release_segment_enrollment(self, subscription: Subscription) -> Subscription:
+        if subscription.active_enrollments > 0:
+            subscription.active_enrollments -= 1
         return subscription
