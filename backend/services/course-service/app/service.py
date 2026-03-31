@@ -8,6 +8,11 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from .audit import AuditLogger
+from backend.services.shared.context.correlation import ensure_correlation_id
+from backend.services.shared.events.envelope import build_event
+from backend.services.shared.models.tenant import TenantContract
+from backend.services.shared.utils.entitlements import is_capability_enabled
+
 from .schemas import (
     CourseMetadata,
     CourseResponse,
@@ -108,6 +113,7 @@ class CourseService:
         return datetime.now(timezone.utc)
 
     def create_course(self, request: CreateCourseRequest) -> CourseResponse:
+        self._assert_capability(request, "course.write")
         now = self._now()
         record = CourseRecord(
             course_id=str(uuid4()),
@@ -141,6 +147,7 @@ class CourseService:
         return self._to_response(self._get_tenant_course(tenant_id, course_id))
 
     def update_course(self, course_id: str, request: UpdateCourseRequest) -> CourseResponse:
+        self._assert_capability(request, "course.write")
         record = self._get_tenant_course(request.tenant_id, course_id)
         updated_fields: list[str] = []
         for field_name in ["title", "course_code", "description", "language_code", "credit_value", "grading_scheme"]:
@@ -160,6 +167,7 @@ class CourseService:
         return self._to_response(record)
 
     def publish_course(self, course_id: str, request: PublishCourseRequest) -> CourseResponse:
+        self._assert_capability(request, "course.write")
         record = self._get_tenant_course(request.tenant_id, course_id)
         if record.status == CourseStatus.ARCHIVED:
             raise HTTPException(status_code=409, detail="Archived courses cannot be published")
@@ -180,6 +188,7 @@ class CourseService:
         return self._to_response(record)
 
     def archive_course(self, course_id: str, request: ArchiveCourseRequest) -> CourseResponse:
+        self._assert_capability(request, "course.write")
         record = self._get_tenant_course(request.tenant_id, course_id)
         record.status = CourseStatus.ARCHIVED
         record.updated_at = self._now()
@@ -220,18 +229,32 @@ class CourseService:
             raise HTTPException(status_code=404, detail="Course not found for tenant")
         return record
 
-    def _publish_event(self, event_name: str, record: CourseRecord, actor_id: str, payload: dict) -> None:
-        self.event_publisher.publish(
-            EventEnvelope(
-                event_id=str(uuid4()),
-                event_name=event_name,
-                tenant_id=record.tenant_id,
-                aggregate_id=record.course_id,
-                actor_id=actor_id,
-                occurred_at=self._now(),
-                payload=payload,
-            )
+    def _publish_event(self, event_name: str, record: CourseRecord, actor_id: str, payload: dict, correlation_id: str | None = None) -> None:
+        event = build_event(
+            event_type=event_name,
+            tenant_id=record.tenant_id,
+            correlation_id=ensure_correlation_id(correlation_id),
+            payload=payload,
+            metadata={"aggregate_id": record.course_id, "actor_id": actor_id, "producer": "course-service"},
         )
+        self.event_publisher.publish(EventEnvelope(**event.__dict__))
+
+
+    @staticmethod
+    def _tenant_from_request(request: object) -> TenantContract:
+        return TenantContract(
+            tenant_id=request.tenant_id,
+            name=getattr(request, "tenant_name", "tenant"),
+            country_code=getattr(request, "country_code", "US"),
+            segment_type=getattr(request, "segment_type", "enterprise"),
+            plan_type=getattr(request, "plan_type", "free"),
+            addon_flags=getattr(request, "addon_flags", []),
+        ).normalized()
+
+    def _assert_capability(self, request: object, capability: str) -> None:
+        tenant = self._tenant_from_request(request)
+        if not is_capability_enabled(tenant, capability):
+            raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     @staticmethod
     def _to_response(record: CourseRecord) -> CourseResponse:

@@ -9,7 +9,7 @@ client = TestClient(app)
 def test_tenant_lifecycle_configuration_and_isolation() -> None:
     validate = client.post(
         "/api/v1/tenants/validate",
-        json={"tenant_code": "acme", "primary_domain": "acme.example.com", "requested_region": "us-east"},
+        json={"name": "Acme Inc", "country_code": "US", "segment_type": "enterprise", "plan_type": "enterprise"},
     )
     assert validate.status_code == 200
     assert validate.json()["validation_passed"] is True
@@ -17,13 +17,12 @@ def test_tenant_lifecycle_configuration_and_isolation() -> None:
     created = client.post(
         "/api/v1/tenants",
         json={
-            "tenant_name": "Acme Inc",
-            "tenant_code": "acme",
-            "primary_domain": "acme.example.com",
+            "name": "Acme Inc",
+            "country_code": "US",
+            "segment_type": "enterprise",
+            "plan_type": "enterprise",
+            "addon_flags": ["ai_tutor"],
             "admin_user": "admin_1",
-            "data_residency_region": "us-east",
-            "plan_id": "plan_enterprise",
-            "plan_name": "enterprise",
         },
     )
     assert created.status_code == 200

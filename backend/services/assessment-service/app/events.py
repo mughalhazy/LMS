@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
+
+from backend.services.shared.events.envelope import EventEnvelope
 
 
-@dataclass
-class DomainEvent:
-    event_type: str
-    tenant_id: str
-    entity_id: str
-    occurred_at: datetime
-    payload: dict[str, Any]
+DomainEvent = EventEnvelope
 
 
 class EventPublisher(Protocol):

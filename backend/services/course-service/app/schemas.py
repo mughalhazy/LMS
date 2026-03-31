@@ -44,7 +44,22 @@ class SessionLink(BaseModel):
     delivery_role: DeliveryRole = DeliveryRole.DEFAULT
 
 
+
+
+class TenantContext(BaseModel):
+    tenant_id: str
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
+
 class CreateCourseRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     created_by: str
     title: str
@@ -58,6 +73,11 @@ class CreateCourseRequest(BaseModel):
 
 
 class UpdateCourseRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     updated_by: str
     title: str | None = None
@@ -70,6 +90,11 @@ class UpdateCourseRequest(BaseModel):
 
 
 class PublishCourseRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     requested_by: str
     publish_notes: str | None = None
@@ -78,11 +103,21 @@ class PublishCourseRequest(BaseModel):
 
 
 class ArchiveCourseRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     requested_by: str
 
 
 class UpsertProgramLinksRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     updated_by: str
     program_links: list[ProgramLink]
@@ -96,6 +131,11 @@ class UpsertProgramLinksRequest(BaseModel):
 
 
 class UpsertSessionLinksRequest(BaseModel):
+    tenant_name: str = "tenant"
+    country_code: str = "US"
+    segment_type: str = "enterprise"
+    plan_type: str = "free"
+    addon_flags: list[str] = Field(default_factory=list)
     tenant_id: str
     updated_by: str
     session_links: list[SessionLink]
@@ -124,12 +164,12 @@ class CourseResponse(BaseModel):
 
 class EventEnvelope(BaseModel):
     event_id: str
-    event_name: str
+    event_type: str
+    timestamp: datetime
     tenant_id: str
-    aggregate_id: str
-    occurred_at: datetime
-    actor_id: str
+    correlation_id: str
     payload: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ApiMeta(BaseModel):

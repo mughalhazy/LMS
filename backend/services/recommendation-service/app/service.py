@@ -25,6 +25,7 @@ class RecommendationService:
     def generate_personalized_courses(
         self, req: PersonalizedRecommendationRequest
     ) -> list[PersonalizedCourseRecommendation]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
         modalities = req.preferred_modalities or ["self-paced"]
         skills = req.target_skills or ["general-upskilling"]
         base_score = min(1.0, 0.45 + (req.available_minutes_per_week / 600))
@@ -50,6 +51,7 @@ class RecommendationService:
     def generate_skill_gap_recommendations(
         self, req: SkillGapRecommendationRequest
     ) -> list[SkillGapRecommendation]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
         recommendations: list[SkillGapRecommendation] = []
         for skill in req.required_skills:
             current = req.current_skill_levels.get(skill, 0.0)
@@ -85,6 +87,7 @@ class RecommendationService:
     def generate_learning_path_suggestions(
         self, req: LearningPathSuggestionRequest
     ) -> list[LearningPathSuggestion]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
         tracks = ["core", "accelerated", "project-based"]
         suggestions: list[LearningPathSuggestion] = []
         for index, track in enumerate(tracks):
@@ -110,6 +113,7 @@ class RecommendationService:
     def generate_behavioral_recommendations(
         self, req: BehavioralRecommendationRequest
     ) -> list[BehavioralLearningRecommendation]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
         recommendations: list[BehavioralLearningRecommendation] = []
 
         if req.dropoff_rate > 0.4:
@@ -165,6 +169,13 @@ class RecommendationService:
 
     def get_bundle(self, tenant_id: str, learner_id: str) -> LearnerRecommendationBundle:
         return self._store.get(tenant_id, {}).get(learner_id, LearnerRecommendationBundle(learner_id=learner_id))
+
+    def _tenant_contract(self, tenant_id: str) -> TenantContract:
+        return TenantContract(tenant_id=tenant_id, name=tenant_id, country_code="US", segment_type="enterprise", plan_type="pro", addon_flags=[]).normalized()
+
+    def _assert_capability(self, tenant_id: str, capability: str) -> None:
+        if not is_capability_enabled(self._tenant_contract(tenant_id), capability):
+            raise ValueError(f"capability disabled: {capability}")
 
     def _upsert(
         self,

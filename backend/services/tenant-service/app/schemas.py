@@ -9,9 +9,10 @@ from app.models import LifecycleState
 
 
 class ValidateTenantCreationRequest(BaseModel):
-    tenant_code: str = Field(min_length=2, max_length=50)
-    primary_domain: str = Field(min_length=3)
-    requested_region: str = Field(min_length=2)
+    name: str = Field(min_length=2)
+    country_code: str = Field(min_length=2, max_length=2)
+    segment_type: str = Field(min_length=2)
+    plan_type: str = Field(min_length=2)
 
 
 class ValidationResponse(BaseModel):
@@ -20,13 +21,12 @@ class ValidationResponse(BaseModel):
 
 
 class CreateTenantRequest(BaseModel):
-    tenant_name: str = Field(min_length=2)
-    tenant_code: str = Field(min_length=2, max_length=50)
-    primary_domain: str = Field(min_length=3)
+    name: str = Field(min_length=2)
+    country_code: str = Field(min_length=2, max_length=2)
+    segment_type: str = Field(min_length=2)
+    plan_type: str = Field(min_length=2)
+    addon_flags: list[str] = Field(default_factory=list)
     admin_user: str = Field(min_length=2)
-    data_residency_region: str = Field(min_length=2)
-    plan_id: str = Field(min_length=2)
-    plan_name: str = Field(min_length=2)
 
 
 class CreateTenantResponse(BaseModel):

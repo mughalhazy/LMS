@@ -1,37 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Protocol
-from uuid import uuid4
+from typing import Protocol
 
-
-@dataclass
-class TenantLifecycleEventEnvelope:
-    event_id: str
-    event_type: str
-    tenant_id: str
-    timestamp: datetime
-    payload: dict[str, Any] = field(default_factory=dict)
+from backend.services.shared.events.envelope import EventEnvelope, build_event
 
 
 class EventPublisher(Protocol):
-    def publish(self, event: TenantLifecycleEventEnvelope) -> None: ...
+    def publish(self, event: EventEnvelope) -> None: ...
 
 
 class InMemoryEventPublisher(EventPublisher):
     def __init__(self) -> None:
-        self.events: list[TenantLifecycleEventEnvelope] = []
+        self.events: list[EventEnvelope] = []
 
-    def publish(self, event: TenantLifecycleEventEnvelope) -> None:
+    def publish(self, event: EventEnvelope) -> None:
         self.events.append(event)
 
 
-def build_lifecycle_event(event_type: str, tenant_id: str, payload: dict[str, Any]) -> TenantLifecycleEventEnvelope:
-    return TenantLifecycleEventEnvelope(
-        event_id=f"evt_{uuid4().hex}",
+def build_lifecycle_event(event_type: str, tenant_id: str, correlation_id: str, payload: dict) -> EventEnvelope:
+    return build_event(
         event_type=event_type,
         tenant_id=tenant_id,
-        timestamp=datetime.now(timezone.utc),
+        correlation_id=correlation_id,
         payload=payload,
+        metadata={"producer": "tenant-service", "schema_version": "1.0"},
     )
