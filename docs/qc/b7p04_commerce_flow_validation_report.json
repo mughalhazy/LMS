@@ -1,0 +1,316 @@
+{
+  "batch": "B7P04",
+  "title": "Commerce Flow Validation",
+  "scope": {
+    "catalog": "docs/architecture/B3P02_catalog_service_design.md",
+    "checkout": "docs/architecture/B3P03_checkout_service_design.md",
+    "billing": "docs/architecture/B3P04_invoice_billing_service_design.md",
+    "subscription": "docs/architecture/B3P05_subscription_service_design.md",
+    "revenue": "docs/architecture/B3P06_revenue_service_design.md",
+    "entitlement_integration": "docs/architecture/B2P02_entitlement_service_design.md",
+    "commerce_domain": "docs/architecture/B3P01_commerce_domain_architecture.md"
+  },
+  "flow_validation": {
+    "canonical_purchase_flow": [
+      "catalog.offer.selected.v1",
+      "checkout.order.started.v1",
+      "checkout.payment.authorized.v1",
+      "checkout.order.completed.v1",
+      "billing.invoice.generated.v1",
+      "billing.invoice.issued.v1",
+      "subscription.activated.v1",
+      "entitlement.granted.v1",
+      "revenue.fact.recorded.v1"
+    ],
+    "scenario_count": 2,
+    "scenarios": [
+      "academy_monthly_with_renewal_and_cancellation",
+      "corporate_annual_active_subscription"
+    ],
+    "integration_points": {
+      "catalog_to_checkout": true,
+      "checkout_to_billing": true,
+      "billing_to_revenue": true,
+      "subscription_to_entitlement": true
+    },
+    "deterministic": true,
+    "checks": {
+      "no_broken_flow": true,
+      "no_missing_integration_points": true,
+      "no_duplicate_logic": true,
+      "clean_lifecycle_transitions": true,
+      "full_traceability": true
+    }
+  },
+  "issue_report": {
+    "issues": [],
+    "issue_count": 0,
+    "status": "no_issues"
+  },
+  "qc_fix_re_qc_10_10": {
+    "no_broken_flow": true,
+    "no_missing_integration_points": true,
+    "no_duplicate_logic": true,
+    "clean_lifecycle_transitions": true,
+    "full_traceability": true
+  },
+  "scenario_results": [
+    {
+      "scenario": "academy_monthly_with_renewal_and_cancellation",
+      "events": [
+        {
+          "order": 1,
+          "service": "catalog",
+          "event": "catalog.offer.selected.v1",
+          "data": {
+            "tenant_id": "tenant_academy_01",
+            "learner_id": "learner_1001",
+            "plan_id": "academy_pro_monthly",
+            "price_cents": 9900,
+            "currency": "USD"
+          }
+        },
+        {
+          "order": 2,
+          "service": "checkout",
+          "event": "checkout.order.started.v1",
+          "data": {
+            "tenant_id": "tenant_academy_01",
+            "order_id": "ord_academy_monthly_with_renewal_and_cancellation",
+            "plan_id": "academy_pro_monthly"
+          }
+        },
+        {
+          "order": 3,
+          "service": "checkout",
+          "event": "checkout.payment.authorized.v1",
+          "data": {
+            "order_id": "ord_academy_monthly_with_renewal_and_cancellation",
+            "payment_id": "pay_academy_monthly_with_renewal_and_cancellation",
+            "amount_cents": 9900,
+            "currency": "USD"
+          }
+        },
+        {
+          "order": 4,
+          "service": "checkout",
+          "event": "checkout.order.completed.v1",
+          "data": {
+            "order_id": "ord_academy_monthly_with_renewal_and_cancellation",
+            "payment_id": "pay_academy_monthly_with_renewal_and_cancellation",
+            "status": "completed"
+          }
+        },
+        {
+          "order": 5,
+          "service": "billing",
+          "event": "billing.invoice.generated.v1",
+          "data": {
+            "invoice_id": "inv_academy_monthly_with_renewal_and_cancellation",
+            "order_id": "ord_academy_monthly_with_renewal_and_cancellation",
+            "amount_due_cents": 9900,
+            "currency": "USD",
+            "invoice_type": "subscription"
+          }
+        },
+        {
+          "order": 6,
+          "service": "billing",
+          "event": "billing.invoice.issued.v1",
+          "data": {
+            "invoice_id": "inv_academy_monthly_with_renewal_and_cancellation",
+            "status": "issued"
+          }
+        },
+        {
+          "order": 7,
+          "service": "subscription",
+          "event": "subscription.activated.v1",
+          "data": {
+            "subscription_id": "sub_academy_monthly_with_renewal_and_cancellation",
+            "plan_id": "academy_pro_monthly",
+            "state": "active"
+          }
+        },
+        {
+          "order": 8,
+          "service": "entitlement",
+          "event": "entitlement.granted.v1",
+          "data": {
+            "tenant_id": "tenant_academy_01",
+            "learner_id": "learner_1001",
+            "source": "sub_academy_monthly_with_renewal_and_cancellation",
+            "access": "granted"
+          }
+        },
+        {
+          "order": 9,
+          "service": "subscription",
+          "event": "subscription.renewed.v1",
+          "data": {
+            "subscription_id": "sub_academy_monthly_with_renewal_and_cancellation",
+            "state": "active"
+          }
+        },
+        {
+          "order": 10,
+          "service": "billing",
+          "event": "billing.invoice.generated.v1",
+          "data": {
+            "invoice_id": "inv_academy_monthly_with_renewal_and_cancellation_r1",
+            "subscription_id": "sub_academy_monthly_with_renewal_and_cancellation",
+            "amount_due_cents": 9900,
+            "currency": "USD",
+            "invoice_type": "recurring"
+          }
+        },
+        {
+          "order": 11,
+          "service": "subscription",
+          "event": "subscription.cancel_scheduled.v1",
+          "data": {
+            "subscription_id": "sub_academy_monthly_with_renewal_and_cancellation",
+            "state": "cancel_scheduled"
+          }
+        },
+        {
+          "order": 12,
+          "service": "subscription",
+          "event": "subscription.canceled.v1",
+          "data": {
+            "subscription_id": "sub_academy_monthly_with_renewal_and_cancellation",
+            "state": "canceled"
+          }
+        },
+        {
+          "order": 13,
+          "service": "entitlement",
+          "event": "entitlement.revoked.v1",
+          "data": {
+            "tenant_id": "tenant_academy_01",
+            "learner_id": "learner_1001",
+            "source": "sub_academy_monthly_with_renewal_and_cancellation",
+            "access": "revoked"
+          }
+        },
+        {
+          "order": 14,
+          "service": "revenue",
+          "event": "revenue.fact.recorded.v1",
+          "data": {
+            "tenant_id": "tenant_academy_01",
+            "invoice_id": "inv_academy_monthly_with_renewal_and_cancellation",
+            "recognized_cents": 9900,
+            "currency": "USD"
+          }
+        }
+      ],
+      "event_count": 14,
+      "trace_hash": "dd76c261b759ddde02946412e8f97a67c798cdb83043af6b0169c978869a6cee"
+    },
+    {
+      "scenario": "corporate_annual_active_subscription",
+      "events": [
+        {
+          "order": 1,
+          "service": "catalog",
+          "event": "catalog.offer.selected.v1",
+          "data": {
+            "tenant_id": "tenant_corp_02",
+            "learner_id": "learner_2002",
+            "plan_id": "corporate_annual",
+            "price_cents": 99000,
+            "currency": "USD"
+          }
+        },
+        {
+          "order": 2,
+          "service": "checkout",
+          "event": "checkout.order.started.v1",
+          "data": {
+            "tenant_id": "tenant_corp_02",
+            "order_id": "ord_corporate_annual_active_subscription",
+            "plan_id": "corporate_annual"
+          }
+        },
+        {
+          "order": 3,
+          "service": "checkout",
+          "event": "checkout.payment.authorized.v1",
+          "data": {
+            "order_id": "ord_corporate_annual_active_subscription",
+            "payment_id": "pay_corporate_annual_active_subscription",
+            "amount_cents": 99000,
+            "currency": "USD"
+          }
+        },
+        {
+          "order": 4,
+          "service": "checkout",
+          "event": "checkout.order.completed.v1",
+          "data": {
+            "order_id": "ord_corporate_annual_active_subscription",
+            "payment_id": "pay_corporate_annual_active_subscription",
+            "status": "completed"
+          }
+        },
+        {
+          "order": 5,
+          "service": "billing",
+          "event": "billing.invoice.generated.v1",
+          "data": {
+            "invoice_id": "inv_corporate_annual_active_subscription",
+            "order_id": "ord_corporate_annual_active_subscription",
+            "amount_due_cents": 99000,
+            "currency": "USD",
+            "invoice_type": "subscription"
+          }
+        },
+        {
+          "order": 6,
+          "service": "billing",
+          "event": "billing.invoice.issued.v1",
+          "data": {
+            "invoice_id": "inv_corporate_annual_active_subscription",
+            "status": "issued"
+          }
+        },
+        {
+          "order": 7,
+          "service": "subscription",
+          "event": "subscription.activated.v1",
+          "data": {
+            "subscription_id": "sub_corporate_annual_active_subscription",
+            "plan_id": "corporate_annual",
+            "state": "active"
+          }
+        },
+        {
+          "order": 8,
+          "service": "entitlement",
+          "event": "entitlement.granted.v1",
+          "data": {
+            "tenant_id": "tenant_corp_02",
+            "learner_id": "learner_2002",
+            "source": "sub_corporate_annual_active_subscription",
+            "access": "granted"
+          }
+        },
+        {
+          "order": 9,
+          "service": "revenue",
+          "event": "revenue.fact.recorded.v1",
+          "data": {
+            "tenant_id": "tenant_corp_02",
+            "invoice_id": "inv_corporate_annual_active_subscription",
+            "recognized_cents": 99000,
+            "currency": "USD"
+          }
+        }
+      ],
+      "event_count": 9,
+      "trace_hash": "ea15b3266c490b5e8981fa76da82389a3ae514a348134ab1331745f2366790f8"
+    }
+  ],
+  "score": 10
+}
