@@ -1,17 +1,20 @@
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[4]
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(SERVICE_ROOT))
 
-from app.schemas import (
+from app.schemas import (  # noqa: E402
     DeliveryDrainRequest,
     EventNotificationRequest,
     EventRouteUpsertRequest,
     NotificationOrchestrationRequest,
     PreferenceUpsertRequest,
 )
-from app.service import NotificationService
-from app.store import InMemoryNotificationStore
+from app.service import NotificationService  # noqa: E402
+from app.store import InMemoryNotificationStore  # noqa: E402
 
 
 def make_service() -> NotificationService:
@@ -226,3 +229,46 @@ def test_message_queue_delays_are_observed_and_recovered() -> None:
     assert status == 200
     assert payload["delayed_cycles"] == 2
     assert payload["delivered"] == 1
+
+
+def test_whatsapp_primary_selected_for_supported_country() -> None:
+    service = make_service()
+    service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-india",
+            tenant_country_code="IN",
+            category="alerts",
+            recipients=["+919999999999"],
+            subject="Alert",
+            body="Check system status",
+            channels=["whatsapp"],
+        )
+    )
+
+    status, payload = service.drain_delivery_queue(DeliveryDrainRequest(max_messages=10))
+    assert status == 200
+    assert payload["delivered"] == 1
+    assert payload["delivered_messages"][0]["metadata"]["adapter_provider"] == "whatsapp"
+    assert payload["delivered_messages"][0]["metadata"]["adapter_fallback_used"] is False
+
+
+def test_sms_fallback_used_when_whatsapp_fails() -> None:
+    service = make_service()
+    service.communication_router.whatsapp_adapter.disabled_recipients.add("+521111111111")
+    service.orchestrate_notification(
+        NotificationOrchestrationRequest(
+            tenant_id="tenant-mx",
+            tenant_country_code="MX",
+            category="alerts",
+            recipients=["+521111111111"],
+            subject="Alert",
+            body="Check system status",
+            channels=["whatsapp"],
+        )
+    )
+
+    status, payload = service.drain_delivery_queue(DeliveryDrainRequest(max_messages=10))
+    assert status == 200
+    assert payload["delivered"] == 1
+    assert payload["delivered_messages"][0]["metadata"]["adapter_provider"] == "sms"
+    assert payload["delivered_messages"][0]["metadata"]["adapter_fallback_used"] is True

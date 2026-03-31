@@ -75,6 +75,8 @@ class CDNDeliveryConfig:
     ttl_seconds: int = 86400
     invalidation_rules: List[str] = field(default_factory=list)
     access_policy: str = "signed_url"
+    watermark_enabled: bool = False
+    watermark_text_template: str = "{tenant_id}:{asset_id}:{uploader_id}"
 
 
 @dataclass

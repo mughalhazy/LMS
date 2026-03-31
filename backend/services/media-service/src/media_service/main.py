@@ -2,6 +2,7 @@ from media_service.integrations.cdn import CDNClient
 from media_service.integrations.events import EventPublisher
 from media_service.integrations.storage import ObjectStorageClient
 from media_service.integrations.transcoder import TranscoderClient
+from media_service.security import MediaSecurity
 from media_service.service import MediaService
 
 
@@ -11,4 +12,5 @@ def build_service() -> MediaService:
         transcoder_client=TranscoderClient(),
         cdn_client=CDNClient(),
         event_publisher=EventPublisher(),
+        security=MediaSecurity(signing_secret="media-service-signing-key"),
     )
