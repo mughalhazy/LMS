@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Callable
 
 from shared.models.school import AttendanceCheckpoint, ProgressCheckpoint
 
@@ -12,6 +13,7 @@ class SchoolProgressService:
 
     _attendance_checkpoints: list[AttendanceCheckpoint] = field(default_factory=list)
     _progress_checkpoints: list[ProgressCheckpoint] = field(default_factory=list)
+    entitlement: Callable[[str], bool] = field(default=lambda _capability_id: True)
 
     def record_attendance_checkpoint(
         self,
@@ -23,6 +25,9 @@ class SchoolProgressService:
         period_key: str,
         occurred_at: datetime | None = None,
     ) -> AttendanceCheckpoint:
+        is_enabled = self.entitlement("progress.attendance.record")
+        if not is_enabled:
+            raise PermissionError("capability denied: progress.attendance.record")
         checkpoint = AttendanceCheckpoint(
             checkpoint_id=checkpoint_id,
             student_id=student_id,
@@ -48,6 +53,9 @@ class SchoolProgressService:
         return checkpoint
 
     def attendance_ratio(self, *, student_id: str, course_id: str) -> float:
+        is_enabled = self.entitlement("progress.attendance.read")
+        if not is_enabled:
+            raise PermissionError("capability denied: progress.attendance.read")
         relevant = [
             c
             for c in self._attendance_checkpoints

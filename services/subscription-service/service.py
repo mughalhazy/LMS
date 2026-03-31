@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -59,11 +60,17 @@ class SubscriptionService:
         }
         return set(plan_capabilities.get(plan_type.strip().lower(), set()))
 
-    def is_enabled_for_subscription(self, *, plan_type: str, add_ons: tuple[str, ...], capability: str) -> bool:
-        normalized_capability = capability.strip()
-        if normalized_capability in self.get_plan_capabilities(plan_type):
-            return True
-        return any(normalized_capability in self.get_add_on_capabilities(add_on) for add_on in add_ons)
+    def is_enabled_for_subscription(
+        self,
+        *,
+        plan_type: str,
+        add_ons: tuple[str, ...],
+        capability: str,
+        entitlement: Callable[[str], bool],
+    ) -> bool:
+        del plan_type, add_ons
+        is_enabled = entitlement(capability.strip())
+        return bool(is_enabled)
 
     def get_add_on_capabilities(self, add_on: str) -> set[str]:
         add_on_capabilities = {
