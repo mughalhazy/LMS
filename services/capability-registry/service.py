@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.capability import Capability
+from shared.models.capability_pricing import CapabilityPricing
 
 from store import capability_index, feature_capability_mapping
 
@@ -23,6 +24,9 @@ class CapabilityRegistryService:
             return None
         return self.get_capability(mapped_capability_id)
 
+    def get_capability_pricing(self, capability_id: str) -> CapabilityPricing | None:
+        capability = self.get_capability(capability_id)
+        return capability.pricing if capability else None
 
     def is_enabled_by_default(self, capability_id: str) -> bool:
         """Registry default signal consumed by entitlement service only."""

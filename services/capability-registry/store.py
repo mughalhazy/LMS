@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
 import sys
@@ -10,6 +11,13 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from shared.models.capability import Capability
 
 _REGISTRY_PATH = Path(__file__).with_name("capabilities.json")
+
+
+def _parse_price(value: object) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +45,8 @@ def capability_index() -> dict[str, Capability]:
             description=str(item.get("description", "")).strip(),
             category=str(item.get("category", "")).strip(),
             default_enabled=bool(item.get("default_enabled", False)),
+            price=_parse_price(item.get("price", "0")),
+            usage_based=bool(item.get("usage_based", False)),
         )
         if not capability.capability_id:
             continue
