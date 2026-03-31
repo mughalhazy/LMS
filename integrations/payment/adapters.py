@@ -1,56 +1,40 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
-
-
-@dataclass(frozen=True)
-class PaymentRequest:
-    amount: int
-    tenant: str
-    invoice_id: str
-
-
-@dataclass(frozen=True)
-class PaymentResult:
-    ok: bool
-    status: str
-    payment_id: str | None = None
-    provider: str | None = None
-    error: str | None = None
-    invoice_id: str | None = None
-
-
-class PaymentAdapter(Protocol):
-    """Provider adapter contract for processing payments."""
-
-    provider_key: str
-
-    def process_payment(self, request: PaymentRequest) -> PaymentResult:
-        """Process a payment request and return a normalized result."""
+from .base_adapter import BasePaymentAdapter as PaymentAdapter
+from .base_adapter import PaymentResult, TenantPaymentContext
 
 
 class MockSuccessAdapter:
     provider_key = "mock_success"
 
-    def process_payment(self, request: PaymentRequest) -> PaymentResult:
+    def process_payment(
+        self,
+        amount: int,
+        tenant: TenantPaymentContext,
+        invoice_id: str | None = None,
+    ) -> PaymentResult:
         return PaymentResult(
             ok=True,
             status="success",
-            payment_id=f"pay_{request.tenant}_{request.invoice_id}",
+            payment_id=f"pay_{tenant.tenant_id}_{invoice_id or 'manual'}",
             provider=self.provider_key,
-            invoice_id=request.invoice_id,
+            invoice_id=invoice_id,
         )
 
 
 class MockFailureAdapter:
     provider_key = "mock_failure"
 
-    def process_payment(self, request: PaymentRequest) -> PaymentResult:
+    def process_payment(
+        self,
+        amount: int,
+        tenant: TenantPaymentContext,
+        invoice_id: str | None = None,
+    ) -> PaymentResult:
         return PaymentResult(
             ok=False,
             status="failure",
             provider=self.provider_key,
             error="provider_rejected",
-            invoice_id=request.invoice_id,
+            invoice_id=invoice_id,
         )
