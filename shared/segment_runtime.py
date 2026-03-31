@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import ControlPlaneClient, build_control_plane_client
 from shared.models.config import ConfigResolutionContext
 from shared.models.event import PlatformEvent
 from shared.utils.entitlement import TenantEntitlementContext
@@ -18,11 +18,14 @@ class SegmentRuntimeContext:
 @dataclass
 class UnifiedSegmentService:
     context: SegmentRuntimeContext
-    entitlement_service: EntitlementService
-    config_service: ConfigService
+    control_plane: ControlPlaneClient | None = None
+
+    def __post_init__(self) -> None:
+        if self.control_plane is None:
+            self.control_plane = build_control_plane_client()
 
     def _resolve_behavior(self) -> dict[str, Any]:
-        effective = self.config_service.resolve(
+        effective = self.control_plane.get_config(
             ConfigResolutionContext(
                 tenant_id=self.context.tenant.tenant_id,
                 country_code=self.context.tenant.country_code,
@@ -32,7 +35,7 @@ class UnifiedSegmentService:
         return dict(effective.behavior_tuning.get("segment_behavior", {}))
 
     def _is_capability_enabled(self, capability_id: str) -> bool:
-        return self.entitlement_service.is_enabled(self.context.tenant, capability_id)
+        return self.control_plane.is_enabled(self.context.tenant, capability_id)
 
     def _event(self, event_type: str, payload: dict[str, Any]) -> PlatformEvent:
         return PlatformEvent(

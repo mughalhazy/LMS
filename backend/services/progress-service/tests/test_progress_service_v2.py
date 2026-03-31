@@ -104,7 +104,7 @@ class ProgressServiceV2Tests(unittest.TestCase):
         self.assertEqual(summary.learning_paths[0].progress_percentage, 50.0)
         self.assertEqual(summary.learning_paths[0].current_course_id, "course-2")
 
-    def test_workforce_mandatory_training_tracking_and_reminder_event(self) -> None:
+    def test_segment_context_mandatory_training_tracking_and_reminder_event(self) -> None:
         req = LessonProgressUpsertRequest(
             tenant_id="tenant-a",
             learner_id="learner-2",
@@ -116,9 +116,11 @@ class ProgressServiceV2Tests(unittest.TestCase):
             attempt_count=1,
             timestamp=datetime.now(timezone.utc),
             idempotency_key="evt-workforce-1",
-            workforce_policy_id="policy-annual-security",
-            workforce_manager_id="mgr-777",
-            workforce_due_date="2026-04-15",
+            segment_context={
+                "policy_id": "policy-annual-security",
+                "manager_id": "mgr-777",
+                "due_date": "2026-04-15",
+            },
         )
         self.service.upsert_lesson_progress("lesson-10", req, actor_id="tester")
 

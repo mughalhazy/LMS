@@ -9,7 +9,7 @@ from uuid import uuid4
 import httpx
 from fastapi import HTTPException
 
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import build_control_plane_client
 from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
@@ -124,8 +124,7 @@ class AITutorService:
     def __init__(self, data_provider: LearningDataProvider | None = None) -> None:
         self._sessions: dict[str, TutorSession] = {}
         self._data_provider = data_provider or HTTPServiceDataProvider()
-        self._config_service = ConfigService()
-        self._entitlement_service = EntitlementService(config_service=self._config_service)
+        self._control_plane = build_control_plane_client()
 
     @staticmethod
     def _now() -> datetime:
@@ -295,7 +294,7 @@ class AITutorService:
         )
 
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
-        if not self._entitlement_service.is_enabled(self._tenant_context(tenant_id), capability):
+        if not self._control_plane.is_enabled(self._tenant_context(tenant_id), capability):
             raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     def _build_context_bundle(self, tenant_id: str, learner_id: str, course_id: str) -> TutorContextBundle:

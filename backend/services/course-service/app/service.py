@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from .audit import AuditLogger
 from backend.services.shared.context.correlation import ensure_correlation_id
 from backend.services.shared.events.envelope import build_event
-from shared.control_plane import ConfigService, EntitlementService
+from shared.control_plane import build_control_plane_client
 from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
 
@@ -102,8 +102,7 @@ class CourseService:
         self.storage = storage or InMemoryCourseStorage()
         self.audit_logger = AuditLogger("course.audit")
         self.event_publisher = EventPublisher()
-        self._config_service = ConfigService()
-        self._entitlement_service = EntitlementService(config_service=self._config_service)
+        self._control_plane = build_control_plane_client()
         self.metrics: dict[str, int] = {
             "courses_created_total": 0,
             "workforce_mandatory_courses_total": 0,
@@ -287,7 +286,7 @@ class CourseService:
 
     def _assert_capability(self, request: object, capability: str) -> None:
         tenant = self._tenant_from_request(request)
-        if not self._entitlement_service.is_enabled(tenant, capability):
+        if not self._control_plane.is_enabled(tenant, capability):
             raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
 
     @staticmethod
