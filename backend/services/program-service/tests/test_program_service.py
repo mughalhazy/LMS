@@ -130,3 +130,55 @@ def test_observability_and_events_and_audit() -> None:
     assert service.observability.snapshot().get("program_create_total", 0) >= 1
     assert any(evt.event_type == "lms.program.program_created.v1" for evt in service.event_publisher.list_events())
     assert any(evt.event_type == "program.creation" for evt in service.audit_logger.list_events())
+
+
+def test_correlation_id_propagates_to_events_and_audit_and_is_auto_generated() -> None:
+    explicit_correlation_id = "corr-program-123"
+    create = client.post(
+        "/api/v1/programs",
+        headers={**_headers("tenant-d"), "X-Correlation-Id": explicit_correlation_id},
+        json={
+            "tenant_id": "tenant-d",
+            "institution_id": "inst-4",
+            "code": "CORR-EXPLICIT",
+            "title": "Correlation Explicit",
+            "created_by": "user-1",
+        },
+    )
+    assert create.status_code == 201
+
+    assert any(
+        evt.event_type == "lms.program.program_created.v1" and evt.correlation_id == explicit_correlation_id
+        for evt in service.event_publisher.list_events()
+    )
+    assert any(
+        evt.event_type == "program.creation" and evt.correlation_id == explicit_correlation_id
+        for evt in service.audit_logger.list_events()
+    )
+
+    generated = client.post(
+        "/api/v1/programs",
+        headers=_headers("tenant-e"),
+        json={
+            "tenant_id": "tenant-e",
+            "institution_id": "inst-5",
+            "code": "CORR-GENERATED",
+            "title": "Correlation Generated",
+            "created_by": "user-1",
+        },
+    )
+    assert generated.status_code == 201
+
+    generated_event = next(
+        evt
+        for evt in reversed(service.event_publisher.list_events())
+        if evt.event_type == "lms.program.program_created.v1" and evt.payload.get("program_id") == generated.json()["program_id"]
+    )
+    generated_audit = next(
+        evt
+        for evt in reversed(service.audit_logger.list_events())
+        if evt.event_type == "program.creation" and evt.details.get("program_id") == generated.json()["program_id"]
+    )
+    assert generated_event.correlation_id
+    assert generated_audit.correlation_id
+    assert generated_event.correlation_id == generated_audit.correlation_id

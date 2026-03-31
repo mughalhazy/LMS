@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from backend.services.shared.context.correlation import ensure_correlation_id
+
 
 @dataclass
 class EventEnvelope:
@@ -21,13 +23,20 @@ class EventPublisher:
     def __init__(self) -> None:
         self._events: list[EventEnvelope] = []
 
-    def publish(self, *, event_type: str, tenant_id: str, payload: dict[str, Any]) -> EventEnvelope:
+    def publish(
+        self,
+        *,
+        event_type: str,
+        tenant_id: str,
+        payload: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> EventEnvelope:
         envelope = EventEnvelope(
             event_id=str(uuid4()),
             event_type=event_type,
             timestamp=datetime.now(timezone.utc),
             tenant_id=tenant_id,
-            correlation_id=str(uuid4()),
+            correlation_id=ensure_correlation_id(correlation_id),
             payload=payload,
             metadata={"producer": "program-service"},
         )
