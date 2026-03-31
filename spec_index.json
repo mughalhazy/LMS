@@ -42,6 +42,12 @@
       "chars": 3552
     },
     {
+      "file": "docs/api/auth_service_api.md",
+      "domain": "api_contracts",
+      "bytes": 1963,
+      "chars": 1963
+    },
+    {
       "file": "docs/api/content_api.md",
       "domain": "api_contracts",
       "bytes": 532,
@@ -60,16 +66,238 @@
       "chars": 505
     },
     {
+      "file": "docs/architecture/ARCH_01_core_system_architecture.md",
+      "domain": "system_architecture",
+      "bytes": 10905,
+      "chars": 10899
+    },
+    {
+      "file": "docs/architecture/ARCH_02_microservice_boundary_map.md",
+      "domain": "system_architecture",
+      "bytes": 13421,
+      "chars": 13421
+    },
+    {
+      "file": "docs/architecture/ARCH_03_domain_driven_design_map.md",
+      "domain": "system_architecture",
+      "bytes": 12385,
+      "chars": 12373
+    },
+    {
+      "file": "docs/architecture/ARCH_04_service_data_ownership_rules.md",
+      "domain": "system_architecture",
+      "bytes": 2986,
+      "chars": 2984
+    },
+    {
+      "file": "docs/architecture/ARCH_05_event_driven_architecture.md",
+      "domain": "system_architecture",
+      "bytes": 7107,
+      "chars": 7107
+    },
+    {
+      "file": "docs/architecture/ARCH_06_api_versioning_strategy.md",
+      "domain": "system_architecture",
+      "bytes": 5158,
+      "chars": 5150
+    },
+    {
       "file": "docs/architecture/ARCH_07_multi_tenant_isolation_model.md",
       "domain": "system_architecture",
       "bytes": 5937,
       "chars": 5929
     },
     {
+      "file": "docs/architecture/ARCH_08_observability_architecture.md",
+      "domain": "system_architecture",
+      "bytes": 10423,
+      "chars": 10397
+    },
+    {
+      "file": "docs/architecture/ARCH_AUDIT_01_full_architecture_audit.md",
+      "domain": "system_architecture",
+      "bytes": 4174,
+      "chars": 4170
+    },
+    {
+      "file": "docs/architecture/AUDIT_02_circular_service_dependencies.md",
+      "domain": "system_architecture",
+      "bytes": 3490,
+      "chars": 3490
+    },
+    {
+      "file": "docs/architecture/B2P01_config_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 8374,
+      "chars": 8356
+    },
+    {
+      "file": "docs/architecture/B2P02_entitlement_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 9913,
+      "chars": 9911
+    },
+    {
+      "file": "docs/architecture/B2P03_feature_flag_system_design.md",
+      "domain": "system_architecture",
+      "bytes": 9318,
+      "chars": 9308
+    },
+    {
+      "file": "docs/architecture/B2P04_usage_metering_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 8880,
+      "chars": 8878
+    },
+    {
+      "file": "docs/architecture/B2P05_capability_registry_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 9130,
+      "chars": 9128
+    },
+    {
+      "file": "docs/architecture/B2P06_tenant_extension_model.md",
+      "domain": "system_architecture",
+      "bytes": 5604,
+      "chars": 5598
+    },
+    {
+      "file": "docs/architecture/B2P07_audit_policy_layer_design.md",
+      "domain": "system_architecture",
+      "bytes": 11567,
+      "chars": 11565
+    },
+    {
+      "file": "docs/architecture/B2P08_platform_integration_layer_design.md",
+      "domain": "system_architecture",
+      "bytes": 7935,
+      "chars": 7933
+    },
+    {
+      "file": "docs/architecture/B3P01_commerce_domain_architecture.md",
+      "domain": "system_architecture",
+      "bytes": 13220,
+      "chars": 13218
+    },
+    {
+      "file": "docs/architecture/B3P02_catalog_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 8904,
+      "chars": 8892
+    },
+    {
+      "file": "docs/architecture/B3P03_checkout_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 10058,
+      "chars": 10056
+    },
+    {
+      "file": "docs/architecture/B3P04_invoice_billing_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 9190,
+      "chars": 9188
+    },
+    {
+      "file": "docs/architecture/B3P05_subscription_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 11325,
+      "chars": 11285
+    },
+    {
+      "file": "docs/architecture/B3P06_revenue_service_design.md",
+      "domain": "system_architecture",
+      "bytes": 8982,
+      "chars": 8976
+    },
+    {
+      "file": "docs/architecture/B3P07_academy_commerce_extensions.md",
+      "domain": "system_architecture",
+      "bytes": 11415,
+      "chars": 11397
+    },
+    {
+      "file": "docs/architecture/B5P01_academy_operations_domain.md",
+      "domain": "system_architecture",
+      "bytes": 10951,
+      "chars": 10943
+    },
+    {
+      "file": "docs/architecture/B5P02_school_engagement_domain_design.md",
+      "domain": "system_architecture",
+      "bytes": 10750,
+      "chars": 10736
+    },
+    {
+      "file": "docs/architecture/B5P03_workforce_training_domain.md",
+      "domain": "system_architecture",
+      "bytes": 9527,
+      "chars": 9525
+    },
+    {
+      "file": "docs/architecture/B5P04_university_domain_design.md",
+      "domain": "system_architecture",
+      "bytes": 8186,
+      "chars": 8156
+    },
+    {
+      "file": "docs/architecture/B6P01_ai_tutor_assist_capability_design.md",
+      "domain": "system_architecture",
+      "bytes": 6829,
+      "chars": 6807
+    },
+    {
+      "file": "docs/architecture/B6P02_teacher_ai_assist_design.md",
+      "domain": "system_architecture",
+      "bytes": 6309,
+      "chars": 6307
+    },
+    {
+      "file": "docs/architecture/B6P03_recommendation_engine_system_design.md",
+      "domain": "system_architecture",
+      "bytes": 8712,
+      "chars": 8710
+    },
+    {
+      "file": "docs/architecture/B6P04_learner_risk_insights_system_design.md",
+      "domain": "system_architecture",
+      "bytes": 9237,
+      "chars": 9235
+    },
+    {
+      "file": "docs/architecture/B6P05_analytics_intelligence_layer_design.md",
+      "domain": "system_architecture",
+      "bytes": 9083,
+      "chars": 9081
+    },
+    {
+      "file": "docs/architecture/DOC_02_product_capabilities_matrix.md",
+      "domain": "system_architecture",
+      "bytes": 6832,
+      "chars": 6824
+    },
+    {
+      "file": "docs/architecture/DOC_03_global_education_model_framework.md",
+      "domain": "system_architecture",
+      "bytes": 9195,
+      "chars": 9191
+    },
+    {
       "file": "docs/architecture/DOC_04_academy_operational_model.md",
       "domain": "system_architecture",
       "bytes": 7364,
       "chars": 7352
+    },
+    {
+      "file": "docs/architecture/DOC_05_tutor_operational_model.md",
+      "domain": "system_architecture",
+      "bytes": 7371,
+      "chars": 7351
+    },
+    {
+      "file": "docs/architecture/DOC_08_ai_capability_definition.md",
+      "domain": "system_architecture",
+      "bytes": 10076,
+      "chars": 10076
     },
     {
       "file": "docs/architecture/adaptive_learning_engine.md",
@@ -102,6 +330,18 @@
       "chars": 1157
     },
     {
+      "file": "docs/architecture/capability_gating_model.md",
+      "domain": "system_architecture",
+      "bytes": 6283,
+      "chars": 6275
+    },
+    {
+      "file": "docs/architecture/capability_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 6192,
+      "chars": 6190
+    },
+    {
       "file": "docs/architecture/cloud_architecture_ems_lms.md",
       "domain": "system_architecture",
       "bytes": 2283,
@@ -112,6 +352,18 @@
       "domain": "system_architecture",
       "bytes": 2283,
       "chars": 2283
+    },
+    {
+      "file": "docs/architecture/communication_adapter_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 7643,
+      "chars": 7641
+    },
+    {
+      "file": "docs/architecture/config_resolution_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 5378,
+      "chars": 5368
     },
     {
       "file": "docs/architecture/config_service.md",
@@ -168,6 +420,12 @@
       "chars": 1668
     },
     {
+      "file": "docs/architecture/entitlement_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 6459,
+      "chars": 6457
+    },
+    {
       "file": "docs/architecture/event_bus_design.md",
       "domain": "system_architecture",
       "bytes": 2626,
@@ -198,6 +456,12 @@
       "chars": 1570
     },
     {
+      "file": "docs/architecture/media_security_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 6957,
+      "chars": 6955
+    },
+    {
       "file": "docs/architecture/microservice_boundaries.md",
       "domain": "system_architecture",
       "bytes": 3247,
@@ -208,6 +472,18 @@
       "domain": "system_architecture",
       "bytes": 1097,
       "chars": 1097
+    },
+    {
+      "file": "docs/architecture/offline_sync_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 8317,
+      "chars": 8315
+    },
+    {
+      "file": "docs/architecture/payment_provider_adapter_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 8407,
+      "chars": 8407
     },
     {
       "file": "docs/architecture/platform_long_term_evolution_model.md",
@@ -240,6 +516,12 @@
       "chars": 3065
     },
     {
+      "file": "docs/architecture/usage_metering_interface_contract.md",
+      "domain": "system_architecture",
+      "bytes": 5709,
+      "chars": 5707
+    },
+    {
       "file": "docs/architecture/validate_data_isolation.md",
       "domain": "system_architecture",
       "bytes": 2093,
@@ -258,6 +540,48 @@
       "chars": 3367
     },
     {
+      "file": "docs/data/DATA_01_global_education_schema.md",
+      "domain": "data_models",
+      "bytes": 9413,
+      "chars": 9407
+    },
+    {
+      "file": "docs/data/DATA_02_learning_event_schema.md",
+      "domain": "data_models",
+      "bytes": 13387,
+      "chars": 13379
+    },
+    {
+      "file": "docs/data/DATA_03_knowledge_graph_schema.md",
+      "domain": "data_models",
+      "bytes": 10356,
+      "chars": 10338
+    },
+    {
+      "file": "docs/data/DATA_04_institution_hierarchy_schema.md",
+      "domain": "data_models",
+      "bytes": 8746,
+      "chars": 8740
+    },
+    {
+      "file": "docs/data/DATA_05_cohort_batch_schema.md",
+      "domain": "data_models",
+      "bytes": 9580,
+      "chars": 9560
+    },
+    {
+      "file": "docs/data/DATA_06_assessment_data_schema.md",
+      "domain": "data_models",
+      "bytes": 8870,
+      "chars": 8870
+    },
+    {
+      "file": "docs/data/DATA_07_ai_interaction_schema.md",
+      "domain": "data_models",
+      "bytes": 13777,
+      "chars": 13769
+    },
+    {
       "file": "docs/data/DOC_09_learning_data_model_overview.md",
       "domain": "data_models",
       "bytes": 6505,
@@ -268,6 +592,12 @@
       "domain": "data_models",
       "bytes": 3503,
       "chars": 3503
+    },
+    {
+      "file": "docs/data/auth_service_storage_contract.md",
+      "domain": "data_models",
+      "bytes": 1523,
+      "chars": 1523
     },
     {
       "file": "docs/data/core_lms_schema.md",
@@ -286,6 +616,12 @@
       "domain": "data_models",
       "bytes": 3080,
       "chars": 3080
+    },
+    {
+      "file": "docs/integrations/auth_lifecycle_events.md",
+      "domain": "integration_specs",
+      "bytes": 1370,
+      "chars": 1370
     },
     {
       "file": "docs/integrations/hris_sync_spec.md",
@@ -318,6 +654,72 @@
       "chars": 3464
     },
     {
+      "file": "docs/qc/B7P01_capability_registry_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1754,
+      "chars": 1752
+    },
+    {
+      "file": "docs/qc/B7P02_entitlement_resolution_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1966,
+      "chars": 1964
+    },
+    {
+      "file": "docs/qc/B7P03_config_resolution_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1588,
+      "chars": 1578
+    },
+    {
+      "file": "docs/qc/B7P04_commerce_flow_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 2457,
+      "chars": 2437
+    },
+    {
+      "file": "docs/qc/B7P05_payment_adapter_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 2245,
+      "chars": 2243
+    },
+    {
+      "file": "docs/qc/B7P06_communication_workflow_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1592,
+      "chars": 1586
+    },
+    {
+      "file": "docs/qc/B7P07_delivery_system_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 2038,
+      "chars": 2036
+    },
+    {
+      "file": "docs/qc/B7P08_end_to_end_system_validation_report.md",
+      "domain": "validation_constraints",
+      "bytes": 2617,
+      "chars": 2591
+    },
+    {
+      "file": "docs/qc/QC_HARD_01_system_hardening_report.md",
+      "domain": "validation_constraints",
+      "bytes": 7404,
+      "chars": 7396
+    },
+    {
+      "file": "docs/qc/QC_INT_01_full_system_integration_validation.md",
+      "domain": "validation_constraints",
+      "bytes": 12850,
+      "chars": 12848
+    },
+    {
+      "file": "docs/qc/SUP_01_platform_governor_final_certification.md",
+      "domain": "validation_constraints",
+      "bytes": 12707,
+      "chars": 12683
+    },
+    {
       "file": "docs/qc/architecture_consistency_check_qc_gate1.md",
       "domain": "validation_constraints",
       "bytes": 2789,
@@ -328,6 +730,12 @@
       "domain": "validation_constraints",
       "bytes": 1010,
       "chars": 998
+    },
+    {
+      "file": "docs/qc/auth_service_qc_loop_report.md",
+      "domain": "validation_constraints",
+      "bytes": 1679,
+      "chars": 1679
     },
     {
       "file": "docs/qc/final_qc_cross_service_dependency_check.md",
@@ -396,16 +804,130 @@
       "chars": 2922
     },
     {
+      "file": "docs/specs/AI_01_ai_tutor_service.md",
+      "domain": "service_definitions",
+      "bytes": 2079,
+      "chars": 2077
+    },
+    {
+      "file": "docs/specs/AI_02_recommendation_service.md",
+      "domain": "service_definitions",
+      "bytes": 2068,
+      "chars": 2066
+    },
+    {
+      "file": "docs/specs/AI_03_skill_inference_service.md",
+      "domain": "service_definitions",
+      "bytes": 2061,
+      "chars": 2059
+    },
+    {
+      "file": "docs/specs/AI_04_learning_analytics_service_engineering_prompt.md",
+      "domain": "service_definitions",
+      "bytes": 2074,
+      "chars": 2064
+    },
+    {
+      "file": "docs/specs/AI_05_learning_knowledge_graph.md",
+      "domain": "service_definitions",
+      "bytes": 9411,
+      "chars": 9405
+    },
+    {
+      "file": "docs/specs/DOC_01_feature_inventory.md",
+      "domain": "service_definitions",
+      "bytes": 12363,
+      "chars": 12357
+    },
+    {
+      "file": "docs/specs/DOC_07_billing_and_usage_model.md",
+      "domain": "service_definitions",
+      "bytes": 8691,
+      "chars": 8691
+    },
+    {
+      "file": "docs/specs/GEN_14_certificate_service.md",
+      "domain": "service_definitions",
+      "bytes": 4201,
+      "chars": 4201
+    },
+    {
+      "file": "docs/specs/MIG_01_monolith_to_services_extraction.md",
+      "domain": "service_definitions",
+      "bytes": 24492,
+      "chars": 24480
+    },
+    {
+      "file": "docs/specs/SPEC_01_auth_service.md",
+      "domain": "service_definitions",
+      "bytes": 12473,
+      "chars": 12466
+    },
+    {
+      "file": "docs/specs/SPEC_03_rbac_service.md",
+      "domain": "service_definitions",
+      "bytes": 13920,
+      "chars": 13918
+    },
+    {
+      "file": "docs/specs/SPEC_05_institution_service.md",
+      "domain": "service_definitions",
+      "bytes": 14377,
+      "chars": 14367
+    },
+    {
+      "file": "docs/specs/SPEC_06_program_service.md",
+      "domain": "service_definitions",
+      "bytes": 10679,
+      "chars": 10679
+    },
+    {
+      "file": "docs/specs/SPEC_07_cohort_service.md",
+      "domain": "service_definitions",
+      "bytes": 14288,
+      "chars": 14282
+    },
+    {
+      "file": "docs/specs/SPEC_09_course_service.md",
+      "domain": "service_definitions",
+      "bytes": 12539,
+      "chars": 12537
+    },
+    {
+      "file": "docs/specs/SPEC_11_enrollment_service.md",
+      "domain": "service_definitions",
+      "bytes": 12940,
+      "chars": 12940
+    },
+    {
+      "file": "docs/specs/SPEC_12_progress_service.md",
+      "domain": "service_definitions",
+      "bytes": 11965,
+      "chars": 11965
+    },
+    {
+      "file": "docs/specs/SPEC_14_certificate_service.md",
+      "domain": "service_definitions",
+      "bytes": 10814,
+      "chars": 10810
+    },
+    {
       "file": "docs/specs/assessment_service_spec.md",
-      "domain": "service_specs",
+      "domain": "service_definitions",
       "bytes": 12307,
       "chars": 12305
     },
     {
       "file": "docs/specs/auth_service_spec.md",
       "domain": "service_definitions",
-      "bytes": 740,
-      "chars": 740
+      "bytes": 12037,
+      "chars": 12037
+    },
+    {
+      "file": "docs/specs/auth_service_test_plan.md",
+      "domain": "service_definitions",
+      "bytes": 1414,
+      "chars": 1414
     },
     {
       "file": "docs/specs/cohort_spec.md",
@@ -440,8 +962,8 @@
     {
       "file": "docs/specs/event_ingestion_spec.md",
       "domain": "service_definitions",
-      "bytes": 951,
-      "chars": 951
+      "bytes": 8880,
+      "chars": 8880
     },
     {
       "file": "docs/specs/feature_flags_spec.md",
@@ -464,8 +986,8 @@
     {
       "file": "docs/specs/lesson_service_spec.md",
       "domain": "service_definitions",
-      "bytes": 1302,
-      "chars": 1302
+      "bytes": 12024,
+      "chars": 12022
     },
     {
       "file": "docs/specs/localization_spec.md",
@@ -522,6 +1044,12 @@
       "chars": 1181
     },
     {
+      "file": "docs/specs/session_service_spec.md",
+      "domain": "service_definitions",
+      "bytes": 13877,
+      "chars": 13863
+    },
+    {
       "file": "docs/specs/skill_analytics_spec.md",
       "domain": "service_definitions",
       "bytes": 1946,
@@ -536,14 +1064,14 @@
     {
       "file": "docs/specs/tenant_service_spec.md",
       "domain": "service_definitions",
-      "bytes": 2340,
-      "chars": 2340
+      "bytes": 11226,
+      "chars": 11224
     },
     {
       "file": "docs/specs/user_service_spec.md",
       "domain": "service_definitions",
-      "bytes": 2825,
-      "chars": 2825
+      "bytes": 12145,
+      "chars": 12141
     }
   ]
 }
