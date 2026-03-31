@@ -137,6 +137,42 @@ class SkillInferenceServiceTests(unittest.TestCase):
         self.assertIn("s-ml", result.updated_skills)
         self.assertGreater(result.updated_skills["s-ml"].mastery_score, 0.7)
 
+
+
+    def test_course_and_progress_integration_populates_knowledge_graph(self) -> None:
+        self.service.integrate_course_catalog(
+            tenant_id="tenant-a",
+            course_payload={
+                "course_id": "course-ai-101",
+                "title": "AI 101",
+                "metadata": {
+                    "extra": {
+                        "required_skill_ids": ["s-python"],
+                        "skill_ids": ["s-ml"],
+                        "lesson_skill_map": {"lesson-1": ["s-ml"]},
+                    }
+                },
+            },
+        )
+
+        result = self.service.integrate_progress_update(
+            {
+                "tenant_id": "tenant-a",
+                "learner_id": "learner-5",
+                "course_id": "course-ai-101",
+                "lesson_id": "lesson-1",
+                "status": "completed",
+                "percent_complete": 100.0,
+            }
+        )
+
+        graph = self.service.get_skill_graph(tenant_id="tenant-a")["knowledge_graph"]
+        edge_types = {edge["edge_type"] for edge in graph["edges"]}
+        self.assertEqual(edge_types, {"enrolled_in", "learned", "requires", "improves"})
+        node_types = {node["node_type"] for node in graph["nodes"]}
+        self.assertEqual(node_types, {"user", "skill", "course", "lesson"})
+        self.assertIn("s-ml", result.updated_skills)
+
     def test_tenant_isolation(self) -> None:
         now = datetime.utcnow()
         self.service.ingest_evidence(
