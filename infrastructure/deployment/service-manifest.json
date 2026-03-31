@@ -50,6 +50,14 @@
       "start_command": ""
     },
     {
+      "name": "capability-registry",
+      "path": "services/capability-registry",
+      "runtime": "python",
+      "port": 8140,
+      "app_module": "service:CapabilityRegistryService",
+      "start_command": ""
+    },
+    {
       "name": "certificate-service",
       "path": "backend/services/certificate-service",
       "runtime": "python",
@@ -63,6 +71,14 @@
       "runtime": "python",
       "port": 8107,
       "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "config-service",
+      "path": "services/config-service",
+      "runtime": "python",
+      "port": 8141,
+      "app_module": "service:ConfigService",
       "start_command": ""
     },
     {
@@ -111,6 +127,14 @@
       "runtime": "python",
       "port": 8113,
       "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "entitlement-service",
+      "path": "services/entitlement-service",
+      "runtime": "python",
+      "port": 8142,
+      "app_module": "service:EntitlementService",
       "start_command": ""
     },
     {
@@ -202,18 +226,18 @@
       "start_command": "npm run start"
     },
     {
-      "name": "progress-service",
-      "path": "backend/services/progress-service",
-      "runtime": "python",
-      "port": 8125,
-      "app_module": "app.main:app",
-      "start_command": ""
-    },
-    {
       "name": "program-service",
       "path": "backend/services/program-service",
       "runtime": "python",
       "port": 8138,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "progress-service",
+      "path": "backend/services/progress-service",
+      "runtime": "python",
+      "port": 8125,
       "app_module": "app.main:app",
       "start_command": ""
     },

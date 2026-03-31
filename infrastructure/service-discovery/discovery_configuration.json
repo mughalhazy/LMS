@@ -170,6 +170,32 @@
         "deregister_on_shutdown": true
       }
     },
+    "capability-registry": {
+      "service_name": "capability-registry",
+      "service_id": "capability-registry-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "capability-registry"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
     "certificate-service": {
       "service_name": "certificate-service",
       "service_id": "certificate-service-${HOSTNAME}",
@@ -208,6 +234,32 @@
           "lms",
           "microservice",
           "cohort-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "config-service": {
+      "service_name": "config-service",
+      "service_id": "config-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "config-service"
         ]
       },
       "health_check": {
@@ -364,6 +416,32 @@
           "lms",
           "microservice",
           "enrollment-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "entitlement-service": {
+      "service_name": "entitlement-service",
+      "service_id": "entitlement-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "entitlement-service"
         ]
       },
       "health_check": {

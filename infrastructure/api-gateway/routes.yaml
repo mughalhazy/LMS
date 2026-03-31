@@ -280,3 +280,15 @@ routes:
     service: hr-helpdesk-service
     rate_limit_policy: public-api-standard
     strip_prefix: false
+  - path_prefix: /api/v1/capability-registry
+    service: capability-registry
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/config
+    service: config-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/entitlement
+    service: entitlement-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
