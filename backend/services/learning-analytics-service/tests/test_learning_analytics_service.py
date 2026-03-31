@@ -81,3 +81,11 @@ def test_learning_analytics_metrics_and_endpoints() -> None:
     path = api.get_learning_path_completion_analysis("lp1", LearningPathAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
     assert path["completion_rate"] == 33.33
     assert path["dominant_drop_off_stage"] == "midpoint"
+
+    risk = api.get_learner_risk_insights("c1", CourseAnalyticsQuery(tenant_id="tenant-a", cohort_id="co1"))
+    assert risk["summary"]["total_learners"] == 3
+    assert risk["summary"]["alert_totals"]["low_engagement"] == 1
+    assert risk["summary"]["alert_totals"]["poor_performance"] == 1
+    assert risk["risk_insights"][0]["learner_id"] == "l3"
+    assert "low_engagement" in risk["risk_insights"][0]["alerts"]
+    assert "poor_performance" in risk["risk_insights"][0]["alerts"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .repository import AnalyticsRepository
 
@@ -366,5 +366,146 @@ class LearningAnalyticsService:
             "recommendation_signal": {
                 "dropoff_rate": round(max(0.0, 1 - (completion["completion_rate"] / 100)), 2),
                 "engagement_band": "low" if engagement["average_engagement_score"] < 40 else "medium" if engagement["average_engagement_score"] < 70 else "high",
+            },
+        }
+
+    def learner_risk_insights(
+        self,
+        tenant_id: str,
+        course_id: str,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        cohort_id: str | None = None,
+    ) -> dict:
+        enrollments = self.repository.list_enrollments(tenant_id, course_id, cohort_id)
+        activities = self.repository.list_activities(tenant_id, course_id, start_at, end_at, cohort_id)
+
+        learner_ids = {row.learner_id for row in enrollments} | {row.learner_id for row in activities}
+        per_learner: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        latest_event_at: dict[str, datetime] = {}
+
+        max_event_time = max((row.event_timestamp for row in activities), default=end_at or datetime.utcnow())
+        recent_window_start = max_event_time - timedelta(days=7)
+        previous_window_start = recent_window_start - timedelta(days=7)
+
+        for row in activities:
+            per_learner[row.learner_id]["active_minutes"] += row.active_minutes
+            per_learner[row.learner_id]["content_interactions"] += row.content_interactions
+            per_learner[row.learner_id]["assessment_attempts"] += row.assessment_attempts
+            per_learner[row.learner_id]["discussion_actions"] += row.discussion_actions
+
+            interaction_volume = row.active_minutes + row.content_interactions + row.assessment_attempts + row.discussion_actions
+            if row.event_timestamp >= recent_window_start:
+                per_learner[row.learner_id]["recent_activity"] += interaction_volume
+            elif row.event_timestamp >= previous_window_start:
+                per_learner[row.learner_id]["previous_activity"] += interaction_volume
+
+            last_seen = latest_event_at.get(row.learner_id)
+            if last_seen is None or row.event_timestamp > last_seen:
+                latest_event_at[row.learner_id] = row.event_timestamp
+
+        max_active_minutes = max((metrics["active_minutes"] for metrics in per_learner.values()), default=0.0)
+        max_content_interactions = max((metrics["content_interactions"] for metrics in per_learner.values()), default=0.0)
+        max_assessment_attempts = max((metrics["assessment_attempts"] for metrics in per_learner.values()), default=0.0)
+        max_discussion_actions = max((metrics["discussion_actions"] for metrics in per_learner.values()), default=0.0)
+
+        attempts = [
+            row
+            for row in self.repository.assessment_attempts
+            if row.tenant_id == tenant_id
+            and row.course_id == course_id
+            and (cohort_id is None or row.cohort_id == cohort_id)
+            and self.repository._in_window(row.submitted_at, start_at, end_at)
+        ]
+        performance_by_learner: dict[str, float] = defaultdict(float)
+        performance_attempt_count: dict[str, int] = defaultdict(int)
+        for row in attempts:
+            if row.max_score <= 0:
+                continue
+            performance_by_learner[row.learner_id] += (row.score / row.max_score) * 100
+            performance_attempt_count[row.learner_id] += 1
+
+        insights = []
+        alert_totals = {
+            "low_engagement": 0,
+            "drop_off": 0,
+            "poor_performance": 0,
+        }
+
+        for learner_id in sorted(learner_ids):
+            metrics = per_learner[learner_id]
+            engagement_score = round(
+                (
+                    0.35 * (metrics["active_minutes"] / max_active_minutes if max_active_minutes else 0)
+                    + 0.25 * (metrics["content_interactions"] / max_content_interactions if max_content_interactions else 0)
+                    + 0.20 * (metrics["assessment_attempts"] / max_assessment_attempts if max_assessment_attempts else 0)
+                    + 0.20 * (metrics["discussion_actions"] / max_discussion_actions if max_discussion_actions else 0)
+                )
+                * 100,
+                2,
+            )
+
+            recent_activity = metrics["recent_activity"]
+            previous_activity = metrics["previous_activity"]
+            activity_change_percent = round(((recent_activity - previous_activity) / previous_activity) * 100, 2) if previous_activity > 0 else 0.0
+            average_performance = (
+                round(performance_by_learner[learner_id] / performance_attempt_count[learner_id], 2)
+                if performance_attempt_count[learner_id] > 0
+                else None
+            )
+
+            low_engagement = engagement_score < 40
+            drop_off = previous_activity >= 10 and (recent_activity <= previous_activity * 0.5)
+            poor_performance = average_performance is None or average_performance < 65
+
+            alerts = []
+            if low_engagement:
+                alerts.append("low_engagement")
+                alert_totals["low_engagement"] += 1
+            if drop_off:
+                alerts.append("drop_off")
+                alert_totals["drop_off"] += 1
+            if poor_performance:
+                alerts.append("poor_performance")
+                alert_totals["poor_performance"] += 1
+
+            risk_score = 0.0
+            if low_engagement:
+                risk_score += 40 + min(20, (40 - engagement_score) * 0.5)
+            if drop_off:
+                risk_score += 25 + min(20, max(0.0, ((previous_activity - recent_activity) / previous_activity) * 20))
+            if poor_performance:
+                performance_gap = 25.0 if average_performance is None else max(0.0, 65 - average_performance)
+                risk_score += 20 + min(15, performance_gap * 0.5)
+
+            insights.append(
+                {
+                    "learner_id": learner_id,
+                    "risk_score": round(min(100.0, risk_score), 2),
+                    "alerts": alerts,
+                    "signals": {
+                        "engagement_score": engagement_score,
+                        "recent_activity": round(recent_activity, 2),
+                        "previous_activity": round(previous_activity, 2),
+                        "activity_change_percent": activity_change_percent,
+                        "assessment_average_percent": average_performance,
+                        "last_activity_at": latest_event_at.get(learner_id).isoformat() if learner_id in latest_event_at else None,
+                    },
+                }
+            )
+
+        ranked_insights = sorted(insights, key=lambda x: x["risk_score"], reverse=True)
+
+        return {
+            "tenant_id": tenant_id,
+            "course_id": course_id,
+            "cohort_id": cohort_id,
+            "generated_at": max_event_time.isoformat(),
+            "risk_insights": ranked_insights,
+            "summary": {
+                "total_learners": len(ranked_insights),
+                "high_risk_learners": len([row for row in ranked_insights if row["risk_score"] >= 70]),
+                "medium_risk_learners": len([row for row in ranked_insights if 40 <= row["risk_score"] < 70]),
+                "alert_totals": alert_totals,
             },
         }
