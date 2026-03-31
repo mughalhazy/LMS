@@ -3,6 +3,7 @@
 from .billing import BillingService, InvoiceRecord, InvoiceState
 from .catalog import CatalogProduct, CatalogService, ProductType
 from .checkout import CheckoutService, CheckoutSession, CheckoutStatus, OrderRecord
+from .monetization import CapabilityCharge, CapabilityMonetizationService
 from .service import CommerceService
 
 __all__ = [
@@ -16,5 +17,7 @@ __all__ = [
     "CheckoutSession",
     "CheckoutStatus",
     "OrderRecord",
+    "CapabilityCharge",
+    "CapabilityMonetizationService",
     "CommerceService",
 ]

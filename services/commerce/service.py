@@ -9,6 +9,7 @@ from pathlib import Path
 from .billing import BillingService, InvoiceRecord
 from .catalog import CatalogProduct, CatalogService, ProductType
 from .checkout import CheckoutService, OrderRecord
+from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 from integrations.payment.router import PaymentProviderRouter
@@ -53,6 +54,11 @@ class CommerceService:
             config_service=self.config_service,
         )
         self.checkout = CheckoutService(self.catalog, self._execute_payment)
+        self.monetization = CapabilityMonetizationService(
+            subscription_service=self.subscription_service,
+            capability_registry=self.entitlement_service._capability_registry,
+            entitlement_service=self.entitlement_service,
+        )
         self._payment_router = payment_router
 
     def add_product(
@@ -142,3 +148,13 @@ class CommerceService:
 
     def checkout_and_invoice_sync(self, **kwargs: str):
         return asyncio.run(self.checkout_and_invoice(**kwargs))
+
+
+    def enable_capability_add_on(self, *, tenant_id: str, capability_id: str) -> None:
+        self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id)
+
+    def record_capability_usage(self, *, tenant_id: str, capability_id: str, units: int = 1) -> None:
+        self.monetization.usage_billing_hook(tenant_id=tenant_id, capability_id=capability_id, units=units)
+
+    def calculate_capability_charges(self, tenant: TenantEntitlementContext) -> list[CapabilityCharge]:
+        return self.monetization.calculate_tenant_capability_charges(tenant)

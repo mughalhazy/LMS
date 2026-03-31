@@ -52,6 +52,27 @@ class CapabilityRegistryService:
         capability = self.get_capability(capability_id)
         return capability.pricing if capability else None
 
+
+    def list_plan_capabilities(self, plan_type: str) -> set[str]:
+        normalized_plan = plan_type.strip().lower()
+        return {
+            capability.capability_id
+            for capability in self.list_capabilities()
+            if normalized_plan in capability.included_in_plans
+        }
+
+    def list_add_on_capabilities(self, add_on: str) -> set[str]:
+        normalized_add_on = add_on.strip().lower()
+        return {
+            capability.capability_id
+            for capability in self.list_capabilities()
+            if normalized_add_on in capability.included_in_add_ons
+        }
+
+    def assert_capability_is_single_billing_unit(self, capability_id: str) -> bool:
+        capability = self.get_capability(capability_id)
+        return capability is not None and bool(capability.capability_id.strip())
+
     def is_enabled_by_default(self, capability_id: str) -> bool:
         """Registry default signal consumed by entitlement service only."""
         capability = self.get_capability(capability_id)

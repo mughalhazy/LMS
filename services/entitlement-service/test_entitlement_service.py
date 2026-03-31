@@ -52,3 +52,21 @@ def test_unknown_capability_fails_closed() -> None:
     assert decision.is_enabled is False
     assert "unknown_capability" in decision.sources
 
+
+
+def test_resolve_enabled_capabilities_returns_effective_capability_set() -> None:
+    service = EntitlementService()
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_caps",
+        plan_type="free",
+        add_ons=("ai_tutor_pack",),
+        country_code="US",
+        segment_id="academy",
+    )
+    service.upsert_tenant_context(tenant)
+
+    resolved = service.resolve_enabled_capabilities(tenant)
+
+    assert "assessment.attempt" in resolved
+    assert "ai.tutor" in resolved
+    assert "assessment.author" not in resolved
