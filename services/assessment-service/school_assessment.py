@@ -8,9 +8,10 @@ from shared.models.school import PerformanceAlert
 
 
 @dataclass
-class SchoolAssessmentService:
-    """Assessment extension that emits school-oriented performance alerts."""
+class SegmentAssessmentService:
+    """Config-driven assessment extension that emits performance alerts."""
 
+    behavior_config: dict[str, bool] = field(default_factory=dict)
     _scores: dict[str, list[float]] = field(default_factory=dict)
     _alerts: list[PerformanceAlert] = field(default_factory=list)
     entitlement: Callable[[str], bool] = field(default=lambda _capability_id: True)
@@ -50,3 +51,6 @@ class SchoolAssessmentService:
 
     def alerts_for_student(self, *, student_id: str, course_id: str) -> list[PerformanceAlert]:
         return [a for a in self._alerts if a.student_id == student_id and a.course_id == course_id]
+
+
+SchoolAssessmentService = SegmentAssessmentService

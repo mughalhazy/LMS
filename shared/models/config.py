@@ -44,3 +44,19 @@ class ConfigResolutionContext:
 class EffectiveConfig:
     capability_enabled: dict[str, bool]
     behavior_tuning: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SegmentBehaviorConfig:
+    attendance_enabled: bool = False
+    cohort_enabled: bool = False
+    guardian_notifications_enabled: bool = False
+
+
+def segment_behavior_from_effective_config(effective: EffectiveConfig) -> SegmentBehaviorConfig:
+    behavior = effective.behavior_tuning.get("segment_behavior", {})
+    return SegmentBehaviorConfig(
+        attendance_enabled=bool(behavior.get("attendance_enabled", False)),
+        cohort_enabled=bool(behavior.get("cohort_enabled", False)),
+        guardian_notifications_enabled=bool(behavior.get("guardian_notifications_enabled", False)),
+    )

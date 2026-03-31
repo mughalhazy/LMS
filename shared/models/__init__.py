@@ -2,7 +2,15 @@ from .invoice import Invoice
 from .academy import AcademyDeliveryMode, AcademyEnrollment, AcademyPackage
 from .capability import Capability
 from .capability_pricing import CapabilityPricing
-from .config import ConfigLevel, ConfigOverride, ConfigResolutionContext, ConfigScope, EffectiveConfig
+from .config import (
+    ConfigLevel,
+    ConfigOverride,
+    ConfigResolutionContext,
+    ConfigScope,
+    EffectiveConfig,
+    SegmentBehaviorConfig,
+    segment_behavior_from_effective_config,
+)
 
 __all__ = [
     "Invoice",
@@ -16,4 +24,6 @@ __all__ = [
     "ConfigOverride",
     "ConfigResolutionContext",
     "EffectiveConfig",
+    "SegmentBehaviorConfig",
+    "segment_behavior_from_effective_config",
 ]
