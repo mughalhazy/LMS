@@ -101,6 +101,15 @@ class LearningAnalyticsAPI:
             cohort_id=query.cohort_id,
         )
 
+    def get_network_effect_insights(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
+        return self.service.network_effect_insights(
+            tenant_id=query.tenant_id,
+            course_id=course_id,
+            start_at=query.start_at,
+            end_at=query.end_at,
+            cohort_id=query.cohort_id,
+        )
+
 
 HEALTH_ENDPOINT = "/health"
 METRICS_ENDPOINT = "/metrics"

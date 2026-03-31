@@ -208,3 +208,48 @@ def test_risk_insights_emit_automation_events() -> None:
     event_types = {row["event_type"] for row in payload["automation_events"]}
     assert "learning.low_engagement" in event_types
     assert "learning.low_performance" in event_types
+
+
+def test_network_effect_insights_support_benchmarking_scoring_and_optimization() -> None:
+    now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    repository = AnalyticsRepository(
+        enrollments=[
+            CourseEnrollment("tenant-net", "l1", "course-1", "co-a", "enrolled", now),
+            CourseEnrollment("tenant-net", "l2", "course-1", "co-a", "enrolled", now),
+            CourseEnrollment("tenant-net", "l3", "course-1", "co-b", "enrolled", now),
+            CourseEnrollment("tenant-net", "l4", "course-1", "co-b", "enrolled", now),
+        ],
+        completions=[
+            CourseCompletion("tenant-net", "l1", "course-1", "completed", now, 3600),
+            CourseCompletion("tenant-net", "l3", "course-1", "completed", now, 4000),
+            CourseCompletion("tenant-net", "l4", "course-1", "completed", now, 3000),
+        ],
+        activities=[
+            LearningActivityEvent("tenant-net", "l1", "course-1", "co-a", 45, 6, 2, 1, now - timedelta(days=1), 0.4),
+            LearningActivityEvent("tenant-net", "l2", "course-1", "co-a", 10, 2, 0, 0, now - timedelta(days=1), -0.2),
+            LearningActivityEvent("tenant-net", "l3", "course-1", "co-b", 70, 8, 3, 3, now - timedelta(days=2), 0.6),
+            LearningActivityEvent("tenant-net", "l4", "course-1", "co-b", 60, 6, 2, 2, now - timedelta(days=1), 0.3),
+        ],
+        assessment_attempts=[
+            AssessmentAttempt("tenant-net", "l1", "course-1", "co-a", 68, 100, now),
+            AssessmentAttempt("tenant-net", "l2", "course-1", "co-a", 52, 100, now),
+            AssessmentAttempt("tenant-net", "l3", "course-1", "co-b", 85, 100, now),
+            AssessmentAttempt("tenant-net", "l4", "course-1", "co-b", 88, 100, now),
+        ],
+        path_snapshots=[],
+        revenue_records=[],
+    )
+    api = LearningAnalyticsAPI(repository)
+
+    payload = api.get_network_effect_insights(
+        "course-1",
+        CourseAnalyticsQuery(tenant_id="tenant-net", cohort_id="co-a"),
+    )
+
+    assert set(payload.keys()) == {"tenant_id", "course_id", "cohort_id", "benchmarking", "scoring", "optimization"}
+    assert payload["benchmarking"]["completion_gap"] < 0
+    assert payload["benchmarking"]["assessment_gap"] < 0
+    assert 0 <= payload["scoring"]["network_effect_score"] <= 100
+    assert payload["scoring"]["contributors"]["completion_rate"] == 50.0
+    assert payload["optimization"]["next_review_window_days"] == 14
+    assert payload["optimization"]["priority_actions"][0]["focus_area"] in {"completion", "engagement", "performance", "optimization"}
