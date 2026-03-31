@@ -10,6 +10,7 @@ from .models import (
     CourseEnrollment,
     LearningActivityEvent,
     PathProgressSnapshot,
+    RevenueRecord,
 )
 
 
@@ -20,6 +21,7 @@ class AnalyticsRepository:
     activities: list[LearningActivityEvent] = field(default_factory=list)
     assessment_attempts: list[AssessmentAttempt] = field(default_factory=list)
     path_snapshots: list[PathProgressSnapshot] = field(default_factory=list)
+    revenue_records: list[RevenueRecord] = field(default_factory=list)
 
     @staticmethod
     def _parse_datetime(value: Any) -> datetime:
@@ -43,7 +45,7 @@ class AnalyticsRepository:
 
     def ingest_event(self, event: dict[str, Any]) -> bool:
         event_type = str(event.get("event_type", "")).strip().lower()
-        supported_types = {"enrollment", "completion", "activity", "assessment_attempt", "path_snapshot"}
+        supported_types = {"enrollment", "completion", "activity", "assessment_attempt", "path_snapshot", "revenue"}
         if event_type not in supported_types:
             return False
 
@@ -57,8 +59,10 @@ class AnalyticsRepository:
         except ValueError:
             return False
 
-        required = [tenant_id, learner_id]
-        if event_type != "path_snapshot":
+        required = [tenant_id]
+        if event_type not in {"path_snapshot", "revenue"}:
+            required.append(learner_id)
+        if event_type not in {"path_snapshot", "revenue"}:
             required.append(course_id)
         if any(not value for value in required):
             return False
@@ -136,6 +140,23 @@ class AnalyticsRepository:
                     completed_modules=completed_modules,
                     total_modules=total_modules,
                     snapshot_timestamp=timestamp,
+                )
+            )
+            return True
+
+        if event_type == "revenue":
+            plan_id = str(event.get("plan_id") or event.get("plan_type") or "unknown")
+            amount = self._to_float(event.get("amount"))
+            if amount < 0:
+                return False
+            self.revenue_records.append(
+                RevenueRecord(
+                    tenant_id=tenant_id,
+                    plan_id=plan_id,
+                    amount=amount,
+                    billed_at=timestamp,
+                    currency=str(event.get("currency") or "USD"),
+                    source_event_id=event.get("event_id"),
                 )
             )
             return True
@@ -240,4 +261,16 @@ class AnalyticsRepository:
             and row.learning_path_id == learning_path_id
             and (cohort_id is None or row.cohort_id == cohort_id)
             and self._in_window(row.snapshot_timestamp, start_at, end_at)
+        ]
+
+    def list_revenue_records(
+        self,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        tenant_id: str | None = None,
+    ) -> list[RevenueRecord]:
+        return [
+            row
+            for row in self.revenue_records
+            if (tenant_id is None or row.tenant_id == tenant_id) and self._in_window(row.billed_at, start_at, end_at)
         ]

@@ -59,3 +59,13 @@ class PathProgressSnapshot:
     completed_modules: int
     total_modules: int
     snapshot_timestamp: datetime
+
+
+@dataclass(frozen=True)
+class RevenueRecord:
+    tenant_id: str
+    plan_id: str
+    amount: float
+    billed_at: datetime
+    currency: str = "USD"
+    source_event_id: str | None = None

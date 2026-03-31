@@ -1,15 +1,42 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
 
-from backend.services.shared.models.product import Product
+
+class SubscriptionState(str, Enum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
 
 
-@dataclass(frozen=True)
-class ProductCatalogEntry:
-    product: Product
-    course_ids: list[str] = field(default_factory=list)
+class SubscriptionEvent(str, Enum):
+    ACTIVATION = "activation"
+    RENEWAL = "renewal"
+    EXPIRATION = "expiration"
+    CANCELLATION = "cancellation"
 
-    def __post_init__(self) -> None:
-        normalized = sorted(set(self.course_ids))
-        object.__setattr__(self, "course_ids", normalized)
+
+@dataclass
+class LifecycleRecord:
+    event: SubscriptionEvent
+    from_state: SubscriptionState
+    to_state: SubscriptionState
+    occurred_at: datetime
+
+
+@dataclass
+class Subscription:
+    subscription_id: str
+    tenant_id: str
+    plan_id: str
+    state: SubscriptionState = SubscriptionState.TRIAL
+    trial_ends_at: datetime | None = None
+    current_period_ends_at: datetime | None = None
+    activated_at: datetime | None = None
+    expired_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    lifecycle: list[LifecycleRecord] = field(default_factory=list)

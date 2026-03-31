@@ -76,6 +76,13 @@ class LearningAnalyticsAPI:
             cohort_id=query.cohort_id,
         )
 
+    def get_revenue_metrics(self, query: TimeWindowQuery) -> dict:
+        return self.service.revenue_metrics(
+            start_at=query.start_at,
+            end_at=query.end_at,
+            tenant_id=query.tenant_id,
+        )
+
     def get_ai_service_signals(self, course_id: str, query: CourseAnalyticsQuery) -> dict:
         return self.service.ai_service_signals(
             tenant_id=query.tenant_id,
