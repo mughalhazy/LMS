@@ -1,52 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from decimal import Decimal
-from enum import Enum
 
-
-class ProductType(str, Enum):
-    COURSE = "course"
-    BUNDLE = "bundle"
-    SUBSCRIPTION = "subscription"
-
-
-@dataclass(frozen=True)
-class Product:
-    product_id: str
-    tenant_id: str
-    sku: str
-    product_type: ProductType
-    title: str
-    capability_id: str
-    price: Decimal
-    currency: str
-    published: bool = True
-    metadata: dict[str, str] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-    def normalized(self) -> "Product":
-        normalized = Product(
-            product_id=self.product_id.strip(),
-            tenant_id=self.tenant_id.strip(),
-            sku=self.sku.strip().upper(),
-            product_type=ProductType(self.product_type),
-            title=self.title.strip(),
-            capability_id=self.capability_id.strip(),
-            price=Decimal(self.price),
-            currency=self.currency.strip().upper(),
-            published=bool(self.published),
-            metadata={str(k): str(v) for k, v in self.metadata.items()},
-            created_at=self.created_at,
-        )
-        if not normalized.capability_id:
-            raise ValueError("product capability_id is required")
-        return normalized
-
-
-# Backward-compatible alias while elevating Product as a first-class entity.
-CatalogProduct = Product
+from .models import Product, ProductType
 
 
 class CatalogService:
@@ -55,9 +11,42 @@ class CatalogService:
     def __init__(self) -> None:
         self._products: dict[str, Product] = {}
 
-    def upsert_product(self, product: Product) -> None:
-        normalized = product.normalized()
-        self._products[normalized.product_id] = normalized
+    def create_product(
+        self,
+        *,
+        product_id: str,
+        tenant_id: str,
+        type: ProductType,
+        title: str,
+        description: str,
+        price: Decimal,
+        currency: str,
+        capability_ids: list[str],
+        metadata: dict[str, str] | None = None,
+    ) -> Product:
+        product = Product(
+            product_id=product_id,
+            tenant_id=tenant_id,
+            type=type,
+            title=title,
+            description=description,
+            price=price,
+            currency=currency,
+            capability_ids=capability_ids,
+            metadata=metadata or {},
+        ).normalized()
+        self._products[product.product_id] = product
+        return product
+
+    def update_product(self, product_id: str, **updates: object) -> Product:
+        existing = self.get_product(product_id)
+        if existing is None:
+            raise ValueError(f"product '{product_id}' not found")
+
+        payload = {**existing.__dict__, **updates}
+        updated = Product(**payload).normalized()
+        self._products[updated.product_id] = updated
+        return updated
 
     def get_product(self, product_id: str) -> Product | None:
         return self._products.get(product_id.strip())
@@ -70,11 +59,16 @@ class CatalogService:
             if product.tenant_id == normalized_tenant and product.published
         ]
         if product_type is None:
-            return sorted(products, key=lambda p: p.sku)
-        return sorted((p for p in products if p.product_type == product_type), key=lambda p: p.sku)
+            return sorted(products, key=lambda p: p.product_id)
+        return sorted((p for p in products if p.type == product_type), key=lambda p: p.product_id)
 
     def resolve_sellable_product(self, *, tenant_id: str, product_id: str) -> Product:
         product = self.get_product(product_id)
         if product is None or product.tenant_id != tenant_id.strip() or not product.published:
             raise ValueError(f"product '{product_id}' is not sellable for tenant '{tenant_id}'")
+        if not product.capability_ids:
+            raise ValueError(f"product '{product_id}' is missing required capability mapping")
+        if product.type in {ProductType.BUNDLE, ProductType.SUBSCRIPTION}:
+            # Placeholder linkage. Extended composition/rules live in specialized modules.
+            _ = product.metadata
         return product
