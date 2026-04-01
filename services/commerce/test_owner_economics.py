@@ -34,9 +34,25 @@ def test_owner_economics_snapshot_and_lists() -> None:
         commerce_invoices=invoices,
         batches=batches,
         branches=branches,
+        operations_actions=(
+            SimpleNamespace(
+                action_id="action:tenant_x:1",
+                action_type="unpaid_fees_follow_up",
+                priority="high",
+                reason="Outstanding unpaid fee case",
+            ),
+        ),
     )
     assert snapshot.revenue_per_student == Decimal("90.00")
     assert snapshot.gross_revenue == Decimal("180")
     assert len(snapshot.profitability_by_batch) == 2
     assert len(engine.list_unprofitable_batches(profitability_by_batch=snapshot.profitability_by_batch)) == 1
     assert snapshot.metadata["sources"]["ledger"] == 3
+    assert len(snapshot.revenue_per_batch) == 2
+    assert len(snapshot.cashflow_timeline) >= 1
+    assert snapshot.profitability["is_profitable"] is False
+    assert {trigger["trigger_type"] for trigger in snapshot.action_triggers} >= {
+        "dues_collection",
+        "batch_profitability_intervention",
+        "operations_os_action",
+    }
