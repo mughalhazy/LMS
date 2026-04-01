@@ -90,6 +90,51 @@ class ProgressTrackingService:
         self._refresh_learning_path_progress(tenant_id=tenant_id, learner_id=learner_id)
         return lesson_progress
 
+    def on_progress_milestone(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        course_id: str,
+        lesson_id: str,
+        enrollment_id: str,
+        progress_percentage: float,
+    ) -> LessonProgress:
+        status = "completed" if progress_percentage >= 100 else "in_progress"
+        return self.track_lesson_completion(
+            tenant_id=tenant_id,
+            learner_id=learner_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+            enrollment_id=enrollment_id,
+            completion_status=status,
+            score=None,
+            time_spent_seconds=0,
+            attempt_count=1,
+        )
+
+    def on_completion(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        course_id: str,
+        lesson_id: str,
+        enrollment_id: str,
+        score: float | None = None,
+    ) -> LessonProgress:
+        return self.track_lesson_completion(
+            tenant_id=tenant_id,
+            learner_id=learner_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+            enrollment_id=enrollment_id,
+            completion_status="completed",
+            score=score,
+            time_spent_seconds=0,
+            attempt_count=1,
+        )
+
     def _recompute_course_progress(
         self,
         *,

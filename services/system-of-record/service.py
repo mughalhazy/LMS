@@ -231,6 +231,8 @@ class SystemOfRecordService:
         profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
         if profile is None:
             raise KeyError("student profile not found")
+        if profile.lifecycle_state == state:
+            return profile
         if state not in self._allowed_lifecycle_transitions[profile.lifecycle_state]:
             raise LifecycleTransitionError(f"invalid lifecycle transition: {profile.lifecycle_state} -> {state}")
 
@@ -246,6 +248,106 @@ class SystemOfRecordService:
                 last_transition_at=datetime.now(timezone.utc),
             ),
         )
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_enrollment_created(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        learning_object_id: str | None = None,
+        enrollment_id: str | None = None,
+    ) -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            state=StudentLifecycleState.ENROLLED,
+        )
+        metadata = dict(profile.metadata)
+        if learning_object_id:
+            metadata["last_learning_object_id"] = learning_object_id
+        if enrollment_id:
+            metadata["last_enrollment_id"] = enrollment_id
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_learning_started(self, *, tenant_id: str, student_id: str, enrollment_id: str | None = None) -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            state=StudentLifecycleState.ACTIVE,
+        )
+        metadata = dict(profile.metadata)
+        if enrollment_id:
+            metadata["active_enrollment_id"] = enrollment_id
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_progress_milestone(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        milestone_key: str,
+        progress_percentage: float,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        if profile.lifecycle_state not in {StudentLifecycleState.ACTIVE, StudentLifecycleState.ENROLLED}:
+            raise LifecycleTransitionError(
+                f"progress milestone is invalid while lifecycle state is {profile.lifecycle_state}"
+            )
+
+        if profile.lifecycle_state == StudentLifecycleState.ENROLLED and progress_percentage > 0:
+            profile = self.on_learning_started(tenant_id=tenant_id, student_id=student_id)
+
+        metadata = dict(profile.metadata)
+        metadata[f"milestone.{milestone_key}"] = str(progress_percentage)
+        metadata["last_progress_percentage"] = str(progress_percentage)
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_completion(self, *, tenant_id: str, student_id: str, completion_ref: str | None = None) -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            state=StudentLifecycleState.GRADUATED,
+        )
+        metadata = dict(profile.metadata)
+        if completion_ref:
+            metadata["completion_ref"] = completion_ref
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_dropout(self, *, tenant_id: str, student_id: str, reason: str | None = None) -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            state=StudentLifecycleState.WITHDRAWN,
+        )
+        metadata = dict(profile.metadata)
+        if reason:
+            metadata["dropout_reason"] = reason
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_pause(self, *, tenant_id: str, student_id: str, reason: str | None = None) -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            state=StudentLifecycleState.SUSPENDED,
+        )
+        metadata = dict(profile.metadata)
+        if reason:
+            metadata["pause_reason"] = reason
+        updated = replace(profile, metadata=metadata)
         self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
         return updated
 
