@@ -28,7 +28,7 @@ MediaModule = _load_module("media_security_system_validation_module", "services/
 WorkflowModule = _load_module("workflow_system_validation_module", "services/workflow-engine/service.py")
 OfflineModule = _load_module("offline_sync_system_validation_module", "services/offline-sync/service.py")
 
-from integrations.payment.adapters import MockSuccessAdapter
+from integrations.payments.adapters import MockSuccessAdapter
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 from services.commerce.models import ProductType

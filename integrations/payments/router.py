@@ -39,7 +39,7 @@ class PaymentProviderRouter:
         tenant_context = normalize_tenant(tenant)
         provider_key = self.resolve_provider(tenant_context)
         adapter = self._adapters[provider_key]
-        result = adapter.initiate_payment(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
+        result = adapter.initiate(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
         return PaymentResult(
             ok=bool(result.ok),
             status=self._normalize_status(result.status, ok=result.ok, stage="checkout"),
@@ -65,7 +65,7 @@ class PaymentProviderRouter:
                 provider=provider,
                 error="provider_not_registered",
             )
-        verify_fn = getattr(adapter, "verify_payment", None)
+        verify_fn = getattr(adapter, "verify", None)
         if verify_fn is None:
             return PaymentVerificationResult(
                 ok=True,
@@ -78,6 +78,41 @@ class PaymentProviderRouter:
         return PaymentVerificationResult(
             ok=bool(result.ok),
             status=self._normalize_status(result.status, ok=result.ok, stage="verification"),
+            payment_id=result.payment_id or payment_id,
+            provider=result.provider or provider,
+            error=result.error,
+        )
+
+
+    def reconcile(
+        self,
+        *,
+        tenant: TenantPaymentContext,
+        provider: str,
+        payment_id: str,
+    ) -> PaymentVerificationResult:
+        adapter = self._adapters.get(provider)
+        if adapter is None:
+            return PaymentVerificationResult(
+                ok=False,
+                status="failed",
+                payment_id=payment_id,
+                provider=provider,
+                error="provider_not_registered",
+            )
+        reconcile_fn = getattr(adapter, "reconcile", None)
+        if reconcile_fn is None:
+            return PaymentVerificationResult(
+                ok=True,
+                status="verified",
+                payment_id=payment_id,
+                provider=provider,
+                error=None,
+            )
+        result = reconcile_fn(payment_id=payment_id, tenant=tenant)
+        return PaymentVerificationResult(
+            ok=bool(result.ok),
+            status=self._normalize_status(result.status, ok=result.ok, stage="reconciliation"),
             payment_id=result.payment_id or payment_id,
             provider=result.provider or provider,
             error=result.error,

@@ -44,7 +44,7 @@ class JazzCashAdapter:
             payload=payload,
         )
 
-    def initiate_payment(
+    def initiate(
         self,
         *,
         amount: int,
@@ -67,7 +67,7 @@ class JazzCashAdapter:
             invoice_id=invoice_id,
         )
 
-    def verify_payment(
+    def verify(
         self,
         callback_data: dict[str, Any] | None = None,
         *,
@@ -80,7 +80,7 @@ class JazzCashAdapter:
         if payment_id is None or tenant is None:
             raise TypeError("verify_payment requires callback_data or legacy payment_id + tenant")
 
-        status = self.get_status(payment_id=payment_id, tenant=tenant)
+        status = self.reconcile(payment_id=payment_id, tenant=tenant)
         is_success = status.status == "success" or payment_id.startswith("jz_")
         return PaymentVerificationResult(
             ok=is_success,
@@ -91,7 +91,7 @@ class JazzCashAdapter:
         )
 
 
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         verification = self._transaction_store.get(payment_id)
         if verification is not None and verification.status == "success":
             return PaymentVerificationResult(

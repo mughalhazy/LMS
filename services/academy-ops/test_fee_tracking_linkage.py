@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from integrations.payment.adapters import MockSuccessAdapter
+from integrations.payments.adapters import MockSuccessAdapter
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 from services.commerce.service import CommerceService

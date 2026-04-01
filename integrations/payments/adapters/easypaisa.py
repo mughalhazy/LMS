@@ -8,7 +8,7 @@ from integrations.payments.base_adapter import (
     PaymentVerificationResult,
     TenantPaymentContext,
 )
-from integrations.payments.models import PaymentInitiationPayload, PaymentStatusPayload
+from integrations.payments.models import PaymentInitiationPayload
 
 
 class EasyPaisaAdapter:
@@ -48,7 +48,7 @@ class EasyPaisaAdapter:
             self._initiations_by_idempotency_key[payload.idempotency_key] = result
         return result
 
-    def initiate_payment(
+    def initiate(
         self,
         *,
         amount: int,
@@ -65,30 +65,27 @@ class EasyPaisaAdapter:
             )
         )
 
-    def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
-        callback_status = self.get_status(
-            PaymentStatusPayload(
+    def verify(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        return self.reconcile(payment_id=payment_id, tenant=tenant)
+
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        _ = tenant
+        existing = self._status_by_payment_id.get(payment_id)
+        if existing == "verified" or payment_id.startswith("ep_"):
+            return PaymentVerificationResult(
+                ok=True,
+                status="verified",
                 payment_id=payment_id,
-                tenant_id=tenant.tenant_id,
-                country_code=tenant.country_code,
+                provider=self.provider_key,
+                error=None,
             )
-        )
-        is_verified = callback_status == "verified"
         return PaymentVerificationResult(
-            ok=is_verified,
-            status="verified" if is_verified else "failed",
+            ok=False,
+            status="failed",
             payment_id=payment_id,
             provider=self.provider_key,
-            error=None if is_verified else "verification_failed",
+            error="verification_failed",
         )
-
-    def get_status(self, payload: PaymentStatusPayload) -> str:
-        existing = self._status_by_payment_id.get(payload.payment_id)
-        if existing == "verified":
-            return "verified"
-        if payload.payment_id.startswith("ep_"):
-            return "verified"
-        return "failed"
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:

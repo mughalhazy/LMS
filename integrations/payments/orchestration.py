@@ -176,14 +176,23 @@ class PaymentOrchestrationService:
     def _run_verification(self, *, entry: PaymentLedgerEntry) -> PaymentLedgerEntry:
         if not entry.payment_id or not entry.provider:
             return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "error": "missing_payment_reference"})
-        result = self._router.verify(
-            tenant=TenantPaymentContext(tenant_id=entry.tenant_id, country_code=entry.tenant_country_code),
+        tenant = TenantPaymentContext(tenant_id=entry.tenant_id, country_code=entry.tenant_country_code)
+        verification = self._router.verify(
+            tenant=tenant,
             provider=entry.provider,
             payment_id=entry.payment_id,
         )
-        if result.ok:
-            return PaymentLedgerEntry(**{**entry.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
-        return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": result.error or "verification_failed"})
+        if not verification.ok:
+            return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": verification.error or "verification_failed"})
+
+        reconciliation = self._router.reconcile(
+            tenant=tenant,
+            provider=entry.provider,
+            payment_id=entry.payment_id,
+        )
+        if reconciliation.ok:
+            return PaymentLedgerEntry(**{**entry.__dict__, "status": "reconciled", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
+        return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": reconciliation.error or "reconciliation_failed"})
 
     async def handle_provider_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentLedgerEntry | None:
         callback_result = self._router.parse_callback(provider=provider, payload=payload)
@@ -226,7 +235,7 @@ class PaymentOrchestrationService:
         )
         if callback_result.ok and verification_result.ok:
             updated = PaymentLedgerEntry(
-                **{**current.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None}
+                **{**current.__dict__, "status": "reconciled", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None}
             )
         else:
             updated = PaymentLedgerEntry(

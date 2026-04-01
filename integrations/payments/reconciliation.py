@@ -12,8 +12,8 @@ from integrations.payments.base_adapter import PaymentVerificationResult, Tenant
 class PaymentStatusAdapter(Protocol):
     provider_key: str
 
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
-        """Return current provider status for payment."""
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        """Return current provider status for payment reconciliation."""
 
 
 class ReconciliationTarget(Protocol):
@@ -126,7 +126,7 @@ class PaymentReconciliationEngine:
                 updates.append(updated)
                 continue
 
-            status_result = adapter.get_status(
+            status_result = adapter.reconcile(
                 payment_id=txn.payment_id,
                 tenant=TenantPaymentContext(tenant_id=txn.tenant_id, country_code="US"),
             )

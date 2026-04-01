@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from integrations.payment.adapters import MockSuccessAdapter
+from integrations.payments.adapters import MockSuccessAdapter
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 from services.commerce.service import CommerceService

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from integrations.payment.adapters import MockFailureAdapter, MockSuccessAdapter
+from integrations.payments.adapters import MockFailureAdapter, MockSuccessAdapter
 from integrations.payments.base_adapter import PaymentResult, TenantPaymentContext
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
@@ -18,7 +18,7 @@ class FlakyAdapter:
     def __init__(self) -> None:
         self.calls = 0
 
-    def initiate_payment(self, amount: int, tenant: TenantPaymentContext, invoice_id: str | None = None) -> PaymentResult:
+    def initiate(self, amount: int, tenant: TenantPaymentContext, invoice_id: str | None = None) -> PaymentResult:
         self.calls += 1
         if self.calls == 1:
             return PaymentResult(ok=False, status="failure", provider=self.provider_key, error="timeout")
