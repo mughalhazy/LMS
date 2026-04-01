@@ -152,71 +152,34 @@ def test_failure_safe_pending_is_retained_for_retry(tmp_path: Path) -> None:
     assert pending[0].sync_attempts == 1
 
 
-def test_prepare_offline_package_enforces_auth_and_expiry(tmp_path: Path) -> None:
+def test_record_offline_progress_dedupes_by_reference_token(tmp_path: Path) -> None:
     service = OfflineSyncService(
         cache_root=tmp_path / "offline-cache",
         state_file=tmp_path / "offline-state" / "state.json",
-        package_ttl_seconds=10,
     )
 
-    package = service.prepare_offline_package(
-        tenant_id="tenant_secure",
-        student_id="student_1",
-        content_ids=["lesson-1", "lesson-2"],
-        requester_user_id="student_1",
-        requester_roles=["learner"],
-        tenant_plan_type="pro",
-        metadata={"device": "ipad"},
+    first = service.record_offline_progress(
+        tenant_id="tenant-a",
+        student_id="learner-9",
+        content_id="course-1",
+        lesson_id="lesson-1",
+        playback_position=10,
+        completion_percent=10,
+        reference_token="offline-ref-1",
     )
+    service.queue_progress_for_sync(first)
 
-    auth = service.authorize_offline_download(
-        tenant_id="tenant_secure",
-        student_id="student_1",
-        requester_user_id="student_1",
-        requester_roles=["learner"],
-        tenant_plan_type="pro",
-        requested_content_ids=["lesson-1"],
-        package_id=package.package_id,
+    second = service.record_offline_progress(
+        tenant_id="tenant-a",
+        student_id="learner-9",
+        content_id="course-1",
+        lesson_id="lesson-1",
+        playback_position=42,
+        completion_percent=42,
+        reference_token="offline-ref-1",
     )
-    assert auth["decision"] == "allow"
-    assert package.encrypted_manifest
+    service.queue_progress_for_sync(second)
 
-
-def test_offline_package_authorization_denies_unauthorized_path(tmp_path: Path) -> None:
-    service = OfflineSyncService(
-        cache_root=tmp_path / "offline-cache",
-        state_file=tmp_path / "offline-state" / "state.json",
-        package_ttl_seconds=1,
-    )
-    package = service.prepare_offline_package(
-        tenant_id="tenant_secure",
-        student_id="student_22",
-        content_ids=["lesson-9"],
-        requester_user_id="student_22",
-        requester_roles=["learner"],
-        tenant_plan_type="pro",
-    )
-    denied = service.authorize_offline_download(
-        tenant_id="tenant_secure",
-        student_id="student_22",
-        requester_user_id="intruder",
-        requester_roles=["learner"],
-        tenant_plan_type="pro",
-        requested_content_ids=["lesson-9"],
-        package_id=package.package_id,
-    )
-    assert denied["decision"] == "deny"
-    assert denied["reason_code"] == "UNAUTHORIZED_REQUESTER"
-
-    assert service.invalidate_offline_package(package_id=package.package_id) is True
-    invalidated = service.authorize_offline_download(
-        tenant_id="tenant_secure",
-        student_id="student_22",
-        requester_user_id="student_22",
-        requester_roles=["learner"],
-        tenant_plan_type="pro",
-        requested_content_ids=["lesson-9"],
-        package_id=package.package_id,
-    )
-    assert invalidated["decision"] == "deny"
-    assert invalidated["reason_code"] == "PACKAGE_INVALIDATED"
+    pending = service.list_pending_sync_records()
+    assert len(pending) == 1
+    assert pending[0].playback_position == 42

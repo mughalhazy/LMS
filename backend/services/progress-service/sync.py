@@ -83,6 +83,9 @@ class OfflineProgressSyncEngine:
         return [OfflineProgressOperation(**row) for row in self._state["pending"]]
 
     def sync_to_server(self, server_service: ProgressTrackingService) -> Dict[str, Any]:
+        return self.sync_offline_progress(server_service)
+
+    def sync_offline_progress(self, server_service: ProgressTrackingService) -> Dict[str, Any]:
         pending_rows = sorted(self._state["pending"], key=lambda row: (row["timestamp"], row["operation_id"]))
         applied_ids = set(self._state["applied_operation_ids"])
 
@@ -95,20 +98,15 @@ class OfflineProgressSyncEngine:
             if operation_id in applied_ids:
                 continue
 
+            conflicts = self.detect_sync_conflicts(row, server_service)
+            decision = self.resolve_sync_conflict(conflicts)
+            if decision["status"] == "drop":
+                self.commit_sync_result(row, server_service, decision, applied_ids)
+                continue
+
             try:
-                server_service.track_lesson_completion(
-                    tenant_id=row["tenant_id"],
-                    learner_id=row["learner_id"],
-                    course_id=row["course_id"],
-                    lesson_id=row["lesson_id"],
-                    enrollment_id=row["enrollment_id"],
-                    completion_status=row["completion_status"],
-                    score=row["score"],
-                    time_spent_seconds=row["time_spent_seconds"],
-                    attempt_count=row["attempt_count"],
-                )
+                self.commit_sync_result(row, server_service, decision, applied_ids)
                 succeeded += 1
-                applied_ids.add(operation_id)
             except Exception as exc:  # nosec: keep unsynced operations for retry
                 failed.append({"operation_id": operation_id, "error": str(exc)})
                 remaining.append(row)
@@ -123,6 +121,47 @@ class OfflineProgressSyncEngine:
             "failed": failed,
             "pending": len(remaining),
         }
+
+    def detect_sync_conflicts(self, row: Dict[str, Any], server_service: ProgressTrackingService) -> List[str]:
+        conflicts: List[str] = []
+        snapshot = server_service.get_learner_progress(row["tenant_id"], row["learner_id"])
+        lesson = snapshot.get("lessons", {}).get(row["course_id"], {}).get(row["lesson_id"])
+        if not lesson:
+            return conflicts
+        if int(lesson.get("attempt_count") or 0) > int(row["attempt_count"]):
+            conflicts.append("stale_state_overwrite")
+        if lesson.get("completion_status") and lesson.get("completion_status") != row["completion_status"]:
+            conflicts.append("simultaneous_online_offline_updates")
+        return conflicts
+
+    def resolve_sync_conflict(self, conflicts: List[str]) -> Dict[str, str]:
+        if "stale_state_overwrite" in conflicts:
+            return {"status": "drop", "strategy": "server_wins"}
+        return {"status": "apply", "strategy": "apply_or_merge"}
+
+    def commit_sync_result(
+        self,
+        row: Dict[str, Any],
+        server_service: ProgressTrackingService,
+        decision: Dict[str, str],
+        applied_ids: set[str],
+    ) -> None:
+        if decision["status"] == "drop":
+            applied_ids.add(row["operation_id"])
+            return
+
+        server_service.track_lesson_completion(
+                    tenant_id=row["tenant_id"],
+                    learner_id=row["learner_id"],
+                    course_id=row["course_id"],
+                    lesson_id=row["lesson_id"],
+                    enrollment_id=row["enrollment_id"],
+                    completion_status=row["completion_status"],
+                    score=row["score"],
+                    time_spent_seconds=row["time_spent_seconds"],
+                    attempt_count=row["attempt_count"],
+        )
+        applied_ids.add(row["operation_id"])
 
     def get_local_progress(self, tenant_id: str, learner_id: str) -> Dict[str, Any]:
         return self.local_service.get_learner_progress(tenant_id, learner_id)

@@ -30,17 +30,19 @@ def _load_module(module_name: str, relative_path: str):
 _ConfigModule = _load_module("workflow_engine_config_service", "services/config-service/service.py")
 _NotificationModule = _load_module("workflow_engine_notification_service", "services/notification-service/orchestration.py")
 _AcademyOpsModule = _load_module("workflow_engine_academy_ops_service", "services/academy-ops/service.py")
+_OperationsOSModule = _load_module("workflow_engine_operations_os_service", "services/operations-os/service.py")
 _PaymentsModule = _load_module("workflow_engine_payments_orchestration", "integrations/payments/orchestration.py")
 _PaymentsBaseModule = _load_module("workflow_engine_payments_base", "integrations/payments/base_adapter.py")
 
 ConfigService = _ConfigModule.ConfigService
 NotificationOrchestrator = _NotificationModule.NotificationOrchestrator
 AcademyOpsService = _AcademyOpsModule.AcademyOpsService
+OperationsOSService = _OperationsOSModule.OperationsOSService
 PaymentOrchestrationService = _PaymentsModule.PaymentOrchestrationService
 build_pakistan_payment_orchestration = _PaymentsModule.build_pakistan_payment_orchestration
 TenantPaymentContext = _PaymentsBaseModule.TenantPaymentContext
 
-WorkflowStepType = Literal["notify", "wait", "escalate", "academy_ops", "payment"]
+WorkflowStepType = Literal["notify", "wait", "escalate", "academy_ops", "payment", "action_item"]
 
 
 @dataclass(frozen=True)
@@ -109,11 +111,13 @@ class WorkflowEngine:
         config_service: ConfigService | None = None,
         notification_orchestrator: NotificationOrchestrator | None = None,
         academy_ops_service: AcademyOpsService | None = None,
+        operations_os_service: OperationsOSService | None = None,
         payment_orchestration_service: PaymentOrchestrationService | None = None,
     ) -> None:
         self._config_service = config_service or ConfigService()
         self._notification_orchestrator = notification_orchestrator or NotificationOrchestrator()
         self._academy_ops_service = academy_ops_service or AcademyOpsService()
+        self._operations_os_service = operations_os_service or OperationsOSService()
         self._payment_orchestration_service = payment_orchestration_service or build_pakistan_payment_orchestration()
         self._workflows: dict[str, WorkflowDefinition] = {}
         self._scheduled_steps: list[ScheduledStep] = []
@@ -260,7 +264,57 @@ class WorkflowEngine:
             context=dict(payload.get("context") or payload),
             occurred_at=occurred_at or datetime.now(timezone.utc),
         )
-        return self.handle_trigger(trigger_event)
+        response = self.handle_trigger(trigger_event)
+        self._create_event_action_if_applicable(trigger_event)
+        return response
+
+    def _create_event_action_if_applicable(self, event: WorkflowTriggerEvent) -> None:
+        defaults: dict[str, dict[str, str]] = {
+            "payment.missed": {
+                "action_type": "unpaid_fees_follow_up",
+                "priority": "high",
+                "reason": "Payment overdue event received.",
+                "next_step": "Call guardian and confirm payment plan.",
+            },
+            "attendance.absence_detected": {
+                "action_type": "repeated_absence_intervention",
+                "priority": "high",
+                "reason": "Repeated absence event received.",
+                "next_step": "Schedule counselor outreach.",
+            },
+            "user_inactive": {
+                "action_type": "inactivity_reengagement",
+                "priority": "medium",
+                "reason": "Inactivity threshold reached.",
+                "next_step": "Send nudge and assign mentor check-in.",
+            },
+            "communication.failed": {
+                "action_type": "failed_communication_retry",
+                "priority": "medium",
+                "reason": "Communication delivery repeatedly failed.",
+                "next_step": "Try alternate channel and verify contact info.",
+            },
+            "operations.issue_overdue": {
+                "action_type": "overdue_operational_issue",
+                "priority": "critical",
+                "reason": "Operational issue is overdue.",
+                "next_step": "Escalate to operations lead immediately.",
+            },
+        }
+        config = defaults.get(event.trigger_type)
+        if config is None:
+            return
+        self._operations_os_service.create_action_item(
+            tenant_id=event.tenant_id,
+            action_type=config["action_type"],
+            priority=config["priority"],
+            subject_type="workflow_event",
+            subject_id=str(event.context.get("student_id") or event.event_id),
+            reason=config["reason"],
+            due_at=event.occurred_at + timedelta(hours=24),
+            suggested_next_step=config["next_step"],
+            metadata={"event_id": event.event_id, "trigger_type": event.trigger_type},
+        )
 
     def run_due(self, *, now: datetime | None = None) -> dict[str, Any]:
         current_time = now or datetime.now(timezone.utc)
@@ -313,11 +367,22 @@ class WorkflowEngine:
                         "template_name": template_name,
                     }
                 elif item.step.step_type in {"wait", "escalate"}:
-                    result = {
-                        "status": "orchestrated",
-                        "action": item.step.step_type,
-                        "detail": item.step.config,
-                    }
+                    result = {"status": "orchestrated", "action": item.step.step_type, "detail": item.step.config}
+                    if item.step.step_type == "escalate":
+                        action = self._operations_os_service.create_action_item(
+                            tenant_id=item.tenant_id,
+                            action_type=str(item.step.config.get("action_type", "workflow_escalation")),
+                            priority=str(item.step.config.get("priority", "high")),
+                            subject_type=str(item.step.config.get("subject_type", "workflow_event")),
+                            subject_id=str(item.context.get("student_id") or item.event_id),
+                            reason=str(item.step.config.get("reason", f"Workflow escalation for {item.trigger_type}")),
+                            due_at=current_time + timedelta(hours=8),
+                            suggested_next_step=str(
+                                item.step.config.get("suggested_next_step", "Assign operator and execute escalation runbook.")
+                            ),
+                            metadata={"workflow_id": item.workflow_id, "step_id": item.step.step_id, "event_id": item.event_id},
+                        )
+                        result["action_item_id"] = action.action_id
                 elif item.step.step_type == "academy_ops":
                     operation = str(item.step.config.get("operation", "run_qc_autofix"))
                     if operation == "run_qc_autofix":
@@ -347,6 +412,24 @@ class WorkflowEngine:
                         "verified": payment_entry.verified,
                         "error": payment_entry.error,
                     }
+                elif item.step.step_type == "action_item":
+                    action = self._operations_os_service.create_action_item(
+                        tenant_id=item.tenant_id,
+                        action_type=str(item.step.config.get("action_type", "workflow_generated_action")),
+                        priority=str(item.step.config.get("priority", "medium")),
+                        subject_type=str(item.step.config.get("subject_type", "workflow_event")),
+                        subject_id=str(item.step.config.get("subject_id") or item.context.get("student_id") or item.event_id),
+                        reason=str(item.step.config.get("reason", f"Action generated from workflow {item.workflow_id}.")),
+                        due_at=current_time + timedelta(hours=int(item.step.config.get("due_in_hours", 24))),
+                        suggested_next_step=str(item.step.config.get("suggested_next_step", "Review and execute next operational step.")),
+                        metadata={
+                            "workflow_id": item.workflow_id,
+                            "step_id": item.step.step_id,
+                            "event_id": item.event_id,
+                            "trigger_type": item.trigger_type,
+                        },
+                    )
+                    result = {"status": "created", "action_item_id": action.action_id}
                 else:
                     result = {"status": "skipped", "reason": "unsupported_step_type"}
             except Exception as exc:

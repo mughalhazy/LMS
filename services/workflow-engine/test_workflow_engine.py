@@ -198,6 +198,50 @@ def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
     assert results["step_ops_qc"]["status"] == "orchestrated"
     assert results["step_collect_payment"]["status"] in {"pending", "success", "failed"}
     assert run["pending_count"] == 0
+    assert len(engine._operations_os_service.list_open_actions(tenant_id="tenant_pk")) >= 1
+
+
+def test_action_item_step_creates_dashboard_action() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 3, 31, 5, 0, tzinfo=timezone.utc)
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_create_action",
+            name="Create Action",
+            enabled=True,
+            rules=(WorkflowRule(rule_id="rule_failed_comm", trigger_type="communication.failed"),),
+            steps=(
+                WorkflowStep(
+                    step_id="step_create_action",
+                    step_type="action_item",
+                    config={
+                        "action_type": "failed_communication_retry",
+                        "priority": "medium",
+                        "reason": "Unable to reach guardian",
+                        "suggested_next_step": "Call alternate contact number",
+                    },
+                ),
+            ),
+        )
+    )
+
+    engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_action_1",
+            tenant_id="tenant_9",
+            country_code="US",
+            segment_id="academy",
+            trigger_type="communication.failed",
+            actor_user_id="ops_10",
+            context={"student_id": "stu_99"},
+            occurred_at=now,
+        )
+    )
+    run = engine.run_due(now=now + timedelta(minutes=1))
+    assert run["executed"][0]["result"]["status"] == "created"
+    open_actions = engine._operations_os_service.list_open_actions(tenant_id="tenant_9")
+    assert len(open_actions) == 1
+    assert open_actions[0].action_type == "failed_communication_retry"
 
 
 def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
