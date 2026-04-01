@@ -4,6 +4,16 @@ from .capability import Capability
 from .addon import AddOn
 from .capability_pricing import CapabilityPricing
 from .plan import Plan
+from .student_profile import (
+    AcademicState,
+    AcademicStatus,
+    AttendanceSummary,
+    ContactInfo,
+    FinancialState,
+    GuardianContact,
+    LedgerSummary,
+    UnifiedStudentProfile,
+)
 from .config import (
     ConfigLevel,
     ConfigOverride,
@@ -30,4 +40,12 @@ __all__ = [
     "EffectiveConfig",
     "SegmentBehaviorConfig",
     "segment_behavior_from_effective_config",
+    "AcademicState",
+    "AcademicStatus",
+    "AttendanceSummary",
+    "ContactInfo",
+    "FinancialState",
+    "GuardianContact",
+    "LedgerSummary",
+    "UnifiedStudentProfile",
 ]
