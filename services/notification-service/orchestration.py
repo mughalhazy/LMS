@@ -23,7 +23,7 @@ from action_routing import WhatsAppActionRouter
 class NotificationOrchestrationConfig:
     """Configuration for channel adapter ordering and adapter-level controls."""
 
-    default_fallback_order: Sequence[str] = ("sms", "email")
+    default_fallback_order: Sequence[str] = ("whatsapp", "sms", "email")
     capability_enabled: Mapping[str, bool] | None = None
     behavior_tuning: Mapping[str, Any] | None = None
     whatsapp_disabled_recipients: set[str] | None = None
@@ -255,17 +255,3 @@ class NotificationOrchestrator:
             "recipients": recipients,
             "deliveries": delivery_results,
         }
-
-
-    def _normalize_phone(self, phone: str) -> str:
-        return ''.join(ch for ch in str(phone) if ch.isdigit() or ch == '+')
-
-    def register_phone_user_mapping(self, *, phone: str, user_id: str) -> None:
-        self._phone_user_map[self._normalize_phone(phone)] = user_id
-
-    def register_template(self, template: Template) -> None:
-        self._templates[template.template_id] = template
-
-    def render_template(self, *, template_id: str, payload: dict[str, Any], locale: str = 'default') -> tuple[Template, str]:
-        template = self._templates[template_id]
-        return template, template.render(payload=payload, locale=locale)

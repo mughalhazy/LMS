@@ -76,7 +76,7 @@ class ConfigService:
         context: ConfigResolutionContext,
         *,
         capability_id: str = "whatsapp_primary_interface",
-        default_priority: tuple[str, ...] = ("sms", "email"),
+        default_priority: tuple[str, ...] = ("whatsapp", "sms", "email"),
     ) -> tuple[str, ...]:
         """Resolve communication routing order from effective config + capability flag."""
         effective = self.resolve(context)
