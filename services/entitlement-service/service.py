@@ -100,6 +100,9 @@ class EntitlementService:
             if normalized_capability in self._subscription_service.get_add_on_capabilities(add_on):
                 candidate_enabled = True
                 sources.append(f"addon:{add_on}")
+            elif normalized_capability in self._capability_registry.list_add_on_capabilities(add_on):
+                candidate_enabled = True
+                sources.append(f"registry_addon:{add_on}")
         if normalized_capability in self._subscription_service.get_active_add_on_capability_ids(normalized_tenant.tenant_id):
             candidate_enabled = True
             sources.append("addon_purchase")
@@ -144,6 +147,7 @@ class EntitlementService:
 
         for add_on in subscription.add_ons:
             candidates.update(self._subscription_service.get_add_on_capabilities(add_on))
+            candidates.update(self._capability_registry.list_add_on_capabilities(add_on))
         candidates.update(self._subscription_service.get_active_add_on_capability_ids(normalized_tenant.tenant_id))
 
         effective_config = self._config_service.resolve(
