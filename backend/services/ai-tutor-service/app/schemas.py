@@ -72,3 +72,11 @@ class AnalyticsTutorRequest(BaseTutorRequest):
     average_sentiment: float
     trend_direction: str = "stable"
     suggested_focus: str = "practice-coaching"
+
+
+class LearningInsightTutorRequest(BaseTutorRequest):
+    dropout_risk_score: float = Field(ge=0, le=100)
+    engagement_risk_score: float = Field(ge=0, le=100)
+    predicted_performance_score: float = Field(ge=0, le=100)
+    risk_band: str = "low"
+    suggested_focus: str = "practice-coaching"

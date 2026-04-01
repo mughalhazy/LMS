@@ -89,6 +89,24 @@ def test_bundle_is_tenant_scoped() -> None:
     assert wrong_tenant_bundle.json()["bundle"]["personalized_courses"] == []
 
 
+def test_generate_recommendations_from_learning_insight() -> None:
+    response = client.post(
+        "/recommendations/from-learning-insight",
+        json={
+            "tenant_id": "tenant-insight",
+            "learner_id": "learner-insight",
+            "risk_band": "high",
+            "dropoff_rate": 0.62,
+            "engagement_score": 36,
+            "completion_rate": 42,
+            "predicted_performance_score": 48,
+        },
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert any(item["behavior_signal"] == "predicted_low_performance" for item in items)
+
+
 def test_integrated_recommendations_use_analytics_skill_inference_and_progress() -> None:
     payload = {
         "tenant_id": "tenant-int",
