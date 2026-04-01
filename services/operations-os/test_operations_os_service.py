@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -89,8 +89,55 @@ def test_action_system_supports_create_and_resolve() -> None:
 
     resolved = service.resolve_action(action_id=created.action_id, notes="Guardian confirmed payment")
     assert resolved.status == "resolved"
-    assert resolved.notes == "Guardian confirmed payment"
+    assert resolved.metadata["resolution_note"] == "Guardian confirmed payment"
     assert len(service.list_actions(tenant_id="tenant", status="open")) == 0
+
+
+def test_generate_daily_actions_covers_operational_attention_cases() -> None:
+    academy_ops = AcademyOpsService()
+    sor = sor_module.SystemOfRecordService()
+    service = OperationsOSService(academy_ops_service=academy_ops, system_of_record_service=sor)
+
+    sor.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_ops",
+            student_id="stu_1",
+            display_name="Student One",
+            email="one@example.com",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+    sor.post_invoice_to_ledger(
+        student_id="stu_1",
+        invoice=Invoice.issued(invoice_id="inv_001", tenant_id="tenant_ops", amount=Decimal("300.00")),
+    )
+    academy_ops.upsert_absence_streak(tenant_id="tenant_ops", run_date=date(2026, 3, 31), student_id="stu_1", absent_days=4)
+    academy_ops.upsert_student_inactivity(
+        tenant_id="tenant_ops", run_date=date(2026, 3, 31), student_id="stu_2", inactive_days=9
+    )
+    academy_ops.upsert_failed_communication(
+        tenant_id="tenant_ops", run_date=date(2026, 3, 31), student_id="stu_3", channel="whatsapp", attempts=3
+    )
+    academy_ops.upsert_operational_issue(
+        tenant_id="tenant_ops",
+        run_date=date(2026, 3, 31),
+        issue_id="issue_1",
+        reason="Branch audit task still open",
+        opened_at=datetime(2026, 3, 20, tzinfo=timezone.utc),
+        due_at=datetime(2026, 3, 30, tzinfo=timezone.utc),
+    )
+
+    created = service.generate_daily_actions(tenant_id="tenant_ops", run_date=date(2026, 3, 31))
+    assert len(created) >= 5
+    action_types = {action.action_type for action in created}
+    assert action_types >= {
+        "unpaid_fees_follow_up",
+        "repeated_absence_intervention",
+        "inactivity_reengagement",
+        "failed_communication_retry",
+        "overdue_operational_issue",
+    }
 
 
 def test_qc_no_business_logic_duplication() -> None:
