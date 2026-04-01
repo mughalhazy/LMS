@@ -60,6 +60,7 @@ def test_attendance_and_fee_events_route_to_whatsapp_without_duplicate_sends() -
     assert attendance_notifies
     assert attendance_notifies[0]["result"]["status"] == "sent"
     assert attendance_notifies[0]["result"]["deliveries"][0]["provider"] == "whatsapp"
+    assert attendance_notifies[0]["result"]["capability"] == "communication.whatsapp.operations"
 
     fee_envelope = {
         "event_id": "evt-fee-001",
@@ -90,6 +91,7 @@ def test_attendance_and_fee_events_route_to_whatsapp_without_duplicate_sends() -
     assert fee_notifies
     assert fee_notifies[0]["result"]["template_name"] == "fee_reminder"
     assert fee_notifies[0]["result"]["deliveries"][0]["provider"] == "whatsapp"
+    assert fee_notifies[0]["result"]["capability"] == "communication.whatsapp.operations"
 
     # one idempotency record per unique send (attendance + fee)
     assert len(engine._notification_orchestrator._idempotent_send_log) == 2
@@ -110,6 +112,7 @@ def test_whatsapp_replies_are_mapped_to_actions() -> None:
     assert attendance_reply["status"] == "accepted"
     assert attendance_reply["routed_action"] == "confirm_attendance"
     assert attendance_reply["workflow_action"] == "attendance_confirmation_received"
+    assert attendance_reply["capability"] == "communication.whatsapp.operations"
 
     fee_reply = engine.handle_inbound_whatsapp_envelope(
         {
@@ -122,6 +125,7 @@ def test_whatsapp_replies_are_mapped_to_actions() -> None:
     assert fee_reply["status"] == "accepted"
     assert fee_reply["routed_action"] == "acknowledge_reminder"
     assert fee_reply["workflow_action"] == "fee_interaction_acknowledged"
+    assert fee_reply["capability"] == "communication.whatsapp.operations"
 
 
 def test_whatsapp_admin_commands_are_routed_deterministically_via_workflow_engine() -> None:
@@ -141,3 +145,48 @@ def test_whatsapp_admin_commands_are_routed_deterministically_via_workflow_engin
     assert admin_reply["routed_action"] == "admin_command"
     assert admin_reply["workflow_action"] == "admin_fee_status_lookup"
     assert "action_item_id" in admin_reply
+    assert admin_reply["capability"] == "communication.whatsapp.operations"
+
+
+def test_end_to_end_operational_interface_flow_has_no_broken_loops_or_duplicates() -> None:
+    engine = WorkflowEngine()
+    engine.bootstrap_default_workflows()
+    engine.register_phone_user(phone="+1 (555) 111-0000", user_id="parent-1")
+    now = datetime(2026, 4, 1, 9, 0, tzinfo=timezone.utc)
+
+    fee_due_envelope = {
+        "event_id": "evt-fee-loop-001",
+        "event_type": "fee.due",
+        "timestamp": now.isoformat().replace("+00:00", "Z"),
+        "tenant_id": "tenant-whatsapp",
+        "payload": {
+            "country_code": "US",
+            "segment_id": "academy",
+            "student_id": "student-1",
+            "invoice_id": "inv-loop-1",
+            "amount": "120",
+            "currency": "USD",
+            "due_date": "2026-04-08",
+        },
+        "metadata": {"actor": {"user_id": "parent-1"}},
+    }
+
+    first = engine.handle_event_envelope(fee_due_envelope)
+    duplicate = engine.handle_event_envelope(fee_due_envelope)
+    run = engine.run_due(now=now)
+    reply = engine.handle_inbound_whatsapp_envelope(
+        {
+            "tenant_id": "tenant-whatsapp",
+            "source_phone": "+1 (555) 111-0000",
+            "message": "WF:wf_default_fees|OP:fee|ACTION:ack",
+            "provider_verified": True,
+        }
+    )
+
+    assert len(first["scheduled"]) > 0
+    assert duplicate["scheduled"] == []
+    assert any(item["step"] == "step.skipped_duplicate" for item in duplicate["trace"])
+    assert run["executed"][0]["result"]["status"] == "sent"
+    assert run["executed"][0]["result"]["capability"] == "communication.whatsapp.operations"
+    assert reply["workflow_action"] == "fee_interaction_acknowledged"
+    assert reply["capability"] == "communication.whatsapp.operations"

@@ -259,6 +259,8 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["academy_sor_contract"] is True
     assert qc["workflow_notifications_contract"] is True
     assert qc["no_broken_dependencies"] is True
+    assert qc["whatsapp_operational_loop_ready"] is True
+    assert qc["whatsapp_operations_capability"] == "communication.whatsapp.operations"
 
 
 def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> None:
