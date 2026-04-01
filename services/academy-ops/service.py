@@ -135,6 +135,16 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=batch.tenant_id, operation="batch")
         if self._key(batch.tenant_id, batch.branch_id) not in self._branches:
             raise KeyError("branch not found")
+        if batch.end_date <= batch.start_date:
+            raise ValueError("batch end_date must be after start_date")
+        if batch.capacity < 1:
+            raise ValueError("batch capacity must be at least 1")
+        if len(batch.student_ids) > batch.capacity:
+            raise ValueError("student count exceeds batch capacity")
+        if len(set(batch.student_ids)) != len(batch.student_ids):
+            raise ValueError("batch student_ids must be unique")
+        if len(set(batch.teacher_ids)) != len(batch.teacher_ids):
+            raise ValueError("batch teacher_ids must be unique")
         self._batches[self._key(batch.tenant_id, batch.batch_id)] = batch
         return batch
 

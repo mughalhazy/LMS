@@ -24,6 +24,7 @@ _service_spec.loader.exec_module(_service_module)
 AcademyOpsService = _service_module.AcademyOpsService
 AttendanceRecord = _service_module.AttendanceRecord
 Batch = _service_module.Batch
+BatchStatus = _service_module.BatchStatus
 Branch = _service_module.Branch
 FeePayment = _service_module.FeePayment
 RevenueShareAgreement = _service_module.RevenueShareAgreement
@@ -59,11 +60,17 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
             tenant_id="tenant_1",
             branch_id="branch_nyc",
             batch_id="batch_1",
+            course_id="course_python_1",
+            teacher_ids=("teacher_1",),
+            student_ids=("learner_1",),
+            timetable_id="tt_batch_1",
+            capacity=30,
+            status=BatchStatus.ACTIVE,
+            metadata={"mode": "evening"},
             academy_id="academy_1",
             title="Python Evening",
             start_date=date(2026, 4, 1),
             end_date=date(2026, 6, 30),
-            learner_ids=("learner_1",),
         )
     )
     service.assign_teacher_to_batch(
@@ -212,11 +219,17 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
             tenant_id="tenant_eco",
             branch_id="branch_la",
             batch_id="batch_eco_1",
+            course_id="course_data_1",
+            teacher_ids=("teacher_eco_1",),
+            student_ids=("learner_eco_1",),
+            timetable_id="tt_eco_1",
+            capacity=25,
+            status=BatchStatus.ACTIVE,
+            metadata={"track": "data-systems"},
             academy_id="academy_eco",
             title="Data Systems",
             start_date=date(2026, 5, 1),
             end_date=date(2026, 7, 31),
-            learner_ids=("learner_eco_1",),
         )
     )
     service.assign_teacher_to_batch(
