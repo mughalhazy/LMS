@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import Sequence
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
@@ -167,6 +168,12 @@ class EntitlementService:
 
     def is_enabled(self, tenant: TenantEntitlementContext, capability: str) -> bool:
         return self.decide(tenant=tenant, capability=capability).is_enabled
+
+    def resolve_capability_flags(
+        self, tenant: TenantEntitlementContext, capability_ids: Sequence[str]
+    ) -> dict[str, bool]:
+        normalized_tenant = tenant.normalized()
+        return {capability_id: self.is_enabled(normalized_tenant, capability_id) for capability_id in capability_ids}
 
     def meter_usage(
         self,

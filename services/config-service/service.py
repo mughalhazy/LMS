@@ -71,6 +71,35 @@ class ConfigService:
         )
 
 
+    def resolve_communication_routing(
+        self,
+        context: ConfigResolutionContext,
+        *,
+        capability_id: str = "whatsapp_primary_interface",
+        default_priority: tuple[str, ...] = ("sms", "email"),
+    ) -> tuple[str, ...]:
+        """Resolve communication routing order from effective config + capability flag."""
+        effective = self.resolve(context)
+
+        configured_priority = (
+            effective.behavior_tuning.get("communication", {}).get("routing_priority", default_priority)
+        )
+        if isinstance(configured_priority, str):
+            candidate_order = [configured_priority]
+        else:
+            candidate_order = [str(item).strip().lower() for item in configured_priority if str(item).strip()]
+
+        if effective.capability_enabled.get(capability_id, False):
+            candidate_order.insert(0, "whatsapp")
+
+        supported_channels = {"whatsapp", "sms", "email"}
+        order: list[str] = []
+        for channel in candidate_order:
+            if channel in supported_channels and channel not in order:
+                order.append(channel)
+
+        return tuple(order or ["sms"])
+
     def resolve_capability_entitlement(self, context: ConfigResolutionContext, capability: str) -> bool | None:
         """Config contribution for entitlement engine (`None` means no override)."""
         effective = self.resolve(context)
