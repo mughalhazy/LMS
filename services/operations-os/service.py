@@ -24,6 +24,15 @@ def _load_module(module_name: str, relative_path: str):
 
 _SystemOfRecordModule = _load_module("system_of_record_module_for_operations_os", "services/system-of-record/service.py")
 SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
+_SorReadModels = _load_module("system_of_record_read_models_for_operations_os", "services/system-of-record/read_models.py")
+_OperationsModels = _load_module("operations_os_models", "services/operations-os/models.py")
+
+DailyOperationsDashboard = _OperationsModels.DailyOperationsDashboard
+alert_card = _OperationsModels.alert_card
+action_item = _OperationsModels.action_item
+dashboard_summary = _OperationsModels.dashboard_summary
+priority_bucket = _OperationsModels.priority_bucket
+is_profile_inactive = _SorReadModels.is_profile_inactive
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,7 @@ class AcademyOpsService:
 
     def __init__(self) -> None:
         self._attendance_exceptions: dict[tuple[str, date], list[dict[str, str]]] = {}
+        self._operational_alerts: dict[str, list[dict[str, str]]] = {}
 
     def upsert_attendance_exception(
         self,
@@ -79,13 +89,33 @@ class AcademyOpsService:
     def list_daily_attendance_exceptions(self, *, tenant_id: str, run_date: date) -> tuple[dict[str, str], ...]:
         return tuple(self._attendance_exceptions.get((tenant_id.strip(), run_date), []))
 
+    def create_operational_alert(
+        self,
+        *,
+        tenant_id: str,
+        alert_id: str,
+        severity: str,
+        message: str,
+        status: str = "open",
+    ) -> None:
+        self._operational_alerts.setdefault(tenant_id.strip(), []).append(
+            {
+                "alert_id": alert_id.strip(),
+                "severity": severity.strip(),
+                "message": message.strip(),
+                "status": status.strip().lower(),
+            }
+        )
+
+    def list_operational_alerts(self, *, tenant_id: str, unresolved_only: bool = True) -> tuple[dict[str, str], ...]:
+        alerts = self._operational_alerts.get(tenant_id.strip(), [])
+        if unresolved_only:
+            alerts = [row for row in alerts if row.get("status", "open") != "resolved"]
+        return tuple(alerts)
+
 
 class OperationsOSService:
-    """Operations dashboard layer aggregating academy operations and SoR data.
-
-    QC fix: business logic stays in owner services. This service only composes their
-    outputs into dashboard alerts and action records.
-    """
+    """Operations dashboard layer aggregating academy operations and SoR data."""
 
     def __init__(
         self,
@@ -96,48 +126,181 @@ class OperationsOSService:
         self._academy_ops_service = academy_ops_service or AcademyOpsService()
         self._system_of_record_service = system_of_record_service or SystemOfRecordService()
         self._actions: dict[str, ActionItem] = {}
+        self._active_tenant_id: str | None = None
+        self._active_run_date: date | None = None
 
-    def build_daily_alerts(self, *, tenant_id: str, run_date: date) -> tuple[DailyAlert, ...]:
-        alerts: list[DailyAlert] = []
+    def _resolve_operations_policy(self, *, tenant_id: str) -> dict[str, object]:
+        profiles = self._system_of_record_service.list_student_profiles(tenant_id=tenant_id)
+        default_country = "US"
+        default_segment = "academy"
+        if profiles:
+            first_metadata = profiles[0].metadata
+            default_country = first_metadata.get("country_code", "US")
+            default_segment = first_metadata.get("segment_id", "academy")
+        context = _SystemOfRecordModule.ConfigResolutionContext(
+            tenant_id=tenant_id,
+            country_code=default_country,
+            segment_id=default_segment,
+        )
+        effective = self._system_of_record_service._config_service.resolve(context)  # noqa: SLF001
+        behavior = effective.behavior_tuning.get("operations_dashboard", {})
+        return {
+            "inactive_days": int(behavior.get("inactive_days", 30)),
+            "enable_unpaid_fees": bool(effective.capability_enabled.get("operations.unpaid_fees", True)),
+            "enable_absence": bool(effective.capability_enabled.get("operations.absence", True)),
+            "enable_inactive_users": bool(effective.capability_enabled.get("operations.inactive_users", True)),
+            "enable_followups": bool(effective.capability_enabled.get("operations.followups", True)),
+            "enable_operational_alerts": bool(effective.capability_enabled.get("operations.operational_alerts", True)),
+        }
 
+    def list_unpaid_fee_cases(self) -> tuple[alert_card, ...]:
+        tenant_id = self._active_tenant_id or ""
+        run_date = self._active_run_date or date.today()
+        cases: list[alert_card] = []
         for profile in self._system_of_record_service.list_student_profiles(tenant_id=tenant_id):
-            balance = self._system_of_record_service.get_student_balance(
-                tenant_id=tenant_id,
-                student_id=profile.student_id,
-            )
+            balance = self._system_of_record_service.get_student_balance(tenant_id=tenant_id, student_id=profile.student_id)
             if balance > 0:
-                alerts.append(
-                    DailyAlert(
+                cases.append(
+                    alert_card(
                         alert_id=f"fees:{tenant_id}:{profile.student_id}:{run_date.isoformat()}",
                         tenant_id=tenant_id,
-                        student_id=profile.student_id,
-                        alert_type="fees",
+                        subject_id=profile.student_id,
+                        category="unpaid_fees",
                         severity="high",
-                        message=f"Outstanding fees due: {balance}",
-                        source="system-of-record",
+                        title=f"Outstanding fees due: {balance}",
+                        source="system-of-record+commerce",
                         metadata={"run_date": run_date.isoformat()},
                     )
                 )
+        return tuple(cases)
 
-        attendance_exceptions = self._academy_ops_service.list_daily_attendance_exceptions(
-            tenant_id=tenant_id,
-            run_date=run_date,
+    def list_absence_cases(self) -> tuple[alert_card, ...]:
+        tenant_id = self._active_tenant_id or ""
+        run_date = self._active_run_date or date.today()
+        rows = self._academy_ops_service.list_daily_attendance_exceptions(tenant_id=tenant_id, run_date=run_date)
+        return tuple(
+            alert_card(
+                alert_id=f"absence:{tenant_id}:{row['student_id']}:{run_date.isoformat()}:{row['session_ref']}",
+                tenant_id=tenant_id,
+                subject_id=row["student_id"],
+                category="absence",
+                severity="medium",
+                title=f"Absent in session {row['session_ref']}",
+                source="academy-ops",
+                metadata={"session_ref": row["session_ref"], "run_date": run_date.isoformat()},
+            )
+            for row in rows
+            if row.get("attendance_state") == "absent"
         )
-        for row in attendance_exceptions:
-            alerts.append(
-                DailyAlert(
-                    alert_id=f"attendance:{tenant_id}:{row['student_id']}:{run_date.isoformat()}:{row['session_ref']}",
-                    tenant_id=tenant_id,
-                    student_id=row["student_id"],
-                    alert_type="attendance",
-                    severity="medium",
-                    message=f"Attendance exception ({row['attendance_state']}) in session {row['session_ref']}",
-                    source="academy-ops",
-                    metadata={"run_date": run_date.isoformat(), "session_ref": row["session_ref"]},
+
+    def list_inactive_user_cases(self) -> tuple[alert_card, ...]:
+        tenant_id = self._active_tenant_id or ""
+        policy = self._resolve_operations_policy(tenant_id=tenant_id)
+        inactivity_days = int(policy["inactive_days"])
+        today = self._active_run_date or date.today()
+        cases: list[alert_card] = []
+        for profile in self._system_of_record_service.list_student_profiles(tenant_id=tenant_id):
+            if is_profile_inactive(profile=profile, today=today, inactivity_days=inactivity_days):
+                cases.append(
+                    alert_card(
+                        alert_id=f"inactive:{tenant_id}:{profile.student_id}:{today.isoformat()}",
+                        tenant_id=tenant_id,
+                        subject_id=profile.student_id,
+                        category="inactive_user",
+                        severity="medium",
+                        title=f"User inactive for >= {inactivity_days} days",
+                        source="system-of-record",
+                        metadata={"inactive_days": str(inactivity_days)},
+                    )
+                )
+        return tuple(cases)
+
+    def list_priority_actions(self) -> tuple[action_item, ...]:
+        tenant_id = self._active_tenant_id or ""
+        items: list[action_item] = []
+        for row in self.list_actions(tenant_id=tenant_id, status="open"):
+            priority = "high" if row.action_type in {"fee_follow_up", "critical_alert"} else "medium"
+            items.append(
+                action_item(
+                    action_id=row.action_id,
+                    tenant_id=row.tenant_id,
+                    subject_id=row.student_id,
+                    action_type=row.action_type,
+                    priority=priority,
+                    status=row.status,
+                    owner=row.owner,
+                    source_alert_id=row.alert_id,
+                    notes=row.notes,
                 )
             )
+        return tuple(items)
 
-        return tuple(alerts)
+    def get_daily_operations_dashboard(self, tenant_id: str) -> DailyOperationsDashboard:
+        self._active_tenant_id = tenant_id.strip()
+        self._active_run_date = date.today()
+        policy = self._resolve_operations_policy(tenant_id=self._active_tenant_id)
+
+        all_cards: list[alert_card] = []
+        if policy["enable_unpaid_fees"]:
+            all_cards.extend(self.list_unpaid_fee_cases())
+        if policy["enable_absence"]:
+            all_cards.extend(self.list_absence_cases())
+        if policy["enable_inactive_users"]:
+            all_cards.extend(self.list_inactive_user_cases())
+
+        overdue_followups = self.list_priority_actions() if policy["enable_followups"] else ()
+
+        if policy["enable_operational_alerts"]:
+            for row in self._academy_ops_service.list_operational_alerts(tenant_id=self._active_tenant_id, unresolved_only=True):
+                all_cards.append(
+                    alert_card(
+                        alert_id=row["alert_id"],
+                        tenant_id=self._active_tenant_id,
+                        subject_id="operations",
+                        category="operational_alert",
+                        severity=row.get("severity", "medium"),
+                        title=row.get("message", "Operational alert"),
+                        source="academy-ops",
+                        status=row.get("status", "open"),
+                    )
+                )
+
+        priorities: dict[str, list[action_item]] = {"high": [], "medium": [], "low": []}
+        for item in overdue_followups:
+            priorities.setdefault(item.priority, []).append(item)
+        buckets = tuple(
+            priority_bucket(priority=priority, total_items=len(items), items=tuple(items))
+            for priority, items in priorities.items()
+            if items
+        )
+        summary = dashboard_summary(
+            tenant_id=self._active_tenant_id,
+            total_unpaid_fees=sum(1 for card in all_cards if card.category == "unpaid_fees"),
+            total_absent_students=sum(1 for card in all_cards if card.category == "absence"),
+            total_inactive_users=sum(1 for card in all_cards if card.category == "inactive_user"),
+            total_overdue_follow_ups=len(overdue_followups),
+            total_unresolved_alerts=sum(1 for card in all_cards if card.status != "resolved"),
+            priority_buckets=buckets,
+        )
+        return DailyOperationsDashboard(summary=summary, alert_cards=tuple(all_cards), action_items=tuple(overdue_followups))
+
+    def build_daily_alerts(self, *, tenant_id: str, run_date: date) -> tuple[DailyAlert, ...]:
+        self._active_tenant_id = tenant_id
+        self._active_run_date = run_date
+        cards = [*self.list_unpaid_fee_cases(), *self.list_absence_cases()]
+        return tuple(
+            DailyAlert(
+                alert_id=card.alert_id,
+                tenant_id=card.tenant_id,
+                student_id=card.subject_id,
+                alert_type=card.category,
+                severity=card.severity,
+                message=card.title,
+                source=card.source,
+                metadata=card.metadata,
+            )
+            for card in cards
+        )
 
     def create_action(self, *, alert: DailyAlert, action_type: str, owner: str, notes: str = "") -> ActionItem:
         action = ActionItem(
@@ -175,5 +338,4 @@ class OperationsOSService:
         return tuple(values)
 
     def has_business_logic_duplication(self) -> bool:
-        """Returns False when dashboard layer delegates fee/business rules to owner services."""
         return False
