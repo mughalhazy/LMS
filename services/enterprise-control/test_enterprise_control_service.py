@@ -18,6 +18,7 @@ sys.modules[_service_spec.name] = _service_module
 _service_spec.loader.exec_module(_service_module)
 EnterpriseControlService = _service_module.EnterpriseControlService
 IdentityContext = _service_module.IdentityContext
+AuditQuery = _service_module.AuditQuery
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
 
 
@@ -205,3 +206,65 @@ def test_cross_institution_teacher_link_assignment_and_listing_are_tenant_scoped
             branch_id="branch_1",
             batch_id="batch_2",
         )
+
+
+def test_permission_and_role_inheritance_are_enforced() -> None:
+    service = EnterpriseControlService()
+    service.set_role_permissions(tenant_id="tenant_1", role="auditor", permissions={"audit.read"})
+    service.set_role_inheritance(tenant_id="tenant_1", role="security-admin", inherits_from={"auditor"})
+    service.grant_permission_inheritance(permission="audit.read", includes="audit.query")
+
+    identity = IdentityContext(tenant_id="tenant_1", actor_id="sec_1", roles=("security-admin",))
+    service.api_authorize(
+        identity=identity,
+        action="read",
+        resource="report:finance",
+        permission="report.read",
+        tenant_id="tenant_1",
+    )
+
+    status, payload = service.api_query_audit_trail(
+        identity=identity,
+        tenant_id="tenant_1",
+        query=AuditQuery(permission="report.read", limit=10),
+    )
+    assert status == 200
+    assert payload["count"] >= 1
+
+
+def test_compliance_tracking_requires_rbac_and_writes_audit() -> None:
+    service = EnterpriseControlService()
+    service.set_role_permissions(
+        tenant_id="tenant_1",
+        role="compliance-admin",
+        permissions={"compliance.manage", "compliance.read", "audit.read"},
+    )
+    service.set_role_permissions(tenant_id="tenant_1", role="viewer", permissions={"report.read"})
+    admin = IdentityContext(tenant_id="tenant_1", actor_id="comp_1", roles=("compliance-admin",))
+    viewer = IdentityContext(tenant_id="tenant_1", actor_id="view_1", roles=("viewer",))
+
+    ok_status, ok_payload = service.api_upsert_compliance_record(
+        identity=admin,
+        tenant_id="tenant_1",
+        framework="soc2",
+        control_id="cc6.1",
+        status="pass",
+        evidence={"ticket": "SEC-101"},
+    )
+    denied_status, _ = service.api_upsert_compliance_record(
+        identity=viewer,
+        tenant_id="tenant_1",
+        framework="soc2",
+        control_id="cc6.2",
+        status="fail",
+    )
+    list_status, list_payload = service.api_list_compliance_records(identity=admin, tenant_id="tenant_1")
+    audit_status, audit_payload = service.api_list_audit_logs(identity=admin, tenant_id="tenant_1")
+
+    assert ok_status == 200
+    assert ok_payload["status"] == "pass"
+    assert denied_status == 403
+    assert list_status == 200
+    assert list_payload["count"] == 1
+    assert audit_status == 200
+    assert any(row["action"] == "compliance.upsert" for row in audit_payload["data"])
