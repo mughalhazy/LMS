@@ -109,3 +109,17 @@ class IntegratedRecommendationRequest(BaseModel):
 class IntegratedRecommendationResponse(BaseModel):
     personalized_courses: List[PersonalizedCourseRecommendation]
     learning_paths: List[LearningPathSuggestion]
+
+
+class LearningInsightRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    risk_band: str = "low"
+    dropoff_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    engagement_score: float = Field(default=100.0, ge=0.0, le=100.0)
+    completion_rate: float = Field(default=100.0, ge=0.0, le=100.0)
+    predicted_performance_score: float = Field(default=100.0, ge=0.0, le=100.0)
+
+
+class LearningInsightRecommendationResponse(BaseModel):
+    items: List[BehavioralLearningRecommendation]

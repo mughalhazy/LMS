@@ -33,6 +33,7 @@ class AnalyticsService:
 
     def __init__(self) -> None:
         self._owner_economics_engine = OwnerEconomicsEngine()
+        self._learning_optimization_store: dict[tuple[str, str], LearningOptimizationInsight] = {}
 
     def compute_owner_economics(
         self,

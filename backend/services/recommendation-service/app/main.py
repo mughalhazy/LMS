@@ -14,6 +14,8 @@ from .schemas import (
     SkillGapRecommendationRequest,
     SkillGapRecommendationResponse,
     AnalyticsRecommendationRequest,
+    LearningInsightRecommendationRequest,
+    LearningInsightRecommendationResponse,
 )
 from .service import RecommendationService
 
@@ -56,6 +58,13 @@ def generate_recommendations_from_analytics(
     request: AnalyticsRecommendationRequest,
 ) -> BehavioralRecommendationResponse:
     return BehavioralRecommendationResponse(items=service.generate_from_analytics(request))
+
+
+@app.post("/recommendations/from-learning-insight", response_model=LearningInsightRecommendationResponse)
+def generate_recommendations_from_learning_insight(
+    request: LearningInsightRecommendationRequest,
+) -> LearningInsightRecommendationResponse:
+    return LearningInsightRecommendationResponse(items=service.generate_from_learning_insight(request))
 
 
 @app.post("/recommendations/integrated", response_model=IntegratedRecommendationResponse)

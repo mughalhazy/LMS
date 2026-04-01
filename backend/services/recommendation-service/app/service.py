@@ -22,6 +22,7 @@ from .schemas import (
     SkillGapRecommendationRequest,
     AnalyticsRecommendationRequest,
     IntegratedRecommendationRequest,
+    LearningInsightRecommendationRequest,
 )
 
 
@@ -253,6 +254,38 @@ class RecommendationService:
 
     def get_bundle(self, tenant_id: str, learner_id: str) -> LearnerRecommendationBundle:
         return self._store.get(tenant_id, {}).get(learner_id, LearnerRecommendationBundle(learner_id=learner_id))
+
+    def generate_from_learning_insight(
+        self, req: LearningInsightRecommendationRequest
+    ) -> list[BehavioralLearningRecommendation]:
+        self._assert_capability(req.tenant_id, "recommendation.basic")
+        streak_days = 1 if req.risk_band == "high" else 2 if req.risk_band == "medium" else 5
+        avg_minutes = 12 if req.engagement_score < 50 else 20
+        behavior_req = BehavioralRecommendationRequest(
+            tenant_id=req.tenant_id,
+            learner_id=req.learner_id,
+            activity_streak_days=streak_days,
+            average_session_minutes=avg_minutes,
+            dropoff_rate=req.dropoff_rate,
+        )
+        recommendations = self.generate_behavioral_recommendations(behavior_req)
+        if req.predicted_performance_score < 60:
+            recommendations.append(
+                BehavioralLearningRecommendation(
+                    tenant_id=req.tenant_id,
+                    learner_id=req.learner_id,
+                    behavior_signal="predicted_low_performance",
+                    action="assign_exam_readiness_path",
+                    habit_goal="Complete 3 targeted exam readiness drills this week",
+                    score=min(1.0, (60 - req.predicted_performance_score) / 100 + 0.6),
+                    rationale=RecommendationRationale(
+                        tags=["learning-insight-hook", f"risk:{req.risk_band}"],
+                        explanation="Low predicted performance triggered exam-readiness intervention.",
+                    ),
+                )
+            )
+        self._upsert(req.tenant_id, req.learner_id, behavioral=recommendations)
+        return recommendations
 
     def _tenant_context(self, tenant_id: str) -> TenantEntitlementContext:
         tenant = tenant_contract_from_inputs(tenant_id=tenant_id)

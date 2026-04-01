@@ -11,6 +11,7 @@ from .schemas import (
     TutorResponse,
     TutorSessionSummary,
     AnalyticsTutorRequest,
+    LearningInsightTutorRequest,
 )
 from .service import AITutorService
 
@@ -45,6 +46,11 @@ def analytics_guidance(request: AnalyticsTutorRequest) -> TutorResponse:
     return service.generate_analytics_guidance(request)
 
 
+@app.post("/ai-tutor/learning-insight-guidance", response_model=TutorResponse)
+def learning_insight_guidance(request: LearningInsightTutorRequest) -> TutorResponse:
+    return service.generate_learning_insight_guidance(request)
+
+
 @app.get("/ai-tutor/sessions/{session_id}", response_model=TutorSessionSummary)
 def get_tutor_session(session_id: str, tenant_id: str) -> TutorSessionSummary:
     return service.get_session_summary(tenant_id, session_id)
@@ -56,4 +62,3 @@ def health() -> dict[str, str]:
 @app.get("/metrics")
 def metrics() -> dict[str, int | str]:
     return {"service": "ai-tutor-service", "service_up": 1}
-

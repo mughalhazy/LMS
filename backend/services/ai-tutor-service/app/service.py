@@ -18,6 +18,7 @@ from .schemas import (
     ConceptExplanationRequest,
     ContextualTutoringRequest,
     InteractionType,
+    LearningInsightTutorRequest,
     LearnerQuestionRequest,
     LearningGuidanceRequest,
     TutorResponse,
@@ -259,6 +260,36 @@ class AITutorService:
         resources = [
             f"course://{request.context.course_id}/interventions/{request.suggested_focus}",
             "course://learning-support/at-risk-playbook",
+        ]
+        return self._store_interaction(
+            request.tenant_id,
+            request.learner_id,
+            self._context_with_live_data(request.context.model_dump(), bundle),
+            InteractionType.GUIDANCE,
+            message,
+            follow_up,
+            resources,
+        )
+
+    def generate_learning_insight_guidance(self, request: LearningInsightTutorRequest) -> TutorResponse:
+        self._assert_capability(request.tenant_id, "ai.tutor")
+        bundle = self._build_context_bundle(request.tenant_id, request.learner_id, request.context.course_id)
+        trend_direction = bundle.engagement_trend("stable")
+        message = (
+            f"Learning insight risk is {request.risk_band} for {bundle.course_title(request.context.course_id)} "
+            f"(dropout {request.dropout_risk_score:.1f}, engagement {request.engagement_risk_score:.1f}, "
+            f"predicted performance {request.predicted_performance_score:.1f}). "
+            f"Prioritize {request.suggested_focus} with scaffolded practice while trend remains {trend_direction}."
+        )
+        follow_up = [
+            "Start with one previously missed exam pattern and solve it step-by-step.",
+            "Complete a 15-minute focused review and summarize what improved.",
+            "Set the next tutor check-in within 24 hours to protect momentum.",
+        ]
+        resources = [
+            f"course://{request.context.course_id}/interventions/{request.suggested_focus}",
+            "course://learning-support/retention-playbook",
+            "course://learning-support/exam-readiness",
         ]
         return self._store_interaction(
             request.tenant_id,

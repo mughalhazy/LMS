@@ -93,3 +93,27 @@ def test_session_scoped_by_tenant() -> None:
 
     unauthorized = client.get(f"/ai-tutor/sessions/{session_id}?tenant_id=tenant-y")
     assert unauthorized.status_code == 404
+
+
+def test_learning_insight_guidance_endpoint() -> None:
+    service._data_provider = StubProvider()
+    response = client.post(
+        "/ai-tutor/learning-insight-guidance",
+        json={
+            "tenant_id": "tenant-ai",
+            "learner_id": "learner-ai",
+            "context": {
+                "course_id": "course-risk",
+                "lesson_id": "lesson-1",
+            },
+            "dropout_risk_score": 78,
+            "engagement_risk_score": 66,
+            "predicted_performance_score": 51,
+            "risk_band": "high",
+            "suggested_focus": "exam-readiness",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["interaction_type"] == "guidance"
+    assert "risk is high" in body["message"]
