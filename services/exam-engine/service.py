@@ -124,9 +124,9 @@ class ExamEngineService:
 
     def register_tenant(self, tenant_id: str, profile: TenantCapacityProfile | None = None) -> None:
         if tenant_id not in self._tenant_partitions:
-            self._tenant_partitions[tenant_id] = TenantPartition(profile=profile or TenantCapacityProfile())
+            self._tenant_partitions[tenant_id] = _TenantPartition(profile=profile or TenantCapacityProfile())
 
-    def _partition_for(self, tenant_id: str) -> TenantPartition:
+    def _partition_for(self, tenant_id: str) -> _TenantPartition:
         if tenant_id not in self._tenant_partitions:
             self.register_tenant(tenant_id)
         return self._tenant_partitions[tenant_id]
@@ -137,9 +137,9 @@ class ExamEngineService:
 
     def _next_session_id(self, tenant_id: str) -> str:
         partition = self._partition_for(tenant_id)
-        session_number = partition.next_session_number
+        session_id = f"{tenant_id}-exam-session-{partition.next_session_number}"
         partition.next_session_number += 1
-        return f"{tenant_id}-exam-session-{session_number}"
+        return session_id
 
     def _stable_shard(self, *, tenant_id: str, learner_id: str, exam_id: str) -> int:
         shard_count = self._partition_for(tenant_id).profile.shard_count
@@ -209,11 +209,10 @@ class ExamEngineService:
             student_id=student_id,
             requested_attempt_id=attempt_id,
         )
-        exam_session_id = self._next_session_id(tenant_id)
         now = datetime.now(timezone.utc)
         shard = self._stable_shard(tenant_id=tenant_id, learner_id=student_id, exam_id=exam_id)
         session = ExamSession(
-            exam_session_id=exam_session_id,
+            exam_session_id=self._next_session_id(tenant_id),
             tenant_id=tenant_id,
             exam_id=exam_id,
             student_id=student_id,
@@ -247,7 +246,7 @@ class ExamEngineService:
     def start_exam_session(self, *, tenant_id: str, exam_session_id: str) -> ExamSession:
         self._assert_capability(tenant_id=tenant_id)
         partition, session = self._get_session(tenant_id=tenant_id, exam_session_id=exam_session_id)
-        if session.status not in {"scheduled", "active"}:
+        if session.status not in {"scheduled", "queued", "active"}:
             raise RuntimeError("SESSION_NOT_STARTABLE")
         if session.status == "active":
             return session
@@ -300,11 +299,28 @@ class ExamEngineService:
         self._append_audit(tenant_id=tenant_id, action="exam.session.heartbeat", details={"exam_session_id": session.exam_session_id})
         return session
 
+    def _drain_next_queued(self, partition: _TenantPartition) -> None:
+        if len(partition.active_sessions) >= partition.profile.max_active_sessions:
+            return
+        for shard_id in sorted(partition.shard_queues):
+            queue = partition.shard_queues[shard_id]
+            if not queue:
+                continue
+            queued = queue.pop(0)
+            session = partition.sessions.get(queued.exam_session_id)
+            if session is None or session.status != "queued":
+                continue
+            session.status = "active"
+            session.started_at = datetime.now(timezone.utc)
+            partition.active_sessions[session.exam_session_id] = session
+            partition.student_active_index.setdefault(session.student_id, set()).add(session.exam_session_id)
+            partition.shard_active_sessions[shard_id].add(session.exam_session_id)
+            break
+
     def submit_exam_session(self, *, tenant_id: str, exam_session_id: str, score: float) -> ExamSession:
         partition, session = self._get_session(tenant_id=tenant_id, exam_session_id=exam_session_id)
         if session.status != "active":
             raise RuntimeError("SESSION_NOT_ACTIVE")
-
         session.status = "submitted"
         session.submitted_at = datetime.now(timezone.utc)
         partition.active_sessions.pop(exam_session_id, None)
@@ -366,15 +382,15 @@ class ExamEngineService:
         return session
 
     def start_session(self, *, tenant_id: str, learner_id: str, exam_id: str) -> ExamSession:
-        session = self.create_exam_session(tenant_id=tenant_id, exam_id=exam_id, student_id=learner_id)
-        return self.start_exam_session(tenant_id=tenant_id, exam_session_id=session.exam_session_id)
+        created = self.create_exam_session(tenant_id=tenant_id, exam_id=exam_id, student_id=learner_id)
+        return self.start_exam_session(tenant_id=tenant_id, exam_session_id=created.exam_session_id)
 
     def submit_session(self, *, tenant_id: str, session_id: str, score: float) -> ExamSession:
         return self.submit_exam_session(tenant_id=tenant_id, exam_session_id=session_id, score=score)
 
     def tenant_metrics(self, tenant_id: str) -> dict[str, Any]:
         partition = self._partition_for(tenant_id)
-        status_counts = {"scheduled": 0, "active": 0, "submitted": 0, "expired": 0, "cancelled": 0}
+        status_counts = {"scheduled": 0, "queued": 0, "active": 0, "submitted": 0, "expired": 0, "cancelled": 0}
         for session in partition.sessions.values():
             status_counts[session.status] += 1
         return {
@@ -390,11 +406,11 @@ class ExamEngineService:
         partition = self._partition_for(tenant_id)
         return [
             {
-                "sequence": record.sequence,
-                "timestamp": record.timestamp.isoformat(),
-                "tenant_id": record.tenant_id,
-                "action": record.action,
-                "details": dict(record.details),
+                "sequence": rec.sequence,
+                "timestamp": rec.timestamp.isoformat(),
+                "tenant_id": rec.tenant_id,
+                "action": rec.action,
+                "details": dict(rec.details),
             }
-            for record in partition.audit_log
+            for rec in partition.audit_log
         ]

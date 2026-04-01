@@ -60,6 +60,7 @@ class CommerceService:
         self._payment_orchestrator = payment_orchestrator
         self._payment_country_code = payment_country_code.upper()
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
+        self._teacher_revenue_share_records: list[dict[str, str]] = []
         self.owner_economics = OwnerEconomicsEngine()
         self._teacher_revenue_share_records: list[dict[str, str]] = []
 

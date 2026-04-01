@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-ExamSessionStatus = Literal["scheduled", "active", "submitted", "expired", "cancelled"]
+ExamSessionStatus = Literal["scheduled", "queued", "active", "submitted", "expired", "cancelled"]
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,7 @@ class TenantCapacityProfile:
     shard_count: int = 8
     burst_queue_limit: int = 0
     allow_concurrent_sessions_per_student: bool = False
+    burst_queue_limit: int = 0
 
 
 @dataclass(frozen=True)
