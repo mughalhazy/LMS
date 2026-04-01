@@ -1,9 +1,66 @@
+import base64
+import hashlib
+import hmac
+import json
+import os
+import sys
+import time
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from types import ModuleType
+
 from fastapi.testclient import TestClient
 
-from app.main import app
+os.environ["JWT_SHARED_SECRET"] = "test-secret"
+
+_APP_ROOT = Path(__file__).resolve().parents[1] / "app"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+
+def _load_main(package_name: str):
+    main_path = _APP_ROOT / "main.py"
+    if package_name not in sys.modules:
+        package = ModuleType(package_name)
+        package.__path__ = [str(_APP_ROOT)]  # type: ignore[attr-defined]
+        sys.modules[package_name] = package
+    spec = spec_from_file_location(
+        f"{package_name}.main",
+        main_path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module from {main_path}")
+    module = module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_MAIN = _load_main("recommendation_service_app")
+app = _MAIN.app
 
 
 client = TestClient(app)
+
+
+def _jwt() -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {"sub": "test-user", "exp": time.time() + 3600}
+
+    def _b64(data: dict) -> str:
+        raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+    h = _b64(header)
+    p = _b64(payload)
+    sig = hmac.new(b"test-secret", f"{h}.{p}".encode("utf-8"), hashlib.sha256).digest()
+    s = base64.urlsafe_b64encode(sig).decode("utf-8").rstrip("=")
+    return f"{h}.{p}.{s}"
+
+
+def _headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {_jwt()}"}
 
 
 def test_generate_all_recommendation_types_and_bundle() -> None:
@@ -12,6 +69,7 @@ def test_generate_all_recommendation_types_and_bundle() -> None:
 
     personalized = client.post(
         "/recommendations/personalized-courses",
+        headers=_headers(),
         json={
             "tenant_id": tenant_id,
             "learner_id": learner_id,
@@ -25,6 +83,7 @@ def test_generate_all_recommendation_types_and_bundle() -> None:
 
     skill_gap = client.post(
         "/recommendations/skill-gaps",
+        headers=_headers(),
         json={
             "tenant_id": tenant_id,
             "learner_id": learner_id,
@@ -38,6 +97,7 @@ def test_generate_all_recommendation_types_and_bundle() -> None:
 
     learning_path = client.post(
         "/recommendations/learning-paths",
+        headers=_headers(),
         json={
             "tenant_id": tenant_id,
             "learner_id": learner_id,
@@ -51,6 +111,7 @@ def test_generate_all_recommendation_types_and_bundle() -> None:
 
     behavioral = client.post(
         "/recommendations/behavioral",
+        headers=_headers(),
         json={
             "tenant_id": tenant_id,
             "learner_id": learner_id,
@@ -62,7 +123,7 @@ def test_generate_all_recommendation_types_and_bundle() -> None:
     assert behavioral.status_code == 200
     assert len(behavioral.json()["items"]) >= 2
 
-    bundle = client.get(f"/learners/{learner_id}/recommendations?tenant_id={tenant_id}")
+    bundle = client.get(f"/learners/{learner_id}/recommendations?tenant_id={tenant_id}", headers=_headers())
     assert bundle.status_code == 200
     body = bundle.json()["bundle"]
     assert len(body["personalized_courses"]) == 2
@@ -76,6 +137,7 @@ def test_bundle_is_tenant_scoped() -> None:
 
     client.post(
         "/recommendations/personalized-courses",
+        headers=_headers(),
         json={
             "tenant_id": "tenant-a",
             "learner_id": learner_id,
@@ -84,7 +146,7 @@ def test_bundle_is_tenant_scoped() -> None:
         },
     )
 
-    wrong_tenant_bundle = client.get(f"/learners/{learner_id}/recommendations?tenant_id=tenant-b")
+    wrong_tenant_bundle = client.get(f"/learners/{learner_id}/recommendations?tenant_id=tenant-b", headers=_headers())
     assert wrong_tenant_bundle.status_code == 200
     assert wrong_tenant_bundle.json()["bundle"]["personalized_courses"] == []
 
@@ -92,6 +154,7 @@ def test_bundle_is_tenant_scoped() -> None:
 def test_generate_recommendations_from_learning_insight() -> None:
     response = client.post(
         "/recommendations/from-learning-insight",
+        headers=_headers(),
         json={
             "tenant_id": "tenant-insight",
             "learner_id": "learner-insight",
@@ -132,7 +195,7 @@ def test_integrated_recommendations_use_analytics_skill_inference_and_progress()
             "weekly_active_minutes": 95,
         },
     }
-    response = client.post("/recommendations/integrated", json=payload)
+    response = client.post("/recommendations/integrated", headers=_headers(), json=payload)
     assert response.status_code == 200
     body = response.json()
 
