@@ -33,6 +33,7 @@ class InMemoryNotificationStore:
         self.routes: dict[tuple[str, str], EventRoute] = {}
         self.events: dict[str, NotificationEvent] = {}
         self.messages: dict[str, NotificationMessage] = {}
+        self.phone_bindings: dict[tuple[str, str], str] = {}
         self.queue: deque[str] = deque()
         self.service_running = True
         self.database_available = True
@@ -101,6 +102,14 @@ class InMemoryNotificationStore:
         self.assert_database_available()
         self.messages[message.message_id] = message
         self.queue.append(message.message_id)
+
+    def upsert_phone_binding(self, *, tenant_id: str, phone_hash: str, user_id: str) -> None:
+        self.assert_database_available()
+        self.phone_bindings[(tenant_id, phone_hash)] = user_id
+
+    def get_user_by_phone_hash(self, *, tenant_id: str, phone_hash: str) -> str | None:
+        self.assert_database_available()
+        return self.phone_bindings.get((tenant_id, phone_hash))
 
     def consume_delay_cycle(self) -> bool:
         if self.queue_delay_cycles <= 0:
