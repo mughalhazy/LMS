@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-WorkflowTriggerType = Literal["low_performance", "missed_payment", "inactivity"]
+WorkflowTriggerType = Literal["low_performance", "missed_payment", "inactivity", "conversation_step"]
 WorkflowActionType = Literal["send_notification", "raise_alert", "create_follow_up_task"]
 
 

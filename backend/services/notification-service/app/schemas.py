@@ -61,4 +61,5 @@ class InboundWhatsAppReplyRequest:
     tenant_id: str
     from_phone_e164: str
     reply: str
+    conversation_id: str | None = None
     tenant_country_code: str = "ZZ"

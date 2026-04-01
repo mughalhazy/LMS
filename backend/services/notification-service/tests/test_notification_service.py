@@ -457,6 +457,8 @@ def test_inbound_whatsapp_confirm_attendance_routes_via_workflow_engine() -> Non
     assert status == 200
     assert payload["matched_workflows"] == 1
     assert payload["routing"]["mode"] == "workflow_engine_only"
+    assert payload["routing"]["conversation_step"] == "attendance_confirmed"
+    assert payload["routing"]["user_state"] == "attendance_confirmed"
     assert service.follow_up_tasks[-1]["task_type"] == "attendance_confirmation"
 
 
@@ -470,11 +472,20 @@ def test_inbound_whatsapp_ack_and_query_have_deterministic_routes() -> None:
         )
     )
 
+    attendance_status, attendance_payload = service.handle_whatsapp_inbound_reply(
+        InboundWhatsAppReplyRequest(
+            tenant_id="tenant-acme",
+            from_phone_e164="+15551230001",
+            reply="yes",
+            conversation_id="conv-123",
+        )
+    )
     ack_status, ack_payload = service.handle_whatsapp_inbound_reply(
         InboundWhatsAppReplyRequest(
             tenant_id="tenant-acme",
             from_phone_e164="+15551230001",
             reply="ok",
+            conversation_id="conv-123",
         )
     )
     query_status, query_payload = service.handle_whatsapp_inbound_reply(
@@ -482,13 +493,45 @@ def test_inbound_whatsapp_ack_and_query_have_deterministic_routes() -> None:
             tenant_id="tenant-acme",
             from_phone_e164="+15551230001",
             reply="what is my due date?",
+            conversation_id="conv-123",
         )
     )
 
+    assert attendance_status == 200
+    assert attendance_payload["routing"]["conversation_step"] == "attendance_confirmed"
     assert ack_status == 200
+    assert ack_payload["matched_workflows"] == 1
     assert ack_payload["routing"]["workflow_id"] == "wa-reminder-ack"
+    assert ack_payload["routing"]["conversation_step"] == "reminder_acknowledged"
     assert query_status == 200
+    assert query_payload["matched_workflows"] == 1
     assert query_payload["routing"]["workflow_id"] == "wa-update-query"
+    assert query_payload["routing"]["conversation_step"] == "query_logged"
+    assert query_payload["routing"]["conversation_id"] == "conv-123"
+
+
+def test_inbound_whatsapp_step_flow_blocks_out_of_order_replies() -> None:
+    service = make_service()
+    service.upsert_phone_binding(
+        PhoneBindingUpsertRequest(
+            tenant_id="tenant-acme",
+            user_id="learner-3",
+            phone_e164="+15551230002",
+        )
+    )
+
+    status, payload = service.handle_whatsapp_inbound_reply(
+        InboundWhatsAppReplyRequest(
+            tenant_id="tenant-acme",
+            from_phone_e164="+15551230002",
+            reply="ok",
+            conversation_id="conv-out-of-order",
+        )
+    )
+
+    assert status == 200
+    assert payload["matched_workflows"] == 0
+    assert payload["executed_actions"] == 0
 
 
 def test_inbound_whatsapp_requires_secure_phone_mapping() -> None:
