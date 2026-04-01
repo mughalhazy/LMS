@@ -16,6 +16,8 @@ from integrations.communication import (
 from shared.models.template import Template
 from shared.models.workflow import WorkflowAction, WorkflowDefinition
 
+from action_routing import WhatsAppActionRouter
+
 
 @dataclass(frozen=True)
 class NotificationOrchestrationConfig:
@@ -156,12 +158,35 @@ class NotificationOrchestrator:
     def handle_interactive_reply(self, *, user_id: str, reply: str) -> dict[str, Any]:
         parsed = self.whatsapp_adapter.parse_interactive_reply(user_id=user_id, reply=reply)
         if parsed is None:
+            parsed = self.whatsapp_adapter.classify_free_text_reply(user_id=user_id, reply=reply)
+        if parsed is None:
             return {"status": "ignored", "reason": "invalid_reply_format"}
 
-        item = asdict(parsed)
-        item["status"] = "accepted"
+        routed = self._action_router.route(parsed)
+        item = asdict(parsed) | {"status": routed.status, "routed_action": routed.action_type, "detail": routed.detail}
         self.interactive_reply_log.append(item)
         return item
+
+    def handle_inbound_whatsapp(
+        self,
+        *,
+        source_phone: str,
+        reply: str,
+        provider_verified: bool,
+        claimed_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not provider_verified:
+            return {"status": "rejected", "reason": "unverified_provider_event"}
+
+        normalized_phone = self._normalize_phone(source_phone)
+        mapped_user_id = self._phone_user_map.get(normalized_phone)
+        if mapped_user_id is None:
+            return {"status": "rejected", "reason": "unknown_phone"}
+
+        if claimed_user_id and claimed_user_id != mapped_user_id:
+            return {"status": "rejected", "reason": "spoofing_detected"}
+
+        return self.handle_interactive_reply(user_id=mapped_user_id, reply=reply)
 
     def _execute_notification_action(
         self,

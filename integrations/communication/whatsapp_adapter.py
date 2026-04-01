@@ -111,3 +111,34 @@ class WhatsAppAdapter(CommunicationAdapter):
             payload=extra_payload,
             received_at=datetime.utcnow(),
         )
+
+    def classify_free_text_reply(self, *, user_id: str, reply: str) -> WhatsAppInteractiveReply | None:
+        """Classify plain-text replies when interactive tokens are unavailable."""
+
+        normalized = " ".join(reply.lower().strip().split())
+        if not normalized:
+            return None
+
+        if normalized in {"present", "yes", "confirm", "confirmed", "attending"}:
+            operation = "attendance"
+            action = "confirm"
+        elif normalized in {"absent", "no", "decline"}:
+            operation = "attendance"
+            action = "decline"
+        elif normalized in {"ack", "ok", "okay", "received", "seen"}:
+            operation = "reminder"
+            action = "ack"
+        elif normalized.startswith("what") or normalized.startswith("how") or "?" in normalized:
+            operation = "update"
+            action = "query"
+        else:
+            return None
+
+        return WhatsAppInteractiveReply(
+            user_id=user_id,
+            workflow_id="ad-hoc",
+            action=action,
+            operation=operation,  # type: ignore[arg-type]
+            payload={"raw_reply": reply.strip()},
+            received_at=datetime.utcnow(),
+        )
