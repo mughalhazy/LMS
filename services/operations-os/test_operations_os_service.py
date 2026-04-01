@@ -67,8 +67,60 @@ def test_build_daily_alerts_aggregates_fees_and_attendance() -> None:
     alerts = service.build_daily_alerts(tenant_id="tenant_ops", run_date=date(2026, 3, 31))
 
     assert len(alerts) == 2
-    assert {alert.alert_type for alert in alerts} == {"fees", "attendance"}
-    assert {alert.source for alert in alerts} == {"system-of-record", "academy-ops"}
+    assert {alert.alert_type for alert in alerts} == {"unpaid_fees", "absence"}
+    assert {alert.source for alert in alerts} == {"system-of-record+commerce", "academy-ops"}
+
+
+def test_daily_operations_dashboard_surfaces_all_operational_categories() -> None:
+    academy_ops = AcademyOpsService()
+    sor = sor_module.SystemOfRecordService()
+
+    active_student = UnifiedStudentProfile(
+        tenant_id="tenant_ops",
+        student_id="stu_active",
+        display_name="Student Active",
+        email="active@example.com",
+        country_code="US",
+        segment_id="academy",
+        metadata={"activity.last_active_at": "2026-02-01T00:00:00+00:00"},
+    )
+    inactive_student = UnifiedStudentProfile(
+        tenant_id="tenant_ops",
+        student_id="stu_inactive",
+        display_name="Student Inactive",
+        email="inactive@example.com",
+        country_code="US",
+        segment_id="academy",
+        metadata={"activity.last_active_at": "2025-01-01T00:00:00+00:00"},
+    )
+    sor.upsert_student_profile(active_student)
+    sor.upsert_student_profile(inactive_student)
+    sor.post_invoice_to_ledger(
+        student_id="stu_active",
+        invoice=Invoice.issued(invoice_id="inv_002", tenant_id="tenant_ops", amount=Decimal("10.00")),
+    )
+
+    academy_ops.upsert_attendance_exception(
+        tenant_id="tenant_ops",
+        run_date=date.today(),
+        student_id="stu_active",
+        attendance_state="absent",
+        session_ref="sess_99",
+    )
+    academy_ops.create_operational_alert(
+        tenant_id="tenant_ops",
+        alert_id="ops_alert_1",
+        severity="high",
+        message="Generator outage",
+    )
+
+    service = OperationsOSService(academy_ops_service=academy_ops, system_of_record_service=sor)
+    dashboard = service.get_daily_operations_dashboard("tenant_ops")
+
+    assert dashboard.summary.total_unpaid_fees == 1
+    assert dashboard.summary.total_absent_students == 1
+    assert dashboard.summary.total_inactive_users >= 1
+    assert dashboard.summary.total_unresolved_alerts >= 3
 
 
 def test_action_system_supports_create_and_resolve() -> None:

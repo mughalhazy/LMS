@@ -17,6 +17,7 @@ class ProgressTrackingService:
 
     def __init__(self) -> None:
         self._tenant_learner_progress: Dict[str, Dict[str, LearnerProgressAggregate]] = {}
+        self._applied_reference_tokens: Dict[str, set[str]] = {}
 
     def _get_or_create_aggregate(self, tenant_id: str, learner_id: str) -> LearnerProgressAggregate:
         tenant_bucket = self._tenant_learner_progress.setdefault(tenant_id, {})
@@ -134,6 +135,43 @@ class ProgressTrackingService:
             time_spent_seconds=0,
             attempt_count=1,
         )
+
+    def record_offline_progress(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        course_id: str,
+        lesson_id: str,
+        enrollment_id: str,
+        completion_percent: float,
+        playback_position: int,
+        reference_token: str,
+        attempt_count: int = 1,
+    ) -> LessonProgress:
+        token = reference_token.strip()
+        tenant_tokens = self._applied_reference_tokens.setdefault(tenant_id, set())
+        if token and token in tenant_tokens:
+            aggregate = self._get_or_create_aggregate(tenant_id, learner_id)
+            existing = aggregate.lessons.get(course_id, {}).get(lesson_id)
+            if existing:
+                return existing
+
+        status = "completed" if completion_percent >= 100 else "in_progress"
+        lesson = self.track_lesson_completion(
+            tenant_id=tenant_id,
+            learner_id=learner_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+            enrollment_id=enrollment_id,
+            completion_status=status,
+            score=None,
+            time_spent_seconds=max(0, int(playback_position)),
+            attempt_count=max(1, int(attempt_count)),
+        )
+        if token:
+            tenant_tokens.add(token)
+        return lesson
 
     def _recompute_course_progress(
         self,

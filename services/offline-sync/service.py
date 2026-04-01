@@ -53,9 +53,11 @@ def _load_progress_module():
 
 
 _ProgressModule = _load_progress_module()
+_OfflineProgressModel = _load_module("offline_progress_model", "shared/models/offline_progress.py")
 
 OfflineContentManager = _ContentOfflineModule.OfflineContentManager
 ProgressTrackingService = _ProgressModule.ProgressTrackingService
+OfflineProgressRecord = _OfflineProgressModel.OfflineProgressRecord
 
 
 @dataclass
@@ -108,6 +110,71 @@ class OfflineSyncService:
             requester_roles=requester_roles,
         )
 
+    def record_offline_progress(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        content_id: str,
+        lesson_id: str,
+        playback_position: int,
+        completion_percent: float,
+        local_timestamp: datetime | None = None,
+        reference_token: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> OfflineProgressRecord:
+        record = OfflineProgressRecord(
+            offline_progress_id=str(uuid4()),
+            student_id=student_id,
+            tenant_id=tenant_id,
+            content_id=content_id,
+            lesson_id=lesson_id,
+            playback_position=playback_position,
+            completion_percent=completion_percent,
+            local_timestamp=local_timestamp or datetime.now(timezone.utc),
+            sync_status="queued",
+            reference_token=reference_token or f"{tenant_id}:{student_id}:{content_id}:{lesson_id}",
+            metadata=metadata or {},
+        ).normalized()
+        latest_payload = asdict(record)
+        latest_payload["local_timestamp"] = record.local_timestamp.isoformat()
+        self._state["latest_progress"][self._resume_key(record)] = latest_payload
+        return record
+
+    def queue_progress_for_sync(self, record: OfflineProgressRecord) -> OfflineProgressRecord:
+        normalized = record.normalized()
+        if normalized.reference_token in self._state["applied_reference_tokens"]:
+            return normalized
+
+        existing_idx = next(
+            (idx for idx, row in enumerate(self._state["pending"]) if row["reference_token"] == normalized.reference_token),
+            None,
+        )
+        record_payload = asdict(normalized)
+        record_payload["local_timestamp"] = normalized.local_timestamp.isoformat()
+        if existing_idx is not None:
+            existing = self._state["pending"][existing_idx]
+            existing_time = datetime.fromisoformat(existing["local_timestamp"])
+            if normalized.local_timestamp >= existing_time:
+                self._state["pending"][existing_idx] = record_payload
+        else:
+            self._state["pending"].append(record_payload)
+
+        self._persist_state()
+        return normalized
+
+    def list_pending_sync_records(self) -> list[OfflineProgressRecord]:
+        rows = sorted(self._state["pending"], key=lambda row: (row["local_timestamp"], row["offline_progress_id"]))
+        return [
+            OfflineProgressRecord(
+                **{
+                    **row,
+                    "local_timestamp": datetime.fromisoformat(row["local_timestamp"]),
+                }
+            )
+            for row in rows
+        ]
+
     def queue_progress(
         self,
         *,
@@ -123,8 +190,20 @@ class OfflineSyncService:
         timestamp: datetime | None = None,
         operation_id: str | None = None,
     ) -> OfflineProgressEnvelope:
-        envelope = OfflineProgressEnvelope(
-            operation_id=operation_id or str(uuid4()),
+        record = self.record_offline_progress(
+            tenant_id=tenant_id,
+            student_id=learner_id,
+            content_id=course_id,
+            lesson_id=lesson_id,
+            playback_position=time_spent_seconds,
+            completion_percent=100.0 if completion_status == "completed" else 50.0,
+            local_timestamp=timestamp,
+            reference_token=operation_id,
+            metadata={"enrollment_id": enrollment_id, "score": score, "attempt_count": attempt_count},
+        )
+        self.queue_progress_for_sync(record)
+        return OfflineProgressEnvelope(
+            operation_id=record.reference_token,
             tenant_id=tenant_id,
             learner_id=learner_id,
             course_id=course_id,
@@ -134,15 +213,29 @@ class OfflineSyncService:
             score=score,
             time_spent_seconds=time_spent_seconds,
             attempt_count=attempt_count,
-            timestamp=(timestamp or datetime.now(timezone.utc)).isoformat(),
+            timestamp=record.local_timestamp.isoformat(),
         )
-        self._state["pending"].append(asdict(envelope))
-        self._persist_state()
-        return envelope
 
     def pending_operations(self) -> list[OfflineProgressEnvelope]:
-        rows = sorted(self._state["pending"], key=lambda row: (row["timestamp"], row["operation_id"]))
-        return [OfflineProgressEnvelope(**row) for row in rows]
+        rows = self.list_pending_sync_records()
+        return [
+            OfflineProgressEnvelope(
+                operation_id=row.reference_token,
+                tenant_id=row.tenant_id,
+                learner_id=row.student_id,
+                course_id=row.content_id,
+                lesson_id=row.lesson_id,
+                enrollment_id=str(row.metadata.get("enrollment_id", "")),
+                completion_status="completed" if row.completion_percent >= 100 else "in_progress",
+                score=row.metadata.get("score"),
+                time_spent_seconds=row.playback_position,
+                attempt_count=int(row.metadata.get("attempt_count", 1)),
+                timestamp=row.local_timestamp.isoformat(),
+                sync_attempts=int(row.metadata.get("sync_attempts", 0)),
+                last_error=row.metadata.get("last_error"),
+            )
+            for row in rows
+        ]
 
     def sync_progress(self, *, server_learning_service: ProgressTrackingService | None = None) -> dict[str, Any]:
         server = server_learning_service or self.learning_service
@@ -154,14 +247,14 @@ class OfflineSyncService:
         still_pending: list[dict[str, Any]] = []
 
         for op in pending:
-            if op.operation_id in self._state["applied_operation_ids"]:
+            if op.operation_id in self._state["applied_reference_tokens"]:
                 continue
 
             try:
                 resolution = self._resolve_conflict(op=op, server=server)
                 if resolution == "drop_as_conflict":
                     conflicts += 1
-                    self._state["applied_operation_ids"].append(op.operation_id)
+                    self._state["applied_reference_tokens"].append(op.operation_id)
                     self._state["conflicts"].append(
                         {
                             "operation_id": op.operation_id,
@@ -175,28 +268,59 @@ class OfflineSyncService:
                     )
                     continue
 
-                server.track_lesson_completion(
-                    tenant_id=op.tenant_id,
-                    learner_id=op.learner_id,
-                    course_id=op.course_id,
-                    lesson_id=op.lesson_id,
-                    enrollment_id=op.enrollment_id,
-                    completion_status=op.completion_status,
-                    score=op.score,
-                    time_spent_seconds=op.time_spent_seconds,
-                    attempt_count=op.attempt_count,
-                )
-                self._state["applied_operation_ids"].append(op.operation_id)
+                if hasattr(server, "record_offline_progress"):
+                    server.record_offline_progress(
+                        tenant_id=op.tenant_id,
+                        learner_id=op.learner_id,
+                        course_id=op.course_id,
+                        lesson_id=op.lesson_id,
+                        enrollment_id=op.enrollment_id,
+                        completion_percent=100.0 if op.completion_status == "completed" else 50.0,
+                        playback_position=op.time_spent_seconds,
+                        reference_token=op.operation_id,
+                        attempt_count=op.attempt_count,
+                    )
+                else:
+                    server.track_lesson_completion(
+                        tenant_id=op.tenant_id,
+                        learner_id=op.learner_id,
+                        course_id=op.course_id,
+                        lesson_id=op.lesson_id,
+                        enrollment_id=op.enrollment_id,
+                        completion_status=op.completion_status,
+                        score=op.score,
+                        time_spent_seconds=op.time_spent_seconds,
+                        attempt_count=op.attempt_count,
+                    )
+                self._state["applied_reference_tokens"].append(op.operation_id)
                 succeeded += 1
             except Exception as exc:  # nosec - failure-safe retry queue
                 op.sync_attempts += 1
-                row = asdict(op)
-                row["last_error"] = str(exc)
-                still_pending.append(row)
+                still_pending.append(
+                    {
+                        "offline_progress_id": str(uuid4()),
+                        "student_id": op.learner_id,
+                        "tenant_id": op.tenant_id,
+                        "content_id": op.course_id,
+                        "lesson_id": op.lesson_id,
+                        "playback_position": op.time_spent_seconds,
+                        "completion_percent": 100.0 if op.completion_status == "completed" else 50.0,
+                        "local_timestamp": op.timestamp,
+                        "sync_status": "failed",
+                        "reference_token": op.operation_id,
+                        "metadata": {
+                            "enrollment_id": op.enrollment_id,
+                            "score": op.score,
+                            "attempt_count": op.attempt_count,
+                            "sync_attempts": op.sync_attempts,
+                            "last_error": str(exc),
+                        },
+                    }
+                )
                 failed.append({"operation_id": op.operation_id, "error": str(exc)})
 
         self._state["pending"] = still_pending
-        self._state["applied_operation_ids"] = sorted(set(self._state["applied_operation_ids"]))
+        self._state["applied_reference_tokens"] = sorted(set(self._state["applied_reference_tokens"]))
         self._persist_state()
 
         return {
@@ -239,18 +363,45 @@ class OfflineSyncService:
 
     def _load_state(self) -> dict[str, Any]:
         if not self.state_file.exists():
-            return {"pending": [], "applied_operation_ids": [], "conflicts": []}
+            return {"pending": [], "applied_reference_tokens": [], "conflicts": [], "latest_progress": {}}
 
         payload = json.loads(self.state_file.read_text(encoding="utf-8"))
-        payload.setdefault("pending", [])
-        payload.setdefault("applied_operation_ids", [])
+        pending_rows = payload.get("pending", [])
+        payload["pending"] = [
+            row
+            if "reference_token" in row
+            else {
+                "offline_progress_id": str(uuid4()),
+                "student_id": row["learner_id"],
+                "tenant_id": row["tenant_id"],
+                "content_id": row["course_id"],
+                "lesson_id": row["lesson_id"],
+                "playback_position": row["time_spent_seconds"],
+                "completion_percent": 100.0 if row.get("completion_status") == "completed" else 50.0,
+                "local_timestamp": row["timestamp"],
+                "sync_status": "queued",
+                "reference_token": row["operation_id"],
+                "metadata": {
+                    "enrollment_id": row.get("enrollment_id"),
+                    "score": row.get("score"),
+                    "attempt_count": row.get("attempt_count", 1),
+                },
+            }
+            for row in pending_rows
+        ]
+        payload.setdefault("applied_reference_tokens", payload.pop("applied_operation_ids", []))
         payload.setdefault("conflicts", [])
+        payload.setdefault("latest_progress", {})
         return payload
 
     def _persist_state(self) -> None:
         tmp_file = self.state_file.with_suffix(".tmp")
         tmp_file.write_text(json.dumps(self._state, indent=2, sort_keys=True), encoding="utf-8")
         tmp_file.replace(self.state_file)
+
+    @staticmethod
+    def _resume_key(record: OfflineProgressRecord) -> str:
+        return f"{record.tenant_id}:{record.student_id}:{record.content_id}:{record.lesson_id}"
 
 
 __all__ = ["OfflineProgressEnvelope", "OfflineSyncService"]
