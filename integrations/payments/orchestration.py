@@ -43,6 +43,15 @@ class PaymentTransactionLogEntry:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+@dataclass(frozen=True)
+class PaymentVerifiedEvent:
+    transaction_id: str
+    status: str
+    user_id: str
+    order_id: str | None
+    emitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class PaymentOrchestrationService:
     def __init__(
         self,
@@ -60,6 +69,8 @@ class PaymentOrchestrationService:
         self._payment_id_to_idempotency_key: dict[str, str] = {}
         self._verification_tasks: dict[str, asyncio.Task[None]] = {}
         self._transaction_log_store: dict[str, list[PaymentTransactionLogEntry]] = {}
+        self._emitted_payment_verified_events: list[PaymentVerifiedEvent] = []
+        self._emitted_payment_verified_event_keys: set[tuple[str, str]] = set()
 
     def process_checkout_payment(self, *, idempotency_key: str, tenant: TenantPaymentContext, amount: int, currency: str, invoice_id: str | None = None) -> PaymentLedgerEntry:
         if amount <= 0:
@@ -180,18 +191,63 @@ class PaymentOrchestrationService:
             return None
         idempotency_key = self._payment_id_to_idempotency_key.get(callback_result.payment_id)
         if idempotency_key is None:
-            return None
-        current = self._ledger[idempotency_key]
-        if current.status == "success":
-            return current
-        if callback_result.ok:
-            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
+            idempotency_key = f"callback::{provider}::{callback_result.payment_id}"
+            current = PaymentLedgerEntry(
+                idempotency_key=idempotency_key,
+                tenant_id=str(payload.get("user_id") or "unknown_user"),
+                tenant_country_code=str(payload.get("country_code") or "PK"),
+                amount=int(payload.get("amount") or 0),
+                currency=str(payload.get("currency") or "PKR"),
+                status="pending_verification",
+                provider=provider,
+                payment_id=callback_result.payment_id,
+                invoice_id=str(payload.get("order_id")) if payload.get("order_id") is not None else None,
+                attempt=0,
+                verified=False,
+                verified_at=None,
+                error=None,
+            )
+            self._ledger[idempotency_key] = current
+            self._payment_id_to_idempotency_key[callback_result.payment_id] = idempotency_key
         else:
-            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": callback_result.error or "callback_failed"})
+            current = self._ledger[idempotency_key]
+        if current.status == "verified":
+            self._emit_payment_verified_event(
+                transaction_id=callback_result.payment_id,
+                status=current.status,
+                user_id=str(payload.get("user_id") or current.tenant_id),
+                order_id=str(payload.get("order_id")) if payload.get("order_id") is not None else current.invoice_id,
+            )
+            return current
+        verification_result = self._router.verify(
+            tenant=TenantPaymentContext(tenant_id=current.tenant_id, country_code=current.tenant_country_code),
+            provider=provider,
+            payment_id=callback_result.payment_id,
+        )
+        if callback_result.ok and verification_result.ok:
+            updated = PaymentLedgerEntry(
+                **{**current.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None}
+            )
+        else:
+            updated = PaymentLedgerEntry(
+                **{
+                    **current.__dict__,
+                    "status": "failed",
+                    "verified": False,
+                    "verified_at": None,
+                    "error": verification_result.error or callback_result.error or "callback_failed",
+                }
+            )
         self._ledger[idempotency_key] = updated
         task = self._verification_tasks.pop(idempotency_key, None)
         if task and not task.done():
             task.cancel()
+        self._emit_payment_verified_event(
+            transaction_id=callback_result.payment_id,
+            status=updated.status,
+            user_id=str(payload.get("user_id") or current.tenant_id),
+            order_id=str(payload.get("order_id")) if payload.get("order_id") is not None else current.invoice_id,
+        )
         return updated
 
     async def await_verification(self, *, idempotency_key: str) -> PaymentLedgerEntry:
@@ -206,14 +262,26 @@ class PaymentOrchestrationService:
     def get_transaction_logs(self, *, idempotency_key: str) -> list[PaymentTransactionLogEntry]:
         return list(self._transaction_log_store.get(idempotency_key, []))
 
+    def get_emitted_payment_verified_events(self) -> list[PaymentVerifiedEvent]:
+        return list(self._emitted_payment_verified_events)
+
     @staticmethod
     def _is_retryable(result: PaymentResult) -> bool:
         return bool(result.error and "timeout" in result.error.lower())
 
-    def _sleep_with_backoff(self, *, attempt: int) -> None:
-        if self._backoff_base_seconds <= 0:
+    def _emit_payment_verified_event(self, *, transaction_id: str, status: str, user_id: str, order_id: str | None) -> None:
+        dedupe_key = (transaction_id, status)
+        if dedupe_key in self._emitted_payment_verified_event_keys:
             return
-        time.sleep(self._backoff_base_seconds * (2**attempt))
+        self._emitted_payment_verified_event_keys.add(dedupe_key)
+        self._emitted_payment_verified_events.append(
+            PaymentVerifiedEvent(
+                transaction_id=transaction_id,
+                status=status,
+                user_id=user_id,
+                order_id=order_id,
+            )
+        )
 
 
 def build_pakistan_payment_router(default_provider: str = "jazzcash") -> PaymentProviderRouter:

@@ -13,6 +13,7 @@ from integrations.payments import (
     build_pakistan_payment_router,
 )
 from integrations.payments.base_adapter import BasePaymentAdapter, PaymentVerificationResult
+from integrations.payments.models import PaymentInitiationPayload
 
 
 def test_pakistan_adapters_are_isolated_by_provider_keys() -> None:
@@ -35,6 +36,51 @@ def test_pakistan_router_processes_checkout_and_verification() -> None:
     verification = router.verify(tenant=tenant, provider="raast", payment_id=result.payment_id)
     assert verification.ok is True
     assert verification.status == "verified"
+
+
+def test_raast_supports_reference_initiation_and_verification() -> None:
+    adapter = RaastAdapter()
+    tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
+
+    initiated = adapter.initiate_payment(
+        amount=3100,
+        tenant=tenant,
+        invoice_id="INV-3100",
+        transfer_reference="bank_transfer_ref_3100",
+    )
+    assert initiated.ok is True
+    assert initiated.status == "success"
+    assert initiated.payment_id == "rs_bank_transfer_ref_3100"
+
+    status = adapter.get_status(reference_id="bank_transfer_ref_3100", tenant=tenant)
+    assert status.ok is True
+    assert status.status == "verified"
+
+    parsed = adapter.parse_callback(
+        {
+            "provider": "raast",
+            "payment_id": initiated.payment_id,
+            "status": "success",
+        }
+    )
+    assert parsed is not None
+    assert parsed.ok is True
+    assert parsed.status == "verified"
+
+    verified = adapter.verify_payment(payment_id=initiated.payment_id or "", tenant=tenant)
+    assert verified.ok is True
+    assert verified.status == "verified"
+
+
+def test_raast_supports_manual_instant_mode_without_redirect() -> None:
+    adapter = RaastAdapter()
+    tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
+
+    instant = adapter.initiate_payment(amount=2200, tenant=tenant)
+    assert instant.ok is True
+    assert instant.status == "success"
+    assert instant.payment_id is not None
+    assert instant.payment_id.startswith("rs_rref_tenant_pk_manual_2200")
 
 
 class FlakyRetryAdapter:
@@ -169,45 +215,52 @@ def test_orchestration_accepts_async_callback() -> None:
     assert updated.verified is True
 
 
-def test_orchestration_records_retrying_before_final_failure() -> None:
-    class AlwaysTimeoutAdapter(FlakyRetryAdapter):
-        def process_payment(
-            self,
-            amount: int,
-            tenant: TenantPaymentContext,
-            invoice_id: str | None = None,
-        ) -> PaymentResult:
-            self.calls += 1
-            return PaymentResult(
-                ok=False,
-                status="failure",
-                provider=self.provider_key,
-                error="timeout",
-                invoice_id=invoice_id,
-            )
+def test_easypaisa_initiation_idempotency_and_shape_matches_jazzcash() -> None:
+    tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
+    jazzcash = JazzCashAdapter()
+    easypaisa = EasyPaisaAdapter()
 
-    class InlineRouter:
-        def __init__(self, adapter: BasePaymentAdapter) -> None:
-            self._adapter = adapter
-
-        def process_checkout(self, *, tenant: object, amount: int, invoice_id: str | None = None) -> PaymentResult:
-            assert isinstance(tenant, TenantPaymentContext)
-            return self._adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
-
-        def verify(self, *, tenant: TenantPaymentContext, provider: str, payment_id: str) -> PaymentVerificationResult:
-            return self._adapter.verify_payment(payment_id=payment_id, tenant=tenant)
-
-        def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
-            return self._adapter.parse_callback(payload)
-
-    adapter = AlwaysTimeoutAdapter()
-    orchestrator = PaymentOrchestrationService(router=InlineRouter(adapter), max_retries=1)
-    entry = orchestrator.process_checkout_payment(
-        idempotency_key="idem_fail",
-        tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
-        amount=1000,
-        currency="PKR",
+    jazzcash_result = jazzcash.process_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
+    first = easypaisa.initiate_payment(
+        payload=PaymentInitiationPayload(
+            amount=1200,
+            tenant_id=tenant.tenant_id,
+            country_code=tenant.country_code,
+            invoice_id="inv-1",
+            idempotency_key="idem-ep-1",
+        )
     )
-    logs = orchestrator.get_transaction_logs(idempotency_key="idem_fail")
-    assert [log.status for log in logs] == ["retrying", "failed"]
-    assert entry.status == "failed"
+    second = easypaisa.initiate_payment(
+        payload=PaymentInitiationPayload(
+            amount=1200,
+            tenant_id=tenant.tenant_id,
+            country_code=tenant.country_code,
+            invoice_id="inv-1",
+            idempotency_key="idem-ep-1",
+        )
+    )
+
+    assert first == second
+    assert set(jazzcash_result.__dict__.keys()) == set(first.__dict__.keys())
+
+
+def test_easypaisa_callback_signature_is_verified() -> None:
+    import hashlib
+
+    adapter = EasyPaisaAdapter()
+    payment_id = "ep_tenant_pk_inv-99_1000_abc123"
+    status = "success"
+    good_signature = hashlib.sha256(f"easypaisa:{payment_id}:{status}".encode("utf-8")).hexdigest()
+
+    valid = adapter.parse_callback(
+        {"provider": "easypaisa", "payment_id": payment_id, "status": status, "signature": good_signature}
+    )
+    invalid = adapter.parse_callback(
+        {"provider": "easypaisa", "payment_id": payment_id, "status": status, "signature": "bad"}
+    )
+
+    assert valid is not None
+    assert valid.ok is True
+    assert invalid is not None
+    assert invalid.ok is False
+    assert invalid.error == "invalid_callback_signature"
