@@ -135,8 +135,24 @@ class CommerceService:
     def enable_capability_add_on(self, *, tenant_id: str, capability_id: str) -> None:
         self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id)
 
-    def record_capability_usage(self, *, tenant_id: str, capability_id: str, units: int = 1) -> None:
-        self.monetization.usage_billing_hook(tenant_id=tenant_id, capability_id=capability_id, units=units)
+    def record_capability_usage(
+        self,
+        *,
+        tenant_id: str,
+        capability_id: str,
+        units: int = 1,
+        source_service: str = "commerce-service",
+        reference_id: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        self.monetization.usage_billing_hook(
+            tenant_id=tenant_id,
+            capability_id=capability_id,
+            units=units,
+            source_service=source_service,
+            reference_id=reference_id,
+            metadata=metadata,
+        )
 
     def calculate_capability_charges(self, tenant: TenantEntitlementContext) -> list[CapabilityCharge]:
         return self.monetization.calculate_tenant_capability_charges(tenant)

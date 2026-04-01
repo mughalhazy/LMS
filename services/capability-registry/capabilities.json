@@ -400,13 +400,13 @@
       "category": "media",
       "default_enabled": false,
       "monetizable": true,
-      "usage_metered": false,
+      "usage_metered": true,
       "metadata": {
         "market": "PK",
         "scope": "academy"
       },
       "price": "1.00",
-      "usage_based": false,
+      "usage_based": true,
       "included_in_plans": [
         "pro",
         "enterprise"

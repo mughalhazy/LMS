@@ -91,7 +91,16 @@ class CapabilityMonetizationService:
     def revoke_add_on(self, *, tenant_id: str, addon_id: str, reason: str = "expired") -> None:
         self._subscription_service.revoke_add_on(tenant_id=tenant_id, addon_id=addon_id, reason=reason)
 
-    def usage_billing_hook(self, *, tenant_id: str, capability_id: str, units: int = 1) -> None:
+    def usage_billing_hook(
+        self,
+        *,
+        tenant_id: str,
+        capability_id: str,
+        units: int = 1,
+        source_service: str = "commerce-service",
+        reference_id: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
         capability = self._capability_registry.get_capability(capability_id)
         if capability is None:
             raise ValueError(f"unknown capability '{capability_id}'")
@@ -99,11 +108,25 @@ class CapabilityMonetizationService:
             raise ValueError("units must be >= 0")
         if units == 0:
             return
+        if not capability.usage_metered:
+            return
+
+        usage = self._entitlement_service.meter_usage(
+            tenant=TenantEntitlementContext(tenant_id=tenant_id, plan_type="free"),
+            capability_id=capability.capability_id,
+            quantity=units,
+            source_service=source_service,
+            reference_id=reference_id or f"{tenant_id}:{capability.capability_id}:{units}",
+            unit_type="count",
+            metadata=metadata or {},
+        )
+        if usage is None:
+            return
 
         self._subscription_service.record_capability_usage(
             tenant_id=tenant_id,
-            capability_id=capability.capability_id,
-            units=units,
+            capability_id=usage.capability_id,
+            units=usage.quantity,
         )
 
     def resolve_capability_unit_price(self, capability_id: str) -> Decimal:
