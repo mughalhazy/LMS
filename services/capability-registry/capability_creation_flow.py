@@ -2,35 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-import importlib.util
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+from typing import Protocol
 
 from shared.models.capability import Capability
-from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
 from shared.utils.entitlement import TenantEntitlementContext
 
-_ROOT = Path(__file__).resolve().parents[2]
+from service import CapabilityRegistryService
 
 
-def _load_module(module_name: str, relative_path: str):
-    module_path = _ROOT / relative_path
-    sys.path.append(str(module_path.parent))
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load module from {relative_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-RegistryService = _load_module("registry_service_for_minting", "services/capability-registry/service.py").CapabilityRegistryService
-SubscriptionService = _load_module("subscription_service_for_minting", "services/subscription-service/service.py").SubscriptionService
-ConfigService = _load_module("config_service_for_minting", "services/config-service/service.py").ConfigService
-EntitlementService = _load_module("entitlement_service_for_minting", "services/entitlement-service/service.py").EntitlementService
+class CapabilityEntitlementGateway(Protocol):
+    def is_enabled(self, tenant: TenantEntitlementContext, capability_id: str) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -49,17 +30,17 @@ class CapabilityMintRequest:
 
 
 class CapabilityMintingFlow:
-    """Create a new capability once and make it available end-to-end."""
+    """Create capabilities in registry and expose them via boundary-safe contracts."""
 
-    def __init__(self) -> None:
-        self.registry = RegistryService()
-        self.subscription = SubscriptionService()
-        self.config = ConfigService()
-        self.entitlement = EntitlementService(
-            subscription_service=self.subscription,
-            config_service=self.config,
-            capability_registry_service=self.registry,
-        )
+    def __init__(
+        self,
+        *,
+        registry: CapabilityRegistryService | None = None,
+        entitlement_gateway: CapabilityEntitlementGateway | None = None,
+    ) -> None:
+        self.registry = registry or CapabilityRegistryService()
+        self._entitlement_gateway = entitlement_gateway
+        self._globally_enabled: set[str] = set()
 
     def mint(self, request: CapabilityMintRequest) -> Capability:
         capability = Capability(
@@ -77,16 +58,22 @@ class CapabilityMintingFlow:
         self.registry.register_capability(capability, feature_ids=request.feature_ids)
 
         if request.enable_globally:
-            self.config.upsert_override(
-                ConfigOverride(
-                    scope=ConfigScope(level=ConfigLevel.GLOBAL, scope_id="global"),
-                    capability_enabled={capability.capability_id: True},
-                    behavior_tuning={},
-                )
-            )
+            self._globally_enabled.add(capability.capability_id)
 
         return capability
 
     def is_usable_via_entitlement(self, tenant: TenantEntitlementContext, capability_id: str) -> bool:
-        self.entitlement.upsert_tenant_context(tenant)
-        return self.entitlement.is_enabled(tenant, capability_id)
+        normalized = tenant.normalized()
+        normalized_capability = capability_id.strip()
+        if self._entitlement_gateway is not None:
+            return self._entitlement_gateway.is_enabled(normalized, normalized_capability)
+        capability = self.registry.get_capability(normalized_capability)
+        if capability is None:
+            return False
+        if normalized_capability in self._globally_enabled:
+            return True
+        if capability.default_enabled:
+            return True
+        if normalized.plan_type in capability.included_in_plans:
+            return True
+        return any(add_on in capability.included_in_add_ons for add_on in normalized.add_ons)

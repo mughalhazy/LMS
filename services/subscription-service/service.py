@@ -2,33 +2,71 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-import importlib.util
-from typing import Callable
+from enum import Enum
+from typing import Callable, Protocol
 
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-
-from services.commerce.billing import BillingService, InvoiceRecord
-from services.commerce.models import SubscriptionPlan
 from shared.models.plan import Plan
 from shared.models.addon import AddOn
 from shared.models.capability_pricing import CapabilityPricing, PricingMode, PricingOverride
 
-_ROOT = Path(__file__).resolve().parents[2]
+class BillingCycle(str, Enum):
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
 
 
-def _load_registry_service():
-    module_path = _ROOT / "services/capability-registry/service.py"
-    sys.path.append(str(module_path.parent))
-    spec = importlib.util.spec_from_file_location("capability_registry_for_subscription", module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError("Unable to load capability registry service")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module.CapabilityRegistryService
+@dataclass(frozen=True)
+class SubscriptionPlan:
+    plan_id: str
+    price: Decimal
+    billing_cycle: BillingCycle | str = BillingCycle.MONTHLY
+    capability_ids: tuple[str, ...] = ()
+
+    def normalized(self) -> "SubscriptionPlan":
+        return SubscriptionPlan(
+            plan_id=self.plan_id.strip(),
+            price=Decimal(self.price),
+            billing_cycle=BillingCycle(self.billing_cycle),
+            capability_ids=tuple(sorted({c.strip() for c in self.capability_ids if c.strip()})),
+        )
+
+
+@dataclass(frozen=True)
+class InvoiceRecord:
+    invoice_id: str
+    user_id: str
+    order_id: str
+    amount: Decimal
+    currency: str
+    invoice_type: str
+
+
+class BillingService:
+    def __init__(self) -> None:
+        self._invoices: dict[str, InvoiceRecord] = {}
+        self._recurring_charges: dict[str, list[InvoiceRecord]] = {}
+
+    def create_recurring_charge(self, *, subscription_id: str, plan: SubscriptionPlan, tenant_id: str) -> InvoiceRecord:
+        normalized = plan.normalized()
+        invoice = InvoiceRecord(
+            invoice_id=f"inv_{len(self._invoices) + 1}",
+            order_id=f"recurring:{subscription_id}:{len(self._recurring_charges.get(subscription_id, [])) + 1}",
+            user_id=tenant_id.strip(),
+            amount=normalized.price,
+            currency="USD",
+            invoice_type=f"subscription_recurring:{normalized.billing_cycle.value}",
+        )
+        self._invoices[invoice.invoice_id] = invoice
+        self._recurring_charges.setdefault(subscription_id, []).append(invoice)
+        return invoice
+
+
+class CapabilityMetadata(Protocol):
+    usage_based: bool
+    price: Decimal
+
+
+class CapabilityRegistryGateway(Protocol):
+    def get_capability(self, capability_id: str) -> CapabilityMetadata | None: ...
 
 
 @dataclass(frozen=True)
@@ -67,7 +105,7 @@ class TenantAddOnAttachment:
 class SubscriptionService:
     """Source of truth for tenant subscription packaging (plan and add-ons)."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, capability_registry_gateway: CapabilityRegistryGateway | None = None) -> None:
         self._tenant_subscriptions: dict[str, TenantSubscription] = {}
         self._tenant_add_on_purchases: dict[str, set[str]] = {}
         self._tenant_add_on_attachments: dict[str, dict[str, TenantAddOnAttachment]] = {}
@@ -79,7 +117,7 @@ class SubscriptionService:
         self._plan_catalog: dict[str, Plan] = {}
         self._billing = BillingService()
         self._subscription_invoices: dict[str, list[InvoiceRecord]] = {}
-        self._capability_registry = _load_registry_service()()
+        self._capability_registry_gateway = capability_registry_gateway
         self._capability_pricing_catalog: dict[str, CapabilityPricing] = {}
         self._bootstrap_capability_pricing_catalog()
         self._bootstrap_plan_catalog()
@@ -103,8 +141,8 @@ class SubscriptionService:
     def get_capability_pricing(self, capability_id: str, *, country_code: str = "", plan_id: str = "") -> CapabilityPricing | None:
         normalized_capability = capability_id.strip()
         pricing = self._capability_pricing_catalog.get(normalized_capability)
-        if pricing is None:
-            capability = self._capability_registry.get_capability(normalized_capability)
+        if pricing is None and self._capability_registry_gateway is not None:
+            capability = self._capability_registry_gateway.get_capability(normalized_capability)
             if capability is None:
                 return None
             mode = PricingMode.USAGE_BASED if capability.usage_based else PricingMode.ADDON
@@ -116,6 +154,8 @@ class SubscriptionService:
                 currency="USD",
             )
             self._capability_pricing_catalog[normalized_capability] = pricing
+        if pricing is None:
+            return None
         return pricing.resolve(country_code=country_code, plan_id=plan_id)
 
     def _bootstrap_plan_catalog(self) -> None:
