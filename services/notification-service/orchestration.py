@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from integrations.communication import (
     CommunicationRouter,
@@ -21,7 +21,9 @@ from shared.models.workflow import WorkflowAction, WorkflowDefinition
 class NotificationOrchestrationConfig:
     """Configuration for channel adapter ordering and adapter-level controls."""
 
-    fallback_order: Sequence[str] = ("whatsapp", "sms")
+    default_fallback_order: Sequence[str] = ("sms", "email")
+    capability_enabled: Mapping[str, bool] | None = None
+    behavior_tuning: Mapping[str, Any] | None = None
     whatsapp_disabled_recipients: set[str] | None = None
     sms_disabled_recipients: set[str] | None = None
     email_disabled_recipients: set[str] | None = None
@@ -42,22 +44,36 @@ class NotificationOrchestrator:
             "email": EmailAdapter(disabled_recipients=cfg.email_disabled_recipients),
         }
 
-        self._router = CommunicationRouter(adapters=adapters, fallback_order=cfg.fallback_order)
+        fallback_order = self._resolve_fallback_order(config=cfg)
+        self._router = CommunicationRouter(adapters=adapters, fallback_order=fallback_order)
         self.interactive_reply_log: list[dict[str, Any]] = []
-        self._templates: dict[str, Template] = {}
+        self._idempotent_send_log: set[str] = set()
 
-    def register_template(self, template: Template) -> None:
-        self._templates[template.template_id] = template
+    def _resolve_fallback_order(self, *, config: NotificationOrchestrationConfig) -> tuple[str, ...]:
+        behavior_tuning = dict(config.behavior_tuning or {})
+        communication = behavior_tuning.get("communication", {})
+        configured_priority = communication.get("routing_priority", config.default_fallback_order)
 
-    def render_template(
-        self,
-        *,
-        template_id: str,
-        payload: dict[str, Any],
-        locale: str | None = None,
-    ) -> tuple[Template, str]:
-        template = self._templates[template_id]
-        return template, template.render(payload=payload, locale=locale)
+        if isinstance(configured_priority, str):
+            candidate_order = [configured_priority]
+        else:
+            candidate_order = [str(item).strip().lower() for item in configured_priority if str(item).strip()]
+
+        capability_enabled = dict(config.capability_enabled or {})
+        if capability_enabled.get("whatsapp_primary_interface", False):
+            candidate_order.insert(0, "whatsapp")
+
+        # Router supports only these channels.
+        supported_channels = {"whatsapp", "sms", "email"}
+        deduped: list[str] = []
+        for channel in candidate_order:
+            if channel not in supported_channels or channel in deduped:
+                continue
+            deduped.append(channel)
+
+        if not deduped:
+            return ("sms",)
+        return tuple(deduped)
 
     def send_notification(self, *, tenant_country_code: str, user_id: str, message: str) -> DeliveryAttempt:
         tenant = Tenant(country_code=tenant_country_code)
@@ -71,20 +87,42 @@ class NotificationOrchestrator:
         user_id: str,
         workflow_id: str,
         operation: WhatsAppOperationType,
-        message: str,
+        message: str | None = None,
+        template_name: str | None = None,
+        template_context: dict[str, Any] | None = None,
         choices: list[str] | None = None,
+        idempotency_key: str | None = None,
     ) -> DeliveryAttempt:
+        dedupe_key = idempotency_key or f"{tenant_country_code}:{workflow_id}:{user_id}:{operation}:{message or template_name or ''}"
+        if dedupe_key in self._idempotent_send_log:
+            return DeliveryAttempt(
+                ok=True,
+                provider="whatsapp",
+                fallback_used=False,
+                error=None,
+            )
+
+        resolved_message = message
+        if template_name:
+            resolved_message = self.whatsapp_adapter.render_template_message(
+                template_name=template_name,
+                context=template_context or {},
+            )
+
         interactive_message = self.whatsapp_adapter.build_workflow_message(
             operation=operation,
             workflow_id=workflow_id,
-            message=message,
+            message=resolved_message or "Workflow notification",
             choices=choices,
         )
-        return self.send_notification(
+        attempt = self.send_notification(
             tenant_country_code=tenant_country_code,
             user_id=user_id,
             message=interactive_message,
         )
+        if attempt.ok:
+            self._idempotent_send_log.add(dedupe_key)
+        return attempt
 
     def execute_workflow(
         self,
