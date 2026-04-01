@@ -100,9 +100,10 @@ class OnboardingService:
     def bootstrap_default_capabilities(self, *, request: OnboardingRequest) -> dict[str, bool]:
         capabilities = {
             "attendance_tracking": True,
-            "fees_management": True,
-            "notifications": True,
+            "fee_tracking": True,
+            "parent_notifications": True,
             "whatsapp_primary_interface": True,
+            "whatsapp_operations": True,
         }
         self._config_service.upsert_override(
             ConfigOverride(

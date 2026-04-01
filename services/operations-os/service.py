@@ -27,6 +27,8 @@ def _load_module(module_name: str, relative_path: str):
 _SystemOfRecordModule = _load_module("system_of_record_module_for_operations_os", "services/system-of-record/service.py")
 _SorReadModels = _load_module("system_of_record_read_models_for_operations_os", "services/system-of-record/read_models.py")
 _OperationsModels = _load_module("operations_os_models", "services/operations-os/models.py")
+_EntitlementModule = _load_module("entitlement_service_module_for_operations_os", "services/entitlement-service/service.py")
+_EntitlementModelsModule = _load_module("entitlement_models_for_operations_os", "shared/utils/entitlement.py")
 
 SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
 DailyOperationsDashboard = _OperationsModels.DailyOperationsDashboard
@@ -35,6 +37,8 @@ action_item = _OperationsModels.action_item
 dashboard_summary = _OperationsModels.dashboard_summary
 priority_bucket = _OperationsModels.priority_bucket
 is_profile_inactive = _SorReadModels.is_profile_inactive
+EntitlementService = _EntitlementModule.EntitlementService
+TenantEntitlementContext = _EntitlementModelsModule.TenantEntitlementContext
 
 
 @dataclass(frozen=True)
@@ -222,11 +226,13 @@ class OperationsOSService:
         system_of_record_service: SystemOfRecordService | None = None,
         commerce_service: Any | None = None,
         workflow_engine: Any | None = None,
+        entitlement_service: EntitlementService | None = None,
     ) -> None:
         self._academy_ops_service = academy_ops_service or AcademyOpsService()
         self._system_of_record_service = system_of_record_service or SystemOfRecordService()
         self._commerce_service = commerce_service
         self._workflow_engine = workflow_engine
+        self._entitlement_service = entitlement_service or EntitlementService()
         self._actions: dict[str, ActionItem] = {}
         self._action_dedupe: dict[str, str] = {}
         self._active_tenant_id: str | None = None
@@ -247,14 +253,22 @@ class OperationsOSService:
         )
         effective = self._system_of_record_service._config_service.resolve(context)  # noqa: SLF001
         behavior = effective.behavior_tuning.get("operations_dashboard", {})
+        plan_type = "growth_academy" if default_segment == "academy" else "pro"
+        tenant_context = TenantEntitlementContext(
+            tenant_id=tenant_id,
+            plan_type=plan_type,
+            country_code=default_country,
+            segment_id=default_segment,
+        )
+        self._entitlement_service.upsert_tenant_context(tenant_context)
         return {
             "inactive_days": int(behavior.get("inactive_days", 30)),
-            "enable_unpaid_fees": bool(effective.capability_enabled.get("operations.unpaid_fees", True)),
-            "enable_absence": bool(effective.capability_enabled.get("operations.absence", True)),
-            "enable_inactive_users": bool(effective.capability_enabled.get("operations.inactive_users", True)),
-            "enable_followups": bool(effective.capability_enabled.get("operations.followups", True)),
-            "enable_operational_alerts": bool(effective.capability_enabled.get("operations.operational_alerts", True)),
-            "enable_workflow_signals": bool(effective.capability_enabled.get("operations.workflow_signals", True)),
+            "enable_unpaid_fees": self._entitlement_service.is_enabled(tenant_context, "fee_tracking"),
+            "enable_absence": self._entitlement_service.is_enabled(tenant_context, "attendance_tracking"),
+            "enable_inactive_users": self._entitlement_service.is_enabled(tenant_context, "student_lifecycle_management"),
+            "enable_followups": self._entitlement_service.is_enabled(tenant_context, "network_effects"),
+            "enable_operational_alerts": self._entitlement_service.is_enabled(tenant_context, "owner_economics"),
+            "enable_workflow_signals": self._entitlement_service.is_enabled(tenant_context, "whatsapp_operations"),
         }
 
     def _resolve_priority(self, action_type: str, default_priority: str = "medium") -> str:

@@ -550,6 +550,98 @@
         "enterprise"
       ],
       "included_in_add_ons": []
+    },
+    {
+      "capability_id": "teacher_economy",
+      "name": "Teacher Economy",
+      "description": "Enable teacher-level revenue share economics, payout intelligence, and class profitability workflows.",
+      "category": "commerce",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy",
+        "dependencies": "teacher_assignment,fee_tracking,teacher_revenue_sharing",
+        "billing_type": "addon"
+      },
+      "price": "49.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "enterprise_learning"
+      ],
+      "included_in_add_ons": [
+        "teacher_economy_pack"
+      ]
+    },
+    {
+      "capability_id": "network_effects",
+      "name": "Network Effects",
+      "description": "Enable referral loops, cohort virality, and engagement amplification workflows.",
+      "category": "growth",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "global",
+        "scope": "academy,school,enterprise",
+        "dependencies": "parent_notifications,cohort_management",
+        "billing_type": "usage_based"
+      },
+      "price": "0.08",
+      "usage_based": true,
+      "included_in_plans": [
+        "enterprise_learning"
+      ],
+      "included_in_add_ons": [
+        "network_effects_pack"
+      ]
+    },
+    {
+      "capability_id": "whatsapp_operations",
+      "name": "WhatsApp Operations",
+      "description": "Enable operational automation over WhatsApp including workflow signals and follow-up operations.",
+      "category": "communication",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy,school,enterprise",
+        "dependencies": "whatsapp_primary_interface,whatsapp_workflows",
+        "billing_type": "hybrid"
+      },
+      "price": "19.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "enterprise_learning"
+      ],
+      "included_in_add_ons": [
+        "whatsapp_operations_pack"
+      ]
+    },
+    {
+      "capability_id": "owner_economics",
+      "name": "Owner Economics",
+      "description": "Enable owner-level economics, margin tracking, and profitability insights across branches.",
+      "category": "analytics",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy,enterprise",
+        "dependencies": "owner_analytics,fee_tracking,operations_dashboard",
+        "billing_type": "usage_based"
+      },
+      "price": "0.35",
+      "usage_based": true,
+      "included_in_plans": [
+        "enterprise_learning"
+      ],
+      "included_in_add_ons": [
+        "owner_economics_pack"
+      ]
     }
   ],
   "feature_to_capability": {
@@ -581,6 +673,12 @@
     "teacher_revenue_sharing": "teacher_revenue_sharing",
     "timetable_scheduling": "timetable_scheduling",
     "whatsapp_primary_interface": "whatsapp_primary_interface",
-    "whatsapp_workflows": "whatsapp_workflows"
+    "whatsapp_workflows": "whatsapp_workflows",
+    "teacher_economy": "teacher_economy",
+    "network_effects": "network_effects",
+    "whatsapp_operations": "whatsapp_operations",
+    "owner_economics": "owner_economics",
+    "fees_management": "fee_tracking",
+    "notifications": "parent_notifications"
   }
 }

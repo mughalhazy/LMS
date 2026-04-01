@@ -362,6 +362,7 @@ class AcademyOpsService:
             if attendance_records
             else Decimal("0.0000")
         )
+        tenant_context = self._tenant_context(tenant_id)
         return {
             "tenant_id": tenant_id,
             "branch_id": branch_id,
@@ -379,8 +380,9 @@ class AcademyOpsService:
             "attendance_rate": attendance_rate,
             "metadata": branch.metadata,
             "economics_ready": {
-                "owner_economics": True,
-                "operations_os": True,
+                "owner_economics": self._entitlement.is_enabled(tenant_context, "owner_economics"),
+                "teacher_economy": self._entitlement.is_enabled(tenant_context, "teacher_economy"),
+                "operations_os": self._entitlement.is_enabled(tenant_context, "operations_dashboard"),
             },
         }
 

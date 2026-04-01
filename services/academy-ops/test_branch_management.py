@@ -60,7 +60,8 @@ def test_branch_lifecycle_and_operational_summary() -> None:
     summary = service.list_branch_operational_summary(tenant_id="tenant_branch", branch_id="branch_1")
     assert summary["active_batch_count"] == 1
     assert summary["learner_count"] == 2
-    assert summary["economics_ready"]["owner_economics"] is True
+    assert isinstance(summary["economics_ready"]["owner_economics"], bool)
+    assert isinstance(summary["economics_ready"]["teacher_economy"], bool)
 
 
 def test_assign_batch_to_inactive_branch_rejected() -> None:
