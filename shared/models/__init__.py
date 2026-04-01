@@ -4,6 +4,7 @@ from .capability import Capability
 from .addon import AddOn
 from .capability_pricing import CapabilityPricing
 from .plan import Plan
+from .ledger import LedgerEntry, LedgerEntryType
 from .config import (
     ConfigLevel,
     ConfigOverride,
@@ -23,6 +24,8 @@ __all__ = [
     "AddOn",
     "CapabilityPricing",
     "Plan",
+    "LedgerEntry",
+    "LedgerEntryType",
     "ConfigLevel",
     "ConfigScope",
     "ConfigOverride",

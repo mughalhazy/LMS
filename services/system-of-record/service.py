@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from shared.models.academy import AcademyEnrollment
 from shared.models.config import ConfigResolutionContext
 from shared.models.invoice import Invoice
+from shared.models.ledger import LedgerEntry
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -105,18 +106,6 @@ class UnifiedStudentProfile:
     financial_state: FinancialState = field(default_factory=FinancialState)
     learning_path_ids: tuple[str, ...] = ()
     metadata: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class LedgerEntry:
-    entry_id: str
-    tenant_id: str
-    student_id: str
-    amount: Decimal
-    currency: str
-    source_type: str
-    source_ref: str
-    posted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class LifecycleTransitionError(ValueError):
@@ -286,17 +275,23 @@ class SystemOfRecordService:
         key = self._profile_key(tenant_id=invoice.tenant_id, student_id=student_id)
         if key not in self._profiles:
             raise KeyError("student profile not found")
-        if any(entry.source_type == "invoice" and entry.source_ref == invoice.invoice_id for entry in self._ledger.get(key, [])):
+        if any(
+            entry.entry_type == "invoice" and entry.reference_id == invoice.invoice_id
+            for entry in self._ledger.get(key, [])
+        ):
             raise ValueError("duplicate invoice ledger posting")
 
-        entry = LedgerEntry(
-            entry_id=f"led_{invoice.invoice_id}",
+        entry = LedgerEntry.create(
+            ledger_entry_id=f"led_{invoice.invoice_id}",
             tenant_id=invoice.tenant_id,
             student_id=student_id,
+            entry_type="invoice",
             amount=Decimal(invoice.amount),
             currency=currency,
-            source_type="invoice",
-            source_ref=invoice.invoice_id,
+            reference_type="invoice",
+            reference_id=invoice.invoice_id,
+            status="posted",
+            metadata={"invoice_status": invoice.status},
         )
         self._ledger.setdefault(key, []).append(entry)
         profile = self._profiles[key]
@@ -328,17 +323,22 @@ class SystemOfRecordService:
             raise KeyError("student profile not found")
         if amount <= Decimal("0"):
             raise ValueError("payment amount must be positive")
-        if any(entry.source_type == "payment" and entry.source_ref == payment_id for entry in self._ledger.get(key, [])):
+        if any(
+            entry.entry_type == "payment" and entry.reference_id == payment_id
+            for entry in self._ledger.get(key, [])
+        ):
             raise ValueError("duplicate payment ledger posting")
 
-        entry = LedgerEntry(
-            entry_id=f"pay_{payment_id}",
+        entry = LedgerEntry.create(
+            ledger_entry_id=f"pay_{payment_id}",
             tenant_id=tenant_id,
             student_id=student_id,
+            entry_type="payment",
             amount=Decimal(amount) * Decimal("-1"),
             currency=currency,
-            source_type="payment",
-            source_ref=payment_id,
+            reference_type="payment",
+            reference_id=payment_id,
+            status="posted",
         )
         self._ledger.setdefault(key, []).append(entry)
         profile = self._profiles[key]
@@ -350,11 +350,56 @@ class SystemOfRecordService:
                 total_paid=(financial.total_paid + Decimal(amount)),
                 ledger_balance=(financial.ledger_balance - Decimal(amount)),
                 last_payment_id=payment_id,
-                last_payment_at=entry.posted_at,
+                last_payment_at=entry.timestamp,
             ),
         )
         self._profiles[key] = updated_profile
         self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
+        return entry
+
+    def post_adjustment(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        adjustment_id: str,
+        amount: Decimal,
+        currency: str = "USD",
+        entry_type: str = "adjustment",
+        status: str = "posted",
+        metadata: dict[str, Any] | None = None,
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        if entry_type not in {"adjustment", "refund", "due"}:
+            raise ValueError("entry_type must be one of: adjustment, refund, due")
+        if any(
+            entry.reference_type == entry_type and entry.reference_id == adjustment_id
+            for entry in self._ledger.get(key, [])
+        ):
+            raise ValueError("duplicate adjustment ledger posting")
+
+        normalized_amount = Decimal(amount)
+        if entry_type == "refund" and normalized_amount > 0:
+            normalized_amount = normalized_amount * Decimal("-1")
+        if entry_type == "due" and normalized_amount < 0:
+            normalized_amount = normalized_amount.copy_abs()
+
+        entry = LedgerEntry.create(
+            ledger_entry_id=f"{entry_type[:3]}_{adjustment_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            entry_type=entry_type,
+            amount=normalized_amount,
+            currency=currency,
+            reference_type=entry_type,
+            reference_id=adjustment_id,
+            status=status,
+            metadata=metadata or {},
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self.run_qc_autofix()
         return entry
 
     def post_payment_to_ledger_if_missing(
@@ -370,7 +415,7 @@ class SystemOfRecordService:
             (
                 entry
                 for entry in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)
-                if entry.source_type == "payment" and entry.source_ref == payment_id
+                if entry.entry_type == "payment" and entry.reference_id == payment_id
             ),
             None,
         )
@@ -386,11 +431,14 @@ class SystemOfRecordService:
 
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
-        return tuple(self._ledger.get(key, []))
+        return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.timestamp))
 
-    def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
+    def compute_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
         entries = self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)
         return sum((entry.amount for entry in entries), start=Decimal("0"))
+
+    def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
+        return self.compute_student_balance(tenant_id=tenant_id, student_id=student_id)
 
     def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
@@ -398,8 +446,14 @@ class SystemOfRecordService:
         if profile is None:
             return False
         entries = self._ledger.get(key, [])
-        invoiced = sum((entry.amount for entry in entries if entry.source_type == "invoice"), start=Decimal("0"))
-        paid = sum((entry.amount.copy_abs() for entry in entries if entry.source_type == "payment"), start=Decimal("0"))
+        invoiced = sum(
+            (entry.amount for entry in entries if entry.entry_type in {"invoice", "due"}),
+            start=Decimal("0"),
+        )
+        paid = sum(
+            (entry.amount.copy_abs() for entry in entries if entry.entry_type in {"payment", "refund"}),
+            start=Decimal("0"),
+        )
         balance = sum((entry.amount for entry in entries), start=Decimal("0"))
         financial = profile.financial_state
         return (
@@ -411,8 +465,14 @@ class SystemOfRecordService:
     def run_qc_autofix(self) -> dict[str, bool]:
         for key, profile in list(self._profiles.items()):
             entries = self._ledger.get(key, [])
-            invoiced = sum((entry.amount for entry in entries if entry.source_type == "invoice"), start=Decimal("0"))
-            paid = sum((entry.amount.copy_abs() for entry in entries if entry.source_type == "payment"), start=Decimal("0"))
+            invoiced = sum(
+                (entry.amount for entry in entries if entry.entry_type in {"invoice", "due"}),
+                start=Decimal("0"),
+            )
+            paid = sum(
+                (entry.amount.copy_abs() for entry in entries if entry.entry_type in {"payment", "refund"}),
+                start=Decimal("0"),
+            )
             balance = sum((entry.amount for entry in entries), start=Decimal("0"))
             self._profiles[key] = replace(
                 profile,
@@ -430,7 +490,7 @@ class SystemOfRecordService:
             )
 
         lifecycle_valid = all(
-            profile.academic_state.lifecycle_state == profile.lifecycle_state for profile in self._profiles.values()
+                profile.academic_state.lifecycle_state == profile.lifecycle_state for profile in self._profiles.values()
         )
         ledger_valid = all(
             self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
@@ -441,7 +501,7 @@ class SystemOfRecordService:
             "ledger_consistency": ledger_valid,
             "lifecycle_transitions": lifecycle_valid,
             "payments_update_ledger": all(
-                entry.source_type != "payment" or entry.amount < 0
+                entry.entry_type != "payment" or entry.amount < 0
                 for entries in self._ledger.values()
                 for entry in entries
             ),

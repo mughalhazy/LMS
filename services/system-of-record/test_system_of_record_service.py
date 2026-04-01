@@ -173,3 +173,50 @@ def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -
     assert qc["fragmented_state_removed"] is True
     assert service.is_single_source_of_truth() is True
     assert service.has_duplicate_data_ownership() is False
+
+
+def test_student_ledger_supports_adjustments_dues_refunds_and_balance_computation() -> None:
+    service = SystemOfRecordService()
+    service.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_4",
+            student_id="student_4",
+            display_name="Casey Ledger",
+            email="casey@example.edu",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+
+    service.post_invoice_to_ledger(student_id="student_4", invoice=Invoice.issued("inv_400", "tenant_4", Decimal("30")))
+    service.post_adjustment(
+        tenant_id="tenant_4",
+        student_id="student_4",
+        adjustment_id="due_401",
+        amount=Decimal("15"),
+        entry_type="due",
+        metadata={"reason": "late fee"},
+    )
+    service.post_payment_to_ledger(
+        tenant_id="tenant_4",
+        student_id="student_4",
+        payment_id="pay_402",
+        amount=Decimal("20"),
+    )
+    service.post_adjustment(
+        tenant_id="tenant_4",
+        student_id="student_4",
+        adjustment_id="ref_403",
+        amount=Decimal("5"),
+        entry_type="refund",
+    )
+
+    ledger = service.get_student_ledger(tenant_id="tenant_4", student_id="student_4")
+    assert [entry.entry_type for entry in ledger] == ["invoice", "due", "payment", "refund"]
+    assert service.compute_student_balance(tenant_id="tenant_4", student_id="student_4") == Decimal("20")
+    assert service.get_student_balance(tenant_id="tenant_4", student_id="student_4") == Decimal("20")
+
+    profile = service.get_student_profile(tenant_id="tenant_4", student_id="student_4")
+    assert profile is not None
+    assert profile.financial_state.total_invoiced == Decimal("45")
+    assert profile.financial_state.total_paid == Decimal("25")
