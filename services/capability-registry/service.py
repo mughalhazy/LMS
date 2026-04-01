@@ -19,8 +19,15 @@ class CapabilityRegistryService:
             description=capability.description.strip(),
             category=capability.category.strip(),
             default_enabled=bool(capability.default_enabled),
+            monetizable=bool(capability.monetizable),
+            usage_metered=bool(capability.usage_metered),
+            metadata={
+                str(key).strip(): str(value).strip()
+                for key, value in capability.metadata.items()
+                if str(key).strip() and str(value).strip()
+            },
             price=capability.price,
-            usage_based=bool(capability.usage_based),
+            usage_based=bool(capability.usage_metered),
             included_in_plans=tuple(sorted({plan.strip().lower() for plan in capability.included_in_plans if plan.strip()})),
             included_in_add_ons=tuple(sorted({addon.strip().lower() for addon in capability.included_in_add_ons if addon.strip()})),
         )

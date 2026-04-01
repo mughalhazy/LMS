@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from types import MappingProxyType
+from typing import Mapping
 
 from .capability_pricing import CapabilityPricing
 
@@ -13,6 +15,9 @@ class Capability:
     description: str
     category: str
     default_enabled: bool = False
+    monetizable: bool = True
+    usage_metered: bool = False
+    metadata: Mapping[str, str] = MappingProxyType({})
     price: Decimal = Decimal("0")
     usage_based: bool = False
     included_in_plans: tuple[str, ...] = ()
