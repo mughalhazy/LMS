@@ -50,7 +50,7 @@ def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
 
     assert order.status.value == "reconciled"
     assert invoice.state.value == "issued"
-    assert invoice.invoice_type == "one_time"
+    assert invoice.invoice_type == "one_time:recommendation.basic"
     assert commerce.catalog.get_product("p_course") is not None
     assert commerce.checkout.get_order(order.order_id) is not None
     assert commerce.billing.get_invoice(invoice.invoice_id) is not None
@@ -114,7 +114,7 @@ def test_subscription_product_activates_subscription_service_contract() -> None:
     )
 
     contract = commerce.subscription_service.get_subscription_contract("sub_tenant_3_p_sub")
-    assert invoice.invoice_type == "subscription"
+    assert invoice.invoice_type == "subscription:assessment.author"
     assert contract is not None
     assert contract.status == "active"
 
@@ -263,3 +263,12 @@ def test_bundle_creation_resolution_and_pricing_override() -> None:
     catalog_items = commerce.catalog.list_products(tenant_id="tenant_bundle", product_type=ProductType.BUNDLE)
     assert len(catalog_items) == 1
     assert [p.product_id for p in catalog_items[0].bundle_products] == ["p_course_a", "p_course_b"]
+
+
+def test_capability_pricing_country_override_for_pk() -> None:
+    router = PaymentProviderRouter({"PK": "mock_success"}, [MockSuccessAdapter()])
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router), payment_country_code="PK")
+    pricing = commerce.subscription_service.get_capability_pricing("installment_billing", country_code="PK")
+    assert pricing is not None
+    assert pricing.currency == "PKR"
+    assert pricing.base_price == Decimal("6900")

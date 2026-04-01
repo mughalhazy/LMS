@@ -68,6 +68,12 @@ class CommerceService:
         resolved_capability_ids = capability_ids or []
         if not resolved_capability_ids and resolved_metadata.get("capability_id"):
             resolved_capability_ids = [resolved_metadata["capability_id"]]
+        for capability_id in resolved_capability_ids:
+            self.monetization.ensure_capability_has_pricing_path(
+                capability_id=capability_id,
+                country_code=resolved_metadata.get("country_code", self._payment_country_code),
+                plan_id=resolved_metadata.get("plan_id", ""),
+            )
         return self.catalog.create_product(
             product_id=product_id,
             tenant_id=tenant_id,
@@ -119,7 +125,8 @@ class CommerceService:
             raise ValueError(f"cannot invoice unpaid order '{order.order_id}'")
         invoice = self.billing.create_invoice_for_order(order)
         order = self.checkout.reconcile_order(order_id=order.order_id)
-        if invoice.invoice_type == "subscription":
+        if invoice.invoice_type.startswith("subscription"):
+
             plan_id = self.catalog.get_product(product_id).metadata.get("plan_id", "pro")
             self.subscription_service.create_or_activate_subscription(
                 tenant_id=tenant_id,
@@ -132,8 +139,8 @@ class CommerceService:
     def checkout_and_invoice_sync(self, **kwargs: str):
         return asyncio.run(self.checkout_and_invoice(**kwargs))
 
-    def enable_capability_add_on(self, *, tenant_id: str, capability_id: str) -> None:
-        self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id)
+    def enable_capability_add_on(self, *, tenant_id: str, capability_id: str, country_code: str = "", plan_id: str = "") -> None:
+        self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id, country_code=country_code or self._payment_country_code, plan_id=plan_id)
 
     def record_capability_usage(
         self,

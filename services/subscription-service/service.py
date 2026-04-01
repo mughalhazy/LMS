@@ -14,7 +14,7 @@ from services.commerce.billing import BillingService, InvoiceRecord
 from services.commerce.models import SubscriptionPlan
 from shared.models.plan import Plan
 from shared.models.addon import AddOn
-from shared.models.capability_pricing import CapabilityPricing
+from shared.models.capability_pricing import CapabilityPricing, PricingMode, PricingOverride
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -80,8 +80,43 @@ class SubscriptionService:
         self._billing = BillingService()
         self._subscription_invoices: dict[str, list[InvoiceRecord]] = {}
         self._capability_registry = _load_registry_service()()
+        self._capability_pricing_catalog: dict[str, CapabilityPricing] = {}
+        self._bootstrap_capability_pricing_catalog()
         self._bootstrap_plan_catalog()
         self._bootstrap_add_on_catalog()
+
+    def _bootstrap_capability_pricing_catalog(self) -> None:
+        defaults = (
+            CapabilityPricing(capability_id="assessment.author", pricing_mode=PricingMode.ADDON, base_price=Decimal("29.00"), currency="USD"),
+            CapabilityPricing(capability_id="learning.analytics.advanced", pricing_mode=PricingMode.USAGE_BASED, usage_unit_price=Decimal("0.10"), currency="USD"),
+            CapabilityPricing(capability_id="manual_payment", pricing_mode=PricingMode.ADDON, base_price=Decimal("19.00"), currency="USD", country_overrides={"PK": PricingOverride(base_price=Decimal("4500"), currency="PKR")}),
+            CapabilityPricing(capability_id="installment_billing", pricing_mode=PricingMode.ADDON, base_price=Decimal("29.00"), currency="USD", country_overrides={"PK": PricingOverride(base_price=Decimal("6900"), currency="PKR")}),
+            CapabilityPricing(capability_id="whatsapp_workflows", pricing_mode=PricingMode.ADDON, base_price=Decimal("39.00"), currency="USD", country_overrides={"PK": PricingOverride(base_price=Decimal("9500"), currency="PKR")}),
+            CapabilityPricing(capability_id="secure_media_delivery", pricing_mode=PricingMode.HYBRID, base_price=Decimal("59.00"), usage_unit_price=Decimal("0.02"), currency="USD"),
+            CapabilityPricing(capability_id="owner_analytics", pricing_mode=PricingMode.USAGE_BASED, usage_unit_price=Decimal("0.40"), currency="USD", country_overrides={"PK": PricingOverride(usage_unit_price=Decimal("90"), currency="PKR")}),
+            CapabilityPricing(capability_id="ai.tutor", pricing_mode=PricingMode.USAGE_BASED, usage_unit_price=Decimal("0.15"), currency="USD"),
+            CapabilityPricing(capability_id="platform.support.priority", pricing_mode=PricingMode.ADDON, base_price=Decimal("149.00"), currency="USD"),
+        )
+        for pricing in defaults:
+            self._capability_pricing_catalog[pricing.capability_id] = pricing.normalized()
+
+    def get_capability_pricing(self, capability_id: str, *, country_code: str = "", plan_id: str = "") -> CapabilityPricing | None:
+        normalized_capability = capability_id.strip()
+        pricing = self._capability_pricing_catalog.get(normalized_capability)
+        if pricing is None:
+            capability = self._capability_registry.get_capability(normalized_capability)
+            if capability is None:
+                return None
+            mode = PricingMode.USAGE_BASED if capability.usage_based else PricingMode.ADDON
+            pricing = CapabilityPricing(
+                capability_id=normalized_capability,
+                pricing_mode=mode,
+                base_price=Decimal(capability.price if not capability.usage_based else "0"),
+                usage_unit_price=Decimal(capability.price if capability.usage_based else "0"),
+                currency="USD",
+            )
+            self._capability_pricing_catalog[normalized_capability] = pricing
+        return pricing.resolve(country_code=country_code, plan_id=plan_id)
 
     def _bootstrap_plan_catalog(self) -> None:
         default_plans = (
@@ -226,81 +261,30 @@ class SubscriptionService:
 
     def _bootstrap_add_on_catalog(self) -> None:
         defaults = (
-            AddOn(
-                addon_id="whatsapp_workflows",
-                capability_id="whatsapp_workflows",
-                price=Decimal("39.00"),
-                billing_mode="recurring",
-                eligibility_rules={"segments": ("academy", "school", "enterprise")},
-                country_scope=("PK",),
-                status="active",
-            ),
-            AddOn(
-                addon_id="installment_billing",
-                capability_id="installment_billing",
-                price=Decimal("29.00"),
-                billing_mode="recurring",
-                eligibility_rules={"segments": ("academy", "school", "enterprise")},
-                country_scope=("PK",),
-                status="active",
-            ),
-            AddOn(
-                addon_id="advanced_secure_media",
-                capability_id="advanced_secure_media",
-                price=Decimal("59.00"),
-                billing_mode="recurring",
-                eligibility_rules={"segments": ("academy", "enterprise")},
-                country_scope=("PK", "US"),
-                status="active",
-            ),
-            AddOn(
-                addon_id="owner_analytics",
-                capability_id="owner_analytics",
-                price=Decimal("49.00"),
-                billing_mode="usage_based",
-                eligibility_rules={"segments": ("academy", "enterprise")},
-                country_scope=("PK",),
-                status="active",
-            ),
-            AddOn(
-                addon_id="ai_tutor",
-                capability_id="ai.tutor",
-                price=Decimal("79.00"),
-                billing_mode="usage_based",
-                eligibility_rules={"segments": ("academy", "school", "enterprise")},
-                country_scope=("PK", "US"),
-                status="active",
-            ),
-            AddOn(
-                addon_id="ai_tutor_pack",
-                capability_id="ai.tutor",
-                price=Decimal("79.00"),
-                billing_mode="usage_based",
-                eligibility_rules={"segments": ("academy", "school", "enterprise", "smb")},
-                country_scope=("PK", "US"),
-                status="active",
-            ),
-            AddOn(
-                addon_id="learning_analytics_advanced",
-                capability_id="learning.analytics.advanced",
-                price=Decimal("0.10"),
-                billing_mode="usage_based",
-                eligibility_rules={"segments": ("academy", "school", "enterprise")},
-                country_scope=("PK", "US"),
-                status="active",
-            ),
-            AddOn(
-                addon_id="analytics_advanced",
-                capability_id="learning.analytics.advanced",
-                price=Decimal("0.10"),
-                billing_mode="usage_based",
-                eligibility_rules={"segments": ("academy", "school", "enterprise", "smb")},
-                country_scope=("PK", "US"),
-                status="active",
-            ),
+            ("whatsapp_workflows", "whatsapp_workflows", "recurring", {"segments": ("academy", "school", "enterprise")}, ("PK",)),
+            ("installment_billing", "installment_billing", "recurring", {"segments": ("academy", "school", "enterprise")}, ("PK",)),
+            ("advanced_secure_media", "secure_media_delivery", "recurring", {"segments": ("academy", "enterprise")}, ("PK", "US")),
+            ("owner_analytics", "owner_analytics", "usage_based", {"segments": ("academy", "enterprise")}, ("PK",)),
+            ("ai_tutor", "ai.tutor", "usage_based", {"segments": ("academy", "school", "enterprise")}, ("PK", "US")),
+            ("ai_tutor_pack", "ai.tutor", "usage_based", {"segments": ("academy", "school", "enterprise", "smb")}, ("PK", "US")),
+            ("learning_analytics_advanced", "learning.analytics.advanced", "usage_based", {"segments": ("academy", "school", "enterprise")}, ("PK", "US")),
+            ("analytics_advanced", "learning.analytics.advanced", "usage_based", {"segments": ("academy", "school", "enterprise", "smb")}, ("PK", "US")),
         )
-        for add_on in defaults:
-            self.upsert_add_on(add_on)
+        for addon_id, capability_id, billing_mode, eligibility_rules, country_scope in defaults:
+            pricing = self.get_capability_pricing(capability_id, country_code=country_scope[0])
+            if pricing is None or not pricing.has_valid_pricing_path():
+                continue
+            self.upsert_add_on(
+                AddOn(
+                    addon_id=addon_id,
+                    capability_id=capability_id,
+                    price=pricing.price,
+                    billing_mode=billing_mode,
+                    eligibility_rules=eligibility_rules,
+                    country_scope=country_scope,
+                    status="active",
+                )
+            )
 
     def upsert_add_on(self, add_on: AddOn) -> None:
         normalized = add_on.normalized()
@@ -410,10 +394,14 @@ class SubscriptionService:
         pricing: CapabilityPricing,
     ) -> Decimal:
         normalized_pricing = pricing.normalized()
-        if normalized_pricing.usage_based:
-            units = self._tenant_usage_ledger.get(tenant_id.strip(), {}).get(normalized_pricing.capability_id, 0)
-            return normalized_pricing.price * Decimal(units)
-        return normalized_pricing.price
+        units = self._tenant_usage_ledger.get(tenant_id.strip(), {}).get(normalized_pricing.capability_id, 0)
+        if normalized_pricing.pricing_mode == PricingMode.INCLUDED:
+            return Decimal("0")
+        if normalized_pricing.pricing_mode == PricingMode.ADDON:
+            return normalized_pricing.base_price
+        if normalized_pricing.pricing_mode == PricingMode.USAGE_BASED:
+            return normalized_pricing.usage_unit_price * Decimal(units)
+        return normalized_pricing.base_price + (normalized_pricing.usage_unit_price * Decimal(units))
 
     def get_plan_capabilities(self, plan_type: str) -> set[str]:
         normalized_plan = plan_type.strip().lower()
@@ -617,7 +605,7 @@ class SubscriptionService:
             plan=SubscriptionPlan(
                 plan_id=plan_type,
                 billing_cycle="monthly",
-                price=Decimal("29.00"),
+                price=sum((self.calculate_capability_charge(tenant_id=tenant_id, pricing=self.get_capability_pricing(capability_id) or CapabilityPricing(capability_id=capability_id, pricing_mode=PricingMode.INCLUDED)) for capability_id in sorted(self.get_plan_capabilities(plan_type))), Decimal("0")),
                 capability_ids=tuple(sorted(self.get_plan_capabilities(plan_type))),
             ),
             source_order_id=source_order_id,

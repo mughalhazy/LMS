@@ -108,7 +108,7 @@ class BillingService:
             status=InvoiceStatus.PENDING,
             currency=order.currency,
             state=InvoiceState.ISSUED,
-            invoice_type="subscription" if order.product.type == ProductType.SUBSCRIPTION else "one_time",
+            invoice_type=(f"subscription:{order.capability_id}" if order.product.type == ProductType.SUBSCRIPTION else f"one_time:{order.capability_id}"),
         )
         ledger = BillingLedgerEntry(
             ledger_entry_id=invoice.ledger_entry_id,
