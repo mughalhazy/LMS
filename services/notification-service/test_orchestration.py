@@ -16,10 +16,16 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 NotificationOrchestrator = module.NotificationOrchestrator
+NotificationOrchestrationConfig = module.NotificationOrchestrationConfig
 
 
 def test_workflow_drives_whatsapp_attendance_and_reminders() -> None:
-    orchestrator = NotificationOrchestrator()
+    orchestrator = NotificationOrchestrator(
+        NotificationOrchestrationConfig(
+            capability_enabled={"whatsapp_primary_interface": True},
+            behavior_tuning={"communication": {"routing_priority": ["sms", "email"]}},
+        )
+    )
     workflow = WorkflowDefinition(
         workflow_id="wf-ops-1",
         name="Ops Attendance",
@@ -57,6 +63,45 @@ def test_workflow_drives_whatsapp_attendance_and_reminders() -> None:
     assert result["workflow_id"] == "wf-ops-1"
     assert result["executed_actions"] == 2
     assert all(item["deliveries"][0]["ok"] for item in result["results"])
+
+
+def test_whatsapp_primary_interface_falls_back_to_sms_then_email_on_failure() -> None:
+    orchestrator = NotificationOrchestrator(
+        NotificationOrchestrationConfig(
+            capability_enabled={"whatsapp_primary_interface": True},
+            behavior_tuning={"communication": {"routing_priority": ["sms", "email"]}},
+            whatsapp_disabled_recipients={"+15550000011"},
+        )
+    )
+
+    attempt = orchestrator.send_notification(
+        tenant_country_code="PK",
+        user_id="+15550000011",
+        message="Routing check",
+    )
+
+    assert attempt.ok is True
+    assert attempt.provider == "sms"
+    assert attempt.fallback_used is True
+
+
+def test_routing_priority_uses_config_when_whatsapp_primary_capability_is_disabled() -> None:
+    orchestrator = NotificationOrchestrator(
+        NotificationOrchestrationConfig(
+            capability_enabled={"whatsapp_primary_interface": False},
+            behavior_tuning={"communication": {"routing_priority": ["email", "sms"]}},
+        )
+    )
+
+    attempt = orchestrator.send_notification(
+        tenant_country_code="US",
+        user_id="+15550000010",
+        message="Config-first email route",
+    )
+
+    assert attempt.ok is True
+    assert attempt.provider == "email"
+    assert attempt.fallback_used is False
 
 
 def test_interactive_reply_is_parsed_for_workflow_update() -> None:

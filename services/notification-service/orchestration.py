@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from integrations.communication import (
     CommunicationRouter,
@@ -20,7 +20,9 @@ from shared.models.workflow import WorkflowAction, WorkflowDefinition
 class NotificationOrchestrationConfig:
     """Configuration for channel adapter ordering and adapter-level controls."""
 
-    fallback_order: Sequence[str] = ("whatsapp", "sms")
+    default_fallback_order: Sequence[str] = ("sms", "email")
+    capability_enabled: Mapping[str, bool] | None = None
+    behavior_tuning: Mapping[str, Any] | None = None
     whatsapp_disabled_recipients: set[str] | None = None
     sms_disabled_recipients: set[str] | None = None
     email_disabled_recipients: set[str] | None = None
@@ -41,8 +43,35 @@ class NotificationOrchestrator:
             "email": EmailAdapter(disabled_recipients=cfg.email_disabled_recipients),
         }
 
-        self._router = CommunicationRouter(adapters=adapters, fallback_order=cfg.fallback_order)
+        fallback_order = self._resolve_fallback_order(config=cfg)
+        self._router = CommunicationRouter(adapters=adapters, fallback_order=fallback_order)
         self.interactive_reply_log: list[dict[str, Any]] = []
+
+    def _resolve_fallback_order(self, *, config: NotificationOrchestrationConfig) -> tuple[str, ...]:
+        behavior_tuning = dict(config.behavior_tuning or {})
+        communication = behavior_tuning.get("communication", {})
+        configured_priority = communication.get("routing_priority", config.default_fallback_order)
+
+        if isinstance(configured_priority, str):
+            candidate_order = [configured_priority]
+        else:
+            candidate_order = [str(item).strip().lower() for item in configured_priority if str(item).strip()]
+
+        capability_enabled = dict(config.capability_enabled or {})
+        if capability_enabled.get("whatsapp_primary_interface", False):
+            candidate_order.insert(0, "whatsapp")
+
+        # Router supports only these channels.
+        supported_channels = {"whatsapp", "sms", "email"}
+        deduped: list[str] = []
+        for channel in candidate_order:
+            if channel not in supported_channels or channel in deduped:
+                continue
+            deduped.append(channel)
+
+        if not deduped:
+            return ("sms",)
+        return tuple(deduped)
 
     def send_notification(self, *, tenant_country_code: str, user_id: str, message: str) -> DeliveryAttempt:
         tenant = Tenant(country_code=tenant_country_code)
