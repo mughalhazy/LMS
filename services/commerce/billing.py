@@ -48,7 +48,7 @@ class BillingService:
             amount=Decimal(order.amount),
             currency=order.currency,
             state=InvoiceState.ISSUED,
-            invoice_type="subscription" if order.product.product_type == ProductType.SUBSCRIPTION else "one_time",
+            invoice_type="subscription" if order.product.type == ProductType.SUBSCRIPTION else "one_time",
         )
         self._invoices[invoice.invoice_id] = invoice
         self._order_to_invoice[order.order_id] = invoice.invoice_id

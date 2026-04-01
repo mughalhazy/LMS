@@ -32,12 +32,12 @@ def test_catalog_checkout_billing_separation_and_completion_flow() -> None:
     commerce.add_product(
         product_id="p_course",
         tenant_id="tenant_1",
-        sku="course-101",
-        product_type=ProductType.COURSE,
+        type=ProductType.COURSE,
         title="Course 101",
+        description="Course 101 access",
         price=Decimal("99.00"),
         currency="USD",
-        metadata={"capability_id": "recommendation.basic"},
+        capability_ids=["recommendation.basic"],
     )
 
     order, invoice = commerce.checkout_and_invoice_sync(
@@ -63,12 +63,12 @@ def test_checkout_retries_and_idempotency() -> None:
     commerce.add_product(
         product_id="p_bundle",
         tenant_id="tenant_2",
-        sku="bundle-201",
-        product_type=ProductType.BUNDLE,
+        type=ProductType.BUNDLE,
         title="Bundle 201",
+        description="Bundle placeholder",
         price=Decimal("149.00"),
         currency="USD",
-        metadata={"capability_id": "assessment.author"},
+        capability_ids=["assessment.author"],
     )
 
     order_a, _ = commerce.checkout_and_invoice_sync(
@@ -97,12 +97,12 @@ def test_subscription_product_activates_subscription_service_contract() -> None:
     commerce.add_product(
         product_id="p_sub",
         tenant_id="tenant_3",
-        sku="sub-301",
-        product_type=ProductType.SUBSCRIPTION,
+        type=ProductType.SUBSCRIPTION,
         title="Pro Subscription",
+        description="Subscription placeholder",
         price=Decimal("29.00"),
         currency="USD",
-        metadata={"capability_id": "assessment.author"},
+        capability_ids=["assessment.author"],
     )
 
     _, invoice = commerce.checkout_and_invoice_sync(

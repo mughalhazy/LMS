@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
@@ -12,69 +11,36 @@ class ProductType(str, Enum):
     SUBSCRIPTION = "subscription"
 
 
-class BundlePricingRule(str, Enum):
-    FLAT = "flat"
-    DISCOUNTED = "discounted"
-
-
 @dataclass(frozen=True)
 class Product:
     product_id: str
     tenant_id: str
-    sku: str
-    product_type: ProductType
+    type: ProductType
     title: str
-    capability_id: str
+    description: str
     price: Decimal
     currency: str
-    published: bool = True
+    capability_ids: list[str]
     metadata: dict[str, str] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    published: bool = True
+
+    @property
+    def primary_capability_id(self) -> str:
+        return self.capability_ids[0]
 
     def normalized(self) -> "Product":
         normalized = Product(
             product_id=self.product_id.strip(),
             tenant_id=self.tenant_id.strip(),
-            sku=self.sku.strip().upper(),
-            product_type=ProductType(self.product_type),
+            type=ProductType(self.type),
             title=self.title.strip(),
-            capability_id=self.capability_id.strip(),
+            description=self.description.strip(),
             price=Decimal(self.price),
             currency=self.currency.strip().upper(),
-            published=bool(self.published),
+            capability_ids=sorted({capability_id.strip() for capability_id in self.capability_ids if capability_id.strip()}),
             metadata={str(k): str(v) for k, v in self.metadata.items()},
-            created_at=self.created_at,
+            published=bool(self.published),
         )
-        if not normalized.capability_id:
-            raise ValueError("product capability_id is required")
+        if not normalized.capability_ids:
+            raise ValueError("product capability_ids are required")
         return normalized
-
-
-@dataclass(frozen=True)
-class Bundle:
-    bundle_id: str
-    tenant_id: str
-    product_ids: tuple[str, ...]
-    pricing_rule: BundlePricingRule
-    bundle_price: Decimal | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-    def normalized(self) -> "Bundle":
-        normalized = Bundle(
-            bundle_id=self.bundle_id.strip(),
-            tenant_id=self.tenant_id.strip(),
-            product_ids=tuple(p.strip() for p in self.product_ids if p.strip()),
-            pricing_rule=BundlePricingRule(self.pricing_rule),
-            bundle_price=Decimal(self.bundle_price) if self.bundle_price is not None else None,
-            created_at=self.created_at,
-        )
-        if not normalized.product_ids:
-            raise ValueError("bundle must include at least one product")
-        return normalized
-
-
-@dataclass(frozen=True)
-class CatalogItem:
-    product: Product
-    bundle_products: tuple[Product, ...] = ()
-    effective_price: Decimal | None = None
