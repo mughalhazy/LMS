@@ -44,6 +44,10 @@ class JazzCashAdapter:
             error=None if payment_id.startswith("jz_") else "verification_failed",
         )
 
+
+    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        return self.verify_payment(payment_id=payment_id, tenant=tenant)
+
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:
             return None

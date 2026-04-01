@@ -357,6 +357,33 @@ class SystemOfRecordService:
         self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
         return entry
 
+    def post_payment_to_ledger_if_missing(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        payment_id: str,
+        amount: Decimal,
+        currency: str = "USD",
+    ) -> LedgerEntry:
+        existing = next(
+            (
+                entry
+                for entry in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)
+                if entry.source_type == "payment" and entry.source_ref == payment_id
+            ),
+            None,
+        )
+        if existing is not None:
+            return existing
+        return self.post_payment_to_ledger(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            payment_id=payment_id,
+            amount=amount,
+            currency=currency,
+        )
+
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
         return tuple(self._ledger.get(key, []))
