@@ -17,6 +17,7 @@ _MODULE = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _MODULE
 _SPEC.loader.exec_module(_MODULE)
 SubscriptionService = _MODULE.SubscriptionService
+TenantSubscription = _MODULE.TenantSubscription
 
 
 def test_purchase_add_on_enables_capability() -> None:
@@ -62,3 +63,30 @@ def test_flat_price_charges_once_for_capability() -> None:
     )
 
     assert total == Decimal("149.00")
+
+
+def test_add_on_purchase_attach_activation_audit_and_revoke() -> None:
+    service = SubscriptionService()
+    service.upsert_tenant_subscription(TenantSubscription(tenant_id="tenant_pk", plan_type="growth_academy"))
+
+    attachment = service.purchase_add_on(tenant_id="tenant_pk", addon_id="owner_analytics", actor_id="tester")
+    assert attachment.capability_id == "owner_analytics"
+    assert "owner_analytics" in service.get_active_add_on_capability_ids("tenant_pk")
+    assert service.get_add_on_activation_audit_log("tenant_pk")[0]["event"] == "activated"
+
+    service.revoke_add_on(tenant_id="tenant_pk", addon_id="owner_analytics", reason="cancelled")
+    assert "owner_analytics" not in service.get_active_add_on_capability_ids("tenant_pk")
+    assert service.get_add_on_activation_audit_log("tenant_pk")[-1]["event"] == "revoked:cancelled"
+
+
+def test_duplicate_add_on_purchase_is_blocked() -> None:
+    service = SubscriptionService()
+    service.upsert_tenant_subscription(TenantSubscription(tenant_id="tenant_pk", plan_type="growth_academy"))
+    service.purchase_add_on(tenant_id="tenant_pk", addon_id="owner_analytics")
+
+    try:
+        service.purchase_add_on(tenant_id="tenant_pk", addon_id="owner_analytics")
+    except ValueError as exc:
+        assert "duplicate add-on purchase" in str(exc)
+    else:
+        raise AssertionError("expected duplicate add-on purchase to be rejected")

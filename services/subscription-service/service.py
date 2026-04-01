@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from services.commerce.billing import BillingService, InvoiceRecord
 from services.commerce.models import SubscriptionPlan
 from shared.models.plan import Plan
+from shared.models.addon import AddOn
 from shared.models.capability_pricing import CapabilityPricing
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -55,12 +56,23 @@ class CommerceSubscription:
     renewals: int = 0
 
 
+@dataclass(frozen=True)
+class TenantAddOnAttachment:
+    tenant_id: str
+    addon_id: str
+    capability_id: str
+    status: str = "active"
+
+
 class SubscriptionService:
     """Source of truth for tenant subscription packaging (plan and add-ons)."""
 
     def __init__(self) -> None:
         self._tenant_subscriptions: dict[str, TenantSubscription] = {}
         self._tenant_add_on_purchases: dict[str, set[str]] = {}
+        self._tenant_add_on_attachments: dict[str, dict[str, TenantAddOnAttachment]] = {}
+        self._add_on_catalog: dict[str, AddOn] = {}
+        self._add_on_activation_audit_log: list[dict[str, str]] = []
         self._tenant_usage_ledger: dict[str, dict[str, int]] = {}
         self._commerce_subscriptions: dict[str, CommerceSubscription] = {}
         self._subscription_plans: dict[str, SubscriptionPlan] = {}
@@ -69,6 +81,7 @@ class SubscriptionService:
         self._subscription_invoices: dict[str, list[InvoiceRecord]] = {}
         self._capability_registry = _load_registry_service()()
         self._bootstrap_plan_catalog()
+        self._bootstrap_add_on_catalog()
 
     def _bootstrap_plan_catalog(self) -> None:
         default_plans = (
@@ -211,6 +224,138 @@ class SubscriptionService:
         for plan in default_plans:
             self.upsert_plan(plan)
 
+    def _bootstrap_add_on_catalog(self) -> None:
+        defaults = (
+            AddOn(
+                addon_id="whatsapp_workflows",
+                capability_id="whatsapp_workflows",
+                price=Decimal("39.00"),
+                billing_mode="recurring",
+                eligibility_rules={"segments": ("academy", "school", "enterprise")},
+                country_scope=("PK",),
+                status="active",
+            ),
+            AddOn(
+                addon_id="installment_billing",
+                capability_id="installment_billing",
+                price=Decimal("29.00"),
+                billing_mode="recurring",
+                eligibility_rules={"segments": ("academy", "school", "enterprise")},
+                country_scope=("PK",),
+                status="active",
+            ),
+            AddOn(
+                addon_id="advanced_secure_media",
+                capability_id="advanced_secure_media",
+                price=Decimal("59.00"),
+                billing_mode="recurring",
+                eligibility_rules={"segments": ("academy", "enterprise")},
+                country_scope=("PK", "US"),
+                status="active",
+            ),
+            AddOn(
+                addon_id="owner_analytics",
+                capability_id="owner_analytics",
+                price=Decimal("49.00"),
+                billing_mode="usage_based",
+                eligibility_rules={"segments": ("academy", "enterprise")},
+                country_scope=("PK",),
+                status="active",
+            ),
+            AddOn(
+                addon_id="ai_tutor",
+                capability_id="ai.tutor",
+                price=Decimal("79.00"),
+                billing_mode="usage_based",
+                eligibility_rules={"segments": ("academy", "school", "enterprise")},
+                country_scope=("PK", "US"),
+                status="active",
+            ),
+            AddOn(
+                addon_id="ai_tutor_pack",
+                capability_id="ai.tutor",
+                price=Decimal("79.00"),
+                billing_mode="usage_based",
+                eligibility_rules={"segments": ("academy", "school", "enterprise", "smb")},
+                country_scope=("PK", "US"),
+                status="active",
+            ),
+            AddOn(
+                addon_id="learning_analytics_advanced",
+                capability_id="learning.analytics.advanced",
+                price=Decimal("0.10"),
+                billing_mode="usage_based",
+                eligibility_rules={"segments": ("academy", "school", "enterprise")},
+                country_scope=("PK", "US"),
+                status="active",
+            ),
+            AddOn(
+                addon_id="analytics_advanced",
+                capability_id="learning.analytics.advanced",
+                price=Decimal("0.10"),
+                billing_mode="usage_based",
+                eligibility_rules={"segments": ("academy", "school", "enterprise", "smb")},
+                country_scope=("PK", "US"),
+                status="active",
+            ),
+        )
+        for add_on in defaults:
+            self.upsert_add_on(add_on)
+
+    def upsert_add_on(self, add_on: AddOn) -> None:
+        normalized = add_on.normalized()
+        self._add_on_catalog[normalized.addon_id] = normalized
+
+    def list_eligible_add_ons(
+        self,
+        *,
+        tenant_id: str,
+        country_code: str,
+        segment_id: str,
+    ) -> list[AddOn]:
+        subscription = self.get_tenant_subscription(tenant_id)
+        if subscription is None:
+            return []
+        eligible_capabilities = self.get_plan_addon_eligible_capabilities(subscription.plan_type)
+        normalized_country = country_code.strip().upper()
+        normalized_segment = segment_id.strip().lower()
+        eligible_add_ons: list[AddOn] = []
+        for add_on in self._add_on_catalog.values():
+            if add_on.status != "active":
+                continue
+            if add_on.capability_id not in eligible_capabilities:
+                continue
+            if add_on.country_scope and normalized_country not in add_on.country_scope:
+                continue
+            segments = add_on.eligibility_rules.get("segments", ())
+            if segments and normalized_segment not in segments:
+                continue
+            eligible_add_ons.append(add_on)
+        return sorted(eligible_add_ons, key=lambda item: item.addon_id)
+
+    def purchase_add_on(
+        self,
+        *,
+        tenant_id: str,
+        addon_id: str,
+        actor_id: str = "system",
+    ) -> TenantAddOnAttachment:
+        normalized_tenant_id = tenant_id.strip()
+        normalized_addon_id = addon_id.strip().lower()
+        add_on = self._add_on_catalog.get(normalized_addon_id)
+        if add_on is None:
+            raise ValueError(f"unknown add-on '{normalized_addon_id}'")
+        attachment = self.attach_add_on_to_tenant_subscription(
+            tenant_id=normalized_tenant_id,
+            addon_id=normalized_addon_id,
+        )
+        self.activate_add_on(
+            tenant_id=normalized_tenant_id,
+            addon_id=normalized_addon_id,
+            actor_id=actor_id,
+        )
+        return attachment
+
     def upsert_plan(self, plan: Plan) -> None:
         normalized = plan.normalized()
         self._plan_catalog[normalized.plan_id] = normalized
@@ -228,6 +373,14 @@ class SubscriptionService:
     def purchase_capability_add_on(self, tenant_id: str, capability_id: str) -> None:
         normalized_tenant_id = tenant_id.strip()
         normalized_capability_id = capability_id.strip()
+        for add_on in self._add_on_catalog.values():
+            if add_on.capability_id == normalized_capability_id and add_on.status == "active":
+                self.purchase_add_on(
+                    tenant_id=normalized_tenant_id,
+                    addon_id=add_on.addon_id,
+                    actor_id="commerce.purchase_capability_add_on",
+                )
+                return
         subscription = self.get_tenant_subscription(normalized_tenant_id)
         if subscription is not None:
             eligible = self.get_plan_addon_eligible_capabilities(subscription.plan_type)
@@ -275,6 +428,84 @@ class SubscriptionService:
             return set()
         return set(plan.addon_eligible_capability_ids)
 
+    def attach_add_on_to_tenant_subscription(self, *, tenant_id: str, addon_id: str) -> TenantAddOnAttachment:
+        normalized_tenant_id = tenant_id.strip()
+        normalized_addon_id = addon_id.strip().lower()
+        add_on = self._add_on_catalog.get(normalized_addon_id)
+        if add_on is None:
+            raise ValueError(f"unknown add-on '{normalized_addon_id}'")
+        attachments = self._tenant_add_on_attachments.setdefault(normalized_tenant_id, {})
+        existing = attachments.get(normalized_addon_id)
+        if existing and existing.status == "active":
+            raise ValueError(f"duplicate add-on purchase not allowed for '{normalized_addon_id}'")
+        attachment = TenantAddOnAttachment(
+            tenant_id=normalized_tenant_id,
+            addon_id=normalized_addon_id,
+            capability_id=add_on.capability_id,
+            status="active",
+        )
+        attachments[normalized_addon_id] = attachment
+        purchased = self._tenant_add_on_purchases.setdefault(normalized_tenant_id, set())
+        purchased.add(add_on.capability_id)
+        return attachment
+
+    def activate_add_on(self, *, tenant_id: str, addon_id: str, actor_id: str) -> None:
+        normalized_tenant_id = tenant_id.strip()
+        normalized_addon_id = addon_id.strip().lower()
+        attachments = self._tenant_add_on_attachments.get(normalized_tenant_id, {})
+        attachment = attachments.get(normalized_addon_id)
+        if attachment is None:
+            raise ValueError(f"add-on '{normalized_addon_id}' is not attached")
+        attachments[normalized_addon_id] = TenantAddOnAttachment(
+            tenant_id=attachment.tenant_id,
+            addon_id=attachment.addon_id,
+            capability_id=attachment.capability_id,
+            status="active",
+        )
+        self._add_on_activation_audit_log.append(
+            {
+                "tenant_id": normalized_tenant_id,
+                "addon_id": normalized_addon_id,
+                "capability_id": attachment.capability_id,
+                "event": "activated",
+                "actor_id": actor_id.strip() or "system",
+            }
+        )
+
+    def revoke_add_on(self, *, tenant_id: str, addon_id: str, reason: str = "expired") -> None:
+        normalized_tenant_id = tenant_id.strip()
+        normalized_addon_id = addon_id.strip().lower()
+        attachments = self._tenant_add_on_attachments.get(normalized_tenant_id, {})
+        attachment = attachments.get(normalized_addon_id)
+        if attachment is None:
+            return
+        attachments[normalized_addon_id] = TenantAddOnAttachment(
+            tenant_id=attachment.tenant_id,
+            addon_id=attachment.addon_id,
+            capability_id=attachment.capability_id,
+            status="revoked",
+        )
+        purchased = self._tenant_add_on_purchases.setdefault(normalized_tenant_id, set())
+        purchased.discard(attachment.capability_id)
+        self._add_on_activation_audit_log.append(
+            {
+                "tenant_id": normalized_tenant_id,
+                "addon_id": normalized_addon_id,
+                "capability_id": attachment.capability_id,
+                "event": f"revoked:{reason.strip() or 'expired'}",
+                "actor_id": "system",
+            }
+        )
+
+    def get_active_add_on_capability_ids(self, tenant_id: str) -> set[str]:
+        normalized_tenant_id = tenant_id.strip()
+        attachments = self._tenant_add_on_attachments.get(normalized_tenant_id, {})
+        return {item.capability_id for item in attachments.values() if item.status == "active"}
+
+    def get_add_on_activation_audit_log(self, tenant_id: str) -> list[dict[str, str]]:
+        normalized_tenant_id = tenant_id.strip()
+        return [entry for entry in self._add_on_activation_audit_log if entry["tenant_id"] == normalized_tenant_id]
+
     def is_enabled_for_subscription(
         self,
         *,
@@ -297,11 +528,10 @@ class SubscriptionService:
 
     def get_add_on_capabilities(self, add_on: str) -> set[str]:
         normalized_add_on = add_on.strip().lower()
-        return {
-            capability.capability_id
-            for capability in self._capability_registry.list_capabilities()
-            if normalized_add_on in capability.included_in_add_ons
-        }
+        add_on_record = self._add_on_catalog.get(normalized_add_on)
+        if add_on_record is None:
+            return set()
+        return {add_on_record.capability_id}
 
     def start_subscription(
         self,

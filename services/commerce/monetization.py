@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from .catalog import Product
 from shared.models.capability_pricing import CapabilityPricing
+from shared.models.addon import AddOn
 from shared.utils.entitlement import TenantEntitlementContext
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +67,29 @@ class CapabilityMonetizationService:
         if self._capability_registry.get_capability(capability_id) is None:
             raise ValueError(f"unknown capability '{capability_id}'")
         self._subscription_service.purchase_capability_add_on(tenant_id, capability_id)
+
+    def list_eligible_add_ons_for_tenant(
+        self,
+        *,
+        tenant: TenantEntitlementContext,
+    ) -> list[AddOn]:
+        normalized_tenant = tenant.normalized()
+        return self._subscription_service.list_eligible_add_ons(
+            tenant_id=normalized_tenant.tenant_id,
+            country_code=normalized_tenant.country_code,
+            segment_id=normalized_tenant.segment_id,
+        )
+
+    def purchase_add_on(self, *, tenant: TenantEntitlementContext, addon_id: str, actor_id: str = "commerce") -> None:
+        normalized_tenant = tenant.normalized()
+        self._subscription_service.purchase_add_on(
+            tenant_id=normalized_tenant.tenant_id,
+            addon_id=addon_id,
+            actor_id=actor_id,
+        )
+
+    def revoke_add_on(self, *, tenant_id: str, addon_id: str, reason: str = "expired") -> None:
+        self._subscription_service.revoke_add_on(tenant_id=tenant_id, addon_id=addon_id, reason=reason)
 
     def usage_billing_hook(self, *, tenant_id: str, capability_id: str, units: int = 1) -> None:
         capability = self._capability_registry.get_capability(capability_id)

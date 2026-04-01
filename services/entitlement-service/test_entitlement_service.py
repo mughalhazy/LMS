@@ -69,3 +69,22 @@ def test_resolve_enabled_capabilities_returns_effective_capability_set() -> None
     assert "assessment.attempt" in resolved
     assert "ai.tutor" in resolved
     assert "assessment.author" not in resolved
+
+
+def test_purchased_add_on_capability_resolves_through_entitlement_service() -> None:
+    service = EntitlementService()
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_addon",
+        plan_type="growth_academy",
+        country_code="PK",
+        segment_id="academy",
+    )
+    service.upsert_tenant_context(tenant)
+
+    service._subscription_service.purchase_add_on(
+        tenant_id="tenant_addon",
+        addon_id="owner_analytics",
+        actor_id="test",
+    )
+
+    assert service.is_enabled(tenant, "owner_analytics") is True
