@@ -13,6 +13,7 @@ from integrations.payments import (
     build_pakistan_payment_router,
 )
 from integrations.payments.base_adapter import BasePaymentAdapter, PaymentVerificationResult
+from integrations.payments.models import PaymentInitiationRequest
 
 
 def test_pakistan_adapters_are_isolated_by_provider_keys() -> None:
@@ -167,3 +168,57 @@ def test_orchestration_accepts_async_callback() -> None:
     assert updated is not None
     assert updated.status == "verified"
     assert updated.verified is True
+
+
+def test_jazzcash_standardized_interface_and_status_mapping() -> None:
+    adapter = JazzCashAdapter(secret_key="top_secret")
+    initiated = adapter.initiate_payment(
+        PaymentInitiationRequest(
+            amount=1000,
+            currency="PKR",
+            tenant_id="tenant_pk",
+            reference_id="inv_1",
+        )
+    )
+    assert initiated.status == "pending"
+    assert initiated.transaction_id.startswith("jz_tenant_pk_")
+
+    pending = adapter.verify_payment(
+        {
+            "transaction_id": initiated.transaction_id,
+            "amount": 1000,
+            "status": "UNKNOWN",
+            "callback_id": "cb_1",
+        }
+    )
+    assert pending.status == "pending"
+
+    duplicate = adapter.verify_payment(
+        {
+            "transaction_id": initiated.transaction_id,
+            "amount": 1000,
+            "status": "SUCCESS",
+            "callback_id": "cb_1",
+        }
+    )
+    assert duplicate.status == "pending"
+
+    success = adapter.verify_payment(
+        {
+            "transaction_id": initiated.transaction_id,
+            "amount": 1000,
+            "status": "SUCCESS",
+            "callback_id": "cb_2",
+        }
+    )
+    assert success.status == "success"
+
+    failed = adapter.verify_payment(
+        {
+            "transaction_id": initiated.transaction_id,
+            "amount": 1000,
+            "status": "FAILED",
+            "callback_id": "cb_3",
+        }
+    )
+    assert failed.status == "failed"
