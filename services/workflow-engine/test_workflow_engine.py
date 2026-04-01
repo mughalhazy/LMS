@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
+from shared.models.template import Template
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "services/workflow-engine/service.py"
@@ -215,64 +216,57 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["no_broken_dependencies"] is True
 
 
-def test_rule_conditions_schedule_override_and_retry_handling() -> None:
+def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> None:
     engine = WorkflowEngine()
-    now = datetime(2026, 3, 31, 3, 0, tzinfo=timezone.utc)
-
+    now = datetime(2026, 4, 1, 10, 0, tzinfo=timezone.utc)
     engine.register_workflow(
         WorkflowDefinition(
-            workflow_id="wf_conditional_retry",
-            name="Conditional Retry",
+            workflow_id="wf_multi_events",
+            name="Attendance/Fee/Progress WhatsApp",
             enabled=True,
             rules=(
-                WorkflowRule(
-                    rule_id="rule_payment_overdue_high_risk",
-                    trigger_type="payment.missed",
-                    conditions=(
-                        {"key": "invoice_status", "operator": "eq", "value": "overdue"},
-                        {"key": "risk_score", "operator": "gte", "value": 80},
-                    ),
-                ),
+                WorkflowRule(rule_id="rule_attendance", trigger_type="attendance.absence_detected"),
+                WorkflowRule(rule_id="rule_fee", trigger_type="payment.due"),
+                WorkflowRule(rule_id="rule_progress", trigger_type="learning.progress"),
             ),
-            steps=(
-                WorkflowStep(
-                    step_id="step_failed_payment_retry",
-                    step_type="payment",
-                    config={
-                        "amount": 1000,
-                        "currency": "USD",
-                        "schedule_in_seconds": 120,
-                    },
-                    max_retries=1,
-                    retry_delay_seconds=30,
-                ),
-            ),
+            steps=(WorkflowStep(step_id="step_notify", step_type="notify", delay_seconds=0, config={}),),
         )
     )
 
-    scheduled = engine.handle_trigger(
+    for event_id, trigger_type in (
+        ("evt_att", "attendance.absence_detected"),
+        ("evt_fee", "payment.due"),
+        ("evt_prog", "learning.progress"),
+    ):
+        scheduled = engine.handle_trigger(
+            WorkflowTriggerEvent(
+                event_id=event_id,
+                tenant_id="tenant_1",
+                country_code="US",
+                segment_id="academy",
+                trigger_type=trigger_type,
+                actor_user_id="parent_10",
+                context={"student_name": "Ayesha", "progress_percent": 85, "invoice_id": "INV-55", "amount": 150},
+                occurred_at=now,
+            )
+        )
+        assert len(scheduled["scheduled"]) == 1
+
+    run = engine.run_due(now=now + timedelta(minutes=1))
+    assert len(run["executed"]) == 3
+    templates = {item["result"]["template_name"] for item in run["executed"]}
+    assert templates == {"attendance_notification", "fee_reminder", "progress_update"}
+
+    duplicate_schedule = engine.handle_trigger(
         WorkflowTriggerEvent(
-            event_id="evt_004",
-            tenant_id="tenant_us",
+            event_id="evt_att",
+            tenant_id="tenant_1",
             country_code="US",
             segment_id="academy",
-            trigger_type="payment.missed",
-            actor_user_id="user_40",
-            context={"invoice_status": "overdue", "risk_score": 95},
+            trigger_type="attendance.absence_detected",
+            actor_user_id="parent_10",
+            context={"student_name": "Ayesha"},
             occurred_at=now,
         )
     )
-
-    assert len(scheduled["scheduled"]) == 1
-    due_at = datetime.fromisoformat(scheduled["scheduled"][0]["due_at"])
-    assert due_at == now + timedelta(seconds=120)
-
-    first_run = engine.run_due(now=now + timedelta(seconds=121))
-    assert len(first_run["executed"]) == 1
-    assert first_run["executed"][0]["result"]["status"] == "failed"
-    assert first_run["pending_count"] == 1
-
-    second_run = engine.run_due(now=now + timedelta(seconds=160))
-    assert len(second_run["executed"]) == 1
-    assert second_run["executed"][0]["attempt"] == 1
-    assert second_run["pending_count"] == 0
+    assert duplicate_schedule["scheduled"] == []

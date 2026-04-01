@@ -25,6 +25,7 @@ from .config import (
     segment_behavior_from_effective_config,
 )
 from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
+from .template import Template
 
 __all__ = [
     "Invoice",
@@ -57,4 +58,5 @@ __all__ = [
     "TimetableSlot",
     "TimetableSlotStatus",
     "AttendanceSessionEvent",
+    "Template",
 ]
