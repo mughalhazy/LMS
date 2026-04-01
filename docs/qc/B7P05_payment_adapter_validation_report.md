@@ -1,62 +1,61 @@
-# B7P05 — Payment & Adapter Validation Report
+# B7P05 — Payment Flow Validation Report
 
 ## Scope
-- JazzCash adapter validation
-- EasyPaisa adapter validation
-- Payment interface and checkout integration boundary checks:
+- Success, failure, retry, and reconciliation flow validation.
+- Payment adapter boundary checks against:
   - `docs/architecture/payment_provider_adapter_interface_contract.md`
   - `docs/architecture/B3P03_checkout_service_design.md`
   - `docs/architecture/B3P01_commerce_domain_architecture.md`
+- Ledger correctness and orphan-transaction prevention.
 
-## Adapter Validation
-- Adapter count validated: **2**
-- Adapters validated:
-  - `jazzcash`
-  - `easypaisa`
-- Interface adherence:
-  - `provider`, `supported_countries`, `supported_methods`
-  - `create_payment(command)`
-  - `verify_payment(command)`
-- Result: **PASS** (all adapters follow the interface)
+## Validation Coverage
+- Adapter count validated: **2** (`jazzcash`, `easypaisa`)
+- Scenario count validated: **3**
+  - `success`
+  - `failure`
+  - `retry`
+- Reconciliation pass validated against settlement references.
 
-## Flow Checks
-### Payment initiation
-- `jazzcash_success`: initiation accepted and normalized to commerce status.
-- `easypaisa_success`: initiation accepted with `requires_action` and next-action URL.
+## Flow Results
+### Success
+- Payment initiated, verified, and captured.
+- Ledger posting created as balanced double-entry journal.
 - Result: **PASS**
 
-### Payment verification
-- Successful initiation paths were verified with normalized verification payloads.
-- Verification traces include deterministic `verified_at` and shared context structure.
+### Failure
+- Terminal provider failure classified as non-retryable (`provider_rejected`).
+- No invalid capture or orphan post-processing generated.
 - Result: **PASS**
 
-### Failure handling
-- Terminal failure validated (`jazzcash_terminal_failure`) with non-retryable `provider_rejected`.
-- Retryable failure validated (`easypaisa_retryable_failure`) with retryable `timeout`.
+### Retry
+- First initiation failed with retryable timeout.
+- Retry attempt succeeded and verified as captured.
+- Attempt history remained attached to one transaction aggregate.
 - Result: **PASS**
 
-### Adapter isolation
-- Provider choice occurs at router resolution stage (`adapter.selected`).
-- Flow steps remain generic (`payment.initiated`, `payment.verified`) and do not branch in core by provider.
+### Reconciliation (QC + Auto-fix)
+- Settlement file included one unknown reference (`pay_orphan_001`).
+- Auto-fix created deterministic reconciled transaction record and attached balanced suspense journal.
+- Orphans before auto-fix: **1**
+- Orphans after auto-fix: **0**
 - Result: **PASS**
 
-### Config-based selection
-- Tenant-to-provider routing validated through configuration mapping.
-- `tenant_academy_pk -> jazzcash`
-- `tenant_enterprise_pk -> easypaisa`
-- Result: **PASS**
+## Ledger & Transaction Integrity
+- Ledger balanced check: **PASS**
+- No orphan transactions after reconciliation: **PASS**
+- Transaction status model remained deterministic (`captured`, `reconciled_orphan`).
 
 ## Validation Output Summary
-- Scenario count: **4**
 - Validation score: **10/10**
 - Issue count: **0**
 
 ## QC FIX RE QC 10/10
-- No provider logic leakage: **PASS**
-- All adapters follow interface: **PASS**
-- Clean separation from core: **PASS**
-- No duplicated flows: **PASS**
-- Failure scenarios handled: **PASS**
+- Success path validated: **PASS**
+- Failure path validated: **PASS**
+- Retry path validated: **PASS**
+- Reconciliation validated: **PASS**
+- Ledger always correct: **PASS**
+- No orphan transactions: **PASS**
 
 ## Artifacts
 - Validation script:
