@@ -123,9 +123,14 @@ class WorkflowEngine:
         self._scheduled_steps: list[ScheduledStep] = []
         self._scheduled_step_keys: set[str] = set()
         self._executed_step_keys: set[str] = set()
+        self._student_parent_map: dict[tuple[str, str], tuple[str, ...]] = {}
 
     def register_workflow(self, definition: WorkflowDefinition) -> None:
         self._workflows[definition.workflow_id] = definition
+
+    def register_parent_student_mapping(self, *, tenant_id: str, student_id: str, parent_user_ids: list[str]) -> None:
+        key = (tenant_id.strip(), student_id.strip())
+        self._student_parent_map[key] = tuple(user_id.strip() for user_id in parent_user_ids if user_id and user_id.strip())
 
     def list_scheduled_steps(self) -> tuple[ScheduledStep, ...]:
         return tuple(sorted(self._scheduled_steps, key=lambda item: item.due_at))
@@ -254,12 +259,22 @@ class WorkflowEngine:
         timestamp = envelope.get("timestamp")
         resolved_timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) if isinstance(timestamp, str) else None
 
+        event_type = str(envelope.get("event_type", ""))
+        if event_type == "attendance.marked":
+            return self._handle_attendance_marked_envelope(
+                envelope=envelope,
+                payload=payload,
+                metadata=metadata,
+                actor=actor,
+                resolved_timestamp=resolved_timestamp,
+            )
+
         trigger_event = WorkflowTriggerEvent(
             event_id=str(envelope.get("event_id", "")),
             tenant_id=str(envelope.get("tenant_id", "")),
             country_code=str(payload.get("country_code") or metadata.get("source_region", "PK")).upper(),
             segment_id=str(payload.get("segment_id") or "academy"),
-            trigger_type=str(envelope.get("event_type", "")),
+            trigger_type=event_type,
             actor_user_id=str(actor.get("user_id") or payload.get("actor_user_id") or "system"),
             context=dict(payload.get("context") or payload),
             timestamp=resolved_timestamp or datetime.now(timezone.utc),
@@ -267,6 +282,88 @@ class WorkflowEngine:
         response = self.handle_trigger(trigger_event)
         self._create_event_action_if_applicable(trigger_event)
         return response
+
+    def _handle_attendance_marked_envelope(
+        self,
+        *,
+        envelope: dict[str, Any],
+        payload: dict[str, Any],
+        metadata: dict[str, Any],
+        actor: dict[str, Any],
+        resolved_timestamp: datetime | None,
+    ) -> dict[str, Any]:
+        tenant_id = str(envelope.get("tenant_id", ""))
+        country_code = str(payload.get("country_code") or metadata.get("source_region", "PK")).upper()
+        segment_id = str(payload.get("segment_id") or "academy")
+        student_id = str(payload.get("student_id") or "")
+        status = self._resolve_attendance_status(payload)
+        parent_user_ids = self._resolve_parent_recipients(tenant_id=tenant_id, student_id=student_id, payload=payload)
+
+        context = dict(payload.get("context") or payload)
+        context["attendance_status"] = status
+        context["notification_recipients"] = parent_user_ids
+        context["student_id"] = student_id
+
+        if status == "present" and not self._is_present_notification_enabled(
+            tenant_id=tenant_id,
+            country_code=country_code,
+            segment_id=segment_id,
+        ):
+            return {
+                "scheduled": [],
+                "trace": [
+                    {"step": "trigger.received", "event_id": str(envelope.get("event_id", ""))},
+                    {"step": "attendance.present_notification_skipped", "reason": "config_disabled"},
+                ],
+            }
+
+        trigger_event = WorkflowTriggerEvent(
+            event_id=str(envelope.get("event_id", "")),
+            tenant_id=tenant_id,
+            country_code=country_code,
+            segment_id=segment_id,
+            trigger_type="attendance.absence_detected" if status == "absent" else "attendance.present_marked",
+            actor_user_id=parent_user_ids[0] if parent_user_ids else str(actor.get("user_id") or payload.get("actor_user_id") or "system"),
+            context=context,
+            timestamp=resolved_timestamp or datetime.now(timezone.utc),
+        )
+        response = self.handle_trigger(trigger_event)
+        response["trace"].append(
+            {
+                "step": "attendance.marked.normalized",
+                "attendance_status": status,
+                "parent_recipients": list(parent_user_ids),
+            }
+        )
+        self._create_event_action_if_applicable(trigger_event)
+        return response
+
+    def _resolve_attendance_status(self, payload: dict[str, Any]) -> str:
+        raw_status = str(payload.get("attendance_status") or payload.get("status") or "").strip().lower()
+        if raw_status in {"present", "absent"}:
+            return raw_status
+        if "present" in payload:
+            return "present" if bool(payload.get("present")) else "absent"
+        return "absent"
+
+    def _resolve_parent_recipients(self, *, tenant_id: str, student_id: str, payload: dict[str, Any]) -> tuple[str, ...]:
+        inline = payload.get("parent_user_ids") or payload.get("guardian_user_ids") or ()
+        if isinstance(inline, (list, tuple)):
+            inline_parents = tuple(str(item).strip() for item in inline if str(item).strip())
+            if inline_parents:
+                return inline_parents
+        return self._student_parent_map.get((tenant_id, student_id), ())
+
+    def _is_present_notification_enabled(self, *, tenant_id: str, country_code: str, segment_id: str) -> bool:
+        effective = self._config_service.resolve(
+            ConfigResolutionContext(
+                tenant_id=tenant_id,
+                country_code=country_code,
+                segment_id=segment_id,
+            )
+        )
+        attendance_settings = effective.behavior_tuning.get("attendance_notifications", {})
+        return bool(attendance_settings.get("notify_on_present", False))
 
     def _create_event_action_if_applicable(self, event: WorkflowTriggerEvent) -> None:
         defaults: dict[str, dict[str, str]] = {
@@ -349,22 +446,51 @@ class WorkflowEngine:
                     )
                     template_context = dict(item.context)
                     template_context.setdefault("message", str(item.step.config.get("message", "workflow notification")))
-                    delivery = self._notification_orchestrator.send_whatsapp_operation(
-                        tenant_country_code=item.country_code,
-                        user_id=item.actor_user_id,
-                        workflow_id=item.workflow_id,
-                        operation=operation,
-                        template_name=template_name,
-                        template_context=template_context,
-                        choices=list(item.step.config.get("choices") or ["ACK"]),
-                        idempotency_key=f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{item.actor_user_id}",
+                    recipients = tuple(item.context.get("notification_recipients") or ()) or (item.actor_user_id,)
+                    routing_order = self._config_service.resolve_communication_routing(
+                        ConfigResolutionContext(
+                            tenant_id=item.tenant_id,
+                            country_code=item.country_code,
+                            segment_id=str(item.context.get("segment_id") or "academy"),
+                        )
                     )
+                    deliveries = []
+                    for recipient in recipients:
+                        if "whatsapp" in routing_order:
+                            delivery = self._notification_orchestrator.send_whatsapp_operation(
+                                tenant_country_code=item.country_code,
+                                user_id=recipient,
+                                workflow_id=item.workflow_id,
+                                operation=operation,
+                                template_name=template_name,
+                                template_context=template_context,
+                                choices=list(item.step.config.get("choices") or ["ACK"]),
+                                idempotency_key=f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{recipient}",
+                            )
+                        else:
+                            fallback_message = self._notification_orchestrator.whatsapp_adapter.render_template_message(
+                                template_name=template_name,
+                                context=template_context,
+                            )
+                            delivery = self._notification_orchestrator.send_notification(
+                                tenant_country_code=item.country_code,
+                                user_id=recipient,
+                                message=fallback_message,
+                            )
+                        deliveries.append(
+                            {
+                                "recipient": recipient,
+                                "ok": delivery.ok,
+                                "provider": delivery.provider,
+                                "fallback_used": delivery.fallback_used,
+                                "error": delivery.error,
+                            }
+                        )
                     result = {
-                        "status": "sent" if delivery.ok else "failed",
-                        "provider": delivery.provider,
-                        "fallback_used": delivery.fallback_used,
-                        "error": delivery.error,
+                        "status": "sent" if deliveries and all(entry["ok"] for entry in deliveries) else "failed",
+                        "deliveries": deliveries,
                         "template_name": template_name,
+                        "routing_order": routing_order,
                     }
                 elif item.step.step_type in {"wait", "escalate"}:
                     result = {"status": "orchestrated", "action": item.step.step_type, "detail": item.step.config}
