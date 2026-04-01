@@ -1,3 +1,4 @@
+from .exam_session import ExamSessionRecord
 from .invoice import Invoice
 from .academy import AcademyDeliveryMode, AcademyEnrollment, AcademyPackage
 from .capability import Capability
@@ -28,8 +29,10 @@ from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatu
 from .template import Template
 from .teacher_performance import TeacherPerformanceSnapshot
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
+from .owner_economics import OwnerEconomicsSnapshot
 
 __all__ = [
+    "ExamSessionRecord",
     "Invoice",
     "AcademyDeliveryMode",
     "AcademyEnrollment",
@@ -66,4 +69,5 @@ __all__ = [
     "alert_card",
     "action_item",
     "priority_bucket",
+    "OwnerEconomicsSnapshot",
 ]

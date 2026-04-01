@@ -228,3 +228,33 @@ def test_offline_sync_commit_updates_canonical_profile_metadata() -> None:
     profile = service.get_student_profile(tenant_id="tenant_sync", student_id="student_sync")
     assert profile is not None
     assert profile.metadata["progress_sync.course_secure.lesson_secure"].startswith("offline-sync:offline-op-1")
+
+
+def test_owner_economics_snapshot_delegates_to_canonical_engine() -> None:
+    service = SystemOfRecordService()
+    service.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_owner",
+            student_id="student_1",
+            full_name="Owner Student",
+            metadata={"country_code": "US", "segment_id": "academy"},
+        )
+    )
+    invoice = Invoice.issued("inv_owner_1", "tenant_owner", Decimal("120"))
+    service.post_invoice_to_ledger(student_id="student_1", invoice=invoice)
+
+    snapshot = service.compute_owner_economics_snapshot(
+        tenant_id="tenant_owner",
+        reporting_period="2026-03",
+        commerce_invoices=(type("InvoiceObj", (), {"amount": Decimal("120")})(),),
+        academy_batches=(
+            type("BatchObj", (), {"batch_id": "batch_owner", "branch_id": "branch_owner", "learner_ids": ("student_1",), "metadata": {}})(),
+        ),
+        academy_branches=(
+            type("BranchObj", (), {"branch_id": "branch_owner", "name": "Owner Branch", "active_batches": ("batch_owner",), "metadata": {}})(),
+        ),
+    )
+
+    assert snapshot.tenant_id == "tenant_owner"
+    assert snapshot.reporting_period == "2026-03"
+    assert snapshot.gross_revenue == Decimal("120")

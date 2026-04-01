@@ -1,57 +1,52 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from decimal import Decimal
+import importlib.util
+import sys
+from pathlib import Path
+from typing import Any
 
-from shared.models.teacher_performance import TeacherPerformanceSnapshot
+_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_module(module_name: str, relative_path: str):
+    module_path = _ROOT / relative_path
+    sys.path.append(str(module_path.parent))
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load module from {relative_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_OwnerEconomicsModule = _load_module("owner_economics_module_for_analytics", "services/commerce/owner_economics.py")
+OwnerEconomicsEngine = _OwnerEconomicsModule.OwnerEconomicsEngine
 
 
 class AnalyticsService:
-    """Read-model helpers for teacher performance analytics."""
+    """Analytics facade that delegates owner economics to canonical commerce engine."""
 
-    def list_teacher_performance(
+    def __init__(self) -> None:
+        self._owner_economics_engine = OwnerEconomicsEngine()
+
+    def compute_owner_economics(
         self,
         *,
-        snapshots: tuple[TeacherPerformanceSnapshot, ...],
         tenant_id: str,
-        teacher_id: str | None = None,
-    ) -> tuple[TeacherPerformanceSnapshot, ...]:
-        rows = [row for row in snapshots if row.tenant_id == tenant_id]
-        if teacher_id is not None:
-            rows = [row for row in rows if row.teacher_id == teacher_id]
-        return tuple(sorted(rows, key=lambda row: row.captured_at))
-
-    def get_teacher_performance_detail(
-        self,
-        *,
-        snapshots: tuple[TeacherPerformanceSnapshot, ...],
-        tenant_id: str,
-        teacher_id: str,
-    ) -> dict[str, object]:
-        rows = self.list_teacher_performance(snapshots=snapshots, tenant_id=tenant_id, teacher_id=teacher_id)
-        if not rows:
-            raise KeyError("teacher performance not found")
-        latest = rows[-1]
-        return {
-            "teacher_id": teacher_id,
-            "tenant_id": tenant_id,
-            "batch_ids": latest.batch_ids,
-            "latest_performance_period": latest.performance_period,
-            "latest_overall_score": latest.overall_score(),
-            "snapshots": rows,
-        }
-
-    def summarize_cross_institution_performance(
-        self,
-        *,
-        snapshots: tuple[TeacherPerformanceSnapshot, ...],
-        teacher_id: str,
-    ) -> dict[str, Decimal]:
-        by_tenant: dict[str, list[Decimal]] = defaultdict(list)
-        for snapshot in snapshots:
-            if snapshot.teacher_id == teacher_id:
-                by_tenant[snapshot.tenant_id].append(snapshot.overall_score())
-        return {
-            tenant_id: (sum(scores, Decimal("0")) / Decimal(len(scores))).quantize(Decimal("0.0001"))
-            for tenant_id, scores in by_tenant.items()
-        }
+        reporting_period: str,
+        ledger_entries: tuple[Any, ...],
+        commerce_invoices: tuple[Any, ...],
+        academy_batches: tuple[Any, ...],
+        academy_branches: tuple[Any, ...],
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        return self._owner_economics_engine.compute_profitability_snapshot(
+            tenant_id=tenant_id,
+            reporting_period=reporting_period,
+            ledger_entries=ledger_entries,
+            commerce_invoices=commerce_invoices,
+            batches=academy_batches,
+            branches=academy_branches,
+            metadata=metadata,
+        )

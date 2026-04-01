@@ -79,6 +79,8 @@ class FeePayment:
     learner_id: str
     payment_id: str
     amount: Decimal
+    batch_id: str | None = None
+    attribution_metadata: dict[str, str] = field(default_factory=dict)
     paid_at: datetime = field(default_factory=datetime.utcnow)
 
 
