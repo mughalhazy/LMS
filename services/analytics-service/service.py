@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import statistics
 import sys
 from pathlib import Path
 from typing import Any
 
-from .models import (
-    LearningOptimizationInsight,
-    LearningOptimizationInsightRequest,
-    RecommendationHooks,
-)
+from shared.models.network_analytics import InstitutionBenchmark, StudentBenchmark, TeacherBenchmark
+from shared.models.teacher_performance import TeacherPerformanceSnapshot
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,7 +29,7 @@ OwnerEconomicsEngine = _OwnerEconomicsModule.OwnerEconomicsEngine
 
 
 class AnalyticsService:
-    """Analytics facade that delegates owner economics to canonical commerce engine."""
+    """Analytics facade for economics and network-effects benchmarks."""
 
     def __init__(self) -> None:
         self._owner_economics_engine = OwnerEconomicsEngine()
@@ -58,153 +56,126 @@ class AnalyticsService:
             metadata=metadata,
         )
 
-    def generate_learning_optimization_insight(
+    def student_performance_benchmark(
         self,
-        req: LearningOptimizationInsightRequest,
-    ) -> LearningOptimizationInsight:
-        system_of_record = req.system_of_record
-        progress = req.progress
-        exam = req.exam_engine
-
-        dropout_score = 0.0
-        engagement_score = 0.0
-        risk_reasons: list[str] = []
-
-        if system_of_record.lifecycle_state in {"paused", "dropped"}:
-            dropout_score += 35
-            risk_reasons.append(f"lifecycle:{system_of_record.lifecycle_state}")
-        if system_of_record.attendance_rate < 80:
-            dropout_score += min(25, (80 - system_of_record.attendance_rate) * 0.7)
-            risk_reasons.append("attendance_decline")
-        if progress.completion_rate < 55:
-            dropout_score += min(20, (55 - progress.completion_rate) * 0.6)
-            risk_reasons.append("low_completion")
-        if progress.missed_deadlines > 0:
-            dropout_score += min(15, progress.missed_deadlines * 3)
-            risk_reasons.append("missed_deadlines")
-        if exam.no_show_count > 0:
-            dropout_score += min(10, exam.no_show_count * 2)
-            risk_reasons.append("exam_no_show")
-
-        if progress.weekly_active_minutes < 90:
-            engagement_score += min(30, (90 - progress.weekly_active_minutes) * 0.25)
-            risk_reasons.append("low_weekly_active_time")
-        if progress.activity_streak_days < 3:
-            engagement_score += (3 - progress.activity_streak_days) * 6
-            risk_reasons.append("inconsistent_learning_habit")
-        if exam.trend_delta < 0:
-            engagement_score += min(18, abs(exam.trend_delta) * 2.5)
-            risk_reasons.append("exam_trend_down")
-        if exam.failed_attempts > 1:
-            engagement_score += min(12, (exam.failed_attempts - 1) * 3)
-            risk_reasons.append("repeated_exam_failures")
-
-        dropout_score = round(min(100.0, dropout_score), 2)
-        engagement_score = round(min(100.0, engagement_score), 2)
-
-        predicted_performance = round(
-            max(
-                0.0,
-                min(
-                    100.0,
-                    (exam.average_score * 0.55)
-                    + (progress.completion_rate * 0.3)
-                    + (min(progress.weekly_active_minutes, 300) / 3 * 0.1)
-                    + (system_of_record.attendance_rate * 0.05)
-                    - (dropout_score * 0.12)
-                    - (engagement_score * 0.08),
-                ),
-            ),
-            2,
-        )
-
-        risk_band = "high" if max(dropout_score, engagement_score) >= 70 else "medium" if max(dropout_score, engagement_score) >= 40 else "low"
-        hooks = self._build_recommendation_hooks(
-            tenant_id=system_of_record.tenant_id,
-            learner_id=system_of_record.learner_id,
-            dropout_score=dropout_score,
-            engagement_score=engagement_score,
-            predicted_performance=predicted_performance,
-            risk_band=risk_band,
-        )
-        insight = LearningOptimizationInsight(
-            tenant_id=system_of_record.tenant_id,
-            learner_id=system_of_record.learner_id,
-            dropout_risk_score=dropout_score,
-            engagement_risk_score=engagement_score,
-            predicted_performance_score=predicted_performance,
-            risk_band=risk_band,
-            risk_reasons=sorted(set(risk_reasons)),
-            recommendation_hooks=hooks,
-            teacher_actions=self._teacher_actions(risk_band, predicted_performance),
-            operations_actions=self._operations_actions(risk_band, system_of_record.overdue_balance),
-            owner_actions=self._owner_actions(risk_band, predicted_performance, req.metadata),
-        )
-        self._learning_optimization_store[(insight.tenant_id, insight.learner_id)] = insight
-        return insight
-
-    def get_learning_optimization_insight(self, *, tenant_id: str, learner_id: str) -> LearningOptimizationInsight | None:
-        return self._learning_optimization_store.get((tenant_id, learner_id))
-
-    @staticmethod
-    def _build_recommendation_hooks(
         *,
         tenant_id: str,
-        learner_id: str,
-        dropout_score: float,
-        engagement_score: float,
-        predicted_performance: float,
-        risk_band: str,
-    ) -> RecommendationHooks:
-        return RecommendationHooks(
-            recommendation_service_input={
-                "tenant_id": tenant_id,
-                "learner_id": learner_id,
-                "risk_band": risk_band,
-                "dropoff_rate": round(dropout_score / 100, 2),
-                "engagement_score": max(0.0, round(100 - engagement_score, 2)),
-                "completion_rate": round(max(0.0, predicted_performance - 8), 2),
-            },
-            ai_tutor_input={
-                "tenant_id": tenant_id,
-                "learner_id": learner_id,
-                "suggested_focus": "exam-readiness" if predicted_performance < 60 else "skill-transfer",
-                "trend_direction": "down" if engagement_score >= 40 else "stable",
-            },
-            automation_tags=[f"risk:{risk_band}", "learning-optimization", "integrated-insight"],
+        cohort_key: str,
+        learner_count: int,
+        average_score: float,
+        completion_rate: float,
+        attendance_rate: float,
+        network_student_scores: tuple[float, ...] = (),
+        comparison_window: str,
+    ) -> StudentBenchmark:
+        scores = [float(s) for s in network_student_scores]
+        base = float(average_score)
+        if not scores:
+            percentile = 1.0
+        else:
+            percentile = sum(1 for s in scores if s <= base) / len(scores)
+        insight = self._student_outcome_insight(base, float(completion_rate), float(attendance_rate), percentile)
+        return StudentBenchmark(
+            tenant_id=tenant_id,
+            cohort_key=cohort_key,
+            learner_count=learner_count,
+            average_score=self._to_decimal(base),
+            completion_rate=self._to_decimal(completion_rate),
+            attendance_rate=self._to_decimal(attendance_rate),
+            percentile_rank=self._to_decimal(percentile),
+            outcome_insight=insight,
+            comparison_window=comparison_window,
+            metadata={"network_sample_size": len(scores), "anonymized": True},
+        ).normalized()
+
+    def teacher_performance_scoring(
+        self,
+        *,
+        teacher_snapshot: TeacherPerformanceSnapshot,
+        network_snapshots: tuple[TeacherPerformanceSnapshot, ...],
+        benchmark_window: str,
+        min_anonymized_sample: int = 3,
+    ) -> TeacherBenchmark:
+        tenant_safe = tuple(s for s in network_snapshots if s.teacher_id != teacher_snapshot.teacher_id)
+        if len(tenant_safe) < min_anonymized_sample:
+            raise ValueError("insufficient anonymized cross-tenant teacher sample")
+        own_score = float(teacher_snapshot.overall_score())
+        peer_scores = [float(snapshot.overall_score()) for snapshot in tenant_safe]
+        percentile = sum(1 for score in peer_scores if score <= own_score) / len(peer_scores)
+        peer_retention_avg = statistics.fmean(float(s.student_retention_score) for s in tenant_safe)
+        outcome_avg = statistics.fmean(
+            (float(s.completion_score) + float(s.engagement_score)) / 2.0 for s in tenant_safe
+        )
+        own_outcome = (float(teacher_snapshot.completion_score) + float(teacher_snapshot.engagement_score)) / 2.0
+        compared_tenants = tuple({snapshot.tenant_id for snapshot in tenant_safe if snapshot.tenant_id != teacher_snapshot.tenant_id})
+
+        return TeacherBenchmark(
+            teacher_id=teacher_snapshot.teacher_id,
+            home_tenant_id=teacher_snapshot.tenant_id,
+            compared_tenant_ids=compared_tenants,
+            performance_score=self._to_decimal(own_score),
+            effectiveness_percentile=self._to_decimal(percentile),
+            learner_outcome_delta=self._to_decimal(own_outcome - outcome_avg),
+            retention_delta=self._to_decimal(float(teacher_snapshot.student_retention_score) - peer_retention_avg),
+            benchmark_window=benchmark_window,
+            metadata={"network_sample_size": len(peer_scores), "anonymized": True},
+        ).normalized()
+
+    def institution_benchmark(
+        self,
+        *,
+        institution_key: str,
+        student_benchmarks: tuple[StudentBenchmark, ...],
+        teacher_benchmarks: tuple[TeacherBenchmark, ...],
+        comparison_window: str,
+        min_anonymized_tenants: int = 2,
+    ) -> InstitutionBenchmark:
+        tenant_ids = {benchmark.tenant_id for benchmark in student_benchmarks}
+        tenant_ids.update(benchmark.home_tenant_id for benchmark in teacher_benchmarks)
+        if len(tenant_ids) < min_anonymized_tenants:
+            raise ValueError("insufficient participating tenants for anonymized institution benchmark")
+
+        student_scores = [float(benchmark.average_score) for benchmark in student_benchmarks] or [0.0]
+        teacher_scores = [float(benchmark.performance_score) for benchmark in teacher_benchmarks] or [0.0]
+        total_learners = sum(benchmark.learner_count for benchmark in student_benchmarks)
+        cohort_ranked = sorted(student_benchmarks, key=lambda b: b.percentile_rank, reverse=True)
+        learning_outcome_index = (
+            statistics.fmean(float(benchmark.completion_rate) for benchmark in student_benchmarks) * 0.6
+            + statistics.fmean(float(benchmark.attendance_rate) for benchmark in student_benchmarks) * 0.4
+            if student_benchmarks
+            else 0.0
         )
 
-    @staticmethod
-    def _teacher_actions(risk_band: str, predicted_performance: float) -> list[str]:
-        actions = [
-            "Assign a focused weekly intervention plan with 2 measurable checkpoints.",
-            "Review learner misconceptions from latest exams and reinforce with guided practice.",
-        ]
-        if risk_band == "high":
-            actions.append("Schedule 1:1 support session within 48 hours and notify guardian/sponsor where applicable.")
-        if predicted_performance < 50:
-            actions.append("Move learner to remediation path before next high-stakes assessment.")
-        return actions
+        return InstitutionBenchmark(
+            institution_key=institution_key,
+            participating_tenants=tuple(tenant_ids),
+            cohort_count=len(student_benchmarks),
+            total_learners=total_learners,
+            median_student_score=self._to_decimal(statistics.median(student_scores)),
+            median_teacher_score=self._to_decimal(statistics.median(teacher_scores)),
+            learning_outcome_index=self._to_decimal(learning_outcome_index),
+            top_cohort_keys=tuple(benchmark.cohort_key for benchmark in cohort_ranked[:3]),
+            comparison_window=comparison_window,
+            anonymized=True,
+            metadata={
+                "student_sample": len(student_benchmarks),
+                "teacher_sample": len(teacher_benchmarks),
+                "cohort_comparison_enabled": True,
+            },
+        ).normalized()
 
     @staticmethod
-    def _operations_actions(risk_band: str, overdue_balance: float) -> list[str]:
-        actions = [
-            "Track this learner in weekly retention operations review.",
-            "Verify nudges and reminders are active for this learner cohort.",
-        ]
-        if overdue_balance > 0:
-            actions.append("Coordinate finance outreach to resolve overdue balance blocking engagement.")
-        if risk_band in {"high", "medium"}:
-            actions.append("Escalate to learner success specialist for proactive outreach.")
-        return actions
+    def _to_decimal(value: float) -> Any:
+        from decimal import Decimal
+
+        return Decimal(str(round(float(value), 4)))
 
     @staticmethod
-    def _owner_actions(risk_band: str, predicted_performance: float, metadata: dict[str, Any]) -> list[str]:
-        cohort_id = metadata.get("cohort_id", "unknown-cohort")
-        actions = [
-            f"Monitor cohort {cohort_id} risk concentration in owner dashboard.",
-            "Review ROI impact of interventions in monthly performance business review.",
-        ]
-        if risk_band == "high" or predicted_performance < 55:
-            actions.append("Approve additional coaching capacity for high-risk cohort segment.")
-        return actions
+    def _student_outcome_insight(score: float, completion: float, attendance: float, percentile: float) -> str:
+        if completion >= 0.85 and attendance >= 0.85 and percentile >= 0.75:
+            return "high_outcome_momentum"
+        if completion < 0.6 or attendance < 0.6:
+            return "intervention_recommended"
+        if score >= 0.7 and percentile >= 0.5:
+            return "stable_progress"
+        return "monitoring_required"
