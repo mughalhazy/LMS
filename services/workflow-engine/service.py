@@ -647,6 +647,7 @@ class WorkflowEngine:
                 enabled=True,
                 rules=(
                     WorkflowRule(rule_id="rule_attendance_absence", trigger_type="attendance.absence_detected"),
+                    WorkflowRule(rule_id="rule_attendance_present", trigger_type="attendance.present_marked"),
                 ),
                 steps=(
                     WorkflowStep(step_id="step_attendance_notify", step_type="notify", config={"message": "Attendance alert triggered."}),
@@ -659,6 +660,10 @@ class WorkflowEngine:
                 enabled=True,
                 rules=(
                     WorkflowRule(rule_id="rule_fee_missed", trigger_type="payment.missed"),
+                    WorkflowRule(rule_id="rule_fee_due", trigger_type="fee.due"),
+                    WorkflowRule(rule_id="rule_fee_overdue", trigger_type="fee.overdue"),
+                    WorkflowRule(rule_id="rule_payment_due", trigger_type="payment.due"),
+                    WorkflowRule(rule_id="rule_payment_overdue", trigger_type="payment.overdue"),
                 ),
                 steps=(
                     WorkflowStep(step_id="step_fees_notify", step_type="notify", config={"message": "Fee reminder sent."}),

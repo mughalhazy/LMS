@@ -102,6 +102,8 @@ class WhatsAppAdapter(CommunicationAdapter):
 
         workflow_id = tokens.get("wf")
         operation = tokens.get("op", "update").lower()
+        if operation == "fee":
+            operation = "reminder"
         action = tokens.get("action", "ack").lower()
 
         if not workflow_id or operation not in {"attendance", "reminder", "update"}:
