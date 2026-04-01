@@ -181,13 +181,13 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
     )
 
     assert first.payment_id is not None
-    assert first.status == "pending_verification"
+    assert first.status == "pending"
     assert second.payment_id == first.payment_id
     assert adapter.calls == 2
 
     verified = asyncio.run(orchestrator.await_verification(idempotency_key="idem_1"))
     assert verified.verified is True
-    assert verified.status == "verified"
+    assert verified.status == "success"
     assert verified.verified_at is not None
 
 
@@ -211,7 +211,7 @@ def test_orchestration_accepts_async_callback() -> None:
     )
 
     assert updated is not None
-    assert updated.status == "verified"
+    assert updated.status == "success"
     assert updated.verified is True
 
 
