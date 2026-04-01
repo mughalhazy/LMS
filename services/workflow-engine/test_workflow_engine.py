@@ -195,7 +195,7 @@ def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
     results = {item["step_id"]: item["result"] for item in run["executed"]}
     assert results["step_notify"]["status"] == "sent"
     assert results["step_ops_qc"]["status"] == "orchestrated"
-    assert results["step_collect_payment"]["status"] in {"pending_verification", "verified"}
+    assert results["step_collect_payment"]["status"] in {"pending", "success"}
     assert run["pending_count"] == 0
 
 
