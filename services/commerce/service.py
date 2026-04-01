@@ -162,6 +162,27 @@ class CommerceService:
         self.billing._invoices[invoice.invoice_id] = invoice
         return invoice
 
+    def record_teacher_revenue_share(
+        self,
+        *,
+        tenant_id: str,
+        batch_id: str,
+        teacher_id: str,
+        invoice_id: str,
+        revenue_amount: Decimal,
+        payout_amount: Decimal,
+    ) -> dict[str, str]:
+        record = {
+            "tenant_id": tenant_id,
+            "batch_id": batch_id,
+            "teacher_id": teacher_id,
+            "invoice_id": invoice_id,
+            "revenue_amount": str(Decimal(revenue_amount).quantize(Decimal("0.01"))),
+            "payout_amount": str(Decimal(payout_amount).quantize(Decimal("0.01"))),
+        }
+        self._teacher_revenue_share_records.append(record)
+        return record
+
     def enable_capability_add_on(self, *, tenant_id: str, capability_id: str, country_code: str = "", plan_id: str = "") -> None:
         self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id, country_code=country_code or self._payment_country_code, plan_id=plan_id)
 

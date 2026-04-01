@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.academy import AcademyEnrollment
 from shared.models.invoice import Invoice
+from shared.models.teacher_economics import TeacherBatchEconomics
 from shared.models.timetable import AttendanceSessionEvent, TimetableSlotStatus
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -197,6 +198,9 @@ class AcademyOpsService:
         self._revenue_share_agreements: dict[tuple[str, str], RevenueShareAgreement] = {}
         self._teacher_performance: dict[tuple[str, str], list[TeacherPerformanceSnapshot]] = {}
         self._teacher_payouts: dict[tuple[str, str], list[TeacherPayoutRecord]] = {}
+        self._teacher_batch_economics: dict[tuple[str, str], TeacherBatchEconomics] = {}
+        self._invoice_batch_attribution: dict[tuple[str, str], str] = {}
+        self._invoice_learner_attribution: dict[tuple[str, str], str] = {}
         self._tenant_profile_hints: dict[str, tuple[str | None, str | None]] = {}
 
         self._domain_owner = {
@@ -516,6 +520,100 @@ class AcademyOpsService:
             raise ValueError("teacher must be assigned to batch before configuring revenue share")
         self._revenue_share_agreements[self._key(agreement.tenant_id, agreement.batch_id)] = agreement
         return agreement
+
+    def mark_batch_teacher_owned(
+        self,
+        *,
+        tenant_id: str,
+        branch_id: str,
+        batch_id: str,
+        teacher_id: str,
+        ownership_mode: str = "teacher_owned",
+        payout_schedule: str = "monthly",
+        metadata: dict[str, str] | None = None,
+    ) -> TeacherBatchEconomics:
+        assignment = self._teacher_assignments.get(self._key(tenant_id, batch_id), {}).get(teacher_id)
+        if assignment is None:
+            raise ValueError("teacher must be assigned to batch before ownership is enabled")
+        owned_assignment = replace(
+            assignment,
+            teacher_owned_batch=True,
+            ownership_metadata={**assignment.ownership_metadata, **(metadata or {}), "ownership_mode": ownership_mode},
+        )
+        self.assign_teacher_to_batch(owned_assignment)
+        economics = self._teacher_batch_economics.get(self._key(tenant_id, batch_id))
+        if economics is None:
+            economics = TeacherBatchEconomics(
+                teacher_id=teacher_id,
+                batch_id=batch_id,
+                ownership_mode=ownership_mode,
+                revenue_share_percent=Decimal("0"),
+                payout_schedule=payout_schedule,
+                metadata={"tenant_id": tenant_id, **(metadata or {})},
+            )
+        self._teacher_batch_economics[self._key(tenant_id, batch_id)] = economics
+        return economics
+
+    def assign_revenue_share(
+        self,
+        *,
+        tenant_id: str,
+        batch_id: str,
+        teacher_id: str,
+        revenue_share_percent: Decimal,
+        payout_schedule: str = "monthly",
+        metadata: dict[str, str] | None = None,
+    ) -> TeacherBatchEconomics:
+        share = Decimal(revenue_share_percent)
+        if share < Decimal("0") or share > Decimal("100"):
+            raise ValueError("revenue_share_percent must be between 0 and 100")
+        agreement = self.configure_revenue_share(
+            RevenueShareAgreement(
+                tenant_id=tenant_id,
+                batch_id=batch_id,
+                teacher_id=teacher_id,
+                share_ratio=(share / Decimal("100")).quantize(Decimal("0.0001")),
+            )
+        )
+        existing = self._teacher_batch_economics.get(self._key(tenant_id, batch_id))
+        economics = TeacherBatchEconomics(
+            teacher_id=teacher_id,
+            batch_id=batch_id,
+            ownership_mode=(existing.ownership_mode if existing else "teacher_owned"),
+            revenue_share_percent=share.quantize(Decimal("0.01")),
+            payout_schedule=payout_schedule,
+            earnings_to_date=existing.earnings_to_date if existing else Decimal("0.00"),
+            pending_payout_amount=existing.pending_payout_amount if existing else Decimal("0.00"),
+            metadata={**(existing.metadata if existing else {"tenant_id": tenant_id}), **(metadata or {}), "agreement_share_ratio": str(agreement.share_ratio)},
+        )
+        self._teacher_batch_economics[self._key(tenant_id, batch_id)] = economics
+        return economics
+
+    def calculate_teacher_batch_earnings(self, *, tenant_id: str, batch_id: str) -> TeacherBatchEconomics:
+        economics = self._teacher_batch_economics.get(self._key(tenant_id, batch_id))
+        if economics is None:
+            raise KeyError("teacher batch economics not found")
+        payouts = self._teacher_payouts.get(self._key(tenant_id, batch_id), [])
+        earnings = sum((payout.payout_amount for payout in payouts if payout.teacher_id == economics.teacher_id), start=Decimal("0.00"))
+        updated = replace(
+            economics,
+            earnings_to_date=earnings.quantize(Decimal("0.01")),
+            pending_payout_amount=earnings.quantize(Decimal("0.01")),
+        )
+        self._teacher_batch_economics[self._key(tenant_id, batch_id)] = updated
+        return updated
+
+    def list_teacher_owned_batches(self, *, tenant_id: str, teacher_id: str) -> tuple[Batch, ...]:
+        owned_batch_ids = [
+            batch_id
+            for (econ_tenant_id, batch_id), economics in self._teacher_batch_economics.items()
+            if econ_tenant_id == tenant_id and economics.teacher_id == teacher_id
+        ]
+        return tuple(
+            self._batches[self._key(tenant_id, batch_id)]
+            for batch_id in owned_batch_ids
+            if self._key(tenant_id, batch_id) in self._batches
+        )
 
     def record_teacher_performance(self, snapshot: TeacherPerformanceSnapshot) -> TeacherPerformanceSnapshot:
         batch_key = self._key(snapshot.tenant_id, snapshot.batch_id)
@@ -846,6 +944,7 @@ class AcademyOpsService:
         self._fee_invoices.setdefault(key, []).append(invoice)
         self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
         self._fee_invoice_status[self._key(invoice.tenant_id, learner_id, invoice.invoice_id)] = invoice.status
+        self._invoice_learner_attribution[self._key(invoice.tenant_id, invoice.invoice_id)] = learner_id
 
     def ingest_commerce_invoice(self, *, learner_id: str, invoice_record: Any) -> Invoice:
         invoice = Invoice.issued(
@@ -871,6 +970,15 @@ class AcademyOpsService:
             self._teacher_assignments.get(batch_key, {}).get(primary_teacher_id) if primary_teacher_id else None
         )
         if agreement is not None and assignment is not None:
+            if self._key(invoice.tenant_id, batch_id) not in self._teacher_batch_economics:
+                self._teacher_batch_economics[self._key(invoice.tenant_id, batch_id)] = TeacherBatchEconomics(
+                    teacher_id=assignment.teacher_id,
+                    batch_id=batch_id,
+                    ownership_mode="teacher_owned",
+                    revenue_share_percent=(agreement.share_ratio * Decimal("100")).quantize(Decimal("0.01")),
+                    payout_schedule="monthly",
+                    metadata={"tenant_id": invoice.tenant_id, "source": "invoice_ingestion_backfill"},
+                )
             payout_amount = (Decimal(invoice.amount) * agreement.share_ratio).quantize(Decimal("0.01"))
             payout = TeacherPayoutRecord(
                 tenant_id=invoice.tenant_id,
@@ -881,6 +989,28 @@ class AcademyOpsService:
                 payout_amount=payout_amount,
             )
             self._teacher_payouts.setdefault(batch_key, []).append(payout)
+            self._invoice_batch_attribution[self._key(invoice.tenant_id, invoice.invoice_id)] = batch_id
+            learner_id_for_invoice = self._invoice_learner_attribution.get(self._key(invoice.tenant_id, invoice.invoice_id), learner_id)
+            self._sor.post_teacher_payout_audit_to_ledger(
+                tenant_id=invoice.tenant_id,
+                student_id=learner_id_for_invoice,
+                batch_id=batch_id,
+                teacher_id=assignment.teacher_id,
+                payout_id=f"{invoice.invoice_id}:{assignment.teacher_id}",
+                invoice_id=invoice.invoice_id,
+                revenue_amount=Decimal(invoice.amount),
+                payout_amount=payout_amount,
+            )
+            if self._commerce is not None and hasattr(self._commerce, "record_teacher_revenue_share"):
+                self._commerce.record_teacher_revenue_share(
+                    tenant_id=invoice.tenant_id,
+                    batch_id=batch_id,
+                    teacher_id=assignment.teacher_id,
+                    invoice_id=invoice.invoice_id,
+                    revenue_amount=Decimal(invoice.amount),
+                    payout_amount=payout_amount,
+                )
+            self.calculate_teacher_batch_earnings(tenant_id=invoice.tenant_id, batch_id=batch_id)
         return invoice
 
     def teacher_payouts(self, *, tenant_id: str, batch_id: str) -> tuple[TeacherPayoutRecord, ...]:
@@ -1008,6 +1138,23 @@ class AcademyOpsService:
             )
         )
         self._fee_invoice_status[self._key(tenant_id, learner_id, invoice_id)] = "paid"
+        batch_id = self._invoice_batch_attribution.get(self._key(tenant_id, invoice_id))
+        if batch_id is not None:
+            economics = self._teacher_batch_economics.get(self._key(tenant_id, batch_id))
+            if economics is not None:
+                payout_total = sum(
+                    (
+                        payout.payout_amount
+                        for payout in self._teacher_payouts.get(self._key(tenant_id, batch_id), ())
+                        if payout.invoice_id == invoice_id and payout.teacher_id == economics.teacher_id
+                    ),
+                    start=Decimal("0.00"),
+                )
+                if payout_total > 0:
+                    self._teacher_batch_economics[self._key(tenant_id, batch_id)] = replace(
+                        economics,
+                        pending_payout_amount=(economics.pending_payout_amount - payout_total).quantize(Decimal("0.01")),
+                    )
         self._sor.set_student_fee_overdue_status(
             tenant_id=tenant_id,
             student_id=learner_id,

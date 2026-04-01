@@ -432,6 +432,34 @@ class SystemOfRecordService:
         self._refresh_ledger_summary(*key)
         return entry
 
+    def post_teacher_payout_audit_to_ledger(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        batch_id: str,
+        teacher_id: str,
+        payout_id: str,
+        invoice_id: str,
+        revenue_amount: Decimal,
+        payout_amount: Decimal,
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"teacher_payout_{payout_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            source_type="teacher_payout",
+            amount=Decimal("0"),
+            currency="USD",
+            source_ref=payout_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
     def set_student_fee_overdue_status(
         self,
         *,
