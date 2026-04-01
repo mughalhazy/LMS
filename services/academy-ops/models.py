@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 
 from shared.models.branch import Branch, BranchStatus
+from shared.models.timetable import TimetableSlotStatus
 
 
 class TeacherRole(str, Enum):
@@ -44,19 +45,26 @@ class TimetableSlot:
     batch_id: str
     slot_id: str
     teacher_id: str
-    start_at: datetime
-    end_at: datetime
-    room: str
+    day_of_week: str
+    start_time: time
+    end_time: time
+    room_or_virtual_link: str
+    recurrence_rule: str
+    status: TimetableSlotStatus = TimetableSlotStatus.SCHEDULED
 
 
 @dataclass(frozen=True)
 class AttendanceRecord:
+    attendance_id: str
     tenant_id: str
     branch_id: str
     batch_id: str
-    learner_id: str
-    slot_id: str
-    present: bool
+    class_session_id: str
+    student_id: str
+    teacher_id: str
+    status: str
+    notes: str = ""
+    marked_at: datetime = field(default_factory=datetime.utcnow)
 
 
 @dataclass(frozen=True)
