@@ -3,8 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 
-from shared.models.timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
+
+class TeacherRole(str, Enum):
+    PRIMARY = "primary_teacher"
+    ASSISTANT = "assistant_teacher"
 
 
 @dataclass(frozen=True)
@@ -35,7 +39,22 @@ class TeacherAssignment:
     branch_id: str
     batch_id: str
     teacher_id: str
+    role: TeacherRole = TeacherRole.PRIMARY
+    teacher_owned_batch: bool = False
+    ownership_metadata: dict[str, str] = field(default_factory=dict)
     assigned_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass(frozen=True)
+class TimetableSlot:
+    tenant_id: str
+    branch_id: str
+    batch_id: str
+    slot_id: str
+    teacher_id: str
+    start_at: datetime
+    end_at: datetime
+    room: str
 
 
 @dataclass(frozen=True)
@@ -92,18 +111,3 @@ class TeacherPayoutRecord:
     revenue_amount: Decimal
     payout_amount: Decimal
     created_at: datetime = field(default_factory=datetime.utcnow)
-
-
-__all__ = [
-    "AttendanceRecord",
-    "AttendanceSessionEvent",
-    "Batch",
-    "Branch",
-    "FeePayment",
-    "RevenueShareAgreement",
-    "TeacherAssignment",
-    "TeacherPerformanceSnapshot",
-    "TeacherPayoutRecord",
-    "TimetableSlot",
-    "TimetableSlotStatus",
-]

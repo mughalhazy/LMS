@@ -4,7 +4,6 @@ from fastapi import Depends, FastAPI, Header, Response
 
 from .schemas import (
     AddMembershipRequest,
-    CohortKind,
     CohortResponse,
     CohortWithMembershipsResponse,
     CreateCohortRequest,
@@ -29,8 +28,7 @@ def create_cohort(request: CreateCohortRequest, tenant: TenantContext = Depends(
 
 @app.post("/api/v1/batches", response_model=CohortResponse, status_code=201)
 def create_batch(request: CreateCohortRequest, tenant: TenantContext = Depends(get_tenant_context)) -> CohortResponse:
-    request.kind = CohortKind.ACADEMY_BATCH
-    return service.create_cohort(tenant.tenant_id, request)
+    return service.create_batch(tenant.tenant_id, request)
 
 
 @app.get("/api/v1/cohorts", response_model=list[CohortResponse])

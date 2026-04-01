@@ -80,6 +80,10 @@ class CohortService:
         )
         return CohortResponse.model_validate(cohort)
 
+    def create_batch(self, tenant_id: str, request: CreateCohortRequest) -> CohortResponse:
+        request.kind = CohortKind.ACADEMY_BATCH
+        return self.create_cohort(tenant_id, request)
+
     def list_cohorts(self, tenant_id: str) -> list[CohortResponse]:
         self.observability.inc("cohort_reads_total")
         return [CohortResponse.model_validate(record) for record in self.store.list_cohorts(tenant_id)]
@@ -182,6 +186,31 @@ class CohortService:
             actor_id=removed_by,
             details={"cohort_id": cohort_id, "membership_id": membership_id},
         )
+
+    def archive_batch(self, tenant_id: str, batch_id: str, archived_by: str) -> CohortResponse:
+        cohort = self._require_cohort(tenant_id, batch_id)
+        if cohort.kind != CohortKind.ACADEMY_BATCH:
+            raise HTTPException(status_code=422, detail="archive_batch only supports academy_batch cohorts")
+        cohort.status = CohortStatus.ARCHIVED
+        cohort.updated_at = self._now()
+        self.store.save_cohort(cohort)
+        self.audit.log(
+            event_type="cohort.batch_archived",
+            tenant_id=tenant_id,
+            actor_id=archived_by,
+            details={"cohort_id": cohort.cohort_id},
+        )
+        return CohortResponse.model_validate(cohort)
+
+    def list_batch_roster(self, tenant_id: str, batch_id: str) -> dict[str, list[str]]:
+        cohort = self._require_cohort(tenant_id, batch_id)
+        if cohort.kind != CohortKind.ACADEMY_BATCH:
+            raise HTTPException(status_code=422, detail="list_batch_roster only supports academy_batch cohorts")
+        memberships = self.store.list_memberships(tenant_id, batch_id)
+        return {
+            "learner_ids": [m.user_id for m in memberships if m.role == "learner"],
+            "teacher_ids": [m.user_id for m in memberships if m.role in {"instructor", "mentor"}],
+        }
 
     def delete_cohort(self, tenant_id: str, cohort_id: str, deleted_by: str) -> None:
         cohort = self._require_cohort(tenant_id, cohort_id)
