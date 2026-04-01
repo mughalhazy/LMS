@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import importlib.util
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +22,22 @@ _spec.loader.exec_module(_models)
 
 ExamSession = _models.ExamSession
 TenantCapacityProfile = _models.TenantCapacityProfile
+
+try:
+    from models import AuditRecord, ExamSession, QueuedExamSession, TenantCapacityProfile, TenantPartition
+except ModuleNotFoundError:
+    _models_path = Path(__file__).with_name("models.py")
+    _models_spec = importlib.util.spec_from_file_location("exam_engine_models", _models_path)
+    if _models_spec is None or _models_spec.loader is None:
+        raise RuntimeError("Unable to load exam engine models module")
+    _models_module = importlib.util.module_from_spec(_models_spec)
+    sys.modules[_models_spec.name] = _models_module
+    _models_spec.loader.exec_module(_models_module)
+    AuditRecord = _models_module.AuditRecord
+    ExamSession = _models_module.ExamSession
+    QueuedExamSession = _models_module.QueuedExamSession
+    TenantCapacityProfile = _models_module.TenantCapacityProfile
+    TenantPartition = _models_module.TenantPartition
 
 
 class LearningIntegration(Protocol):
@@ -123,21 +142,23 @@ class ExamEngineService:
 
     def register_tenant(self, tenant_id: str, profile: TenantCapacityProfile | None = None) -> None:
         if tenant_id not in self._tenant_partitions:
-            self._tenant_partitions[tenant_id] = _TenantPartition(profile=profile or TenantCapacityProfile())
+            self._tenant_partitions[tenant_id] = TenantPartition(profile=profile or TenantCapacityProfile())
 
-    def _partition_for(self, tenant_id: str) -> _TenantPartition:
+    def _partition_for(self, tenant_id: str) -> TenantPartition:
         if tenant_id not in self._tenant_partitions:
             self.register_tenant(tenant_id)
         return self._tenant_partitions[tenant_id]
 
     def _next_session_id(self, tenant_id: str) -> str:
-        session_number = self._next_session_number
-        self._next_session_number += 1
+        partition = self._partition_for(tenant_id)
+        session_number = partition.next_session_number
+        partition.next_session_number += 1
         return f"{tenant_id}-exam-session-{session_number}"
 
-    def _shard_for_session(self, *, tenant_id: str, session_id: str) -> int:
+    def _stable_shard(self, *, tenant_id: str, learner_id: str, exam_id: str) -> int:
         shard_count = self._partition_for(tenant_id).profile.shard_count
-        return abs(hash((tenant_id, session_id))) % shard_count
+        digest = hashlib.sha256(f"{tenant_id}:{learner_id}:{exam_id}".encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) % shard_count
 
     def _publish(self, payload: dict[str, Any]) -> None:
         self._learning.publish_exam_session_event(payload)
@@ -281,6 +302,7 @@ class ExamEngineService:
             "exam_id": session.exam_id,
             "score": score,
             "submitted_at": session.submitted_at.isoformat() if session.submitted_at else None,
+            "assigned_shard": session.assigned_shard,
         }
         self._publish(event_envelope)
         self._progress.publish_progress_update(
@@ -335,7 +357,24 @@ class ExamEngineService:
             "completed_sessions": status_counts["submitted"],
             "status_counts": status_counts,
             "shard_load": {
-                shard_id: len(partition.shards[shard_id])
-                for shard_id in sorted(partition.shards)
+                shard_id: len(partition.shard_active_sessions[shard_id])
+                for shard_id in sorted(partition.shard_active_sessions)
+            },
+            "queue_depth": {
+                shard_id: len(partition.shard_queues[shard_id])
+                for shard_id in sorted(partition.shard_queues)
             },
         }
+
+    def tenant_audit_log(self, tenant_id: str) -> list[dict[str, Any]]:
+        partition = self._partition_for(tenant_id)
+        return [
+            {
+                "sequence": record.sequence,
+                "timestamp": record.timestamp.isoformat(),
+                "tenant_id": record.tenant_id,
+                "action": record.action,
+                "details": dict(record.details),
+            }
+            for record in partition.audit_log
+        ]
