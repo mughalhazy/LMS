@@ -1,7 +1,7 @@
 """Commerce domain package with strict module boundaries."""
 
 from .billing import BillingService, InvoiceRecord, InvoiceState
-from .catalog import CatalogProduct, CatalogService, Product, ProductType
+from .catalog import CatalogService, Product, ProductType
 from .checkout import (
     CheckoutService,
     CheckoutSession,
@@ -19,7 +19,6 @@ __all__ = [
     "BillingService",
     "InvoiceRecord",
     "InvoiceState",
-    "CatalogProduct",
     "CatalogService",
     "Product",
     "ProductType",
