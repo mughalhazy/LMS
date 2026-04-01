@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -287,51 +287,30 @@ class WorkflowEngine:
                 continue
             trace.append({"step": "step.started", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
 
-            if item.step.step_type == "notify":
-                operation, template_name = self._resolve_whatsapp_template(
-                    trigger_type=item.trigger_type,
-                    step_config=item.step.config,
-                )
-                template_context = dict(item.context)
-                template_context.setdefault("message", str(item.step.config.get("message", "workflow notification")))
-                delivery = self._notification_orchestrator.send_whatsapp_operation(
-                    tenant_country_code=item.country_code,
-                    user_id=item.actor_user_id,
-                    workflow_id=item.workflow_id,
-                    operation=operation,
-                    template_name=template_name,
-                    template_context=template_context,
-                    choices=list(item.step.config.get("choices") or ["ACK"]),
-                    idempotency_key=f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{item.actor_user_id}",
-                )
-                result = {
-                    "status": "sent" if delivery.ok else "failed",
-                    "provider": delivery.provider,
-                    "fallback_used": delivery.fallback_used,
-                    "error": delivery.error,
-                    "template_name": template_name,
-                }
-            elif item.step.step_type in {"wait", "escalate"}:
-                result = {
-                    "status": "orchestrated",
-                    "action": item.step.step_type,
-                    "detail": item.step.config,
-                }
-            )
-
             try:
                 if item.step.step_type == "notify":
-                    message = str(item.step.config.get("message", "workflow notification"))
-                    delivery = self._notification_orchestrator.send_notification(
+                    operation, template_name = self._resolve_whatsapp_template(
+                        trigger_type=item.trigger_type,
+                        step_config=item.step.config,
+                    )
+                    template_context = dict(item.context)
+                    template_context.setdefault("message", str(item.step.config.get("message", "workflow notification")))
+                    delivery = self._notification_orchestrator.send_whatsapp_operation(
                         tenant_country_code=item.country_code,
                         user_id=item.actor_user_id,
-                        message=message,
+                        workflow_id=item.workflow_id,
+                        operation=operation,
+                        template_name=template_name,
+                        template_context=template_context,
+                        choices=list(item.step.config.get("choices") or ["ACK"]),
+                        idempotency_key=f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{item.actor_user_id}",
                     )
                     result = {
                         "status": "sent" if delivery.ok else "failed",
                         "provider": delivery.provider,
                         "fallback_used": delivery.fallback_used,
                         "error": delivery.error,
+                        "template_name": template_name,
                     }
                 elif item.step.step_type in {"wait", "escalate"}:
                     result = {
@@ -369,31 +348,9 @@ class WorkflowEngine:
                         "error": payment_entry.error,
                     }
                 else:
-                    result = {"status": "skipped", "reason": "unsupported_academy_ops_operation"}
-            elif item.step.step_type == "payment":
-                amount = int(item.step.config.get("amount", 0))
-                currency = str(item.step.config.get("currency", "PKR"))
-                invoice_id = item.step.config.get("invoice_id")
-                idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
-                try:
-                    payment_entry = self._payment_orchestration_service.process_checkout_payment(
-                        idempotency_key=idempotency_key,
-                        tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
-                        amount=amount,
-                        currency=currency,
-                        invoice_id=str(invoice_id) if invoice_id is not None else None,
-                    )
-                    result = {
-                        "status": payment_entry.status,
-                        "provider": payment_entry.provider,
-                        "payment_id": payment_entry.payment_id,
-                        "verified": payment_entry.verified,
-                        "error": payment_entry.error,
-                    }
-                except Exception as exc:
-                    result = {"status": "failed", "provider": "unknown", "error": str(exc), "verified": False}
-            else:
-                result = {"status": "skipped", "reason": "unsupported_step_type"}
+                    result = {"status": "skipped", "reason": "unsupported_step_type"}
+            except Exception as exc:
+                result = {"status": "failed", "error": str(exc), "step_type": item.step.step_type}
 
             executions.append(
                 {
