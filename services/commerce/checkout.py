@@ -159,7 +159,7 @@ class CheckoutService:
             tenant_id=session.tenant_id,
             learner_id=session.learner_id,
             product=product,
-            capability_id=product.capability_id,
+            capability_id=product.primary_capability_id,
             amount=Decimal(amount),
             currency=product.currency,
             payment_id=payment_id,

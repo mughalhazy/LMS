@@ -7,7 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from .billing import BillingService, InvoiceRecord
-from .catalog import CatalogService, Product, ProductType
+from .catalog import CatalogService
+from .models import Product, ProductType
 from .checkout import CheckoutService, Order, OrderStatus
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
@@ -66,25 +67,25 @@ class CommerceService:
         *,
         product_id: str,
         tenant_id: str,
-        sku: str,
-        product_type: ProductType,
+        type: ProductType,
         title: str,
+        description: str,
         price: Decimal,
         currency: str,
+        capability_ids: list[str],
         metadata: dict[str, str] | None = None,
     ) -> Product:
-        product = Product(
+        product = self.catalog.create_product(
             product_id=product_id,
             tenant_id=tenant_id,
-            sku=sku,
-            product_type=product_type,
+            type=type,
             title=title,
-            capability_id=metadata.get("capability_id", "") if metadata else "",
+            description=description,
             price=price,
             currency=currency,
+            capability_ids=capability_ids,
             metadata=metadata or {},
         )
-        self.catalog.upsert_product(product)
         return product
 
     def _resolve_product_amount(self, product: Product) -> Decimal:
