@@ -27,7 +27,7 @@ AcademyModule = _load_module("academy_ops_validation_module", "services/academy-
 AnalyticsModule = _load_module("analytics_validation_module", "services/analytics-service/service.py")
 EnterpriseModule = _load_module("enterprise_validation_module", "services/enterprise-control/service.py")
 
-from integrations.payment.adapters import MockSuccessAdapter
+from integrations.payments.adapters import MockSuccessAdapter
 from services.commerce.service import CommerceService
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter

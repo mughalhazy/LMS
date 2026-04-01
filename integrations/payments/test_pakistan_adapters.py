@@ -41,7 +41,7 @@ def test_raast_supports_reference_initiation_and_verification() -> None:
     adapter = RaastAdapter()
     tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
 
-    initiated = adapter.initiate_payment(
+    initiated = adapter.initiate(
         amount=3100,
         tenant=tenant,
         invoice_id="INV-3100",
@@ -51,7 +51,7 @@ def test_raast_supports_reference_initiation_and_verification() -> None:
     assert initiated.status == "success"
     assert initiated.payment_id == "rs_bank_transfer_ref_3100"
 
-    status = adapter.get_status(reference_id="bank_transfer_ref_3100", tenant=tenant)
+    status = adapter.reconcile(reference_id="bank_transfer_ref_3100", tenant=tenant)
     assert status.ok is True
     assert status.status == "verified"
 
@@ -66,7 +66,7 @@ def test_raast_supports_reference_initiation_and_verification() -> None:
     assert parsed.ok is True
     assert parsed.status == "verified"
 
-    verified = adapter.verify_payment(payment_id=initiated.payment_id or "", tenant=tenant)
+    verified = adapter.verify(payment_id=initiated.payment_id or "", tenant=tenant)
     assert verified.ok is True
     assert verified.status == "verified"
 
@@ -75,7 +75,7 @@ def test_raast_supports_manual_instant_mode_without_redirect() -> None:
     adapter = RaastAdapter()
     tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
 
-    instant = adapter.initiate_payment(amount=2200, tenant=tenant)
+    instant = adapter.initiate(amount=2200, tenant=tenant)
     assert instant.ok is True
     assert instant.status == "success"
     assert instant.payment_id is not None
@@ -88,7 +88,7 @@ class FlakyRetryAdapter:
     def __init__(self) -> None:
         self.calls = 0
 
-    def initiate_payment(
+    def initiate(
         self,
         amount: int,
         tenant: TenantPaymentContext,
@@ -111,7 +111,7 @@ class FlakyRetryAdapter:
             invoice_id=invoice_id,
         )
 
-    def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def verify(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         return PaymentVerificationResult(
             ok=payment_id.startswith("fl_"),
             status="verified" if payment_id.startswith("fl_") else "failed",
@@ -119,6 +119,9 @@ class FlakyRetryAdapter:
             provider=self.provider_key,
             error=None,
         )
+
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        return self.verify(payment_id=payment_id, tenant=tenant)
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:
@@ -148,7 +151,7 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
             invoice_id: str | None = None,
         ) -> PaymentResult:
             assert isinstance(tenant, TenantPaymentContext)
-            return self._adapter.initiate_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+            return self._adapter.initiate(amount=amount, tenant=tenant, invoice_id=invoice_id)
 
         def verify(
             self,
@@ -157,7 +160,16 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
             provider: str,
             payment_id: str,
         ) -> PaymentVerificationResult:
-            return self._adapter.verify_payment(payment_id=payment_id, tenant=tenant)
+            return self._adapter.verify(payment_id=payment_id, tenant=tenant)
+
+        def reconcile(
+            self,
+            *,
+            tenant: TenantPaymentContext,
+            provider: str,
+            payment_id: str,
+        ) -> PaymentVerificationResult:
+            return self._adapter.verify(payment_id=payment_id, tenant=tenant)
 
         def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
             return self._adapter.parse_callback(payload)
@@ -186,7 +198,7 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
 
     verified = asyncio.run(orchestrator.await_verification(idempotency_key="idem_1"))
     assert verified.verified is True
-    assert verified.status == "success"
+    assert verified.status == "reconciled"
     assert verified.verified_at is not None
 
 
@@ -210,7 +222,7 @@ def test_orchestration_accepts_async_callback() -> None:
     )
 
     assert updated is not None
-    assert updated.status == "success"
+    assert updated.status == "reconciled"
     assert updated.verified is True
 
 
@@ -219,9 +231,9 @@ def test_easypaisa_initiation_idempotency_and_shape_matches_jazzcash() -> None:
     jazzcash = JazzCashAdapter()
     easypaisa = EasyPaisaAdapter()
 
-    jazzcash_result = jazzcash.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
-    first = easypaisa.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
-    second = easypaisa.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
+    jazzcash_result = jazzcash.initiate(amount=1200, tenant=tenant, invoice_id="inv-1")
+    first = easypaisa.initiate(amount=1200, tenant=tenant, invoice_id="inv-1")
+    second = easypaisa.initiate(amount=1200, tenant=tenant, invoice_id="inv-1")
 
     assert first == second
     assert set(jazzcash_result.__dict__.keys()) == set(first.__dict__.keys())

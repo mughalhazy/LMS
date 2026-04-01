@@ -32,7 +32,7 @@ class TenantPaymentContext:
 class BasePaymentAdapter(Protocol):
     provider_key: str
 
-    def initiate_payment(
+    def initiate(
         self,
         *,
         amount: int,
@@ -41,11 +41,11 @@ class BasePaymentAdapter(Protocol):
     ) -> PaymentResult:
         """Initiate a payment for a tenant through the provider."""
 
-    def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def verify(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         """Verify payment state with the provider."""
 
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
-        """Alias for reconciliation-driven status retrieval."""
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        """Retrieve provider settlement/status for reconciliation."""
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         """Parse async callback payload into a verification signal."""

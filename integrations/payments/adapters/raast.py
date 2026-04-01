@@ -24,7 +24,7 @@ class RaastAdapter:
     def __init__(self) -> None:
         self._records_by_reference: dict[str, RaastAdapter._RaastPaymentRecord] = {}
 
-    def initiate_payment(
+    def initiate(
         self,
         *,
         amount: int,
@@ -80,7 +80,7 @@ class RaastAdapter:
             error=None if record.status in {"verified", "success", "completed"} else "verification_failed",
         )
 
-    def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def verify(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         reference_id = payment_id.removeprefix("rs_")
         by_reference = self._status_from_reference(reference_id=reference_id, tenant=tenant)
         if by_reference.error != "reference_not_found":
@@ -93,7 +93,7 @@ class RaastAdapter:
             provider=self.provider_key,
             error=None if payment_id.startswith("rs_") else "verification_failed",
         )
-    def get_status(
+    def reconcile(
         self,
         *,
         payment_id: str | None = None,

@@ -5,7 +5,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
-from integrations.payment.adapters import MockSuccessAdapter
+from integrations.payments.adapters import MockSuccessAdapter
 from integrations.payments.base_adapter import PaymentVerificationResult, TenantPaymentContext
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.reconciliation import PaymentReconciliationEngine
@@ -29,14 +29,14 @@ UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 class AlwaysFailStatusAdapter:
     provider_key = "unknown_adapter"
 
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         return PaymentVerificationResult(ok=False, status="failed", payment_id=payment_id, provider=self.provider_key, error="not_found")
 
 
 class MockSuccessStatusAdapter:
     provider_key = "mock_success"
 
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def reconcile(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         return PaymentVerificationResult(ok=True, status="verified", payment_id=payment_id, provider=self.provider_key)
 
 

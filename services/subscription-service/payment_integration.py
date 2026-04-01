@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from integrations.payment import (
+from integrations.payments import (
     EasyPaisaAdapter,
-    InMemoryInvoiceStore,
     JazzCashAdapter,
-    PaymentFlowService,
+    PaymentOrchestrationService,
     PaymentProviderRouter,
     TenantPaymentContext,
 )
@@ -18,29 +17,37 @@ class Tenant:
 
 def build_subscription_payment_service(
     country_provider_config: dict[str, str] | None = None,
-) -> PaymentFlowService:
-    """Build subscription payment flow with country routing isolated in adapters."""
+) -> PaymentOrchestrationService:
     config = country_provider_config or {"PK": "jazzcash"}
     router = PaymentProviderRouter(
         country_provider_config=config,
         adapters=[JazzCashAdapter(), EasyPaisaAdapter()],
     )
-    return PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
+    return PaymentOrchestrationService(router=router)
 
 
-def initiate_payment(
+def initiate(
     amount: int,
     tenant: str | Tenant | TenantPaymentContext,
 ) -> dict[str, str | int | None]:
-    """Subscription service payment entrypoint via adapter-only country routing."""
     service = build_subscription_payment_service()
     tenant_context = tenant
     if isinstance(tenant, str):
-        # Backward-compatible support for legacy subscription callers.
         tenant_context = TenantPaymentContext(tenant_id=tenant, country_code="PK")
 
-    result = service.initiate_payment(amount=amount, tenant=tenant_context)
-    if result.get("status") == "failure":
+    entry = service.process_checkout_payment(
+        idempotency_key=f"subscription:{tenant_context.tenant_id}:{amount}",
+        tenant=tenant_context,
+        amount=amount,
+        currency="PKR",
+    )
+    result = {
+        "status": "success" if entry.status == "reconciled" else "failure",
+        "provider": entry.provider,
+        "payment_id": entry.payment_id,
+        "amount": amount,
+    }
+    if result["status"] == "failure":
         result["event_type"] = "billing.missed_payment"
         result["workflow_action"] = "reminder"
     return result

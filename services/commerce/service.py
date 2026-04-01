@@ -117,7 +117,7 @@ class CommerceService:
             amount=int(amount * 100),
             currency=currency,
         )
-        if entry.status in {"pending", "success"} and entry.payment_id:
+        if entry.status in {"pending", "reconciled"} and entry.payment_id:
             return True, entry.payment_id, False
         return False, None, bool(entry.error and "timeout" in entry.error.lower())
 
