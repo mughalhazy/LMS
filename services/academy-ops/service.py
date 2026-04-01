@@ -616,12 +616,106 @@ class AcademyOpsService:
         )
 
     def record_teacher_performance(self, snapshot: TeacherPerformanceSnapshot) -> TeacherPerformanceSnapshot:
-        batch_key = self._key(snapshot.tenant_id, snapshot.batch_id)
-        assignment = self._teacher_assignments.get(batch_key, {}).get(snapshot.teacher_id)
-        if assignment is None:
-            raise ValueError("teacher must be assigned to batch before recording performance")
-        self._teacher_performance.setdefault(batch_key, []).append(snapshot)
+        if not snapshot.batch_ids:
+            raise ValueError("at least one batch id is required")
+        for batch_id in snapshot.batch_ids:
+            batch_key = self._key(snapshot.tenant_id, batch_id)
+            assignment = self._teacher_assignments.get(batch_key, {}).get(snapshot.teacher_id)
+            if assignment is None:
+                raise ValueError("teacher must be assigned to batch before recording performance")
+            self._teacher_performance.setdefault(batch_key, []).append(snapshot)
         return snapshot
+
+    def generate_teacher_performance_snapshot(
+        self,
+        *,
+        tenant_id: str,
+        teacher_id: str,
+        batch_ids: tuple[str, ...],
+        performance_period: str,
+        attendance: dict[str, Decimal | int | float] | None = None,
+        completion: dict[str, Decimal | int | float] | None = None,
+        batch_performance: dict[str, Decimal | int | float] | None = None,
+        learner_engagement: dict[str, Decimal | int | float] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> TeacherPerformanceSnapshot:
+        if not batch_ids:
+            raise ValueError("at least one batch id is required")
+
+        def _to_decimal(value: Decimal | int | float | None, default: str = "0") -> Decimal:
+            if value is None:
+                return Decimal(default)
+            if isinstance(value, Decimal):
+                return value
+            return Decimal(str(value))
+
+        attendance = attendance or {}
+        completion = completion or {}
+        batch_performance = batch_performance or {}
+        learner_engagement = learner_engagement or {}
+
+        attendance_quality_score = _to_decimal(attendance.get("quality_score", attendance.get("attendance_rate", 0)))
+        student_retention_score = _to_decimal(batch_performance.get("student_retention_score", attendance.get("retention_score", 0)))
+        completion_score = _to_decimal(completion.get("completion_score", completion.get("completion_rate", 0)))
+        engagement_score = _to_decimal(learner_engagement.get("engagement_score", batch_performance.get("engagement_score", 0)))
+
+        snapshot = TeacherPerformanceSnapshot(
+            teacher_id=teacher_id,
+            tenant_id=tenant_id,
+            batch_ids=tuple(dict.fromkeys(batch_ids)),
+            attendance_quality_score=attendance_quality_score,
+            student_retention_score=student_retention_score,
+            completion_score=completion_score,
+            engagement_score=engagement_score,
+            performance_period=performance_period,
+            metadata=dict(metadata or {}),
+        )
+        return self.record_teacher_performance(snapshot)
+
+    def list_teacher_performance(
+        self,
+        *,
+        tenant_id: str,
+        teacher_id: str | None = None,
+        performance_period: str | None = None,
+    ) -> tuple[TeacherPerformanceSnapshot, ...]:
+        snapshots: list[TeacherPerformanceSnapshot] = []
+        for (snapshot_tenant_id, _), rows in self._teacher_performance.items():
+            if snapshot_tenant_id != tenant_id:
+                continue
+            snapshots.extend(rows)
+        deduped = {(id(row), row.teacher_id): row for row in snapshots}.values()
+        ordered = sorted(deduped, key=lambda row: row.captured_at)
+        if teacher_id is not None:
+            ordered = [row for row in ordered if row.teacher_id == teacher_id]
+        if performance_period is not None:
+            ordered = [row for row in ordered if row.performance_period == performance_period]
+        return tuple(ordered)
+
+    def get_teacher_performance_detail(
+        self,
+        *,
+        tenant_id: str,
+        teacher_id: str,
+        performance_period: str | None = None,
+    ) -> dict[str, Any]:
+        snapshots = self.list_teacher_performance(
+            tenant_id=tenant_id,
+            teacher_id=teacher_id,
+            performance_period=performance_period,
+        )
+        if not snapshots:
+            raise KeyError("teacher performance not found")
+        latest = snapshots[-1]
+        return {
+            "teacher_id": teacher_id,
+            "tenant_id": tenant_id,
+            "performance_period": latest.performance_period,
+            "batch_ids": latest.batch_ids,
+            "latest_snapshot": latest,
+            "overall_score": latest.overall_score(),
+            "snapshots": snapshots,
+        }
 
     def latest_teacher_performance(
         self, *, tenant_id: str, batch_id: str, teacher_id: str
