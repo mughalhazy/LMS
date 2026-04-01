@@ -43,6 +43,9 @@ class BasePaymentAdapter(Protocol):
     def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         """Verify payment state with the provider."""
 
+    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        """Alias for reconciliation-driven status retrieval."""
+
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         """Parse async callback payload into a verification signal."""
 
