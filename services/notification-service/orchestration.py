@@ -53,6 +53,9 @@ class NotificationOrchestrator:
         self._templates: dict[str, Template] = {}
         self.interactive_reply_log: list[dict[str, Any]] = []
         self._idempotent_send_log: set[str] = set()
+        self._action_router = WhatsAppActionRouter()
+        self._phone_user_map: dict[str, str] = {}
+        self._templates: dict[str, Template] = {}
 
     def _resolve_fallback_order(self, *, config: NotificationOrchestrationConfig) -> tuple[str, ...]:
         behavior_tuning = dict(config.behavior_tuning or {})
@@ -255,3 +258,17 @@ class NotificationOrchestrator:
             "recipients": recipients,
             "deliveries": delivery_results,
         }
+
+
+    def _normalize_phone(self, phone: str) -> str:
+        return ''.join(ch for ch in str(phone) if ch.isdigit() or ch == '+')
+
+    def register_phone_user_mapping(self, *, phone: str, user_id: str) -> None:
+        self._phone_user_map[self._normalize_phone(phone)] = user_id
+
+    def register_template(self, template: Template) -> None:
+        self._templates[template.template_id] = template
+
+    def render_template(self, *, template_id: str, payload: dict[str, Any], locale: str = 'default') -> tuple[Template, str]:
+        template = self._templates[template_id]
+        return template, template.render(payload=payload, locale=locale)
