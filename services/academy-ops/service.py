@@ -49,6 +49,7 @@ TeacherPayoutRecord = _ModelsModule.TeacherPayoutRecord
 TeacherPerformanceSnapshot = _ModelsModule.TeacherPerformanceSnapshot
 TeacherRole = _ModelsModule.TeacherRole
 TimetableSlot = _ModelsModule.TimetableSlot
+BranchStatus = _ModelsModule.BranchStatus
 
 
 class AcademyOpsService:
@@ -132,9 +133,124 @@ class AcademyOpsService:
             return
 
     def upsert_branch(self, branch: Branch) -> Branch:
+        branch_key = self._key(branch.tenant_id, branch.branch_id)
+        if branch_key in self._branches:
+            return self.update_branch(
+                tenant_id=branch.tenant_id,
+                branch_id=branch.branch_id,
+                name=branch.name,
+                code=branch.code,
+                location=branch.location,
+                manager_id=branch.manager_id,
+                capacity=branch.capacity,
+                active_batches=branch.active_batches,
+                status=branch.status,
+                metadata=branch.metadata,
+            )
+        return self.create_branch(branch)
+
+    def create_branch(self, branch: Branch) -> Branch:
         self._require_operation_capability(tenant_id=branch.tenant_id, operation="batch")
-        self._branches[self._key(branch.tenant_id, branch.branch_id)] = branch
+        branch_key = self._key(branch.tenant_id, branch.branch_id)
+        if branch_key in self._branches:
+            raise ValueError("branch already exists")
+        if branch.capacity < 0:
+            raise ValueError("branch capacity cannot be negative")
+        self._branches[branch_key] = branch
         return branch
+
+    def update_branch(
+        self,
+        *,
+        tenant_id: str,
+        branch_id: str,
+        name: str | None = None,
+        code: str | None = None,
+        location: str | None = None,
+        manager_id: str | None = None,
+        capacity: int | None = None,
+        active_batches: tuple[str, ...] | None = None,
+        status: BranchStatus | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> Branch:
+        branch_key = self._key(tenant_id, branch_id)
+        existing = self._branches.get(branch_key)
+        if existing is None:
+            raise KeyError("branch not found")
+        next_capacity = existing.capacity if capacity is None else capacity
+        next_active_batches = existing.active_batches if active_batches is None else active_batches
+        if next_capacity < 0:
+            raise ValueError("branch capacity cannot be negative")
+        if next_capacity and len(next_active_batches) > next_capacity:
+            raise ValueError("active batch count exceeds branch capacity")
+        updated = replace(
+            existing,
+            name=existing.name if name is None else name,
+            code=existing.code if code is None else code,
+            location=existing.location if location is None else location,
+            manager_id=existing.manager_id if manager_id is None else manager_id,
+            capacity=next_capacity,
+            active_batches=next_active_batches,
+            status=existing.status if status is None else status,
+            metadata=existing.metadata if metadata is None else metadata,
+        )
+        self._branches[branch_key] = updated
+        return updated
+
+    def assign_batch_to_branch(self, *, tenant_id: str, branch_id: str, batch_id: str) -> Branch:
+        branch_key = self._key(tenant_id, branch_id)
+        branch = self._branches.get(branch_key)
+        if branch is None:
+            raise KeyError("branch not found")
+        batch = self._batches.get(self._key(tenant_id, batch_id))
+        if batch is None:
+            raise KeyError("batch not found")
+        if batch.branch_id != branch_id:
+            raise ValueError("batch branch mismatch")
+        if batch_id in branch.active_batches:
+            return branch
+        if branch.status != BranchStatus.ACTIVE:
+            raise ValueError("cannot assign batch to inactive branch")
+        if branch.capacity and len(branch.active_batches) >= branch.capacity:
+            raise ValueError("branch capacity reached")
+        return self.update_branch(
+            tenant_id=tenant_id,
+            branch_id=branch_id,
+            active_batches=(*branch.active_batches, batch_id),
+        )
+
+    def list_branch_operational_summary(self, *, tenant_id: str, branch_id: str) -> dict[str, Any]:
+        branch = self._branches.get(self._key(tenant_id, branch_id))
+        if branch is None:
+            raise KeyError("branch not found")
+        active_batch_ids = tuple(
+            batch_id for batch_id in branch.active_batches if self._key(tenant_id, batch_id) in self._batches
+        )
+        learners = sum(len(self._batches[self._key(tenant_id, batch_id)].learner_ids) for batch_id in active_batch_ids)
+        teachers = {
+            assignment.teacher_id
+            for batch_id in active_batch_ids
+            for assignment in self._teacher_assignments.get(self._key(tenant_id, batch_id), {}).values()
+        }
+        return {
+            "tenant_id": tenant_id,
+            "branch_id": branch_id,
+            "name": branch.name,
+            "code": branch.code,
+            "location": branch.location,
+            "manager_id": branch.manager_id,
+            "status": branch.status.value,
+            "capacity": branch.capacity,
+            "active_batch_count": len(active_batch_ids),
+            "active_batch_ids": active_batch_ids,
+            "learner_count": learners,
+            "teacher_count": len(teachers),
+            "metadata": branch.metadata,
+            "economics_ready": {
+                "owner_economics": True,
+                "operations_os": True,
+            },
+        }
 
     def create_batch(self, batch: Batch) -> Batch:
         self._require_operation_capability(tenant_id=batch.tenant_id, operation="batch")
@@ -142,15 +258,20 @@ class AcademyOpsService:
             raise KeyError("branch not found")
         if batch.end_date <= batch.start_date:
             raise ValueError("batch end_date must be after start_date")
-        if batch.capacity < 1:
+        declared_capacity = getattr(batch, "capacity", None)
+        capacity = declared_capacity if declared_capacity is not None else max(len(getattr(batch, "learner_ids", ())), 1)
+        student_ids = tuple(getattr(batch, "student_ids", getattr(batch, "learner_ids", ())))
+        teacher_ids = tuple(getattr(batch, "teacher_ids", ()))
+        if capacity < 1:
             raise ValueError("batch capacity must be at least 1")
-        if len(batch.student_ids) > batch.capacity:
+        if len(student_ids) > capacity:
             raise ValueError("student count exceeds batch capacity")
-        if len(set(batch.student_ids)) != len(batch.student_ids):
+        if len(set(student_ids)) != len(student_ids):
             raise ValueError("batch student_ids must be unique")
-        if len(set(batch.teacher_ids)) != len(batch.teacher_ids):
+        if len(set(teacher_ids)) != len(teacher_ids):
             raise ValueError("batch teacher_ids must be unique")
         self._batches[self._key(batch.tenant_id, batch.batch_id)] = batch
+        self.assign_batch_to_branch(tenant_id=batch.tenant_id, branch_id=batch.branch_id, batch_id=batch.batch_id)
         return batch
 
     def _sync_batch_teacher_state(self, *, assignment: TeacherAssignment, replaced_teacher_id: str | None = None) -> None:

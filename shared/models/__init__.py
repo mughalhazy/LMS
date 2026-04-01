@@ -4,6 +4,7 @@ from .capability import Capability
 from .addon import AddOn
 from .capability_pricing import CapabilityPricing
 from .plan import Plan
+from .branch import Branch, BranchStatus
 from .student_profile import (
     AcademicState,
     AcademicStatus,
@@ -34,6 +35,8 @@ __all__ = [
     "AddOn",
     "CapabilityPricing",
     "Plan",
+    "Branch",
+    "BranchStatus",
     "LedgerEntry",
     "LedgerEntryType",
     "ConfigLevel",

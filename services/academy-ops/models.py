@@ -5,20 +5,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 
+from shared.models.branch import Branch, BranchStatus
+
 
 class TeacherRole(str, Enum):
     PRIMARY = "primary_teacher"
     ASSISTANT = "assistant_teacher"
-
-
-@dataclass(frozen=True)
-class Branch:
-    tenant_id: str
-    branch_id: str
-    academy_id: str
-    name: str
-    timezone: str
-    active: bool = True
 
 
 @dataclass(frozen=True)
