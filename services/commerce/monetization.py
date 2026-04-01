@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from .catalog import Product
-from shared.models.capability_pricing import CapabilityPricing
+from shared.models.capability_pricing import CapabilityPricing, PricingMode
 from shared.models.addon import AddOn
 from shared.utils.entitlement import TenantEntitlementContext
 
@@ -63,9 +63,12 @@ class CapabilityMonetizationService:
         """Single billing unit is capability_id; plans resolve to sets of capability_ids."""
         return self._subscription_service.get_plan_capabilities(plan_type)
 
-    def enable_add_on(self, *, tenant_id: str, capability_id: str) -> None:
+    def enable_add_on(self, *, tenant_id: str, capability_id: str, country_code: str = "", plan_id: str = "") -> None:
         if self._capability_registry.get_capability(capability_id) is None:
             raise ValueError(f"unknown capability '{capability_id}'")
+        pricing = self._subscription_service.get_capability_pricing(capability_id, country_code=country_code, plan_id=plan_id)
+        if pricing is None or not pricing.has_valid_pricing_path():
+            raise ValueError(f"capability '{capability_id}' is monetized but has no valid pricing path")
         self._subscription_service.purchase_capability_add_on(tenant_id, capability_id)
 
     def list_eligible_add_ons_for_tenant(
@@ -129,15 +132,17 @@ class CapabilityMonetizationService:
             units=usage.quantity,
         )
 
-    def resolve_capability_unit_price(self, capability_id: str) -> Decimal:
-        capability = self._capability_registry.get_capability(capability_id.strip())
-        if capability is None:
+    def resolve_capability_unit_price(self, capability_id: str, *, country_code: str = "", plan_id: str = "") -> Decimal:
+        pricing = self._subscription_service.get_capability_pricing(capability_id.strip(), country_code=country_code, plan_id=plan_id)
+        if pricing is None:
             raise ValueError(f"unknown capability '{capability_id}'")
-        return Decimal(capability.price)
+        if pricing.pricing_mode == PricingMode.USAGE_BASED:
+            return pricing.usage_unit_price
+        return pricing.base_price
 
     def quote_product_amount(self, product: Product) -> Decimal:
         """Capability-driven rating hook for commerce product checkout."""
-        unit_price = self.resolve_capability_unit_price(product.primary_capability_id)
+        unit_price = self.resolve_capability_unit_price(product.primary_capability_id, country_code=product.metadata.get("country_code", ""), plan_id=product.metadata.get("plan_id", ""))
         units = int(product.metadata.get("monetization_units", "1"))
         if units <= 0:
             raise ValueError("monetization_units must be >= 1")
@@ -156,10 +161,16 @@ class CapabilityMonetizationService:
             if not is_enabled:
                 continue
 
-            pricing = CapabilityPricing(
+            pricing = self._subscription_service.get_capability_pricing(
+                capability.capability_id,
+                country_code=normalized_tenant.country_code,
+                plan_id=normalized_tenant.plan_type,
+            ) or CapabilityPricing(
                 capability_id=capability.capability_id,
-                price=capability.price,
-                usage_based=capability.usage_based,
+                pricing_mode=PricingMode.USAGE_BASED if capability.usage_based else PricingMode.ADDON,
+                base_price=Decimal(capability.price if not capability.usage_based else "0"),
+                usage_unit_price=Decimal(capability.price if capability.usage_based else "0"),
+                currency="USD",
             )
             amount = self._subscription_service.calculate_capability_charge(
                 tenant_id=normalized_tenant.tenant_id,
@@ -179,6 +190,11 @@ class CapabilityMonetizationService:
             )
 
         return sorted(charges, key=lambda charge: charge.capability_id)
+
+    def ensure_capability_has_pricing_path(self, *, capability_id: str, country_code: str = "", plan_id: str = "") -> None:
+        pricing = self._subscription_service.get_capability_pricing(capability_id, country_code=country_code, plan_id=plan_id)
+        if pricing is None or not pricing.has_valid_pricing_path():
+            raise ValueError(f"capability '{capability_id}' has no valid pricing path")
 
     def validate_no_orphaned_monetized_capabilities(self) -> tuple[bool, set[str]]:
         mapped: set[str] = set()
