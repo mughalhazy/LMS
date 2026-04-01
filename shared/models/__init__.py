@@ -28,6 +28,7 @@ from .config import (
 from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
 from .template import Template
 from .teacher_performance import TeacherPerformanceSnapshot
+from .network_analytics import StudentBenchmark, TeacherBenchmark, InstitutionBenchmark
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
 from .owner_economics import OwnerEconomicsSnapshot
 
@@ -65,6 +66,9 @@ __all__ = [
     "AttendanceSessionEvent",
     "Template",
     "TeacherPerformanceSnapshot",
+    "StudentBenchmark",
+    "TeacherBenchmark",
+    "InstitutionBenchmark",
     "dashboard_summary",
     "alert_card",
     "action_item",
