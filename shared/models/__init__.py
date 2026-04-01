@@ -1,3 +1,4 @@
+from .exam_session import ExamSessionRecord
 from .invoice import Invoice
 from .academy import AcademyDeliveryMode, AcademyEnrollment, AcademyPackage
 from .capability import Capability
@@ -29,6 +30,7 @@ from .template import Template
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
 
 __all__ = [
+    "ExamSessionRecord",
     "Invoice",
     "AcademyDeliveryMode",
     "AcademyEnrollment",
