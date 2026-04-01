@@ -71,3 +71,46 @@ def test_interactive_reply_is_parsed_for_workflow_update() -> None:
     assert parsed["workflow_id"] == "wf-ops-1"
     assert parsed["operation"] == "update"
     assert parsed["payload"]["task"] == "attendance"
+
+
+def test_inbound_whatsapp_routes_attendance_and_enforces_phone_mapping() -> None:
+    orchestrator = NotificationOrchestrator()
+    orchestrator.register_user_phone(phone="+1 (555) 000-0001", user_id="user_1")
+
+    accepted = orchestrator.handle_inbound_whatsapp(
+        source_phone="+15550000001",
+        reply="WF:wf-ops-1|OP:attendance|ACTION:confirm",
+        provider_verified=True,
+        claimed_user_id="user_1",
+    )
+    assert accepted["status"] == "accepted"
+    assert accepted["routed_action"] == "confirm_attendance"
+
+    spoofed = orchestrator.handle_inbound_whatsapp(
+        source_phone="+15550000001",
+        reply="WF:wf-ops-1|OP:attendance|ACTION:confirm",
+        provider_verified=True,
+        claimed_user_id="other_user",
+    )
+    assert spoofed["status"] == "rejected"
+    assert spoofed["reason"] == "spoofing_detected"
+
+
+def test_inbound_whatsapp_supports_reminder_ack_and_basic_query() -> None:
+    orchestrator = NotificationOrchestrator()
+    orchestrator.register_user_phone(phone="+15550000002", user_id="user_2")
+
+    reminder_ack = orchestrator.handle_inbound_whatsapp(
+        source_phone="+15550000002",
+        reply="WF:wf-ops-2|OP:reminder|ACTION:ack",
+        provider_verified=True,
+    )
+    assert reminder_ack["routed_action"] == "acknowledge_reminder"
+
+    query = orchestrator.handle_inbound_whatsapp(
+        source_phone="+15550000002",
+        reply="What is my schedule?",
+        provider_verified=True,
+    )
+    assert query["status"] == "accepted"
+    assert query["routed_action"] == "basic_query_response"

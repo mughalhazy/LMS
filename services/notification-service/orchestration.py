@@ -15,6 +15,8 @@ from integrations.communication import (
 )
 from shared.models.workflow import WorkflowAction, WorkflowDefinition
 
+from action_routing import WhatsAppActionRouter
+
 
 @dataclass(frozen=True)
 class NotificationOrchestrationConfig:
@@ -43,6 +45,18 @@ class NotificationOrchestrator:
 
         self._router = CommunicationRouter(adapters=adapters, fallback_order=cfg.fallback_order)
         self.interactive_reply_log: list[dict[str, Any]] = []
+        self._phone_user_map: dict[str, str] = {}
+        self._action_router = WhatsAppActionRouter()
+
+    @staticmethod
+    def _normalize_phone(phone: str) -> str:
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        return f"+{digits}" if digits else ""
+
+    def register_user_phone(self, *, phone: str, user_id: str) -> None:
+        normalized_phone = self._normalize_phone(phone)
+        if normalized_phone and user_id.strip():
+            self._phone_user_map[normalized_phone] = user_id.strip()
 
     def send_notification(self, *, tenant_country_code: str, user_id: str, message: str) -> DeliveryAttempt:
         tenant = Tenant(country_code=tenant_country_code)
@@ -103,12 +117,35 @@ class NotificationOrchestrator:
     def handle_interactive_reply(self, *, user_id: str, reply: str) -> dict[str, Any]:
         parsed = self.whatsapp_adapter.parse_interactive_reply(user_id=user_id, reply=reply)
         if parsed is None:
+            parsed = self.whatsapp_adapter.classify_free_text_reply(user_id=user_id, reply=reply)
+        if parsed is None:
             return {"status": "ignored", "reason": "invalid_reply_format"}
 
-        item = asdict(parsed)
-        item["status"] = "accepted"
+        routed = self._action_router.route(parsed)
+        item = asdict(parsed) | {"status": routed.status, "routed_action": routed.action_type, "detail": routed.detail}
         self.interactive_reply_log.append(item)
         return item
+
+    def handle_inbound_whatsapp(
+        self,
+        *,
+        source_phone: str,
+        reply: str,
+        provider_verified: bool,
+        claimed_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not provider_verified:
+            return {"status": "rejected", "reason": "unverified_provider_event"}
+
+        normalized_phone = self._normalize_phone(source_phone)
+        mapped_user_id = self._phone_user_map.get(normalized_phone)
+        if mapped_user_id is None:
+            return {"status": "rejected", "reason": "unknown_phone"}
+
+        if claimed_user_id and claimed_user_id != mapped_user_id:
+            return {"status": "rejected", "reason": "spoofing_detected"}
+
+        return self.handle_interactive_reply(user_id=mapped_user_id, reply=reply)
 
     def _execute_notification_action(
         self,

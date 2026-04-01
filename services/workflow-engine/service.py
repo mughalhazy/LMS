@@ -241,20 +241,29 @@ class WorkflowEngine:
                 currency = str(item.step.config.get("currency", "PKR"))
                 invoice_id = item.step.config.get("invoice_id")
                 idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
-                payment_entry = self._payment_orchestration_service.process_checkout_payment(
-                    idempotency_key=idempotency_key,
-                    tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
-                    amount=amount,
-                    currency=currency,
-                    invoice_id=str(invoice_id) if invoice_id is not None else None,
-                )
-                result = {
-                    "status": payment_entry.status,
-                    "provider": payment_entry.provider,
-                    "payment_id": payment_entry.payment_id,
-                    "verified": payment_entry.verified,
-                    "error": payment_entry.error,
-                }
+                try:
+                    payment_entry = self._payment_orchestration_service.process_checkout_payment(
+                        idempotency_key=idempotency_key,
+                        tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
+                        amount=amount,
+                        currency=currency,
+                        invoice_id=str(invoice_id) if invoice_id is not None else None,
+                    )
+                    result = {
+                        "status": payment_entry.status,
+                        "provider": payment_entry.provider,
+                        "payment_id": payment_entry.payment_id,
+                        "verified": payment_entry.verified,
+                        "error": payment_entry.error,
+                    }
+                except Exception as exc:  # pragma: no cover - defensive orchestration guard
+                    result = {
+                        "status": "pending",
+                        "provider": "unknown",
+                        "payment_id": None,
+                        "verified": False,
+                        "error": f"payment_orchestration_error:{type(exc).__name__}",
+                    }
             else:
                 result = {"status": "skipped", "reason": "unsupported_step_type"}
 
@@ -273,6 +282,14 @@ class WorkflowEngine:
             "pending_count": len(self._scheduled_steps),
             "trace": trace,
         }
+
+    def route_inbound_whatsapp_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        return self._notification_orchestrator.handle_inbound_whatsapp(
+            source_phone=str(event.get("source_phone", "")),
+            reply=str(event.get("reply", "")),
+            provider_verified=bool(event.get("provider_verified", False)),
+            claimed_user_id=str(event.get("claimed_user_id")) if event.get("claimed_user_id") else None,
+        )
 
     def run_qc_autofix(self) -> dict[str, bool]:
         if self._notification_orchestrator is None:

@@ -213,3 +213,24 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["academy_sor_contract"] is True
     assert qc["workflow_notifications_contract"] is True
     assert qc["no_broken_dependencies"] is True
+
+
+def test_route_inbound_whatsapp_event_delegates_and_rejects_unverified() -> None:
+    engine = WorkflowEngine()
+    engine._notification_orchestrator.register_user_phone(phone="+15550000009", user_id="user_9")
+
+    rejected = engine.route_inbound_whatsapp_event(
+        {"source_phone": "+15550000009", "reply": "ACK", "provider_verified": False}
+    )
+    assert rejected["status"] == "rejected"
+    assert rejected["reason"] == "unverified_provider_event"
+
+    accepted = engine.route_inbound_whatsapp_event(
+        {
+            "source_phone": "+15550000009",
+            "reply": "WF:wf-ops-3|OP:reminder|ACTION:ack",
+            "provider_verified": True,
+        }
+    )
+    assert accepted["status"] == "accepted"
+    assert accepted["routed_action"] == "acknowledge_reminder"
