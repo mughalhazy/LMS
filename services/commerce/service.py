@@ -11,6 +11,7 @@ from .catalog import CatalogService
 from .checkout import CheckoutService, Order, OrderStatus, Transaction, TransactionStatus
 from .models import Bundle, Product, ProductType
 from .monetization import CapabilityCharge, CapabilityMonetizationService
+from .owner_economics import OwnerEconomicsEngine
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 from integrations.payments.base_adapter import TenantPaymentContext
@@ -59,7 +60,7 @@ class CommerceService:
         self._payment_orchestrator = payment_orchestrator
         self._payment_country_code = payment_country_code.upper()
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
-        self._teacher_revenue_share_records: list[dict[str, str]] = []
+        self.owner_economics = OwnerEconomicsEngine()
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
         resolved_type = type or product_type
@@ -245,6 +246,27 @@ class CommerceService:
                 ledger_entry_id=invoice.ledger_entry_id,
             )
         self.billing._invoices[invoice_id] = updated_invoice
+
+
+    def compute_owner_economics_snapshot(
+        self,
+        *,
+        tenant_id: str,
+        reporting_period: str,
+        ledger_entries: tuple[object, ...],
+        batches: tuple[object, ...],
+        branches: tuple[object, ...],
+        metadata: dict[str, str] | None = None,
+    ):
+        return self.owner_economics.compute_profitability_snapshot(
+            tenant_id=tenant_id,
+            reporting_period=reporting_period,
+            ledger_entries=ledger_entries,
+            commerce_invoices=tuple(self.billing._invoices.values()),
+            batches=batches,
+            branches=branches,
+            metadata=metadata,
+        )
 
     def schedule_reconciliation_job(self) -> None:
         if self._reconciliation_engine is None:

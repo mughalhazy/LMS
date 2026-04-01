@@ -64,6 +64,7 @@ def _load_progress_module():
 
 _LearningModule = _load_progress_module()
 _ReadModels = _load_module("system_of_record_read_models", "services/system-of-record/read_models.py")
+_OwnerEconomicsModule = _load_module("owner_economics_module_for_sor", "services/commerce/owner_economics.py")
 
 ConfigService = _ConfigModule.ConfigService
 ProgressTrackingService = _LearningModule.ProgressTrackingService
@@ -74,6 +75,7 @@ LedgerEntry = _ModelsModule.LedgerEntry
 LifecycleTransitionError = _ModelsModule.LifecycleTransitionError
 UnifiedStudentProfile = _ModelsModule.UnifiedStudentProfile
 _UnifiedStudentProfileModel = _ModelsModule.UnifiedStudentProfile
+OwnerEconomicsEngine = _OwnerEconomicsModule.OwnerEconomicsEngine
 
 
 class StudentLifecycleState(str, Enum):
@@ -130,6 +132,7 @@ class SystemOfRecordService:
         self._academic_enrollments: dict[tuple[str, str], list[AcademyEnrollment]] = {}
         self._attendance: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._invoices: dict[tuple[str, str], list[Invoice]] = {}
+        self._owner_economics_engine = OwnerEconomicsEngine()
 
         self._domain_owner = {
             "student.profile": "system-of-record",
@@ -138,6 +141,7 @@ class SystemOfRecordService:
             "student.financial_state": "system-of-record",
             "student.attendance_summary": "system-of-record",
             "student.ledger": "system-of-record",
+            "owner.economics": "commerce-service",
             "learning.progress": "learning-service",
             "commerce.invoice": "commerce-service",
             "config.runtime": "config-service",
@@ -552,6 +556,33 @@ class SystemOfRecordService:
             and profile.financial_state.current_balance == balance
             and profile.financial_state.dues_outstanding == max(balance, Decimal("0"))
             and all(entry.source_type != "payment" or entry.amount <= 0 for entry in entries)
+        )
+
+
+    def compute_owner_economics_snapshot(
+        self,
+        *,
+        tenant_id: str,
+        reporting_period: str,
+        commerce_invoices: tuple[Any, ...] = (),
+        academy_batches: tuple[Any, ...] = (),
+        academy_branches: tuple[Any, ...] = (),
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        ledger_entries = tuple(
+            entry
+            for (entry_tenant_id, _), entries in self._ledger.items()
+            if entry_tenant_id == tenant_id
+            for entry in entries
+        )
+        return self._owner_economics_engine.compute_profitability_snapshot(
+            tenant_id=tenant_id,
+            reporting_period=reporting_period,
+            ledger_entries=ledger_entries,
+            commerce_invoices=commerce_invoices,
+            batches=academy_batches,
+            branches=academy_branches,
+            metadata=metadata,
         )
 
     def run_qc_autofix(self) -> dict[str, bool]:
