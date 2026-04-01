@@ -191,3 +191,40 @@ def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -
     assert qc["fragmented_state_removed"] is True
     assert service.is_single_source_of_truth() is True
     assert service.has_duplicate_data_ownership() is False
+
+
+def test_offline_sync_commit_updates_canonical_profile_metadata() -> None:
+    service = SystemOfRecordService()
+    service.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_sync",
+            student_id="student_sync",
+            full_name="Sync Student",
+            metadata={"country_code": "US", "segment_id": "academy"},
+        )
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_sync",
+        student_id="student_sync",
+        state="enrolled",
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_sync",
+        student_id="student_sync",
+        state="active",
+    )
+
+    service.commit_progress_sync_result(
+        tenant_id="tenant_sync",
+        student_id="student_sync",
+        course_id="course_secure",
+        lesson_id="lesson_secure",
+        operation_id="offline-op-1",
+        completion_status="completed",
+        score=91.0,
+        time_spent_seconds=180,
+        attempt_count=2,
+    )
+    profile = service.get_student_profile(tenant_id="tenant_sync", student_id="student_sync")
+    assert profile is not None
+    assert profile.metadata["progress_sync.course_secure.lesson_secure"].startswith("offline-sync:offline-op-1")
