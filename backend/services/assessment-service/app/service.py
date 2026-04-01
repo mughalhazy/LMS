@@ -288,7 +288,7 @@ class AssessmentService:
         return TenantEntitlementContext(
             tenant_id=tenant.tenant_id,
             country_code=tenant.country_code,
-            segment_id=tenant.segment_type,
+            segment_id=str(tenant.segment_context.get("type", "default")),
             plan_type=tenant.plan_type,
             add_ons=tuple(tenant.addon_flags),
         )

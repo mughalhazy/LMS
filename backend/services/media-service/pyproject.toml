@@ -13,4 +13,4 @@ dependencies = []
 test = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "modules/media_pipeline/src"]
