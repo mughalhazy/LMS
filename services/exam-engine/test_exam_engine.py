@@ -83,3 +83,39 @@ def test_shard_distribution_is_tenant_local_not_global_queue() -> None:
 
     assert sum(t1_metrics["shard_load"].values()) == 10
     assert sum(t2_metrics["shard_load"].values()) == 3
+
+
+def test_capacity_evaluation_and_burst_queueing() -> None:
+    service = ExamEngineService()
+    service.register_tenant("tenant-burst", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=2))
+
+    active = service.allocate_exam_runtime_slot(tenant_id="tenant-burst", learner_id="u1", exam_id="exam")
+    capacity = service.evaluate_exam_capacity(tenant_id="tenant-burst")
+    assert capacity["decision"] == "defer"
+
+    queued = service.queue_exam_session(tenant_id="tenant-burst", learner_id="u2", exam_id="exam")
+    assert queued.tenant_id == "tenant-burst"
+    assert service.tenant_metrics("tenant-burst")["queued_sessions"] == 1
+
+    service.release_exam_runtime_slot(tenant_id="tenant-burst", session_id=active.session_id)
+    assert service.tenant_metrics("tenant-burst")["active_sessions"] == 1
+    assert service.tenant_metrics("tenant-burst")["queued_sessions"] == 0
+
+
+def test_overflow_rejects_without_cross_tenant_bleed() -> None:
+    service = ExamEngineService()
+    service.register_tenant("tenant-a", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=0))
+    service.register_tenant("tenant-b", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=1))
+
+    service.start_session(tenant_id="tenant-a", learner_id="u1", exam_id="x")
+    service.start_session(tenant_id="tenant-b", learner_id="u2", exam_id="x")
+    with_queue_error = False
+    try:
+        service.start_session(tenant_id="tenant-a", learner_id="u3", exam_id="x")
+    except RuntimeError:
+        with_queue_error = True
+
+    assert with_queue_error is True
+    assert service.tenant_metrics("tenant-a")["active_sessions"] == 1
+    assert service.tenant_metrics("tenant-b")["active_sessions"] == 1
+    assert service.tenant_metrics("tenant-b")["queued_sessions"] == 0
