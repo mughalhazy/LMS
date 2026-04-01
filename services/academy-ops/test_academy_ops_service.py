@@ -29,6 +29,7 @@ FeePayment = _service_module.FeePayment
 RevenueShareAgreement = _service_module.RevenueShareAgreement
 TeacherAssignment = _service_module.TeacherAssignment
 TeacherPerformanceSnapshot = _service_module.TeacherPerformanceSnapshot
+TeacherRole = _service_module.TeacherRole
 TimetableSlot = _service_module.TimetableSlot
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
@@ -39,10 +40,8 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_1",
             student_id="learner_1",
-            display_name="Ari Ops",
-            email="ari@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Ari Ops",
+            metadata={"country_code": "US", "segment_id": "academy", "email": "ari@example.edu"},
         )
     )
 
@@ -67,7 +66,7 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
             learner_ids=("learner_1",),
         )
     )
-    service.assign_teacher(
+    service.assign_teacher_to_batch(
         TeacherAssignment(
             tenant_id="tenant_1",
             branch_id="branch_nyc",
@@ -120,10 +119,8 @@ def test_fee_tracking_integrates_system_of_record_ledger() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_2",
             student_id="learner_2",
-            display_name="Fee Student",
-            email="fee@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Fee Student",
+            metadata={"country_code": "US", "segment_id": "academy", "email": "fee@example.edu"},
         )
     )
 
@@ -167,10 +164,8 @@ def test_qc_autofix_validates_capability_driven_ops_and_sor_fee_link() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_qc",
             student_id="learner_qc_1",
-            display_name="QC Learner",
-            email="qc@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="QC Learner",
+            metadata={"country_code": "US", "segment_id": "academy", "email": "qc@example.edu"},
         )
     )
     service.record_fee_invoice(
@@ -199,10 +194,8 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
         UnifiedStudentProfile(
             tenant_id="tenant_eco",
             student_id="learner_eco_1",
-            display_name="Eco Learner",
-            email="eco@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Eco Learner",
+            metadata={"country_code": "US", "segment_id": "academy", "email": "eco@example.edu"},
         )
     )
     service.upsert_branch(
@@ -226,7 +219,7 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
             learner_ids=("learner_eco_1",),
         )
     )
-    service.assign_teacher(
+    service.assign_teacher_to_batch(
         TeacherAssignment(
             tenant_id="tenant_eco",
             branch_id="branch_la",
@@ -283,3 +276,78 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
     payouts = service.teacher_payouts(tenant_id="tenant_eco", batch_id="batch_eco_1")
     assert len(payouts) == 1
     assert payouts[0].payout_amount == Decimal("30.00")
+
+
+def test_teacher_reassignment_and_ownership_updates_student_operational_state() -> None:
+    service = AcademyOpsService()
+    service.register_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_ops",
+            student_id="learner_ops_1",
+            full_name="Ops Learner",
+            metadata={"country_code": "US", "segment_id": "academy", "email": "ops@example.edu"},
+        )
+    )
+    service.upsert_branch(
+        Branch(
+            tenant_id="tenant_ops",
+            branch_id="branch_ops",
+            academy_id="academy_ops",
+            name="Ops Campus",
+            timezone="America/New_York",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_ops",
+            branch_id="branch_ops",
+            batch_id="batch_ops_1",
+            academy_id="academy_ops",
+            title="Ops Batch",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 5, 1),
+            learner_ids=("learner_ops_1",),
+        )
+    )
+
+    service.assign_teacher_to_batch(
+        TeacherAssignment(
+            tenant_id="tenant_ops",
+            branch_id="branch_ops",
+            batch_id="batch_ops_1",
+            teacher_id="teacher_primary_1",
+            role=TeacherRole.PRIMARY,
+            teacher_owned_batch=True,
+            ownership_metadata={"ownership_scope": "batch", "ownership_model": "revenue_share_v1"},
+        )
+    )
+    service.assign_teacher_to_batch(
+        TeacherAssignment(
+            tenant_id="tenant_ops",
+            branch_id="branch_ops",
+            batch_id="batch_ops_1",
+            teacher_id="teacher_assist_1",
+            role=TeacherRole.ASSISTANT,
+        )
+    )
+    service.reassign_teacher(
+        tenant_id="tenant_ops",
+        branch_id="branch_ops",
+        batch_id="batch_ops_1",
+        from_teacher_id="teacher_primary_1",
+        to_teacher_id="teacher_primary_2",
+        role=TeacherRole.PRIMARY,
+        teacher_owned_batch=True,
+        ownership_metadata={"ownership_scope": "batch", "ownership_model": "revenue_share_v2"},
+    )
+
+    profile = service._sor.get_student_profile(tenant_id="tenant_ops", student_id="learner_ops_1")
+    assert profile is not None
+    assert "teacher_primary_1" not in profile.assigned_teacher_ids
+    assert "teacher_primary_2" in profile.assigned_teacher_ids
+    assert "teacher_assist_1" in profile.assigned_teacher_ids
+    assert profile.academic_state.status.value == "active"
+    assert profile.metadata["batch.batch_ops_1.primary_teacher_id"] == "teacher_primary_2"
+    assert profile.metadata["batch.batch_ops_1.teacher_owned"] == "true"
+    assert profile.metadata["batch.batch_ops_1.owner_teacher_id"] == "teacher_primary_2"
+    assert profile.metadata["batch.batch_ops_1.ownership_model"] == "revenue_share_v2"
