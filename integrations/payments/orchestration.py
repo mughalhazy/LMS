@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 from integrations.payments.adapters import EasyPaisaAdapter, JazzCashAdapter, RaastAdapter
 from integrations.payments.base_adapter import PaymentResult, TenantPaymentContext
@@ -13,6 +14,7 @@ from integrations.payments.router import PaymentProviderRouter
 class PaymentLedgerEntry:
     idempotency_key: str
     tenant_id: str
+    tenant_country_code: str
     amount: int
     currency: str
     status: str
@@ -23,6 +25,21 @@ class PaymentLedgerEntry:
     verified: bool
     verified_at: datetime | None
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class PaymentTransactionLogEntry:
+    idempotency_key: str
+    tenant_id: str
+    amount: int
+    currency: str
+    attempt: int
+    provider: str
+    status: str
+    payment_id: str | None
+    retryable: bool
+    error: str | None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PaymentOrchestrationService:
@@ -39,7 +56,9 @@ class PaymentOrchestrationService:
         self._max_retries = max_retries
         self._verification_latency_seconds = verification_latency_seconds
         self._ledger: dict[str, PaymentLedgerEntry] = {}
+        self._payment_id_to_idempotency_key: dict[str, str] = {}
         self._verification_tasks: dict[str, asyncio.Task[None]] = {}
+        self._transaction_log_store: dict[str, list[PaymentTransactionLogEntry]] = {}
 
     def process_checkout_payment(
         self,
@@ -56,14 +75,29 @@ class PaymentOrchestrationService:
         if existing:
             return existing
 
-        adapter = self._router.resolve(tenant)
-        last_result = PaymentResult(ok=False, status="failure", provider=adapter.provider_key, error="unknown")
+        last_result = PaymentResult(ok=False, status="failure", provider=None, error="unknown")
         for attempt in range(self._max_retries + 1):
             last_result = adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+            retryable = self._is_retryable(last_result)
+            self._transaction_log_store.setdefault(idempotency_key, []).append(
+                PaymentTransactionLogEntry(
+                    idempotency_key=idempotency_key,
+                    tenant_id=tenant.tenant_id,
+                    amount=amount,
+                    currency=currency,
+                    attempt=attempt,
+                    provider=last_result.provider,
+                    status=last_result.status,
+                    payment_id=last_result.payment_id,
+                    retryable=retryable,
+                    error=last_result.error,
+                )
+            )
             if last_result.ok:
                 entry = PaymentLedgerEntry(
                     idempotency_key=idempotency_key,
                     tenant_id=tenant.tenant_id,
+                    tenant_country_code=tenant.country_code,
                     amount=amount,
                     currency=currency,
                     status="pending_verification",
@@ -76,28 +110,23 @@ class PaymentOrchestrationService:
                     error=None,
                 )
                 self._ledger[idempotency_key] = entry
+                if entry.payment_id:
+                    self._payment_id_to_idempotency_key[entry.payment_id] = idempotency_key
                 try:
                     loop = asyncio.get_running_loop()
                     self._verification_tasks[idempotency_key] = loop.create_task(
                         self.verify_payment_async(idempotency_key=idempotency_key)
                     )
                 except RuntimeError:
-                    # Synchronous callers still pass through verification and ledger.
-                    self._ledger[idempotency_key] = PaymentLedgerEntry(
-                        **{
-                            **entry.__dict__,
-                            "status": "verified",
-                            "verified": True,
-                            "verified_at": datetime.now(timezone.utc),
-                        }
-                    )
+                    self._ledger[idempotency_key] = self._run_verification(entry=entry)
                 return entry
-            if not self._is_retryable(last_result):
+            if not retryable:
                 break
 
         failed = PaymentLedgerEntry(
             idempotency_key=idempotency_key,
             tenant_id=tenant.tenant_id,
+            tenant_country_code=tenant.country_code,
             amount=amount,
             currency=currency,
             status="failed",
@@ -119,17 +148,52 @@ class PaymentOrchestrationService:
         if self._verification_latency_seconds > 0:
             await asyncio.sleep(self._verification_latency_seconds)
 
-        verified = PaymentLedgerEntry(
-            **{
-                **entry.__dict__,
-                "status": "verified",
-                "verified": True,
-                "verified_at": datetime.now(timezone.utc),
-            }
-        )
+        verified = self._run_verification(entry=entry)
         self._ledger[idempotency_key] = verified
         self._verification_tasks.pop(idempotency_key, None)
         return verified
+
+    async def handle_provider_callback(
+        self,
+        *,
+        provider: str,
+        payload: dict[str, Any],
+    ) -> PaymentLedgerEntry | None:
+        callback_result = self._router.parse_callback(provider=provider, payload=payload)
+        if callback_result is None:
+            return None
+        idempotency_key = self._payment_id_to_idempotency_key.get(callback_result.payment_id)
+        if idempotency_key is None:
+            return None
+        current = self._ledger[idempotency_key]
+        if current.status == "verified":
+            return current
+
+        if callback_result.ok:
+            updated = PaymentLedgerEntry(
+                **{
+                    **current.__dict__,
+                    "status": "verified",
+                    "verified": True,
+                    "verified_at": datetime.now(timezone.utc),
+                    "error": None,
+                }
+            )
+        else:
+            updated = PaymentLedgerEntry(
+                **{
+                    **current.__dict__,
+                    "status": "failed",
+                    "verified": False,
+                    "verified_at": None,
+                    "error": callback_result.error or "callback_failed",
+                }
+            )
+        self._ledger[idempotency_key] = updated
+        task = self._verification_tasks.pop(idempotency_key, None)
+        if task and not task.done():
+            task.cancel()
+        return updated
 
     async def await_verification(self, *, idempotency_key: str) -> PaymentLedgerEntry:
         task = self._verification_tasks.get(idempotency_key)
@@ -139,6 +203,9 @@ class PaymentOrchestrationService:
 
     def get_ledger_entry(self, *, idempotency_key: str) -> PaymentLedgerEntry | None:
         return self._ledger.get(idempotency_key)
+
+    def get_transaction_logs(self, *, idempotency_key: str) -> list[PaymentTransactionLogEntry]:
+        return list(self._transaction_log_store.get(idempotency_key, []))
 
     @staticmethod
     def _is_retryable(result: PaymentResult) -> bool:
