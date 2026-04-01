@@ -147,6 +147,15 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
         tenant_id="tenant_monetize",
         capability_id="learning.analytics.advanced",
         units=7,
+        source_service="owner-analytics-service",
+        reference_id="usage-learning-advanced-1",
+    )
+    commerce.record_capability_usage(
+        tenant_id="tenant_monetize",
+        capability_id="learning.analytics.advanced",
+        units=7,
+        source_service="owner-analytics-service",
+        reference_id="usage-learning-advanced-1",
     )
     charges = commerce.calculate_capability_charges(tenant)
     charge_map = {charge.capability_id: charge for charge in charges}
@@ -155,6 +164,7 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
     assert charge_map["learning.analytics.advanced"].units == 7
     assert charge_map["assessment.author"].amount == Decimal("29.00")
     assert commerce.monetization.validate_no_orphaned_monetized_capabilities() == (True, set())
+    assert len(commerce.entitlement_service.list_usage_events()) == 1
 
 
 def test_add_on_enablement_flow_lists_eligible_purchase_and_revoke() -> None:

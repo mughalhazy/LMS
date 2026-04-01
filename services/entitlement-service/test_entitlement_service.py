@@ -88,3 +88,38 @@ def test_purchased_add_on_capability_resolves_through_entitlement_service() -> N
     )
 
     assert service.is_enabled(tenant, "owner_analytics") is True
+
+
+def test_usage_metering_emits_canonical_event_and_prevents_duplicates() -> None:
+    service = EntitlementService()
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_usage",
+        plan_type="enterprise_learning",
+        country_code="PK",
+        segment_id="academy",
+    )
+    service.upsert_tenant_context(tenant)
+
+    first = service.meter_usage(
+        tenant=tenant,
+        capability_id="exam_engine",
+        quantity=3,
+        source_service="exam-engine",
+        reference_id="attempt-123",
+        metadata={"session_id": "sess-123"},
+    )
+    duplicate = service.meter_usage(
+        tenant=tenant,
+        capability_id="exam_engine",
+        quantity=3,
+        source_service="exam-engine",
+        reference_id="attempt-123",
+    )
+
+    assert first is not None
+    assert duplicate is None
+    events = service.list_usage_events()
+    assert len(events) == 1
+    assert events[0].event_type == "lms.usage.recorded.v1"
+    assert events[0].topic == "lms.usage.recorded"
+    assert events[0].producer_service == "entitlement-service"

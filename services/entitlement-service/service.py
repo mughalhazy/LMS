@@ -3,10 +3,14 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
+from uuid import uuid4
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
+from backend.services.shared.events.envelope import EventEnvelope, build_event
 from shared.models.config import ConfigResolutionContext
+from shared.models.usage_record import UsageRecord
 from shared.utils.entitlement import EntitlementDecision, TenantEntitlementContext
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +51,9 @@ class EntitlementService:
         self._subscription_service = subscription_service or SubscriptionService()
         self._config_service = config_service or ConfigService()
         self._capability_registry = capability_registry_service or CapabilityRegistryService()
+        self._usage_records: dict[str, UsageRecord] = {}
+        self._usage_idempotency_keys: set[tuple[str, str, str, str]] = set()
+        self._usage_events: list[EventEnvelope] = []
 
     def upsert_tenant_context(self, context: TenantEntitlementContext) -> None:
         normalized = context.normalized()
@@ -156,6 +163,86 @@ class EntitlementService:
 
     def is_enabled(self, tenant: TenantEntitlementContext, capability: str) -> bool:
         return self.decide(tenant=tenant, capability=capability).is_enabled
+
+    def meter_usage(
+        self,
+        *,
+        tenant: TenantEntitlementContext,
+        capability_id: str,
+        quantity: int,
+        source_service: str,
+        reference_id: str,
+        unit_type: str = "count",
+        metadata: dict[str, str] | None = None,
+        timestamp: datetime | None = None,
+    ) -> UsageRecord | None:
+        normalized_tenant = tenant.normalized()
+        normalized_capability_id = capability_id.strip()
+        capability = self._capability_registry.get_capability(normalized_capability_id)
+        if capability is None:
+            raise ValueError(f"unknown capability '{normalized_capability_id}'")
+        if quantity < 0:
+            raise ValueError("quantity must be >= 0")
+        if quantity == 0:
+            return None
+        if not capability.usage_metered:
+            return None
+
+        normalized_reference_id = reference_id.strip()
+        idempotency_key = (
+            normalized_tenant.tenant_id,
+            normalized_capability_id,
+            source_service.strip(),
+            normalized_reference_id,
+        )
+        if idempotency_key in self._usage_idempotency_keys:
+            return None
+        self._usage_idempotency_keys.add(idempotency_key)
+
+        usage = UsageRecord(
+            usage_id=str(uuid4()),
+            tenant_id=normalized_tenant.tenant_id,
+            capability_id=normalized_capability_id,
+            unit_type=unit_type,
+            quantity=quantity,
+            source_service=source_service,
+            timestamp=timestamp or datetime.now(timezone.utc),
+            reference_id=normalized_reference_id,
+            metadata=metadata or {},
+        ).normalized()
+        self._usage_records[usage.usage_id] = usage
+        self._usage_events.append(
+            build_event(
+                event_type="lms.usage.recorded.v1",
+                topic="lms.usage.recorded",
+                producer_service="entitlement-service",
+                schema_version="v1",
+                tenant_id=usage.tenant_id,
+                correlation_id=usage.reference_id,
+                payload={
+                    "usage_id": usage.usage_id,
+                    "capability_id": usage.capability_id,
+                    "unit_type": usage.unit_type,
+                    "quantity": usage.quantity,
+                    "source_service": usage.source_service,
+                    "timestamp": usage.timestamp.isoformat(),
+                    "reference_id": usage.reference_id,
+                    "metadata": usage.metadata,
+                },
+                metadata={"event_family": "usage"},
+            )
+        )
+        return usage
+
+    def list_usage_records(self, *, tenant_id: str | None = None) -> list[UsageRecord]:
+        records = self._usage_records.values()
+        if tenant_id:
+            normalized_tenant = tenant_id.strip()
+            records = [item for item in records if item.tenant_id == normalized_tenant]
+        return sorted(records, key=lambda item: item.timestamp)
+
+    def list_usage_events(self) -> list[EventEnvelope]:
+        return list(self._usage_events)
 
     def has_bypass_paths(self) -> bool:
         required_methods = (
