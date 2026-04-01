@@ -1,0 +1,99 @@
+openapi: 3.0.3
+info:
+  title: Integration Service API
+  version: 2026-04-01
+  description: |
+    Unified integration APIs for HR, ERP, and reporting systems.
+servers:
+  - url: /api/integrations
+paths:
+  /student-data/{studentId}:
+    get:
+      summary: Fetch student data snapshot
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+  /enrollment/{enrollmentId}:
+    get:
+      summary: Fetch enrollment data
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: enrollmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+  /progress/{learnerId}:
+    get:
+      summary: Fetch progress data
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: learnerId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+  /billing/{invoiceId}:
+    get:
+      summary: Fetch billing data
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+  /attendance/{attendanceId}:
+    get:
+      summary: Fetch attendance data
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: attendanceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+  /teacher-data/{teacherId}:
+    get:
+      summary: Fetch teacher data
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: teacherId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response envelope
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
