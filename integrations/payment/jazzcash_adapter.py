@@ -6,7 +6,7 @@ from .base_adapter import PaymentResult, TenantPaymentContext
 class JazzCashAdapter:
     provider_key = "jazzcash"
 
-    def process_payment(
+    def initiate_payment(
         self,
         amount: int,
         tenant: TenantPaymentContext,
@@ -28,3 +28,9 @@ class JazzCashAdapter:
             provider=self.provider_key,
             invoice_id=invoice_id,
         )
+
+    def verify_payment(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return PaymentResult(ok=True, status="verified", payment_id=payment_id, provider=self.provider_key)
+
+    def get_status(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return self.verify_payment(payment_id=payment_id, tenant=tenant)

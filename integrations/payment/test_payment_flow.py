@@ -29,7 +29,7 @@ def test_jazzcash_success_flow_links_payment_to_invoice() -> None:
     )
     service = PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
-    result = service.process_payment(
+    result = service.initiate_payment(
         amount=1500,
         tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
     )
@@ -48,7 +48,7 @@ def test_easypaisa_success_flow_links_payment_to_invoice() -> None:
     )
     service = PaymentFlowService(router=router, invoice_store=InMemoryInvoiceStore())
 
-    result = service.process_payment(
+    result = service.initiate_payment(
         amount=1500,
         tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
     )
@@ -60,9 +60,9 @@ def test_easypaisa_success_flow_links_payment_to_invoice() -> None:
     assert result["invoice_payment_status"] == "paid"
 
 
-def test_subscription_entrypoint_supports_process_payment_signature() -> None:
+def test_subscription_entrypoint_supports_initiate_payment_signature() -> None:
     mod = _load_subscription_module()
-    result = mod.process_payment(1500, "tenant_alpha")
+    result = mod.initiate_payment(1500, "tenant_alpha")
 
     assert result["status"] == "success"
     assert result["invoice_id"] is not None
@@ -74,7 +74,7 @@ def test_no_provider_lock_in_with_runtime_config() -> None:
         country_provider_config={"PK": "easypaisa"}
     )
 
-    result = service.process_payment(
+    result = service.initiate_payment(
         amount=2000,
         tenant=TenantPaymentContext(tenant_id="tenant_dynamic", country_code="PK"),
     )

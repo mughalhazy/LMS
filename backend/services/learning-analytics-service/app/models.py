@@ -79,7 +79,7 @@ class CashflowRecord:
     owner_id: str
     amount: float
     flow_type: str
-    occurred_at: datetime
+    timestamp: datetime
     currency: str = "USD"
     category: str = "operations"
     source_event_id: str | None = None

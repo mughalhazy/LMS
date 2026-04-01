@@ -7,7 +7,7 @@ from .base_adapter import PaymentResult, TenantPaymentContext
 class MockSuccessAdapter:
     provider_key = "mock_success"
 
-    def process_payment(
+    def initiate_payment(
         self,
         amount: int,
         tenant: TenantPaymentContext,
@@ -21,11 +21,17 @@ class MockSuccessAdapter:
             invoice_id=invoice_id,
         )
 
+    def verify_payment(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return PaymentResult(ok=True, status="verified", payment_id=payment_id, provider=self.provider_key)
+
+    def get_status(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return self.verify_payment(payment_id=payment_id, tenant=tenant)
+
 
 class MockFailureAdapter:
     provider_key = "mock_failure"
 
-    def process_payment(
+    def initiate_payment(
         self,
         amount: int,
         tenant: TenantPaymentContext,
@@ -38,3 +44,15 @@ class MockFailureAdapter:
             error="provider_rejected",
             invoice_id=invoice_id,
         )
+
+    def verify_payment(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return PaymentResult(
+            ok=False,
+            status="failed",
+            payment_id=payment_id,
+            provider=self.provider_key,
+            error="provider_rejected",
+        )
+
+    def get_status(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        return self.verify_payment(payment_id=payment_id, tenant=tenant)

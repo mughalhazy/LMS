@@ -23,13 +23,19 @@ class TenantPaymentContext:
 class BasePaymentAdapter(Protocol):
     provider_key: str
 
-    def process_payment(
+    def initiate_payment(
         self,
         amount: int,
         tenant: TenantPaymentContext,
         invoice_id: str | None = None,
     ) -> PaymentResult:
-        """Process a payment for a tenant through the provider."""
+        """Initiate a payment for a tenant through the provider."""
+
+    def verify_payment(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        """Verify a payment for a tenant through the provider."""
+
+    def get_status(self, payment_id: str, tenant: TenantPaymentContext) -> PaymentResult:
+        """Retrieve payment status for reconciliation workflows."""
 
 
 def normalize_tenant(tenant: Any) -> TenantPaymentContext:

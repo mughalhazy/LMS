@@ -205,7 +205,7 @@ class AnalyticsRepository:
                         owner_id=owner_id,
                         amount=settlement_amount,
                         flow_type="inflow",
-                        occurred_at=timestamp,
+                        timestamp=timestamp,
                         currency=currency,
                         category="commerce_settlement",
                         source_event_id=event.get("event_id"),
@@ -228,7 +228,7 @@ class AnalyticsRepository:
                     owner_id=owner_id,
                     amount=amount,
                     flow_type=flow_type,
-                    occurred_at=timestamp,
+                    timestamp=timestamp,
                     currency=currency,
                     category=category,
                     source_event_id=event.get("event_id"),
@@ -365,5 +365,5 @@ class AnalyticsRepository:
             for row in self.cashflow_records
             if (tenant_id is None or row.tenant_id == tenant_id)
             and (owner_id is None or row.owner_id == owner_id)
-            and self._in_window(row.occurred_at, start_at, end_at)
+            and self._in_window(row.timestamp, start_at, end_at)
         ]

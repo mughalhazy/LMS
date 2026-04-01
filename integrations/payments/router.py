@@ -39,10 +39,7 @@ class PaymentProviderRouter:
         tenant_context = normalize_tenant(tenant)
         provider_key = self.resolve_provider(tenant_context)
         adapter = self._adapters[provider_key]
-        initiate_fn = getattr(adapter, "initiate_payment", None)
-        if initiate_fn is None:
-            initiate_fn = getattr(adapter, "process_payment")
-        result = initiate_fn(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
+        result = adapter.initiate_payment(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
         return PaymentResult(
             ok=bool(result.ok),
             status=self._normalize_status(result.status, ok=result.ok, stage="checkout"),
