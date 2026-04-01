@@ -195,6 +195,7 @@ def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
     assert len(run["executed"]) == 3
     results = {item["step_id"]: item["result"] for item in run["executed"]}
     assert results["step_notify"]["status"] == "sent"
+    assert results["step_notify"]["template_name"] == "fee_reminder"
     assert results["step_ops_qc"]["status"] == "orchestrated"
     assert results["step_collect_payment"]["status"] in {"pending", "success", "failed"}
     assert run["pending_count"] == 0
@@ -300,6 +301,7 @@ def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> 
     assert len(run["executed"]) == 3
     templates = {item["result"]["template_name"] for item in run["executed"]}
     assert templates == {"attendance_notification", "fee_reminder", "progress_update"}
+    assert all(item["result"]["status"] == "sent" for item in run["executed"])
 
     duplicate_schedule = engine.handle_trigger(
         WorkflowTriggerEvent(
@@ -315,6 +317,115 @@ def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> 
     )
     assert duplicate_schedule["scheduled"] == []
 
+
+def test_attendance_marked_absent_triggers_immediate_parent_whatsapp_notification() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 4, 1, 12, 0, tzinfo=timezone.utc)
+    engine.register_parent_student_mapping(
+        tenant_id="tenant_school_1",
+        student_id="stu_100",
+        parent_user_ids=["parent_1", "parent_2"],
+    )
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_attendance_marked",
+            name="Attendance Marked Notifications",
+            enabled=True,
+            rules=(WorkflowRule(rule_id="rule_absence", trigger_type="attendance.absence_detected"),),
+            steps=(WorkflowStep(step_id="step_notify_guardians", step_type="notify", config={}),),
+        )
+    )
+
+    scheduled = engine.handle_event_envelope(
+        {
+            "event_id": "evt_att_marked_absent_1",
+            "event_type": "attendance.marked",
+            "timestamp": now.isoformat().replace("+00:00", "Z"),
+            "tenant_id": "tenant_school_1",
+            "payload": {
+                "country_code": "US",
+                "segment_id": "academy",
+                "student_id": "stu_100",
+                "attendance_status": "absent",
+                "student_name": "Lina",
+                "session_date": "2026-04-01",
+            },
+            "metadata": {"actor": {"user_id": "teacher_99"}},
+        }
+    )
+    assert len(scheduled["scheduled"]) == 1
+
+    run = engine.run_due(now=now + timedelta(seconds=5))
+    assert len(run["executed"]) == 1
+    notification_result = run["executed"][0]["result"]
+    assert notification_result["status"] == "sent"
+    assert notification_result["template_name"] == "attendance_notification"
+    recipients = {item["recipient"] for item in notification_result["deliveries"]}
+    assert recipients == {"parent_1", "parent_2"}
+
+
+def test_attendance_marked_present_notification_is_optional_via_config() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 4, 1, 13, 0, tzinfo=timezone.utc)
+    engine.register_parent_student_mapping(
+        tenant_id="tenant_school_2",
+        student_id="stu_200",
+        parent_user_ids=["parent_9"],
+    )
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_attendance_present",
+            name="Attendance Present Notifications",
+            enabled=True,
+            rules=(WorkflowRule(rule_id="rule_present", trigger_type="attendance.present_marked"),),
+            steps=(WorkflowStep(step_id="step_notify_guardian", step_type="notify", config={}),),
+        )
+    )
+
+    skipped = engine.handle_event_envelope(
+        {
+            "event_id": "evt_att_marked_present_skip",
+            "event_type": "attendance.marked",
+            "timestamp": now.isoformat().replace("+00:00", "Z"),
+            "tenant_id": "tenant_school_2",
+            "payload": {
+                "country_code": "US",
+                "segment_id": "academy",
+                "student_id": "stu_200",
+                "attendance_status": "present",
+                "student_name": "Mika",
+                "session_date": "2026-04-01",
+            },
+            "metadata": {"actor": {"user_id": "teacher_77"}},
+        }
+    )
+    assert skipped["scheduled"] == []
+
+    engine._config_service.upsert_override(
+        ConfigOverride(
+            scope=ConfigScope(level=ConfigLevel.TENANT, scope_id="tenant_school_2"),
+            behavior_tuning={"attendance_notifications": {"notify_on_present": True}},
+        )
+    )
+    allowed = engine.handle_event_envelope(
+        {
+            "event_id": "evt_att_marked_present_send",
+            "event_type": "attendance.marked",
+            "timestamp": now.isoformat().replace("+00:00", "Z"),
+            "tenant_id": "tenant_school_2",
+            "payload": {
+                "country_code": "US",
+                "segment_id": "academy",
+                "student_id": "stu_200",
+                "attendance_status": "present",
+                "student_name": "Mika",
+                "session_date": "2026-04-01",
+            },
+            "metadata": {"actor": {"user_id": "teacher_77"}},
+        }
+    )
+    assert len(allowed["scheduled"]) == 1
+
 def test_bootstrap_default_workflows_registers_attendance_fees_and_notifications() -> None:
     engine = WorkflowEngine()
 
@@ -325,4 +436,3 @@ def test_bootstrap_default_workflows_registers_attendance_fees_and_notifications
         "wf_default_fees",
         "wf_default_notifications",
     }
-
