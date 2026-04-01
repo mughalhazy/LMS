@@ -60,6 +60,7 @@ class CommerceService:
         self._payment_orchestrator = payment_orchestrator
         self._payment_country_code = payment_country_code.upper()
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
+        self._teacher_revenue_share_records: list[dict[str, str]] = []
         self.owner_economics = OwnerEconomicsEngine()
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
-ExamSessionStatus = Literal["scheduled", "active", "submitted", "expired", "cancelled"]
+ExamSessionStatus = Literal["scheduled", "queued", "active", "submitted", "expired", "cancelled"]
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,7 @@ class TenantCapacityProfile:
     max_active_sessions: int = 5_000
     shard_count: int = 8
     allow_concurrent_sessions_per_student: bool = False
+    burst_queue_limit: int = 0
 
 
 @dataclass
@@ -27,14 +28,13 @@ class ExamSession:
     submitted_at: datetime | None
     assigned_capacity_profile: str
     isolation_key: str
+    assigned_shard: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def session_id(self) -> str:
-        """Backward-compatible alias used by older tests/callers."""
         return self.exam_session_id
 
     @property
     def learner_id(self) -> str:
-        """Backward-compatible alias used by older tests/callers."""
         return self.student_id
