@@ -58,6 +58,8 @@ class AssessmentListResponse(BaseModel):
 
 class AttemptStartRequest(BaseModel):
     learner_id: str
+    exam_session_id: str | None = None
+    isolation_key: str | None = None
 
 
 class AttemptResponse(BaseModel):
@@ -69,6 +71,8 @@ class AttemptResponse(BaseModel):
     started_at: datetime
     submitted_at: datetime | None
     grading_result_id: str | None
+    exam_session_id: str | None
+    isolation_key: str | None
 
 
 class SubmissionCreateRequest(BaseModel):

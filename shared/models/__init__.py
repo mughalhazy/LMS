@@ -1,3 +1,4 @@
+from .exam_session import ExamSessionRecord
 from .invoice import Invoice
 from .academy import AcademyDeliveryMode, AcademyEnrollment, AcademyPackage
 from .capability import Capability
@@ -30,6 +31,7 @@ from .operations_dashboard import action_item, alert_card, dashboard_summary, pr
 from .owner_economics import OwnerEconomicsSnapshot
 
 __all__ = [
+    "ExamSessionRecord",
     "Invoice",
     "AcademyDeliveryMode",
     "AcademyEnrollment",
