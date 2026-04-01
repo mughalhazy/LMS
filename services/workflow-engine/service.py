@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -60,6 +60,7 @@ class WorkflowRule:
     rule_id: str
     trigger_type: str
     required_context: dict[str, Any] = field(default_factory=dict)
+    conditions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,8 @@ class WorkflowStep:
     step_type: WorkflowStepType
     delay_seconds: int = 0
     config: dict[str, Any] = field(default_factory=dict)
+    max_retries: int = 0
+    retry_delay_seconds: int = 60
 
 
 @dataclass(frozen=True)
@@ -88,6 +91,7 @@ class ScheduledStep:
     actor_user_id: str
     step: WorkflowStep
     due_at: datetime
+    attempt: int = 0
 
 
 class WorkflowEngine:
@@ -134,7 +138,52 @@ class WorkflowEngine:
         for key, expected in rule.required_context.items():
             if event.context.get(key) != expected:
                 return False
+        for condition in rule.conditions:
+            if not self._evaluate_condition(condition=condition, context=event.context):
+                return False
         return True
+
+    def _evaluate_condition(self, *, condition: dict[str, Any], context: dict[str, Any]) -> bool:
+        key = str(condition.get("key", ""))
+        operator = str(condition.get("operator", "eq"))
+        expected = condition.get("value")
+        value = context.get(key)
+
+        if operator == "eq":
+            return value == expected
+        if operator == "neq":
+            return value != expected
+        if operator == "gt":
+            return value is not None and expected is not None and value > expected
+        if operator == "gte":
+            return value is not None and expected is not None and value >= expected
+        if operator == "lt":
+            return value is not None and expected is not None and value < expected
+        if operator == "lte":
+            return value is not None and expected is not None and value <= expected
+        if operator == "in":
+            return expected is not None and value in expected
+        if operator == "not_in":
+            return expected is not None and value not in expected
+        if operator == "exists":
+            return key in context
+        if operator == "not_exists":
+            return key not in context
+        return False
+
+    def _resolve_step_due_at(self, *, event: WorkflowTriggerEvent, step: WorkflowStep) -> datetime:
+        base_due = event.occurred_at + timedelta(seconds=max(0, step.delay_seconds))
+        schedule_at = step.config.get("schedule_at")
+        if isinstance(schedule_at, str):
+            try:
+                parsed = datetime.fromisoformat(schedule_at.replace("Z", "+00:00"))
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+            except ValueError:
+                return base_due
+        schedule_in_seconds = step.config.get("schedule_in_seconds")
+        if isinstance(schedule_in_seconds, int):
+            return event.occurred_at + timedelta(seconds=max(0, schedule_in_seconds))
+        return base_due
 
     def handle_trigger(self, event: WorkflowTriggerEvent) -> dict[str, Any]:
         policy = self._resolve_rules(event)
@@ -152,7 +201,7 @@ class WorkflowEngine:
 
             trace.append({"step": "workflow.matched", "workflow_id": workflow.workflow_id})
             for wf_step in workflow.steps:
-                due_at = event.occurred_at + timedelta(seconds=max(0, wf_step.delay_seconds))
+                due_at = self._resolve_step_due_at(event=event, step=wf_step)
                 scheduled_step = ScheduledStep(
                     workflow_id=workflow.workflow_id,
                     event_id=event.event_id,
@@ -161,6 +210,7 @@ class WorkflowEngine:
                     actor_user_id=event.actor_user_id,
                     step=wf_step,
                     due_at=due_at,
+                    attempt=0,
                 )
                 self._scheduled_steps.append(scheduled_step)
                 scheduled.append(
@@ -205,68 +255,102 @@ class WorkflowEngine:
         executions: list[dict[str, Any]] = []
 
         for item in sorted(due, key=lambda step: step.due_at):
-            trace.append({"step": "step.started", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
+            trace.append(
+                {
+                    "step": "step.started",
+                    "workflow_id": item.workflow_id,
+                    "step_id": item.step.step_id,
+                    "attempt": item.attempt,
+                }
+            )
 
-            if item.step.step_type == "notify":
-                message = str(item.step.config.get("message", "workflow notification"))
-                delivery = self._notification_orchestrator.send_notification(
-                    tenant_country_code=item.country_code,
-                    user_id=item.actor_user_id,
-                    message=message,
-                )
-                result = {
-                    "status": "sent" if delivery.ok else "failed",
-                    "provider": delivery.provider,
-                    "fallback_used": delivery.fallback_used,
-                    "error": delivery.error,
-                }
-            elif item.step.step_type in {"wait", "escalate"}:
-                result = {
-                    "status": "orchestrated",
-                    "action": item.step.step_type,
-                    "detail": item.step.config,
-                }
-            elif item.step.step_type == "academy_ops":
-                operation = str(item.step.config.get("operation", "run_qc_autofix"))
-                if operation == "run_qc_autofix":
+            try:
+                if item.step.step_type == "notify":
+                    message = str(item.step.config.get("message", "workflow notification"))
+                    delivery = self._notification_orchestrator.send_notification(
+                        tenant_country_code=item.country_code,
+                        user_id=item.actor_user_id,
+                        message=message,
+                    )
+                    result = {
+                        "status": "sent" if delivery.ok else "failed",
+                        "provider": delivery.provider,
+                        "fallback_used": delivery.fallback_used,
+                        "error": delivery.error,
+                    }
+                elif item.step.step_type in {"wait", "escalate"}:
                     result = {
                         "status": "orchestrated",
-                        "action": "academy_ops.run_qc_autofix",
-                        "detail": self._academy_ops_service.run_qc_autofix(),
+                        "action": item.step.step_type,
+                        "detail": item.step.config,
+                    }
+                elif item.step.step_type == "academy_ops":
+                    operation = str(item.step.config.get("operation", "run_qc_autofix"))
+                    if operation == "run_qc_autofix":
+                        result = {
+                            "status": "orchestrated",
+                            "action": "academy_ops.run_qc_autofix",
+                            "detail": self._academy_ops_service.run_qc_autofix(),
+                        }
+                    else:
+                        result = {"status": "skipped", "reason": "unsupported_academy_ops_operation"}
+                elif item.step.step_type == "payment":
+                    amount = int(item.step.config.get("amount", 0))
+                    currency = str(item.step.config.get("currency", "PKR"))
+                    invoice_id = item.step.config.get("invoice_id")
+                    idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
+                    payment_entry = self._payment_orchestration_service.process_checkout_payment(
+                        idempotency_key=idempotency_key,
+                        tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
+                        amount=amount,
+                        currency=currency,
+                        invoice_id=str(invoice_id) if invoice_id is not None else None,
+                    )
+                    result = {
+                        "status": payment_entry.status,
+                        "provider": payment_entry.provider,
+                        "payment_id": payment_entry.payment_id,
+                        "verified": payment_entry.verified,
+                        "error": payment_entry.error,
                     }
                 else:
-                    result = {"status": "skipped", "reason": "unsupported_academy_ops_operation"}
-            elif item.step.step_type == "payment":
-                amount = int(item.step.config.get("amount", 0))
-                currency = str(item.step.config.get("currency", "PKR"))
-                invoice_id = item.step.config.get("invoice_id")
-                idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
-                payment_entry = self._payment_orchestration_service.process_checkout_payment(
-                    idempotency_key=idempotency_key,
-                    tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
-                    amount=amount,
-                    currency=currency,
-                    invoice_id=str(invoice_id) if invoice_id is not None else None,
-                )
-                result = {
-                    "status": payment_entry.status,
-                    "provider": payment_entry.provider,
-                    "payment_id": payment_entry.payment_id,
-                    "verified": payment_entry.verified,
-                    "error": payment_entry.error,
-                }
-            else:
-                result = {"status": "skipped", "reason": "unsupported_step_type"}
+                    result = {"status": "skipped", "reason": "unsupported_step_type"}
+            except Exception as exc:
+                result = {"status": "failed", "error": str(exc), "reason": "step_execution_exception"}
 
             executions.append(
                 {
                     "workflow_id": item.workflow_id,
                     "event_id": item.event_id,
                     "step_id": item.step.step_id,
+                    "attempt": item.attempt,
                     "result": result,
                 }
             )
-            trace.append({"step": "step.completed", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
+            status = str(result.get("status", ""))
+            should_retry = status in {"failed", "error"} and item.attempt < max(0, item.step.max_retries)
+            if should_retry:
+                retry_due_at = current_time + timedelta(seconds=max(1, item.step.retry_delay_seconds))
+                retried_step = replace(item, due_at=retry_due_at, attempt=item.attempt + 1)
+                self._scheduled_steps.append(retried_step)
+                trace.append(
+                    {
+                        "step": "step.retry_scheduled",
+                        "workflow_id": item.workflow_id,
+                        "step_id": item.step.step_id,
+                        "next_attempt": retried_step.attempt,
+                        "due_at": retry_due_at.isoformat(),
+                    }
+                )
+            else:
+                trace.append(
+                    {
+                        "step": "step.completed",
+                        "workflow_id": item.workflow_id,
+                        "step_id": item.step.step_id,
+                        "attempt": item.attempt,
+                    }
+                )
 
         return {
             "executed": executions,

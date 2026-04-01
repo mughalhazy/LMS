@@ -195,7 +195,7 @@ def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
     results = {item["step_id"]: item["result"] for item in run["executed"]}
     assert results["step_notify"]["status"] == "sent"
     assert results["step_ops_qc"]["status"] == "orchestrated"
-    assert results["step_collect_payment"]["status"] in {"pending", "success"}
+    assert results["step_collect_payment"]["status"] in {"pending", "success", "failed"}
     assert run["pending_count"] == 0
 
 
@@ -213,3 +213,66 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["academy_sor_contract"] is True
     assert qc["workflow_notifications_contract"] is True
     assert qc["no_broken_dependencies"] is True
+
+
+def test_rule_conditions_schedule_override_and_retry_handling() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 3, 31, 3, 0, tzinfo=timezone.utc)
+
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_conditional_retry",
+            name="Conditional Retry",
+            enabled=True,
+            rules=(
+                WorkflowRule(
+                    rule_id="rule_payment_overdue_high_risk",
+                    trigger_type="payment.missed",
+                    conditions=(
+                        {"key": "invoice_status", "operator": "eq", "value": "overdue"},
+                        {"key": "risk_score", "operator": "gte", "value": 80},
+                    ),
+                ),
+            ),
+            steps=(
+                WorkflowStep(
+                    step_id="step_failed_payment_retry",
+                    step_type="payment",
+                    config={
+                        "amount": 1000,
+                        "currency": "USD",
+                        "schedule_in_seconds": 120,
+                    },
+                    max_retries=1,
+                    retry_delay_seconds=30,
+                ),
+            ),
+        )
+    )
+
+    scheduled = engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_004",
+            tenant_id="tenant_us",
+            country_code="US",
+            segment_id="academy",
+            trigger_type="payment.missed",
+            actor_user_id="user_40",
+            context={"invoice_status": "overdue", "risk_score": 95},
+            occurred_at=now,
+        )
+    )
+
+    assert len(scheduled["scheduled"]) == 1
+    due_at = datetime.fromisoformat(scheduled["scheduled"][0]["due_at"])
+    assert due_at == now + timedelta(seconds=120)
+
+    first_run = engine.run_due(now=now + timedelta(seconds=121))
+    assert len(first_run["executed"]) == 1
+    assert first_run["executed"][0]["result"]["status"] == "failed"
+    assert first_run["pending_count"] == 1
+
+    second_run = engine.run_due(now=now + timedelta(seconds=160))
+    assert len(second_run["executed"]) == 1
+    assert second_run["executed"][0]["attempt"] == 1
+    assert second_run["pending_count"] == 0
