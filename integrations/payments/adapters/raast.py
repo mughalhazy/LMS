@@ -80,18 +80,6 @@ class RaastAdapter:
             error=None if record.status in {"verified", "success", "completed"} else "verification_failed",
         )
 
-    def process_payment(
-        self,
-        amount: int,
-        tenant: TenantPaymentContext,
-        invoice_id: str | None = None,
-    ) -> PaymentResult:
-        return self.initiate_payment(
-            amount=amount,
-            tenant=tenant,
-            invoice_id=invoice_id,
-        )
-
     def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         reference_id = payment_id.removeprefix("rs_")
         by_reference = self._status_from_reference(reference_id=reference_id, tenant=tenant)

@@ -13,7 +13,6 @@ from integrations.payments import (
     build_pakistan_payment_router,
 )
 from integrations.payments.base_adapter import BasePaymentAdapter, PaymentVerificationResult
-from integrations.payments.models import PaymentInitiationPayload
 
 
 def test_pakistan_adapters_are_isolated_by_provider_keys() -> None:
@@ -89,7 +88,7 @@ class FlakyRetryAdapter:
     def __init__(self) -> None:
         self.calls = 0
 
-    def process_payment(
+    def initiate_payment(
         self,
         amount: int,
         tenant: TenantPaymentContext,
@@ -149,7 +148,7 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
             invoice_id: str | None = None,
         ) -> PaymentResult:
             assert isinstance(tenant, TenantPaymentContext)
-            return self._adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+            return self._adapter.initiate_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
 
         def verify(
             self,
@@ -220,25 +219,9 @@ def test_easypaisa_initiation_idempotency_and_shape_matches_jazzcash() -> None:
     jazzcash = JazzCashAdapter()
     easypaisa = EasyPaisaAdapter()
 
-    jazzcash_result = jazzcash.process_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
-    first = easypaisa.initiate_payment(
-        payload=PaymentInitiationPayload(
-            amount=1200,
-            tenant_id=tenant.tenant_id,
-            country_code=tenant.country_code,
-            invoice_id="inv-1",
-            idempotency_key="idem-ep-1",
-        )
-    )
-    second = easypaisa.initiate_payment(
-        payload=PaymentInitiationPayload(
-            amount=1200,
-            tenant_id=tenant.tenant_id,
-            country_code=tenant.country_code,
-            invoice_id="inv-1",
-            idempotency_key="idem-ep-1",
-        )
-    )
+    jazzcash_result = jazzcash.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
+    first = easypaisa.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
+    second = easypaisa.initiate_payment(amount=1200, tenant=tenant, invoice_id="inv-1")
 
     assert first == second
     assert set(jazzcash_result.__dict__.keys()) == set(first.__dict__.keys())
