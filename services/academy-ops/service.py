@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -67,9 +67,11 @@ class AcademyOpsService:
         *,
         sor_service: SystemOfRecordService | None = None,
         entitlement_service: EntitlementService | None = None,
+        commerce_service: Any | None = None,
     ) -> None:
         self._sor = sor_service or SystemOfRecordService()
         self._entitlement = entitlement_service or EntitlementService()
+        self._commerce = commerce_service
 
         self._branches: dict[tuple[str, str], Branch] = {}
         self._batches: dict[tuple[str, str], Batch] = {}
@@ -80,6 +82,8 @@ class AcademyOpsService:
         self._events: list[dict[str, Any]] = []
         self._fee_invoices: dict[tuple[str, str], list[Invoice]] = {}
         self._fee_payments: dict[tuple[str, str], list[FeePayment]] = {}
+        self._student_fee_plans: dict[tuple[str, str], dict[str, Any]] = {}
+        self._fee_invoice_status: dict[tuple[str, str, str], str] = {}
         self._revenue_share_agreements: dict[tuple[str, str], RevenueShareAgreement] = {}
         self._teacher_performance: dict[tuple[str, str], list[TeacherPerformanceSnapshot]] = {}
         self._teacher_payouts: dict[tuple[str, str], list[TeacherPayoutRecord]] = {}
@@ -538,10 +542,8 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=invoice.tenant_id, operation="fee_tracking")
         key = self._key(invoice.tenant_id, learner_id)
         self._fee_invoices.setdefault(key, []).append(invoice)
-        try:
-            self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
-        except TypeError:
-            pass
+        self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
+        self._fee_invoice_status[self._key(invoice.tenant_id, learner_id, invoice.invoice_id)] = invoice.status
 
     def ingest_commerce_invoice(self, *, learner_id: str, invoice_record: Any) -> Invoice:
         invoice = Invoice.issued(
@@ -586,16 +588,150 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=payment.tenant_id, operation="fee_tracking")
         key = self._key(payment.tenant_id, payment.learner_id)
         self._fee_payments.setdefault(key, []).append(payment)
-        try:
-            self._sor.post_payment_to_ledger(
-                tenant_id=payment.tenant_id,
-                student_id=payment.learner_id,
-                payment_id=payment.payment_id,
-                amount=payment.amount,
-            )
-        except TypeError:
-            pass
+        self._sor.post_payment_to_ledger(
+            tenant_id=payment.tenant_id,
+            student_id=payment.learner_id,
+            payment_id=payment.payment_id,
+            amount=payment.amount,
+        )
         return payment
+
+    def assign_fee_plan_to_student(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        fee_plan_id: str,
+        fee_type: str,
+        total_amount: Decimal,
+        installment_count: int = 1,
+        currency: str = "USD",
+    ) -> dict[str, Any]:
+        self._require_operation_capability(tenant_id=tenant_id, operation="fee_tracking")
+        if self._sor.get_student_profile(tenant_id=tenant_id, student_id=learner_id) is None:
+            raise KeyError("student profile not found")
+        normalized_type = fee_type.strip().lower()
+        if normalized_type not in {"monthly_tuition", "installment", "one_time_batch"}:
+            raise ValueError("unsupported fee_type")
+        if installment_count < 1:
+            raise ValueError("installment_count must be >= 1")
+        plan = {
+            "fee_plan_id": fee_plan_id.strip(),
+            "fee_type": normalized_type,
+            "total_amount": Decimal(total_amount).quantize(Decimal("0.01")),
+            "installment_count": installment_count,
+            "currency": currency.upper(),
+            "assigned_at": datetime.now(timezone.utc),
+        }
+        self._student_fee_plans[self._key(tenant_id, learner_id)] = plan
+        self._sor.post_fee_action_to_ledger(
+            tenant_id=tenant_id,
+            student_id=learner_id,
+            action_type="fee_plan_assigned",
+            reference_id=plan["fee_plan_id"],
+            metadata={"fee_type": normalized_type, "installment_count": str(installment_count)},
+        )
+        return plan
+
+    def generate_student_fee_invoice(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        installment_index: int | None = None,
+    ) -> Invoice:
+        plan = self._student_fee_plans.get(self._key(tenant_id, learner_id))
+        if plan is None:
+            raise KeyError("fee plan not found")
+        index = installment_index if installment_index is not None else len(self._fee_invoices.get(self._key(tenant_id, learner_id), ())) + 1
+        if index < 1 or index > int(plan["installment_count"]):
+            raise ValueError("invalid installment_index")
+        amount = (
+            plan["total_amount"]
+            if plan["fee_type"] == "one_time_batch"
+            else (plan["total_amount"] / Decimal(plan["installment_count"])).quantize(Decimal("0.01"))
+        )
+        invoice_id = f"{plan['fee_plan_id']}_{index}"
+        commerce_invoice = None
+        if self._commerce is not None:
+            commerce_invoice = self._commerce.generate_academy_fee_invoice(
+                tenant_id=tenant_id,
+                learner_id=learner_id,
+                fee_reference_id=invoice_id,
+                amount=amount,
+                fee_type=plan["fee_type"],
+                currency=plan["currency"],
+            )
+        invoice = (
+            self.ingest_commerce_invoice(learner_id=learner_id, invoice_record=commerce_invoice)
+            if commerce_invoice is not None
+            else Invoice.issued(invoice_id=f"fee_{invoice_id}", tenant_id=tenant_id, amount=amount)
+        )
+        if commerce_invoice is None:
+            self.record_fee_invoice(learner_id=learner_id, invoice=invoice)
+        return invoice
+
+    def mark_fee_due(self, *, tenant_id: str, learner_id: str, invoice_id: str, overdue: bool = False) -> None:
+        status = "overdue" if overdue else "pending"
+        self._fee_invoice_status[self._key(tenant_id, learner_id, invoice_id)] = status
+        self._sor.post_fee_action_to_ledger(
+            tenant_id=tenant_id,
+            student_id=learner_id,
+            action_type="fee_due_marked",
+            reference_id=invoice_id,
+            metadata={"status": status},
+        )
+        self._sor.set_student_fee_overdue_status(
+            tenant_id=tenant_id,
+            student_id=learner_id,
+            overdue=overdue,
+            source="operations-os",
+        )
+
+    def mark_fee_paid(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        invoice_id: str,
+        payment_id: str,
+        amount: Decimal,
+    ) -> FeePayment:
+        payment = self.record_fee_payment(
+            FeePayment(
+                tenant_id=tenant_id,
+                learner_id=learner_id,
+                payment_id=payment_id,
+                amount=Decimal(amount),
+            )
+        )
+        self._fee_invoice_status[self._key(tenant_id, learner_id, invoice_id)] = "paid"
+        self._sor.set_student_fee_overdue_status(
+            tenant_id=tenant_id,
+            student_id=learner_id,
+            overdue=False,
+            source="workflows",
+        )
+        return payment
+
+    def get_student_fee_status(self, *, tenant_id: str, learner_id: str) -> dict[str, Any]:
+        plan = self._student_fee_plans.get(self._key(tenant_id, learner_id))
+        invoices = self._fee_invoices.get(self._key(tenant_id, learner_id), [])
+        status_by_invoice = {
+            invoice.invoice_id: self._fee_invoice_status.get(self._key(tenant_id, learner_id, invoice.invoice_id), invoice.status)
+            for invoice in invoices
+        }
+        overdue = any(state == "overdue" for state in status_by_invoice.values())
+        balance = self.learner_fee_balance(tenant_id=tenant_id, learner_id=learner_id)
+        return {
+            "tenant_id": tenant_id,
+            "learner_id": learner_id,
+            "fee_plan": plan,
+            "invoice_status": status_by_invoice,
+            "overdue": overdue,
+            "current_balance": balance,
+            "feeds": ("workflows", "operations-os"),
+        }
 
     def learner_fee_balance(self, *, tenant_id: str, learner_id: str) -> Decimal:
         profile = self._sor.get_student_profile(tenant_id=tenant_id, student_id=learner_id)
