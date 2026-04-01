@@ -45,6 +45,38 @@ class WhatsAppAdapter(CommunicationAdapter):
         choice_str = "|".join(choices or ["ACK"])
         return f"[{operation.upper()}|{workflow_id}|{choice_str}] {message.strip()}"
 
+    def render_template_message(self, *, template_name: str, context: dict[str, Any]) -> str:
+        """Render WhatsApp-safe workflow templates for academy notifications."""
+
+        templates = {
+            "attendance_notification": (
+                "Attendance update: {student_name} is marked {attendance_status} "
+                "for {session_date}."
+            ),
+            "fee_reminder": (
+                "Fee reminder: invoice {invoice_id} of {amount} {currency} "
+                "is due on {due_date}."
+            ),
+            "progress_update": (
+                "Progress update: {student_name} completed {progress_percent}% "
+                "in {course_name}."
+            ),
+        }
+        template = templates.get(template_name, "{message}")
+        safe_context = {
+            "student_name": str(context.get("student_name", "Student")),
+            "attendance_status": str(context.get("attendance_status", "present")),
+            "session_date": str(context.get("session_date", "today")),
+            "invoice_id": str(context.get("invoice_id", "invoice")),
+            "amount": str(context.get("amount", "0")),
+            "currency": str(context.get("currency", "USD")),
+            "due_date": str(context.get("due_date", "soon")),
+            "progress_percent": str(context.get("progress_percent", "0")),
+            "course_name": str(context.get("course_name", "course")),
+            "message": str(context.get("message", "Workflow update.")),
+        }
+        return template.format(**safe_context).strip()
+
     def parse_interactive_reply(self, *, user_id: str, reply: str) -> WhatsAppInteractiveReply | None:
         """Parse compact reply protocol: WF:<workflow_id>|OP:<operation>|ACTION:<value>|k=v."""
 

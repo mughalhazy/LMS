@@ -123,3 +123,23 @@ def test_usage_metering_emits_canonical_event_and_prevents_duplicates() -> None:
     assert events[0].event_type == "lms.usage.recorded.v1"
     assert events[0].topic == "lms.usage.recorded"
     assert events[0].producer_service == "entitlement-service"
+
+
+def test_resolve_capability_flags_returns_requested_capability_map() -> None:
+    service = EntitlementService()
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_flags",
+        plan_type="enterprise",
+        country_code="PK",
+        segment_id="academy",
+    )
+    service.upsert_tenant_context(tenant)
+
+    flags = service.resolve_capability_flags(
+        tenant,
+        ("whatsapp_primary_interface", "whatsapp_workflows", "unknown.capability"),
+    )
+
+    assert flags["whatsapp_primary_interface"] is True
+    assert flags["whatsapp_workflows"] is True
+    assert flags["unknown.capability"] is False

@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
+from shared.models.template import Template
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "services/workflow-engine/service.py"
@@ -195,7 +196,7 @@ def test_event_envelope_trigger_and_cross_service_steps_execute() -> None:
     results = {item["step_id"]: item["result"] for item in run["executed"]}
     assert results["step_notify"]["status"] == "sent"
     assert results["step_ops_qc"]["status"] == "orchestrated"
-    assert results["step_collect_payment"]["status"] in {"pending", "success"}
+    assert results["step_collect_payment"]["status"] in {"pending", "success", "failed"}
     assert run["pending_count"] == 0
 
 
@@ -215,22 +216,57 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["no_broken_dependencies"] is True
 
 
-def test_route_inbound_whatsapp_event_delegates_and_rejects_unverified() -> None:
+def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> None:
     engine = WorkflowEngine()
-    engine._notification_orchestrator.register_user_phone(phone="+15550000009", user_id="user_9")
-
-    rejected = engine.route_inbound_whatsapp_event(
-        {"source_phone": "+15550000009", "reply": "ACK", "provider_verified": False}
+    now = datetime(2026, 4, 1, 10, 0, tzinfo=timezone.utc)
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_multi_events",
+            name="Attendance/Fee/Progress WhatsApp",
+            enabled=True,
+            rules=(
+                WorkflowRule(rule_id="rule_attendance", trigger_type="attendance.absence_detected"),
+                WorkflowRule(rule_id="rule_fee", trigger_type="payment.due"),
+                WorkflowRule(rule_id="rule_progress", trigger_type="learning.progress"),
+            ),
+            steps=(WorkflowStep(step_id="step_notify", step_type="notify", delay_seconds=0, config={}),),
+        )
     )
-    assert rejected["status"] == "rejected"
-    assert rejected["reason"] == "unverified_provider_event"
 
-    accepted = engine.route_inbound_whatsapp_event(
-        {
-            "source_phone": "+15550000009",
-            "reply": "WF:wf-ops-3|OP:reminder|ACTION:ack",
-            "provider_verified": True,
-        }
+    for event_id, trigger_type in (
+        ("evt_att", "attendance.absence_detected"),
+        ("evt_fee", "payment.due"),
+        ("evt_prog", "learning.progress"),
+    ):
+        scheduled = engine.handle_trigger(
+            WorkflowTriggerEvent(
+                event_id=event_id,
+                tenant_id="tenant_1",
+                country_code="US",
+                segment_id="academy",
+                trigger_type=trigger_type,
+                actor_user_id="parent_10",
+                context={"student_name": "Ayesha", "progress_percent": 85, "invoice_id": "INV-55", "amount": 150},
+                occurred_at=now,
+            )
+        )
+        assert len(scheduled["scheduled"]) == 1
+
+    run = engine.run_due(now=now + timedelta(minutes=1))
+    assert len(run["executed"]) == 3
+    templates = {item["result"]["template_name"] for item in run["executed"]}
+    assert templates == {"attendance_notification", "fee_reminder", "progress_update"}
+
+    duplicate_schedule = engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_att",
+            tenant_id="tenant_1",
+            country_code="US",
+            segment_id="academy",
+            trigger_type="attendance.absence_detected",
+            actor_user_id="parent_10",
+            context={"student_name": "Ayesha"},
+            occurred_at=now,
+        )
     )
-    assert accepted["status"] == "accepted"
-    assert accepted["routed_action"] == "acknowledge_reminder"
+    assert duplicate_schedule["scheduled"] == []

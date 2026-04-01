@@ -69,3 +69,20 @@ def test_resolve_respects_level_precedence_and_merges_behavior() -> None:
     assert segment_behavior.attendance_enabled is True
     assert segment_behavior.cohort_enabled is False
 
+
+
+def test_resolve_communication_routing_is_capability_and_config_driven() -> None:
+    service = ConfigService()
+    service.upsert_override(
+        ConfigOverride(
+            scope=ConfigScope(level=ConfigLevel.GLOBAL, scope_id="global"),
+            capability_enabled={"whatsapp_primary_interface": True},
+            behavior_tuning={"communication": {"routing_priority": ["email", "sms"]}},
+        )
+    )
+
+    routing = service.resolve_communication_routing(
+        ConfigResolutionContext(tenant_id="tenant_route", country_code="PK", segment_id="academy")
+    )
+
+    assert routing == ("whatsapp", "email", "sms")
