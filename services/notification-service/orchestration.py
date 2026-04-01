@@ -46,6 +46,7 @@ class NotificationOrchestrator:
         fallback_order = self._resolve_fallback_order(config=cfg)
         self._router = CommunicationRouter(adapters=adapters, fallback_order=fallback_order)
         self.interactive_reply_log: list[dict[str, Any]] = []
+        self._idempotent_send_log: set[str] = set()
 
     def _resolve_fallback_order(self, *, config: NotificationOrchestrationConfig) -> tuple[str, ...]:
         behavior_tuning = dict(config.behavior_tuning or {})
@@ -85,20 +86,42 @@ class NotificationOrchestrator:
         user_id: str,
         workflow_id: str,
         operation: WhatsAppOperationType,
-        message: str,
+        message: str | None = None,
+        template_name: str | None = None,
+        template_context: dict[str, Any] | None = None,
         choices: list[str] | None = None,
+        idempotency_key: str | None = None,
     ) -> DeliveryAttempt:
+        dedupe_key = idempotency_key or f"{tenant_country_code}:{workflow_id}:{user_id}:{operation}:{message or template_name or ''}"
+        if dedupe_key in self._idempotent_send_log:
+            return DeliveryAttempt(
+                ok=True,
+                provider="whatsapp",
+                fallback_used=False,
+                error=None,
+            )
+
+        resolved_message = message
+        if template_name:
+            resolved_message = self.whatsapp_adapter.render_template_message(
+                template_name=template_name,
+                context=template_context or {},
+            )
+
         interactive_message = self.whatsapp_adapter.build_workflow_message(
             operation=operation,
             workflow_id=workflow_id,
-            message=message,
+            message=resolved_message or "Workflow notification",
             choices=choices,
         )
-        return self.send_notification(
+        attempt = self.send_notification(
             tenant_country_code=tenant_country_code,
             user_id=user_id,
             message=interactive_message,
         )
+        if attempt.ok:
+            self._idempotent_send_log.add(dedupe_key)
+        return attempt
 
     def execute_workflow(
         self,

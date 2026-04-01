@@ -86,6 +86,8 @@ class ScheduledStep:
     tenant_id: str
     country_code: str
     actor_user_id: str
+    trigger_type: str
+    context: dict[str, Any]
     step: WorkflowStep
     due_at: datetime
 
@@ -111,6 +113,8 @@ class WorkflowEngine:
         self._payment_orchestration_service = payment_orchestration_service or build_pakistan_payment_orchestration()
         self._workflows: dict[str, WorkflowDefinition] = {}
         self._scheduled_steps: list[ScheduledStep] = []
+        self._scheduled_step_keys: set[str] = set()
+        self._executed_step_keys: set[str] = set()
 
     def register_workflow(self, definition: WorkflowDefinition) -> None:
         self._workflows[definition.workflow_id] = definition
@@ -159,10 +163,24 @@ class WorkflowEngine:
                     tenant_id=event.tenant_id,
                     country_code=event.country_code,
                     actor_user_id=event.actor_user_id,
+                    trigger_type=event.trigger_type,
+                    context=dict(event.context),
                     step=wf_step,
                     due_at=due_at,
                 )
+                dedupe_key = self._scheduled_step_key(scheduled_step)
+                if dedupe_key in self._scheduled_step_keys or dedupe_key in self._executed_step_keys:
+                    trace.append(
+                        {
+                            "step": "step.skipped_duplicate",
+                            "step_id": wf_step.step_id,
+                            "workflow_id": workflow.workflow_id,
+                            "reason": "idempotent_schedule_guard",
+                        }
+                    )
+                    continue
                 self._scheduled_steps.append(scheduled_step)
+                self._scheduled_step_keys.add(dedupe_key)
                 scheduled.append(
                     {
                         "workflow_id": workflow.workflow_id,
@@ -205,20 +223,43 @@ class WorkflowEngine:
         executions: list[dict[str, Any]] = []
 
         for item in sorted(due, key=lambda step: step.due_at):
+            dedupe_key = self._scheduled_step_key(item)
+            self._scheduled_step_keys.discard(dedupe_key)
+            if dedupe_key in self._executed_step_keys:
+                trace.append(
+                    {
+                        "step": "step.skipped_duplicate",
+                        "workflow_id": item.workflow_id,
+                        "step_id": item.step.step_id,
+                        "reason": "idempotent_execution_guard",
+                    }
+                )
+                continue
             trace.append({"step": "step.started", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
 
             if item.step.step_type == "notify":
-                message = str(item.step.config.get("message", "workflow notification"))
-                delivery = self._notification_orchestrator.send_notification(
+                operation, template_name = self._resolve_whatsapp_template(
+                    trigger_type=item.trigger_type,
+                    step_config=item.step.config,
+                )
+                template_context = dict(item.context)
+                template_context.setdefault("message", str(item.step.config.get("message", "workflow notification")))
+                delivery = self._notification_orchestrator.send_whatsapp_operation(
                     tenant_country_code=item.country_code,
                     user_id=item.actor_user_id,
-                    message=message,
+                    workflow_id=item.workflow_id,
+                    operation=operation,
+                    template_name=template_name,
+                    template_context=template_context,
+                    choices=list(item.step.config.get("choices") or ["ACK"]),
+                    idempotency_key=f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{item.actor_user_id}",
                 )
                 result = {
                     "status": "sent" if delivery.ok else "failed",
                     "provider": delivery.provider,
                     "fallback_used": delivery.fallback_used,
                     "error": delivery.error,
+                    "template_name": template_name,
                 }
             elif item.step.step_type in {"wait", "escalate"}:
                 result = {
@@ -241,20 +282,23 @@ class WorkflowEngine:
                 currency = str(item.step.config.get("currency", "PKR"))
                 invoice_id = item.step.config.get("invoice_id")
                 idempotency_key = str(item.step.config.get("idempotency_key") or f"{item.event_id}:{item.step.step_id}")
-                payment_entry = self._payment_orchestration_service.process_checkout_payment(
-                    idempotency_key=idempotency_key,
-                    tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
-                    amount=amount,
-                    currency=currency,
-                    invoice_id=str(invoice_id) if invoice_id is not None else None,
-                )
-                result = {
-                    "status": payment_entry.status,
-                    "provider": payment_entry.provider,
-                    "payment_id": payment_entry.payment_id,
-                    "verified": payment_entry.verified,
-                    "error": payment_entry.error,
-                }
+                try:
+                    payment_entry = self._payment_orchestration_service.process_checkout_payment(
+                        idempotency_key=idempotency_key,
+                        tenant=TenantPaymentContext(tenant_id=item.tenant_id, country_code=item.country_code),
+                        amount=amount,
+                        currency=currency,
+                        invoice_id=str(invoice_id) if invoice_id is not None else None,
+                    )
+                    result = {
+                        "status": payment_entry.status,
+                        "provider": payment_entry.provider,
+                        "payment_id": payment_entry.payment_id,
+                        "verified": payment_entry.verified,
+                        "error": payment_entry.error,
+                    }
+                except Exception as exc:
+                    result = {"status": "failed", "provider": "unknown", "error": str(exc), "verified": False}
             else:
                 result = {"status": "skipped", "reason": "unsupported_step_type"}
 
@@ -266,6 +310,7 @@ class WorkflowEngine:
                     "result": result,
                 }
             )
+            self._executed_step_keys.add(dedupe_key)
             trace.append({"step": "step.completed", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
 
         return {
@@ -273,6 +318,29 @@ class WorkflowEngine:
             "pending_count": len(self._scheduled_steps),
             "trace": trace,
         }
+
+    def _scheduled_step_key(self, item: ScheduledStep) -> str:
+        return f"{item.event_id}:{item.workflow_id}:{item.step.step_id}:{item.actor_user_id}"
+
+    def _resolve_whatsapp_template(
+        self,
+        *,
+        trigger_type: str,
+        step_config: dict[str, Any],
+    ) -> tuple[Literal["attendance", "reminder", "update"], str]:
+        configured_operation = str(step_config.get("operation", "")).strip().lower()
+        configured_template = str(step_config.get("template_name", "")).strip()
+        if configured_operation in {"attendance", "reminder", "update"} and configured_template:
+            return configured_operation, configured_template  # type: ignore[return-value]
+
+        normalized = trigger_type.strip().lower()
+        if normalized.startswith("attendance."):
+            return "attendance", "attendance_notification"
+        if normalized in {"payment.due", "payment.missed", "payment.overdue"}:
+            return "reminder", "fee_reminder"
+        if normalized.startswith("progress.") or normalized.startswith("learning.progress"):
+            return "update", "progress_update"
+        return "update", "progress_update"
 
     def run_qc_autofix(self) -> dict[str, bool]:
         if self._notification_orchestrator is None:
