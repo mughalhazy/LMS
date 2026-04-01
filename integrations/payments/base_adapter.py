@@ -15,6 +15,15 @@ class PaymentResult:
 
 
 @dataclass(frozen=True)
+class PaymentVerificationResult:
+    ok: bool
+    status: str
+    payment_id: str
+    provider: str
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class TenantPaymentContext:
     tenant_id: str
     country_code: str
@@ -30,6 +39,12 @@ class BasePaymentAdapter(Protocol):
         invoice_id: str | None = None,
     ) -> PaymentResult:
         """Process a payment for a tenant through the provider."""
+
+    def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        """Verify payment state with the provider."""
+
+    def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
+        """Parse async callback payload into a verification signal."""
 
 
 def normalize_tenant(tenant: Any) -> TenantPaymentContext:
