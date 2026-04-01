@@ -7,6 +7,7 @@ from integrations.payments.base_adapter import PaymentResult, TenantPaymentConte
 from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 from services.commerce.catalog import ProductType
+from services.commerce.models import BundlePricingRule
 from services.commerce.service import CommerceService
 from shared.utils.entitlement import TenantEntitlementContext
 
@@ -167,3 +168,65 @@ def test_pakistan_payment_router_connection_for_commerce_orchestration() -> None
     )
 
     assert entry.provider == "easypaisa"
+
+
+def test_bundle_creation_resolution_and_pricing_override() -> None:
+    router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter()])
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router))
+
+    commerce.add_product(
+        product_id="p_course_a",
+        tenant_id="tenant_bundle",
+        sku="course-a",
+        product_type=ProductType.COURSE,
+        title="Course A",
+        price=Decimal("30.00"),
+        currency="USD",
+        metadata={"capability_id": "recommendation.basic"},
+    )
+    commerce.add_product(
+        product_id="p_course_b",
+        tenant_id="tenant_bundle",
+        sku="course-b",
+        product_type=ProductType.COURSE,
+        title="Course B",
+        price=Decimal("40.00"),
+        currency="USD",
+        metadata={"capability_id": "assessment.author"},
+    )
+    commerce.add_product(
+        product_id="p_bundle_x",
+        tenant_id="tenant_bundle",
+        sku="bundle-x",
+        product_type=ProductType.BUNDLE,
+        title="Bundle X",
+        price=Decimal("90.00"),
+        currency="USD",
+        metadata={"capability_id": "recommendation.basic"},
+    )
+
+    commerce.create_bundle(
+        bundle_id="p_bundle_x",
+        tenant_id="tenant_bundle",
+        product_ids=["p_course_a", "p_course_b"],
+        pricing_rule=BundlePricingRule.FLAT.value,
+        bundle_price=Decimal("50.00"),
+    )
+
+    resolved = commerce.catalog.resolve_bundle_products(bundle_id="p_bundle_x", tenant_id="tenant_bundle")
+    assert [product.product_id for product in resolved] == ["p_course_a", "p_course_b"]
+    assert commerce.catalog.bundle_price(bundle_id="p_bundle_x", tenant_id="tenant_bundle") == Decimal("50.00")
+
+    order, _ = commerce.checkout_and_invoice_sync(
+        session_id="sess_bundle_1",
+        tenant_id="tenant_bundle",
+        learner_id="learner_bundle",
+        product_id="p_bundle_x",
+        idempotency_key="idem_bundle_1",
+    )
+    assert order.amount == Decimal("50.00")
+
+    catalog_items = commerce.catalog.list_products(tenant_id="tenant_bundle", product_type=ProductType.BUNDLE)
+    assert len(catalog_items) == 1
+    assert [p.product_id for p in catalog_items[0].bundle_products] == ["p_course_a", "p_course_b"]
+

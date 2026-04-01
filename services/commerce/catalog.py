@@ -10,6 +10,7 @@ class CatalogService:
 
     def __init__(self) -> None:
         self._products: dict[str, Product] = {}
+        self._bundles: dict[str, Bundle] = {}
 
     def create_product(
         self,
@@ -48,10 +49,54 @@ class CatalogService:
         self._products[updated.product_id] = updated
         return updated
 
+    def create_bundle(self, bundle: Bundle) -> Bundle:
+        normalized = bundle.normalized()
+        if normalized.bundle_id not in self._products:
+            raise ValueError(f"bundle product '{normalized.bundle_id}' does not exist")
+
+        bundle_product = self._products[normalized.bundle_id]
+        if bundle_product.product_type != ProductType.BUNDLE:
+            raise ValueError(f"product '{normalized.bundle_id}' is not a bundle product")
+
+        for product_id in normalized.product_ids:
+            product = self.get_product(product_id)
+            if product is None or product.tenant_id != normalized.tenant_id or not product.published:
+                raise ValueError(f"bundle '{normalized.bundle_id}' references unsellable product '{product_id}'")
+        self._bundles[normalized.bundle_id] = normalized
+        return normalized
+
+    def resolve_bundle_products(self, *, bundle_id: str, tenant_id: str) -> list[Product]:
+        normalized_bundle_id = bundle_id.strip()
+        bundle = self._bundles.get(normalized_bundle_id)
+        if bundle is None:
+            raise ValueError(f"bundle '{bundle_id}' is not defined")
+        if bundle.tenant_id != tenant_id.strip():
+            raise ValueError(f"bundle '{bundle_id}' is not available for tenant '{tenant_id}'")
+
+        products: list[Product] = []
+        for product_id in bundle.product_ids:
+            product = self.get_product(product_id)
+            if product is None or not product.published or product.tenant_id != bundle.tenant_id:
+                raise ValueError(f"bundle '{bundle_id}' references unsellable product '{product_id}'")
+            products.append(product)
+        return products
+
     def get_product(self, product_id: str) -> Product | None:
         return self._products.get(product_id.strip())
 
-    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[Product]:
+    def get_bundle(self, bundle_id: str) -> Bundle | None:
+        return self._bundles.get(bundle_id.strip())
+
+    def bundle_price(self, *, bundle_id: str, tenant_id: str) -> Decimal:
+        bundle = self._bundles.get(bundle_id.strip())
+        if bundle is None or bundle.tenant_id != tenant_id.strip():
+            raise ValueError(f"bundle '{bundle_id}' is not available for tenant '{tenant_id}'")
+        bundle_products = self.resolve_bundle_products(bundle_id=bundle_id, tenant_id=tenant_id)
+        if bundle.bundle_price is not None:
+            return bundle.bundle_price
+        return sum((product.price for product in bundle_products), Decimal("0"))
+
+    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[CatalogItem]:
         normalized_tenant = tenant_id.strip()
         products = [
             product

@@ -88,7 +88,30 @@ class CommerceService:
         )
         return product
 
+
+    def create_bundle(
+        self,
+        *,
+        bundle_id: str,
+        tenant_id: str,
+        product_ids: list[str],
+        pricing_rule: str,
+        bundle_price: Decimal | None = None,
+    ) -> Bundle:
+        bundle = Bundle(
+            bundle_id=bundle_id,
+            tenant_id=tenant_id,
+            product_ids=tuple(product_ids),
+            pricing_rule=pricing_rule,
+            bundle_price=bundle_price,
+        )
+        return self.catalog.create_bundle(bundle)
+
     def _resolve_product_amount(self, product: Product) -> Decimal:
+        if product.product_type == ProductType.BUNDLE:
+            bundle = self.catalog.get_bundle(product.product_id)
+            if bundle is not None and bundle.bundle_price is not None:
+                return bundle.bundle_price
         return self.monetization.quote_product_amount(product)
 
     def _execute_payment(
