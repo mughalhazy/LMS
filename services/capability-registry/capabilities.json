@@ -553,6 +553,7 @@
     }
   ],
   "feature_to_capability": {
+    "feature.analytics": "learning.analytics.basic",
     "ai.tutor": "ai.tutor",
     "analytics_advanced": "learning.analytics.advanced",
     "analytics_basic": "learning.analytics.basic",

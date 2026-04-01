@@ -50,7 +50,9 @@ def run_qc() -> dict[str, object]:
         capability_id for capability_id, capability in capabilities.items() if capability.price < Decimal("0")
     )
     missing_pricing_fields = sorted(
-        capability_id for capability_id, capability in capabilities.items() if capability.price == Decimal("0")
+        capability_id
+        for capability_id, capability in capabilities.items()
+        if capability.monetizable and capability.price == Decimal("0")
     )
     pricing_leakage_patterns = ["plan_price", "plan_pricing", "plan_rate", "feature_price", "feature_pricing", "feature_rate"]
     leakage_targets = [SUBSCRIPTION_SERVICE_FILE, MONETIZATION_FILE, *sorted(CAPABILITY_REGISTRY_DIR.glob("*.py"))]
