@@ -13,6 +13,7 @@ from integrations.communication import (
     WhatsAppAdapter,
     WhatsAppOperationType,
 )
+from shared.models.template import Template
 from shared.models.workflow import WorkflowAction, WorkflowDefinition
 
 
@@ -43,6 +44,20 @@ class NotificationOrchestrator:
 
         self._router = CommunicationRouter(adapters=adapters, fallback_order=cfg.fallback_order)
         self.interactive_reply_log: list[dict[str, Any]] = []
+        self._templates: dict[str, Template] = {}
+
+    def register_template(self, template: Template) -> None:
+        self._templates[template.template_id] = template
+
+    def render_template(
+        self,
+        *,
+        template_id: str,
+        payload: dict[str, Any],
+        locale: str | None = None,
+    ) -> tuple[Template, str]:
+        template = self._templates[template_id]
+        return template, template.render(payload=payload, locale=locale)
 
     def send_notification(self, *, tenant_country_code: str, user_id: str, message: str) -> DeliveryAttempt:
         tenant = Tenant(country_code=tenant_country_code)
@@ -121,7 +136,17 @@ class NotificationOrchestrator:
         recipients = list(action.config.get("recipients") or context.get("recipients") or [])
         operation = str(action.config.get("operation", "update")).lower()
         channel = str(action.config.get("channel", "whatsapp")).lower()
-        message = str(action.config.get("message", "Workflow notification"))
+        locale = str(context.get("locale", "default"))
+        template_id = action.config.get("template_id")
+        if isinstance(template_id, str) and template_id in self._templates:
+            template, message = self.render_template(
+                template_id=template_id,
+                payload=context,
+                locale=locale,
+            )
+            channel = template.channel.lower()
+        else:
+            message = str(action.config.get("message", "Workflow notification"))
         choices = list(action.config.get("choices") or ["ACK"])
 
         delivery_results: list[dict[str, Any]] = []

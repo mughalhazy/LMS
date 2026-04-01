@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
+from shared.models.template import Template
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "services/workflow-engine/service.py"
@@ -213,3 +214,53 @@ def test_workflow_engine_qc_autofix_reports_baseline_guards() -> None:
     assert qc["academy_sor_contract"] is True
     assert qc["workflow_notifications_contract"] is True
     assert qc["no_broken_dependencies"] is True
+
+
+def test_event_to_template_to_delivery_trigger_flow() -> None:
+    engine = WorkflowEngine()
+    engine._notification_orchestrator.register_template(
+        Template(
+            template_id="tpl_inactive_nudge",
+            type="engagement",
+            channel="sms",
+            variables=["name", "days_inactive"],
+            content={
+                "default": "Hi {name}, you have been inactive for {days_inactive} days.",
+                "es-US": "Hola {name}, llevas {days_inactive} días inactivo.",
+            },
+        )
+    )
+    now = datetime(2026, 3, 31, 9, 0, tzinfo=timezone.utc)
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_template_driven_notification",
+            name="Template Trigger",
+            enabled=True,
+            rules=(WorkflowRule(rule_id="r1", trigger_type="user_inactive"),),
+            steps=(
+                WorkflowStep(
+                    step_id="notify",
+                    step_type="notify",
+                    config={"template_id": "tpl_inactive_nudge", "locale": "es-US"},
+                ),
+            ),
+        )
+    )
+
+    scheduled = engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_tpl_1",
+            tenant_id="tenant_9",
+            country_code="US",
+            segment_id="academy",
+            trigger_type="user_inactive",
+            actor_user_id="user_9",
+            context={"name": "Ava", "days_inactive": 5},
+            occurred_at=now,
+        )
+    )
+    assert len(scheduled["scheduled"]) == 1
+
+    run = engine.run_due(now=now + timedelta(seconds=5))
+    assert run["executed"][0]["result"]["status"] == "sent"
+    assert any(step["step"] == "template.rendered" for step in run["trace"])

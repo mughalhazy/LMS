@@ -86,6 +86,7 @@ class ScheduledStep:
     tenant_id: str
     country_code: str
     actor_user_id: str
+    event_context: dict[str, Any]
     step: WorkflowStep
     due_at: datetime
 
@@ -159,6 +160,7 @@ class WorkflowEngine:
                     tenant_id=event.tenant_id,
                     country_code=event.country_code,
                     actor_user_id=event.actor_user_id,
+                    event_context=event.context,
                     step=wf_step,
                     due_at=due_at,
                 )
@@ -208,7 +210,30 @@ class WorkflowEngine:
             trace.append({"step": "step.started", "workflow_id": item.workflow_id, "step_id": item.step.step_id})
 
             if item.step.step_type == "notify":
+                template_id = item.step.config.get("template_id")
+                template_payload = {
+                    **item.step.config.get("template_payload", {}),
+                    **({"event_id": item.event_id, "user_id": item.actor_user_id} | item.event_context),
+                }
                 message = str(item.step.config.get("message", "workflow notification"))
+                if isinstance(template_id, str) and hasattr(self._notification_orchestrator, "render_template"):
+                    locale = str(item.step.config.get("locale", "default"))
+                    try:
+                        template, message = self._notification_orchestrator.render_template(
+                            template_id=template_id,
+                            payload=template_payload,
+                            locale=locale,
+                        )
+                        trace.append(
+                            {
+                                "step": "template.rendered",
+                                "template_id": template.template_id,
+                                "channel": template.channel,
+                                "locale": locale,
+                            }
+                        )
+                    except KeyError:
+                        trace.append({"step": "template.missing", "template_id": template_id})
                 delivery = self._notification_orchestrator.send_notification(
                     tenant_country_code=item.country_code,
                     user_id=item.actor_user_id,
