@@ -48,6 +48,9 @@ class NotificationOrchestrator:
 
         fallback_order = self._resolve_fallback_order(config=cfg)
         self._router = CommunicationRouter(adapters=adapters, fallback_order=fallback_order)
+        self._action_router = WhatsAppActionRouter()
+        self._phone_user_map: dict[str, str] = {}
+        self._templates: dict[str, Template] = {}
         self.interactive_reply_log: list[dict[str, Any]] = []
         self._idempotent_send_log: set[str] = set()
         self._action_router = WhatsAppActionRouter()
@@ -190,6 +193,20 @@ class NotificationOrchestrator:
             return {"status": "rejected", "reason": "spoofing_detected"}
 
         return self.handle_interactive_reply(user_id=mapped_user_id, reply=reply)
+
+    def register_phone_user(self, *, phone: str, user_id: str) -> None:
+        self._phone_user_map[self._normalize_phone(phone)] = user_id
+
+    def register_template(self, template: Template) -> None:
+        self._templates[template.template_id] = template
+
+    def render_template(self, *, template_id: str, payload: dict[str, Any], locale: str) -> tuple[Template, str]:
+        template = self._templates[template_id]
+        message = template.render(payload=payload, locale=locale)
+        return template, message
+
+    def _normalize_phone(self, phone: str) -> str:
+        return "".join(char for char in phone if char.isdigit() or char == "+").strip()
 
     def _execute_notification_action(
         self,

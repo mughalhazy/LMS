@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -350,7 +350,7 @@ class WorkflowEngine:
                 else:
                     result = {"status": "skipped", "reason": "unsupported_step_type"}
             except Exception as exc:
-                result = {"status": "failed", "error": str(exc), "provider": "unknown"}
+                result = {"status": "failed", "error": str(exc), "step_type": item.step.step_type}
 
             executions.append(
                 {
