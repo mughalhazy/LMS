@@ -23,6 +23,7 @@ from .config import (
     SegmentBehaviorConfig,
     segment_behavior_from_effective_config,
 )
+from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
 
 __all__ = [
     "Invoice",
@@ -50,4 +51,7 @@ __all__ = [
     "GuardianContact",
     "LedgerSummary",
     "UnifiedStudentProfile",
+    "TimetableSlot",
+    "TimetableSlotStatus",
+    "AttendanceSessionEvent",
 ]
