@@ -18,7 +18,7 @@ class EasyPaisaAdapter:
         self._initiations_by_idempotency_key: dict[str, PaymentResult] = {}
         self._status_by_payment_id: dict[str, str] = {}
 
-    def initiate_payment(self, payload: PaymentInitiationPayload) -> PaymentResult:
+    def _initiate_with_payload(self, payload: PaymentInitiationPayload) -> PaymentResult:
         if payload.amount <= 0:
             return PaymentResult(
                 ok=False,
@@ -48,13 +48,14 @@ class EasyPaisaAdapter:
             self._initiations_by_idempotency_key[payload.idempotency_key] = result
         return result
 
-    def process_payment(
+    def initiate_payment(
         self,
+        *,
         amount: int,
         tenant: TenantPaymentContext,
         invoice_id: str | None = None,
     ) -> PaymentResult:
-        return self.initiate_payment(
+        return self._initiate_with_payload(
             PaymentInitiationPayload(
                 amount=amount,
                 tenant_id=tenant.tenant_id,

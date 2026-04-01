@@ -32,13 +32,14 @@ class TenantPaymentContext:
 class BasePaymentAdapter(Protocol):
     provider_key: str
 
-    def process_payment(
+    def initiate_payment(
         self,
+        *,
         amount: int,
         tenant: TenantPaymentContext,
         invoice_id: str | None = None,
     ) -> PaymentResult:
-        """Process a payment for a tenant through the provider."""
+        """Initiate a payment for a tenant through the provider."""
 
     def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         """Verify payment state with the provider."""

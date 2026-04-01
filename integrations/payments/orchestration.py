@@ -226,7 +226,7 @@ class PaymentOrchestrationService:
         )
         if callback_result.ok and verification_result.ok:
             updated = PaymentLedgerEntry(
-                **{**current.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None}
+                **{**current.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None}
             )
         else:
             updated = PaymentLedgerEntry(

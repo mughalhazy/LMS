@@ -73,7 +73,7 @@ def test_trigger_rule_matching_scheduling_and_multi_step_execution() -> None:
             trigger_type="user_inactive",
             actor_user_id="user_10",
             context={"days_inactive": 7},
-            occurred_at=now,
+            timestamp=now,
         )
     )
 
@@ -234,7 +234,7 @@ def test_action_item_step_creates_dashboard_action() -> None:
             trigger_type="communication.failed",
             actor_user_id="ops_10",
             context={"student_id": "stu_99"},
-            occurred_at=now,
+            timestamp=now,
         )
     )
     run = engine.run_due(now=now + timedelta(minutes=1))
@@ -291,7 +291,7 @@ def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> 
                 trigger_type=trigger_type,
                 actor_user_id="parent_10",
                 context={"student_name": "Ayesha", "progress_percent": 85, "invoice_id": "INV-55", "amount": 150},
-                occurred_at=now,
+                timestamp=now,
             )
         )
         assert len(scheduled["scheduled"]) == 1
@@ -310,7 +310,7 @@ def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> 
             trigger_type="attendance.absence_detected",
             actor_user_id="parent_10",
             context={"student_name": "Ayesha"},
-            occurred_at=now,
+            timestamp=now,
         )
     )
     assert duplicate_schedule["scheduled"] == []

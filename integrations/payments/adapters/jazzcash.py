@@ -18,7 +18,7 @@ class JazzCashAdapter:
         self._transaction_store: dict[str, PaymentVerificationResponse] = {}
         self._processed_callbacks: set[str] = set()
 
-    def initiate_payment(self, request: PaymentInitiationRequest) -> PaymentInitiationResponse:
+    def _initiate_request(self, request: PaymentInitiationRequest) -> PaymentInitiationResponse:
         transaction_id = f"jz_{request.tenant_id}_{uuid4().hex[:16]}"
         payload = {
             "provider": self.provider_key,
@@ -44,6 +44,29 @@ class JazzCashAdapter:
             payload=payload,
         )
 
+    def initiate_payment(
+        self,
+        *,
+        amount: int,
+        tenant: TenantPaymentContext,
+        invoice_id: str | None = None,
+    ) -> PaymentResult:
+        initiated = self._initiate_request(
+            PaymentInitiationRequest(
+                tenant_id=tenant.tenant_id,
+                amount=amount,
+                currency="PKR",
+                reference_id=invoice_id,
+            )
+        )
+        return PaymentResult(
+            ok=True,
+            status=initiated.status,
+            payment_id=initiated.transaction_id,
+            provider=self.provider_key,
+            invoice_id=invoice_id,
+        )
+
     def verify_payment(
         self,
         callback_data: dict[str, Any] | None = None,
@@ -57,7 +80,7 @@ class JazzCashAdapter:
         if payment_id is None or tenant is None:
             raise TypeError("verify_payment requires callback_data or legacy payment_id + tenant")
 
-        status = self.get_status(payment_id)
+        status = self.get_status(payment_id=payment_id, tenant=tenant)
         is_success = status.status == "success" or payment_id.startswith("jz_")
         return PaymentVerificationResult(
             ok=is_success,
@@ -69,7 +92,22 @@ class JazzCashAdapter:
 
 
     def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
-        return self.verify_payment(payment_id=payment_id, tenant=tenant)
+        verification = self._transaction_store.get(payment_id)
+        if verification is not None and verification.status == "success":
+            return PaymentVerificationResult(
+                ok=True,
+                status="verified",
+                payment_id=payment_id,
+                provider=self.provider_key,
+                error=None,
+            )
+        return PaymentVerificationResult(
+            ok=payment_id.startswith("jz_"),
+            status="verified" if payment_id.startswith("jz_") else "failed",
+            payment_id=payment_id,
+            provider=self.provider_key,
+            error=None if payment_id.startswith("jz_") else "verification_failed",
+        )
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:

@@ -54,7 +54,7 @@ class WorkflowTriggerEvent:
     trigger_type: str
     actor_user_id: str
     context: dict[str, Any] = field(default_factory=dict)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass(frozen=True)
@@ -180,7 +180,7 @@ class WorkflowEngine:
         return False
 
     def _resolve_step_due_at(self, *, event: WorkflowTriggerEvent, step: WorkflowStep) -> datetime:
-        base_due = event.occurred_at + timedelta(seconds=max(0, step.delay_seconds))
+        base_due = event.timestamp + timedelta(seconds=max(0, step.delay_seconds))
         schedule_at = step.config.get("schedule_at")
         if isinstance(schedule_at, str):
             try:
@@ -190,7 +190,7 @@ class WorkflowEngine:
                 return base_due
         schedule_in_seconds = step.config.get("schedule_in_seconds")
         if isinstance(schedule_in_seconds, int):
-            return event.occurred_at + timedelta(seconds=max(0, schedule_in_seconds))
+            return event.timestamp + timedelta(seconds=max(0, schedule_in_seconds))
         return base_due
 
     def handle_trigger(self, event: WorkflowTriggerEvent) -> dict[str, Any]:
@@ -252,7 +252,7 @@ class WorkflowEngine:
         actor = metadata.get("actor") or {}
         payload = envelope.get("payload") or {}
         timestamp = envelope.get("timestamp")
-        occurred_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) if isinstance(timestamp, str) else None
+        resolved_timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) if isinstance(timestamp, str) else None
 
         trigger_event = WorkflowTriggerEvent(
             event_id=str(envelope.get("event_id", "")),
@@ -262,7 +262,7 @@ class WorkflowEngine:
             trigger_type=str(envelope.get("event_type", "")),
             actor_user_id=str(actor.get("user_id") or payload.get("actor_user_id") or "system"),
             context=dict(payload.get("context") or payload),
-            occurred_at=occurred_at or datetime.now(timezone.utc),
+            timestamp=resolved_timestamp or datetime.now(timezone.utc),
         )
         response = self.handle_trigger(trigger_event)
         self._create_event_action_if_applicable(trigger_event)
@@ -311,7 +311,7 @@ class WorkflowEngine:
             subject_type="workflow_event",
             subject_id=str(event.context.get("student_id") or event.event_id),
             reason=config["reason"],
-            due_at=event.occurred_at + timedelta(hours=24),
+            due_at=event.timestamp + timedelta(hours=24),
             suggested_next_step=config["next_step"],
             metadata={"event_id": event.event_id, "trigger_type": event.trigger_type},
         )

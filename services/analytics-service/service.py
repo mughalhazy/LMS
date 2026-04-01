@@ -26,6 +26,10 @@ def _load_module(module_name: str, relative_path: str):
 
 _OwnerEconomicsModule = _load_module("owner_economics_module_for_analytics", "services/commerce/owner_economics.py")
 OwnerEconomicsEngine = _OwnerEconomicsModule.OwnerEconomicsEngine
+_AnalyticsModelsModule = _load_module("analytics_models_contract", "services/analytics-service/models.py")
+LearningOptimizationInsight = _AnalyticsModelsModule.LearningOptimizationInsight
+LearningOptimizationInsightRequest = _AnalyticsModelsModule.LearningOptimizationInsightRequest
+RecommendationHooks = _AnalyticsModelsModule.RecommendationHooks
 
 
 class AnalyticsService:
@@ -179,3 +183,34 @@ class AnalyticsService:
         if score >= 0.7 and percentile >= 0.5:
             return "stable_progress"
         return "monitoring_required"
+
+    def generate_learning_optimization_insight(self, request: LearningOptimizationInsightRequest) -> LearningOptimizationInsight:
+        sor = request.system_of_record
+        progress = request.progress
+        exam = request.exam_engine
+
+        dropout_risk = min(1.0, max(0.0, (1 - (progress.completion_rate / 100)) * 0.35 + (exam.failed_attempts * 0.15) + (exam.no_show_count * 0.1) + (1 - (sor.attendance_rate / 100)) * 0.4))
+        engagement_risk = min(1.0, max(0.0, (1 - min(progress.weekly_active_minutes, 300) / 300) * 0.5 + (progress.missed_deadlines * 0.1) + (0.2 if progress.activity_streak_days <= 1 else 0.0)))
+        risk_band = "high" if max(dropout_risk, engagement_risk) >= 0.7 else ("medium" if max(dropout_risk, engagement_risk) >= 0.4 else "low")
+
+        hooks = RecommendationHooks(
+            recommendation_service_input={
+                "tenant_id": sor.tenant_id,
+                "learner_id": sor.learner_id,
+                "risk_band": risk_band,
+                "exam_trend_delta": exam.trend_delta,
+                "metadata": dict(request.metadata),
+            }
+        )
+
+        return LearningOptimizationInsight(
+            tenant_id=sor.tenant_id,
+            learner_id=sor.learner_id,
+            risk_band=risk_band,
+            dropout_risk_score=round(dropout_risk, 4),
+            engagement_risk_score=round(engagement_risk, 4),
+            recommendation_hooks=hooks,
+            teacher_actions=("assign_remedial_practice", "schedule_parent_checkin"),
+            operations_actions=("trigger_attendance_followup", "queue_fee_risk_review"),
+            owner_actions=("monitor_retention_cohort", "review_tutor_allocation"),
+        )
