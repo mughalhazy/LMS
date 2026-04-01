@@ -53,9 +53,6 @@ class NotificationOrchestrator:
         self._templates: dict[str, Template] = {}
         self.interactive_reply_log: list[dict[str, Any]] = []
         self._idempotent_send_log: set[str] = set()
-        self._action_router = WhatsAppActionRouter()
-        self._phone_user_map: dict[str, str] = {}
-        self._templates: dict[str, Template] = {}
 
     def _resolve_fallback_order(self, *, config: NotificationOrchestrationConfig) -> tuple[str, ...]:
         behavior_tuning = dict(config.behavior_tuning or {})
