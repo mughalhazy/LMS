@@ -61,6 +61,7 @@ def _load_progress_module():
 
 
 _LearningModule = _load_progress_module()
+_ReadModels = _load_module("system_of_record_read_models", "services/system-of-record/read_models.py")
 
 ConfigService = _ConfigModule.ConfigService
 ProgressTrackingService = _LearningModule.ProgressTrackingService
@@ -84,6 +85,8 @@ class SystemOfRecordService:
         self._profiles: dict[tuple[str, str], UnifiedStudentProfile] = {}
         self._ledger: dict[tuple[str, str], list[LedgerEntry]] = {}
         self._academic_enrollments: dict[tuple[str, str], list[AcademyEnrollment]] = {}
+        self._attendance: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self._invoices: dict[tuple[str, str], list[Invoice]] = {}
 
         self._domain_owner = {
             "student.profile": "system-of-record",
