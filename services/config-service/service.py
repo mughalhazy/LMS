@@ -119,3 +119,14 @@ class ConfigService:
                     return True
                 seen.add(path)
         return False
+
+
+    def resolve_onboarding_mode(self, context: ConfigResolutionContext) -> str:
+        """Resolve onboarding mode preferring WhatsApp-first operation."""
+        effective = self.resolve(context)
+        onboarding = effective.behavior_tuning.get("onboarding", {})
+        preferred = str(onboarding.get("preferred_channel", "whatsapp")).strip().lower()
+        dashboard_required = bool(onboarding.get("dashboard_required", False))
+        if preferred == "whatsapp" and not dashboard_required:
+            return "whatsapp_first"
+        return "dashboard"

@@ -314,3 +314,15 @@ def test_whatsapp_workflows_for_attendance_fee_and_progress_are_idempotent() -> 
         )
     )
     assert duplicate_schedule["scheduled"] == []
+
+def test_bootstrap_default_workflows_registers_attendance_fees_and_notifications() -> None:
+    engine = WorkflowEngine()
+
+    workflow_ids = engine.bootstrap_default_workflows()
+
+    assert set(workflow_ids) == {
+        "wf_default_attendance",
+        "wf_default_fees",
+        "wf_default_notifications",
+    }
+

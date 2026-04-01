@@ -86,3 +86,19 @@ def test_resolve_communication_routing_is_capability_and_config_driven() -> None
     )
 
     assert routing == ("whatsapp", "email", "sms")
+
+def test_resolve_onboarding_mode_defaults_to_whatsapp_first() -> None:
+    service = ConfigService()
+    service.upsert_override(
+        ConfigOverride(
+            scope=ConfigScope(level=ConfigLevel.TENANT, scope_id="tenant_onb"),
+            behavior_tuning={"onboarding": {"preferred_channel": "whatsapp", "dashboard_required": False}},
+        )
+    )
+
+    mode = service.resolve_onboarding_mode(
+        ConfigResolutionContext(tenant_id="tenant_onb", country_code="PK", segment_id="academy")
+    )
+
+    assert mode == "whatsapp_first"
+
