@@ -1,0 +1,1 @@
+"""Teacher economy service package."""

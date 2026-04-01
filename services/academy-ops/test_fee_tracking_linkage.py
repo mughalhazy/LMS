@@ -144,6 +144,16 @@ def test_teacher_owned_batch_revenue_share_is_attributed_and_auditable() -> None
     assert economics.revenue_share_percent == Decimal("40.00")
     assert economics.earnings_to_date == Decimal("48.00")
     assert economics.pending_payout_amount == Decimal("48.00")
+
+    service.mark_fee_paid(
+        tenant_id=tenant_id,
+        learner_id=learner_id,
+        invoice_id=commerce_invoice.invoice_id,
+        payment_id="pay_teacher_owned_1",
+        amount=Decimal("120.00"),
+    )
+    settled = service.calculate_teacher_batch_earnings(tenant_id=tenant_id, batch_id=batch_id)
+    assert settled.pending_payout_amount == Decimal("0.00")
     assert [batch.batch_id for batch in owned_batches] == [batch_id]
     assert len(commerce._teacher_revenue_share_records) == 1
     assert commerce._teacher_revenue_share_records[0]["invoice_id"] == commerce_invoice.invoice_id
