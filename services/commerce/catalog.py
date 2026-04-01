@@ -1,48 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from decimal import Decimal
-from enum import Enum
 
-
-class ProductType(str, Enum):
-    COURSE = "course"
-    BUNDLE = "bundle"
-    SUBSCRIPTION = "subscription"
-
-
-@dataclass(frozen=True)
-class Product:
-    product_id: str
-    tenant_id: str
-    sku: str
-    product_type: ProductType
-    title: str
-    capability_id: str
-    price: Decimal
-    currency: str
-    published: bool = True
-    metadata: dict[str, str] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-    def normalized(self) -> "Product":
-        normalized = Product(
-            product_id=self.product_id.strip(),
-            tenant_id=self.tenant_id.strip(),
-            sku=self.sku.strip().upper(),
-            product_type=ProductType(self.product_type),
-            title=self.title.strip(),
-            capability_id=self.capability_id.strip(),
-            price=Decimal(self.price),
-            currency=self.currency.strip().upper(),
-            published=bool(self.published),
-            metadata={str(k): str(v) for k, v in self.metadata.items()},
-            created_at=self.created_at,
-        )
-        if not normalized.capability_id:
-            raise ValueError("product capability_id is required")
-        return normalized
+from .models import Bundle, CatalogItem, Product, ProductType
 
 
 # Backward-compatible alias while elevating Product as a first-class entity.
@@ -54,24 +14,90 @@ class CatalogService:
 
     def __init__(self) -> None:
         self._products: dict[str, Product] = {}
+        self._bundles: dict[str, Bundle] = {}
 
     def upsert_product(self, product: Product) -> None:
         normalized = product.normalized()
         self._products[normalized.product_id] = normalized
 
+    def create_bundle(self, bundle: Bundle) -> Bundle:
+        normalized = bundle.normalized()
+        if normalized.bundle_id not in self._products:
+            raise ValueError(f"bundle product '{normalized.bundle_id}' does not exist")
+
+        bundle_product = self._products[normalized.bundle_id]
+        if bundle_product.product_type != ProductType.BUNDLE:
+            raise ValueError(f"product '{normalized.bundle_id}' is not a bundle product")
+
+        for product_id in normalized.product_ids:
+            product = self.get_product(product_id)
+            if product is None or product.tenant_id != normalized.tenant_id or not product.published:
+                raise ValueError(f"bundle '{normalized.bundle_id}' references unsellable product '{product_id}'")
+        self._bundles[normalized.bundle_id] = normalized
+        return normalized
+
+    def resolve_bundle_products(self, *, bundle_id: str, tenant_id: str) -> list[Product]:
+        normalized_bundle_id = bundle_id.strip()
+        bundle = self._bundles.get(normalized_bundle_id)
+        if bundle is None:
+            raise ValueError(f"bundle '{bundle_id}' is not defined")
+        if bundle.tenant_id != tenant_id.strip():
+            raise ValueError(f"bundle '{bundle_id}' is not available for tenant '{tenant_id}'")
+
+        products: list[Product] = []
+        for product_id in bundle.product_ids:
+            product = self.get_product(product_id)
+            if product is None or not product.published or product.tenant_id != bundle.tenant_id:
+                raise ValueError(f"bundle '{bundle_id}' references unsellable product '{product_id}'")
+            products.append(product)
+        return products
+
     def get_product(self, product_id: str) -> Product | None:
         return self._products.get(product_id.strip())
 
-    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[Product]:
+    def get_bundle(self, bundle_id: str) -> Bundle | None:
+        return self._bundles.get(bundle_id.strip())
+
+    def bundle_price(self, *, bundle_id: str, tenant_id: str) -> Decimal:
+        bundle = self._bundles.get(bundle_id.strip())
+        if bundle is None or bundle.tenant_id != tenant_id.strip():
+            raise ValueError(f"bundle '{bundle_id}' is not available for tenant '{tenant_id}'")
+        bundle_products = self.resolve_bundle_products(bundle_id=bundle_id, tenant_id=tenant_id)
+        if bundle.bundle_price is not None:
+            return bundle.bundle_price
+        return sum((product.price for product in bundle_products), Decimal("0"))
+
+    def list_products(self, *, tenant_id: str, product_type: ProductType | None = None) -> list[CatalogItem]:
         normalized_tenant = tenant_id.strip()
         products = [
             product
             for product in self._products.values()
             if product.tenant_id == normalized_tenant and product.published
         ]
-        if product_type is None:
-            return sorted(products, key=lambda p: p.sku)
-        return sorted((p for p in products if p.product_type == product_type), key=lambda p: p.sku)
+        if product_type is not None:
+            products = [p for p in products if p.product_type == product_type]
+
+        items: list[CatalogItem] = []
+        for product in sorted(products, key=lambda p: p.sku):
+            if product.product_type != ProductType.BUNDLE:
+                items.append(CatalogItem(product=product))
+                continue
+
+            bundle = self._bundles.get(product.product_id)
+            if bundle is None:
+                items.append(CatalogItem(product=product, effective_price=product.price))
+                continue
+
+            bundle_products = tuple(self.resolve_bundle_products(bundle_id=bundle.bundle_id, tenant_id=normalized_tenant))
+            effective_price = bundle.bundle_price if bundle.bundle_price is not None else product.price
+            items.append(
+                CatalogItem(
+                    product=product,
+                    bundle_products=bundle_products,
+                    effective_price=effective_price,
+                )
+            )
+        return items
 
     def resolve_sellable_product(self, *, tenant_id: str, product_id: str) -> Product:
         product = self.get_product(product_id)
