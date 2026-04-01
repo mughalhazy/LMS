@@ -18,6 +18,16 @@ class EventRoute:
     body_template: str
 
 
+@dataclass
+class ConversationContext:
+    tenant_id: str
+    user_id: str
+    conversation_id: str
+    current_step: str
+    user_state: str
+    history: list[dict[str, str]]
+
+
 class DatabaseUnavailableError(RuntimeError):
     """Domain-specific exception."""
 
@@ -34,6 +44,7 @@ class InMemoryNotificationStore:
         self.events: dict[str, NotificationEvent] = {}
         self.messages: dict[str, NotificationMessage] = {}
         self.phone_bindings: dict[tuple[str, str], str] = {}
+        self.conversations: dict[tuple[str, str, str], ConversationContext] = {}
         self.queue: deque[str] = deque()
         self.service_running = True
         self.database_available = True
@@ -110,6 +121,20 @@ class InMemoryNotificationStore:
     def get_user_by_phone_hash(self, *, tenant_id: str, phone_hash: str) -> str | None:
         self.assert_database_available()
         return self.phone_bindings.get((tenant_id, phone_hash))
+
+    def upsert_conversation_context(self, context: ConversationContext) -> None:
+        self.assert_database_available()
+        self.conversations[(context.tenant_id, context.user_id, context.conversation_id)] = context
+
+    def get_conversation_context(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+        conversation_id: str,
+    ) -> ConversationContext | None:
+        self.assert_database_available()
+        return self.conversations.get((tenant_id, user_id, conversation_id))
 
     def consume_delay_cycle(self) -> bool:
         if self.queue_delay_cycles <= 0:

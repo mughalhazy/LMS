@@ -21,6 +21,7 @@ from .schemas import (
     PreferenceUpsertRequest,
 )
 from .store import (
+    ConversationContext,
     DatabaseUnavailableError,
     EventRoute,
     InMemoryNotificationStore,
@@ -96,8 +97,10 @@ class NotificationService:
     _WHATSAPP_ACTION_ROUTE: dict[tuple[str, str], dict[str, Any]] = {
         ("attendance", "confirm"): {
             "workflow_name": "WhatsApp Attendance Confirmation",
-            "trigger_type": "inactivity",
-            "trigger_config": {"days": 0},
+            "trigger_type": "conversation_step",
+            "trigger_config": {"step": "start"},
+            "next_step": "attendance_confirmed",
+            "next_user_state": "attendance_confirmed",
             "actions": [
                 WorkflowAction(
                     action_type="create_follow_up_task",
@@ -107,8 +110,10 @@ class NotificationService:
         },
         ("reminder", "ack"): {
             "workflow_name": "WhatsApp Reminder Acknowledged",
-            "trigger_type": "inactivity",
-            "trigger_config": {"days": 0},
+            "trigger_type": "conversation_step",
+            "trigger_config": {"step": "attendance_confirmed"},
+            "next_step": "reminder_acknowledged",
+            "next_user_state": "reminder_acknowledged",
             "actions": [
                 WorkflowAction(
                     action_type="create_follow_up_task",
@@ -118,8 +123,10 @@ class NotificationService:
         },
         ("update", "query"): {
             "workflow_name": "WhatsApp Simple Query",
-            "trigger_type": "inactivity",
-            "trigger_config": {"days": 0},
+            "trigger_type": "conversation_step",
+            "trigger_config": {"step": "reminder_acknowledged"},
+            "next_step": "query_logged",
+            "next_user_state": "query_pending_follow_up",
             "actions": [
                 WorkflowAction(
                     action_type="send_notification",
@@ -196,6 +203,27 @@ class NotificationService:
         if user_id is None:
             return 403, {"error": "phone_not_mapped", "tenant_id": req.tenant_id}
 
+        conversation_id = req.conversation_id or f"wa-{req.tenant_id}-{user_id}"
+        try:
+            conversation = self._with_database_retry(
+                lambda: self.store.get_conversation_context(
+                    tenant_id=req.tenant_id,
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                )
+            )
+        except DatabaseUnavailableError as exc:
+            return 503, {"error": "database_unavailable", "detail": str(exc)}
+        if conversation is None:
+            conversation = ConversationContext(
+                tenant_id=req.tenant_id,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                current_step="start",
+                user_state="active",
+                history=[],
+            )
+
         parsed = self.whatsapp_adapter.parse_interactive_reply(user_id=user_id, reply=req.reply)
         if parsed is None:
             parsed = self.whatsapp_adapter.classify_free_text_reply(user_id=user_id, reply=req.reply)
@@ -232,15 +260,39 @@ class NotificationService:
                 "reply_operation": parsed.operation,
                 "reply_action": parsed.action,
                 "reply_payload": parsed.payload,
+                "conversation_id": conversation.conversation_id,
+                "current_step": conversation.current_step,
+                "user_state": conversation.user_state,
             },
             tenant_country_code=req.tenant_country_code,
         )
+        if payload.get("matched_workflows", 0) > 0:
+            route_next_step = str(route.get("next_step", conversation.current_step))
+            route_next_state = str(route.get("next_user_state", conversation.user_state))
+            conversation.current_step = route_next_step
+            conversation.user_state = route_next_state
+            conversation.history.append(
+                {
+                    "operation": parsed.operation,
+                    "action": parsed.action,
+                    "step": route_next_step,
+                    "state": route_next_state,
+                }
+            )
+            try:
+                self._with_database_retry(lambda: self.store.upsert_conversation_context(conversation))
+            except DatabaseUnavailableError as exc:
+                return 503, {"error": "database_unavailable", "detail": str(exc)}
+
         payload["routing"] = {
             "mode": "workflow_engine_only",
             "operation": parsed.operation,
             "action": parsed.action,
             "user_id": user_id,
             "workflow_id": workflow.workflow_id,
+            "conversation_id": conversation.conversation_id,
+            "conversation_step": conversation.current_step,
+            "user_state": conversation.user_state,
         }
         return status, payload
 

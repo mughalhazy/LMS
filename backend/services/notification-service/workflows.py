@@ -71,6 +71,10 @@ class WorkflowEngine:
             threshold_days = int(trigger.config.get("days", 14))
             inactive_days = int(context.get("inactive_days", 0))
             return inactive_days >= threshold_days
+        if trigger.trigger_type == "conversation_step":
+            expected_step = str(trigger.config.get("step", "start"))
+            current_step = str(context.get("current_step", "start"))
+            return current_step == expected_step
         return False
 
     def _execute_action(
