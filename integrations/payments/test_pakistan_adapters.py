@@ -38,6 +38,51 @@ def test_pakistan_router_processes_checkout_and_verification() -> None:
     assert verification.status == "verified"
 
 
+def test_raast_supports_reference_initiation_and_verification() -> None:
+    adapter = RaastAdapter()
+    tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
+
+    initiated = adapter.initiate_payment(
+        amount=3100,
+        tenant=tenant,
+        invoice_id="INV-3100",
+        transfer_reference="bank_transfer_ref_3100",
+    )
+    assert initiated.ok is True
+    assert initiated.status == "success"
+    assert initiated.payment_id == "rs_bank_transfer_ref_3100"
+
+    status = adapter.get_status(reference_id="bank_transfer_ref_3100", tenant=tenant)
+    assert status.ok is True
+    assert status.status == "verified"
+
+    parsed = adapter.parse_callback(
+        {
+            "provider": "raast",
+            "payment_id": initiated.payment_id,
+            "status": "success",
+        }
+    )
+    assert parsed is not None
+    assert parsed.ok is True
+    assert parsed.status == "verified"
+
+    verified = adapter.verify_payment(payment_id=initiated.payment_id or "", tenant=tenant)
+    assert verified.ok is True
+    assert verified.status == "verified"
+
+
+def test_raast_supports_manual_instant_mode_without_redirect() -> None:
+    adapter = RaastAdapter()
+    tenant = TenantPaymentContext(tenant_id="tenant_pk", country_code="PK")
+
+    instant = adapter.initiate_payment(amount=2200, tenant=tenant)
+    assert instant.ok is True
+    assert instant.status == "success"
+    assert instant.payment_id is not None
+    assert instant.payment_id.startswith("rs_rref_tenant_pk_manual_2200")
+
+
 class FlakyRetryAdapter:
     provider_key = "flaky"
 
