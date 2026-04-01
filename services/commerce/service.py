@@ -8,8 +8,8 @@ from pathlib import Path
 
 from .billing import BillingService, InvoiceRecord
 from .catalog import CatalogService
-from .models import Product, ProductType
 from .checkout import CheckoutService, Order, OrderStatus
+from .models import Bundle, Product, ProductType
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -43,17 +43,12 @@ EntitlementService = _EntitlementModule.EntitlementService
 
 
 class CommerceService:
-    """Commerce completion layer orchestrating catalog, checkout, and billing modules."""
-
     def __init__(self, *, payment_orchestrator: PaymentOrchestrationService) -> None:
         self.catalog = CatalogService()
         self.billing = BillingService()
         self.subscription_service = SubscriptionService()
         self.config_service = ConfigService()
-        self.entitlement_service = EntitlementService(
-            subscription_service=self.subscription_service,
-            config_service=self.config_service,
-        )
+        self.entitlement_service = EntitlementService(subscription_service=self.subscription_service, config_service=self.config_service)
         self.checkout = CheckoutService(self.catalog, self._execute_payment, self._resolve_product_amount)
         self.monetization = CapabilityMonetizationService(
             subscription_service=self.subscription_service,
@@ -62,109 +57,57 @@ class CommerceService:
         )
         self._payment_orchestrator = payment_orchestrator
 
-    def add_product(
-        self,
-        *,
-        product_id: str,
-        tenant_id: str,
-        type: ProductType,
-        title: str,
-        description: str,
-        price: Decimal,
-        currency: str,
-        capability_ids: list[str],
-        metadata: dict[str, str] | None = None,
-    ) -> Product:
-        product = self.catalog.create_product(
+    def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
+        resolved_type = type or product_type
+        if resolved_type is None:
+            raise ValueError("type is required")
+        resolved_metadata = metadata or {}
+        resolved_capability_ids = capability_ids or []
+        if not resolved_capability_ids and resolved_metadata.get("capability_id"):
+            resolved_capability_ids = [resolved_metadata["capability_id"]]
+        return self.catalog.create_product(
             product_id=product_id,
             tenant_id=tenant_id,
-            type=type,
+            type=resolved_type,
             title=title,
             description=description,
             price=price,
             currency=currency,
-            capability_ids=capability_ids,
-            metadata=metadata or {},
+            capability_ids=resolved_capability_ids,
+            metadata=resolved_metadata,
+            sku=sku,
         )
-        return product
 
-
-    def create_bundle(
-        self,
-        *,
-        bundle_id: str,
-        tenant_id: str,
-        product_ids: list[str],
-        pricing_rule: str,
-        bundle_price: Decimal | None = None,
-    ) -> Bundle:
-        bundle = Bundle(
-            bundle_id=bundle_id,
-            tenant_id=tenant_id,
-            product_ids=tuple(product_ids),
-            pricing_rule=pricing_rule,
-            bundle_price=bundle_price,
+    def create_bundle(self, *, bundle_id: str, tenant_id: str, product_ids: list[str], pricing_rule: str, bundle_price: Decimal | None = None) -> Bundle:
+        return self.catalog.create_bundle(
+            Bundle(bundle_id=bundle_id, tenant_id=tenant_id, product_ids=tuple(product_ids), pricing_rule=pricing_rule, bundle_price=bundle_price)
         )
-        return self.catalog.create_bundle(bundle)
 
     def _resolve_product_amount(self, product: Product) -> Decimal:
-        if product.product_type == ProductType.BUNDLE:
+        if product.type == ProductType.BUNDLE:
             bundle = self.catalog.get_bundle(product.product_id)
-            if bundle is not None and bundle.bundle_price is not None:
+            if bundle and bundle.bundle_price is not None:
                 return bundle.bundle_price
         return self.monetization.quote_product_amount(product)
 
-    def _execute_payment(
-        self,
-        tenant_id: str,
-        learner_id: str,
-        amount: Decimal,
-        currency: str,
-        attempt: int,
-        idempotency_key: str,
-    ) -> tuple[bool, str | None, bool]:
-        ctx = TenantEntitlementContext(
-            tenant_id=tenant_id,
-            country_code="US",
-            segment_id="academy",
-            plan_type="pro",
-            add_ons=(),
-        )
-        config = self.config_service.resolve(
-            ConfigResolutionContext(tenant_id=tenant_id, country_code="US", segment_id="academy")
-        )
+    def _execute_payment(self, tenant_id: str, learner_id: str, amount: Decimal, currency: str, attempt: int, idempotency_key: str) -> tuple[bool, str | None, bool]:
+        config = self.config_service.resolve(ConfigResolutionContext(tenant_id=tenant_id, country_code="US", segment_id="academy"))
         max_attempts = int(config.behavior_tuning.get("commerce.checkout.max_payment_retries", 2)) + 1
         if attempt >= max_attempts:
             return False, None, False
 
-        payment_tenant = TenantPaymentContext(tenant_id=tenant_id, country_code=ctx.country_code)
         entry = self._payment_orchestrator.process_checkout_payment(
             idempotency_key=f"{tenant_id}:{learner_id}:{idempotency_key}:{attempt}",
-            tenant=payment_tenant,
+            tenant=TenantPaymentContext(tenant_id=tenant_id, country_code="US"),
             amount=int(amount * 100),
             currency=currency,
-            invoice_id=None,
         )
         if entry.status in {"pending_verification", "verified"} and entry.payment_id:
             return True, entry.payment_id, False
         return False, None, bool(entry.error and "timeout" in entry.error.lower())
 
-    async def checkout_and_invoice(
-        self,
-        *,
-        session_id: str,
-        tenant_id: str,
-        learner_id: str,
-        product_id: str,
-        idempotency_key: str,
-    ) -> tuple[Order, InvoiceRecord]:
-        self.checkout.start_session(
-            session_id=session_id,
-            tenant_id=tenant_id,
-            learner_id=learner_id,
-            product_id=product_id,
-            idempotency_key=idempotency_key,
-        )
+    async def checkout_and_invoice(self, *, session_id: str, tenant_id: str, learner_id: str, product_id: str, idempotency_key: str) -> tuple[Order, InvoiceRecord]:
+        self.checkout.start_session(session_id=session_id, tenant_id=tenant_id, learner_id=learner_id, product_id=product_id, idempotency_key=idempotency_key)
         order = await self.checkout.submit_session(session_id=session_id)
         if order.status not in {OrderStatus.PAID, OrderStatus.RECONCILED}:
             raise ValueError(f"cannot invoice unpaid order '{order.order_id}'")
@@ -182,7 +125,6 @@ class CommerceService:
     def checkout_and_invoice_sync(self, **kwargs: str):
         return asyncio.run(self.checkout_and_invoice(**kwargs))
 
-
     def enable_capability_add_on(self, *, tenant_id: str, capability_id: str) -> None:
         self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id)
 
@@ -196,6 +138,4 @@ class CommerceService:
 def build_commerce_service_for_pakistan(default_provider: str = "jazzcash") -> CommerceService:
     from integrations.payments.orchestration import build_pakistan_payment_orchestration
 
-    return CommerceService(
-        payment_orchestrator=build_pakistan_payment_orchestration(default_provider=default_provider)
-    )
+    return CommerceService(payment_orchestrator=build_pakistan_payment_orchestration(default_provider=default_provider))
