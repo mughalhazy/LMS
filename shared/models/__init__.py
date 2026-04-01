@@ -26,6 +26,7 @@ from .config import (
 )
 from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
 from .template import Template
+from .teacher_performance import TeacherPerformanceSnapshot
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
 
 __all__ = [
@@ -60,6 +61,7 @@ __all__ = [
     "TimetableSlotStatus",
     "AttendanceSessionEvent",
     "Template",
+    "TeacherPerformanceSnapshot",
     "dashboard_summary",
     "alert_card",
     "action_item",

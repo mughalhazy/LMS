@@ -223,3 +223,60 @@ def test_branch_rollup_and_qc_match_underlying_records() -> None:
 
     qc = service.run_qc_autofix()
     assert all(qc.values())
+
+
+def test_generate_and_query_teacher_performance_snapshot() -> None:
+    service = AcademyOpsService()
+    tenant_id = "tenant_perf"
+
+    service.create_branch(
+        Branch(
+            tenant_id=tenant_id,
+            branch_id="branch_1",
+            name="Perf Branch",
+            code="PERF",
+            location="HQ",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id=tenant_id,
+            branch_id="branch_1",
+            batch_id="batch_1",
+            academy_id="academy_1",
+            title="Performance Batch",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 5, 1),
+        )
+    )
+    service.assign_teacher(
+        TeacherAssignment(
+            tenant_id=tenant_id,
+            branch_id="branch_1",
+            batch_id="batch_1",
+            teacher_id="teacher_1",
+        )
+    )
+
+    snapshot = service.generate_teacher_performance_snapshot(
+        tenant_id=tenant_id,
+        teacher_id="teacher_1",
+        batch_ids=("batch_1",),
+        performance_period="2026-Q2",
+        attendance={"quality_score": Decimal("0.92")},
+        completion={"completion_score": Decimal("0.85")},
+        batch_performance={"student_retention_score": Decimal("0.88")},
+        learner_engagement={"engagement_score": Decimal("0.91")},
+        metadata={"source": "auto"},
+    )
+
+    assert snapshot.teacher_id == "teacher_1"
+    assert snapshot.performance_period == "2026-Q2"
+
+    rows = service.list_teacher_performance(tenant_id=tenant_id, teacher_id="teacher_1")
+    assert len(rows) == 1
+    assert rows[0].overall_score() == Decimal("0.8905")
+
+    detail = service.get_teacher_performance_detail(tenant_id=tenant_id, teacher_id="teacher_1")
+    assert detail["overall_score"] == Decimal("0.8905")
+    assert detail["batch_ids"] == ("batch_1",)

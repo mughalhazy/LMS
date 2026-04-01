@@ -7,6 +7,7 @@ from enum import Enum
 
 from shared.models.branch import Branch, BranchStatus
 from shared.models.timetable import TimetableSlot, TimetableSlotStatus
+from shared.models.teacher_performance import TeacherPerformanceSnapshot
 
 
 class BatchStatus(str, Enum):
@@ -87,24 +88,6 @@ class RevenueShareAgreement:
     batch_id: str
     teacher_id: str
     share_ratio: Decimal
-
-
-@dataclass(frozen=True)
-class TeacherPerformanceSnapshot:
-    tenant_id: str
-    batch_id: str
-    teacher_id: str
-    attendance_rate: Decimal
-    completion_rate: Decimal
-    learner_satisfaction: Decimal
-    captured_at: datetime = field(default_factory=datetime.utcnow)
-
-    def score(self) -> Decimal:
-        return (
-            (self.attendance_rate * Decimal("0.40"))
-            + (self.completion_rate * Decimal("0.35"))
-            + (self.learner_satisfaction * Decimal("0.25"))
-        ).quantize(Decimal("0.0001"))
 
 
 @dataclass(frozen=True)
