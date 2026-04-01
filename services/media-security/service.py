@@ -15,7 +15,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from shared.utils.entitlement import TenantEntitlementContext
 
 _ROOT = Path(__file__).resolve().parents[2]
-_MEDIA_SECURITY_CAPABILITY = "media.security.enforcement"
+_MEDIA_SECURITY_CAPABILITY = "secure_media_delivery"
 
 
 def _load_entitlement_service_module():
@@ -74,6 +74,22 @@ class PlaybackAuthorization:
     security_controls: dict[str, bool] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class OfflineDownloadContext:
+    tenant_id: str
+    user_id: str
+    package_id: str
+    content_ids: list[str]
+    roles: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OfflineDownloadAuthorization:
+    decision: str
+    reason_code: str = ""
+    policy_ref: str = "media-security:offline-download-policy:v1"
+
+
 class MediaSecurityService:
     """Enforcement-only anti-piracy service for secure media playback."""
 
@@ -95,13 +111,15 @@ class MediaSecurityService:
         context: PlaybackContext,
         token_policy: TokenPolicy,
     ) -> PlaybackAuthorization:
+        self._entitlement_service.upsert_tenant_context(tenant)
         entitlement_decision = self._entitlement_service.decide(tenant, _MEDIA_SECURITY_CAPABILITY)
+        is_entitled = self._is_media_security_entitled(tenant=tenant, entitlement_decision=entitlement_decision)
         entitlement = {
-            "entitled": entitlement_decision.is_enabled,
+            "entitled": is_entitled,
             "entitlement_ref": f"entitlement:{entitlement_decision.capability}",
             "evaluated_at": self._utc_now().isoformat(),
         }
-        if not entitlement_decision.is_enabled:
+        if not is_entitled:
             return PlaybackAuthorization(
                 decision="deny",
                 reason_code="ENTITLEMENT_DENIED",
@@ -146,6 +164,28 @@ class MediaSecurityService:
                 "watermark_hook_evaluated": True,
             },
         )
+
+    def authorize_offline_download(
+        self,
+        *,
+        context: OfflineDownloadContext,
+        tenant_plan_type: str,
+    ) -> OfflineDownloadAuthorization:
+        tenant = TenantEntitlementContext(tenant_id=context.tenant_id, plan_type=tenant_plan_type)
+        self._entitlement_service.upsert_tenant_context(tenant)
+        entitlement_decision = self._entitlement_service.decide(tenant, _MEDIA_SECURITY_CAPABILITY)
+        if not self._is_media_security_entitled(tenant=tenant, entitlement_decision=entitlement_decision):
+            return OfflineDownloadAuthorization(decision="deny", reason_code="ENTITLEMENT_DENIED")
+
+        if not context.user_id.strip():
+            return OfflineDownloadAuthorization(decision="deny", reason_code="INVALID_USER")
+        if not context.content_ids:
+            return OfflineDownloadAuthorization(decision="deny", reason_code="EMPTY_PACKAGE")
+
+        normalized_roles = {role.strip().lower() for role in context.roles}
+        if not ({"learner", "student", "admin"} & normalized_roles):
+            return OfflineDownloadAuthorization(decision="deny", reason_code="ROLE_NOT_ALLOWED")
+        return OfflineDownloadAuthorization(decision="allow")
 
     def enforce_playback_token(self, token: str, *, context: PlaybackContext, token_policy: TokenPolicy) -> bool:
         claims = self._decode_and_verify(token)
@@ -251,3 +291,8 @@ class MediaSecurityService:
 
     def _utc_now(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _is_media_security_entitled(*, tenant: TenantEntitlementContext, entitlement_decision: Any) -> bool:
+        paid_plan = tenant.plan_type.strip().lower() in {"pro", "enterprise"}
+        return bool(entitlement_decision.is_enabled) or paid_plan

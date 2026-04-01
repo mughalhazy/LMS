@@ -4,10 +4,13 @@ import importlib.util
 import json
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+import base64
+import hashlib
+import hmac
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +29,8 @@ def _load_module(module_name: str, relative_path: str):
 
 
 _ContentOfflineModule = _load_module("offline_sync_content_module", "backend/services/content-service/offline.py")
+_ModelsModule = _load_module("offline_sync_models_module", "services/offline-sync/models.py")
+_MediaSecurityModule = _load_module("offline_media_security_module", "services/media-security/service.py")
 def _load_progress_module():
     package_name = "offline_sync_progress_src"
     package_path = ROOT / "backend/services/progress-service/src"
@@ -55,6 +60,9 @@ def _load_progress_module():
 _ProgressModule = _load_progress_module()
 
 OfflineContentManager = _ContentOfflineModule.OfflineContentManager
+OfflinePackage = _ModelsModule.OfflinePackage
+MediaSecurityService = _MediaSecurityModule.MediaSecurityService
+OfflineDownloadContext = _MediaSecurityModule.OfflineDownloadContext
 ProgressTrackingService = _ProgressModule.ProgressTrackingService
 
 
@@ -84,9 +92,15 @@ class OfflineSyncService:
         cache_root: Path,
         state_file: Path,
         learning_service: ProgressTrackingService | None = None,
+        media_security_service: MediaSecurityService | None = None,
+        manifest_secret: str = "offline-package-signing-key",
+        package_ttl_seconds: int = 86400,
     ) -> None:
         self.downloads = OfflineContentManager(cache_root=cache_root)
         self.learning_service = learning_service or ProgressTrackingService()
+        self.media_security_service = media_security_service or MediaSecurityService()
+        self._manifest_secret = manifest_secret.encode("utf-8")
+        self._package_ttl_seconds = max(package_ttl_seconds, 1)
         self.state_file = state_file
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self._state = self._load_state()
@@ -107,6 +121,110 @@ class OfflineSyncService:
             requester_user_id=requester_user_id,
             requester_roles=requester_roles,
         )
+
+    def prepare_offline_package(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        content_ids: list[str],
+        requester_user_id: str,
+        requester_roles: list[str],
+        tenant_plan_type: str,
+        metadata: dict[str, str] | None = None,
+        expires_in_seconds: int | None = None,
+    ) -> OfflinePackage:
+        auth = self.authorize_offline_download(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            requester_user_id=requester_user_id,
+            requester_roles=requester_roles,
+            tenant_plan_type=tenant_plan_type,
+            requested_content_ids=content_ids,
+        )
+        if auth["decision"] != "allow":
+            raise PermissionError(f"offline package denied: {auth['reason_code']}")
+
+        issued_at = datetime.now(timezone.utc)
+        ttl_seconds = self._package_ttl_seconds if expires_in_seconds is None else max(expires_in_seconds, 1)
+        expires_at = issued_at + timedelta(seconds=ttl_seconds)
+        package_id = str(uuid4())
+        sync_token = str(uuid4())
+        normalized_content_ids = sorted({content_id.strip() for content_id in content_ids if content_id.strip()})
+
+        manifest_payload = {
+            "package_id": package_id,
+            "student_id": student_id.strip(),
+            "tenant_id": tenant_id.strip(),
+            "content_ids": normalized_content_ids,
+            "issued_at": issued_at.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "sync_token": sync_token,
+            "metadata": metadata or {},
+        }
+        encrypted_manifest = self._seal_manifest(manifest_payload)
+        package = OfflinePackage(
+            package_id=package_id,
+            student_id=student_id.strip(),
+            tenant_id=tenant_id.strip(),
+            content_ids=normalized_content_ids,
+            encrypted_manifest=encrypted_manifest,
+            issued_at=issued_at.isoformat(),
+            expires_at=expires_at.isoformat(),
+            sync_token=sync_token,
+            metadata=metadata or {},
+        )
+        self._state["packages"][package.package_id] = asdict(package)
+        self._persist_state()
+        return package
+
+    def authorize_offline_download(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        requester_user_id: str,
+        requester_roles: list[str],
+        tenant_plan_type: str,
+        requested_content_ids: list[str],
+        package_id: str | None = None,
+    ) -> dict[str, str | bool]:
+        if requester_user_id.strip() != student_id.strip() and "admin" not in {role.strip().lower() for role in requester_roles}:
+            return {"decision": "deny", "reason_code": "UNAUTHORIZED_REQUESTER"}
+
+        media_auth = self.media_security_service.authorize_offline_download(
+            context=OfflineDownloadContext(
+                tenant_id=tenant_id,
+                user_id=student_id,
+                package_id=package_id or "",
+                content_ids=requested_content_ids,
+                roles=requester_roles,
+            ),
+            tenant_plan_type=tenant_plan_type,
+        )
+        if media_auth.decision != "allow":
+            return {"decision": "deny", "reason_code": media_auth.reason_code}
+
+        if package_id:
+            package = self._state["packages"].get(package_id)
+            if not package:
+                return {"decision": "deny", "reason_code": "PACKAGE_NOT_FOUND"}
+            if package.get("student_id") != student_id.strip() or package.get("tenant_id") != tenant_id.strip():
+                return {"decision": "deny", "reason_code": "PACKAGE_SUBJECT_MISMATCH"}
+            if datetime.fromisoformat(str(package["expires_at"])) <= datetime.now(timezone.utc):
+                return {"decision": "deny", "reason_code": "PACKAGE_EXPIRED"}
+            if package_id in self._state["invalidated_package_ids"]:
+                return {"decision": "deny", "reason_code": "PACKAGE_INVALIDATED"}
+
+        return {"decision": "allow", "reason_code": "", "policy_ref": media_auth.policy_ref}
+
+    def invalidate_offline_package(self, *, package_id: str) -> bool:
+        if package_id not in self._state["packages"]:
+            return False
+        self._state["invalidated_package_ids"].append(package_id)
+        self._state["invalidated_package_ids"] = sorted(set(self._state["invalidated_package_ids"]))
+        self._persist_state()
+        return True
 
     def queue_progress(
         self,
@@ -239,12 +357,14 @@ class OfflineSyncService:
 
     def _load_state(self) -> dict[str, Any]:
         if not self.state_file.exists():
-            return {"pending": [], "applied_operation_ids": [], "conflicts": []}
+            return {"pending": [], "applied_operation_ids": [], "conflicts": [], "packages": {}, "invalidated_package_ids": []}
 
         payload = json.loads(self.state_file.read_text(encoding="utf-8"))
         payload.setdefault("pending", [])
         payload.setdefault("applied_operation_ids", [])
         payload.setdefault("conflicts", [])
+        payload.setdefault("packages", {})
+        payload.setdefault("invalidated_package_ids", [])
         return payload
 
     def _persist_state(self) -> None:
@@ -252,5 +372,13 @@ class OfflineSyncService:
         tmp_file.write_text(json.dumps(self._state, indent=2, sort_keys=True), encoding="utf-8")
         tmp_file.replace(self.state_file)
 
+    def _seal_manifest(self, payload: dict[str, Any]) -> str:
+        serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        digest = hashlib.sha256(serialized).hexdigest()
+        wrapped = json.dumps({"digest": digest, "payload": payload}, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        encoded = base64.urlsafe_b64encode(wrapped).decode("utf-8")
+        signature = hmac.new(self._manifest_secret, encoded.encode("utf-8"), hashlib.sha256).hexdigest()
+        return f"{encoded}.{signature}"
 
-__all__ = ["OfflineProgressEnvelope", "OfflineSyncService"]
+
+__all__ = ["OfflinePackage", "OfflineProgressEnvelope", "OfflineSyncService"]

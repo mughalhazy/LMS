@@ -20,6 +20,7 @@ _spec.loader.exec_module(_module)
 MediaSecurityService = _module.MediaSecurityService
 PlaybackContext = _module.PlaybackContext
 TokenPolicy = _module.TokenPolicy
+OfflineDownloadContext = _module.OfflineDownloadContext
 
 
 def test_authorize_playback_issues_token_with_watermark_when_entitled() -> None:
@@ -100,3 +101,30 @@ def test_restriction_enforcement_blocks_concurrency_and_token_replay() -> None:
     token = first_authorization.playback_token.token
     assert service.enforce_playback_token(token, context=first_context, token_policy=policy) is True
     assert service.enforce_playback_token(token, context=first_context, token_policy=policy) is False
+
+
+def test_authorize_offline_download_applies_media_security_policy() -> None:
+    service = MediaSecurityService()
+    allowed = service.authorize_offline_download(
+        context=OfflineDownloadContext(
+            tenant_id="tenant_secure",
+            user_id="user_4",
+            package_id="pkg-1",
+            content_ids=["asset-1"],
+            roles=["learner"],
+        ),
+        tenant_plan_type="pro",
+    )
+    assert allowed.decision == "allow"
+
+    denied = service.authorize_offline_download(
+        context=OfflineDownloadContext(
+            tenant_id="tenant_basic",
+            user_id="user_5",
+            package_id="pkg-2",
+            content_ids=["asset-2"],
+            roles=["observer"],
+        ),
+        tenant_plan_type="free",
+    )
+    assert denied.decision == "deny"
