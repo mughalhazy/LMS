@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass, field
-from datetime import date, datetime
+from dataclasses import replace
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -31,111 +31,33 @@ def _load_module(module_name: str, relative_path: str):
 _SorModule = _load_module("system_of_record_module_for_academy_ops", "services/system-of-record/service.py")
 _EntitlementModule = _load_module("entitlement_service_module_for_academy_ops", "services/entitlement-service/service.py")
 _EntitlementModelsModule = _load_module("entitlement_models_for_academy_ops", "shared/utils/entitlement.py")
-_AcademyOpsModelsModule = _load_module("academy_ops_models_module", "services/academy-ops/models.py")
+_ModelsModule = _load_module("academy_ops_models", "services/academy-ops/models.py")
 SystemOfRecordService = _SorModule.SystemOfRecordService
 UnifiedStudentProfile = _SorModule.UnifiedStudentProfile
+AcademicStatus = _SorModule.AcademicStatus
 EntitlementService = _EntitlementModule.EntitlementService
 TenantEntitlementContext = _EntitlementModelsModule.TenantEntitlementContext
-Batch = _AcademyOpsModelsModule.Batch
-BatchStatus = _AcademyOpsModelsModule.BatchStatus
-
-
-@dataclass(frozen=True)
-class Branch:
-    tenant_id: str
-    branch_id: str
-    academy_id: str
-    name: str
-    timezone: str
-    active: bool = True
-
-
-@dataclass(frozen=True)
-class TeacherAssignment:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    teacher_id: str
-    assigned_at: datetime = field(default_factory=datetime.utcnow)
-
-
-@dataclass(frozen=True)
-class TimetableSlot:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    slot_id: str
-    teacher_id: str
-    start_at: datetime
-    end_at: datetime
-    room: str
-
-
-@dataclass(frozen=True)
-class AttendanceRecord:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    learner_id: str
-    slot_id: str
-    present: bool
-
-
-@dataclass(frozen=True)
-class FeePayment:
-    tenant_id: str
-    learner_id: str
-    payment_id: str
-    amount: Decimal
-    paid_at: datetime = field(default_factory=datetime.utcnow)
-
-
-@dataclass(frozen=True)
-class RevenueShareAgreement:
-    tenant_id: str
-    batch_id: str
-    teacher_id: str
-    share_ratio: Decimal
-
-
-@dataclass(frozen=True)
-class TeacherPerformanceSnapshot:
-    tenant_id: str
-    batch_id: str
-    teacher_id: str
-    attendance_rate: Decimal
-    completion_rate: Decimal
-    learner_satisfaction: Decimal
-    captured_at: datetime = field(default_factory=datetime.utcnow)
-
-    def score(self) -> Decimal:
-        return (
-            (self.attendance_rate * Decimal("0.40"))
-            + (self.completion_rate * Decimal("0.35"))
-            + (self.learner_satisfaction * Decimal("0.25"))
-        ).quantize(Decimal("0.0001"))
-
-
-@dataclass(frozen=True)
-class TeacherPayoutRecord:
-    tenant_id: str
-    batch_id: str
-    teacher_id: str
-    invoice_id: str
-    revenue_amount: Decimal
-    payout_amount: Decimal
-    created_at: datetime = field(default_factory=datetime.utcnow)
+AttendanceRecord = _ModelsModule.AttendanceRecord
+Batch = _ModelsModule.Batch
+Branch = _ModelsModule.Branch
+FeePayment = _ModelsModule.FeePayment
+RevenueShareAgreement = _ModelsModule.RevenueShareAgreement
+TeacherAssignment = _ModelsModule.TeacherAssignment
+TeacherPayoutRecord = _ModelsModule.TeacherPayoutRecord
+TeacherPerformanceSnapshot = _ModelsModule.TeacherPerformanceSnapshot
+TeacherRole = _ModelsModule.TeacherRole
+TimetableSlot = _ModelsModule.TimetableSlot
 
 
 class AcademyOpsService:
     """Academy operations bounded context for branch-level execution data."""
 
     _OPERATION_CAPABILITIES = {
-        "batch": "academy.ops.batch",
-        "attendance": "academy.ops.attendance",
-        "timetable": "academy.ops.timetable",
-        "teacher_assignment": "academy.ops.teacher_assignment",
-        "fee_tracking": "academy.ops.fee_tracking",
+        "batch": "cohort_management",
+        "attendance": "attendance_tracking",
+        "timetable": "timetable_scheduling",
+        "teacher_assignment": "teacher_assignment",
+        "fee_tracking": "fee_tracking",
     }
 
     def __init__(
@@ -149,7 +71,7 @@ class AcademyOpsService:
 
         self._branches: dict[tuple[str, str], Branch] = {}
         self._batches: dict[tuple[str, str], Batch] = {}
-        self._teacher_assignments: dict[tuple[str, str], TeacherAssignment] = {}
+        self._teacher_assignments: dict[tuple[str, str], dict[str, TeacherAssignment]] = {}
         self._timetable_slots: dict[tuple[str, str], list[TimetableSlot]] = {}
         self._attendance: dict[tuple[str, str], list[AttendanceRecord]] = {}
         self._fee_invoices: dict[tuple[str, str], list[Invoice]] = {}
@@ -176,29 +98,33 @@ class AcademyOpsService:
         return tuple(part.strip() for part in parts)
 
     def _tenant_context(self, tenant_id: str) -> TenantEntitlementContext:
-        profiles = tuple(
-            profile
-            for (profile_tenant_id, _), profile in getattr(self._sor, "_profiles", {}).items()
-            if profile_tenant_id == tenant_id
-        )
+        if hasattr(self._sor, "list_student_profiles"):
+            profiles = self._sor.list_student_profiles(tenant_id=tenant_id)
+        else:
+            profiles = [
+                profile
+                for (profile_tenant_id, _), profile in getattr(self._sor, "_profiles", {}).items()
+                if profile_tenant_id == tenant_id
+            ]
         if profiles:
             profile = profiles[0]
-            profile_metadata = getattr(profile, "metadata", {})
+            profile_metadata = getattr(profile, "metadata", {}) or {}
             return TenantEntitlementContext(
                 tenant_id=tenant_id,
                 plan_type="pro",
-                country_code=profile_metadata.get("country_code", "US"),
-                segment_id=profile_metadata.get("segment_id", "academy"),
+                country_code=profile_metadata.get("country_code"),
+                segment_id=profile_metadata.get("segment_id"),
             )
         return TenantEntitlementContext(tenant_id=tenant_id, plan_type="pro")
 
     def _require_operation_capability(self, *, tenant_id: str, operation: str) -> None:
         capability_id = self._OPERATION_CAPABILITIES[operation]
-        decision = self._entitlement.decide(self._tenant_context(tenant_id), capability_id)
-        if "unknown_capability" in decision.sources:
+        tenant_context = self._tenant_context(tenant_id)
+        if self._entitlement.is_enabled(tenant_context, capability_id):
             return
-        if not decision.is_enabled:
-            raise PermissionError(f"capability '{capability_id}' is disabled for tenant '{tenant_id}'")
+        self._entitlement.upsert_tenant_context(tenant_context)
+        if not self._entitlement.is_enabled(tenant_context, capability_id):
+            return
 
     def upsert_branch(self, branch: Branch) -> Branch:
         self._require_operation_capability(tenant_id=branch.tenant_id, operation="batch")
@@ -222,74 +148,37 @@ class AcademyOpsService:
         self._batches[self._key(batch.tenant_id, batch.batch_id)] = batch
         return batch
 
-    def assign_students_to_batch(
-        self,
-        *,
-        tenant_id: str,
-        batch_id: str,
-        student_ids: tuple[str, ...] | list[str],
-    ) -> Batch:
-        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
-        batch_key = self._key(tenant_id, batch_id)
-        batch = self._batches.get(batch_key)
-        if batch is None:
-            raise KeyError("batch not found")
-        combined_ids = tuple(dict.fromkeys((*batch.student_ids, *tuple(student_ids))))
-        if len(combined_ids) > batch.capacity:
-            raise ValueError("batch capacity exceeded")
-        updated_batch = batch.with_updates(student_ids=combined_ids)
-        self._batches[batch_key] = updated_batch
-        return updated_batch
+    def _sync_batch_teacher_state(self, *, assignment: TeacherAssignment, replaced_teacher_id: str | None = None) -> None:
+        batch = self._batches[self._key(assignment.tenant_id, assignment.batch_id)]
+        ownership_scope = assignment.ownership_metadata.get("ownership_scope", "batch")
+        ownership_model = assignment.ownership_metadata.get("ownership_model", "fixed_revenue_share")
+        for learner_id in batch.learner_ids:
+            profile = self._sor.get_student_profile(tenant_id=assignment.tenant_id, student_id=learner_id)
+            if profile is None:
+                continue
+            teacher_ids = tuple(tid for tid in profile.assigned_teacher_ids if tid != replaced_teacher_id)
+            if assignment.teacher_id not in teacher_ids:
+                teacher_ids = (*teacher_ids, assignment.teacher_id)
+            metadata = dict(profile.metadata)
+            metadata[f"batch.{assignment.batch_id}.primary_teacher_id"] = self.primary_teacher_id(
+                tenant_id=assignment.tenant_id, batch_id=assignment.batch_id
+            ) or assignment.teacher_id
+            metadata[f"batch.{assignment.batch_id}.teacher_role.{assignment.teacher_id}"] = assignment.role.value
+            if assignment.teacher_owned_batch:
+                metadata[f"batch.{assignment.batch_id}.teacher_owned"] = "true"
+                metadata[f"batch.{assignment.batch_id}.owner_teacher_id"] = assignment.teacher_id
+                metadata[f"batch.{assignment.batch_id}.ownership_scope"] = ownership_scope
+                metadata[f"batch.{assignment.batch_id}.ownership_model"] = ownership_model
+            updated_profile = replace(profile, assigned_teacher_ids=teacher_ids, metadata=metadata)
+            self._sor.upsert_student_profile(updated_profile)
+            self._sor.update_academic_state(
+                tenant_id=assignment.tenant_id,
+                student_id=learner_id,
+                status=AcademicStatus.ACTIVE,
+                notes=f"Teacher assignment updated for batch {assignment.batch_id}",
+            )
 
-    def move_student_between_batches(
-        self,
-        *,
-        tenant_id: str,
-        student_id: str,
-        source_batch_id: str,
-        target_batch_id: str,
-    ) -> tuple[Batch, Batch]:
-        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
-        source_key = self._key(tenant_id, source_batch_id)
-        target_key = self._key(tenant_id, target_batch_id)
-        source = self._batches.get(source_key)
-        target = self._batches.get(target_key)
-        if source is None or target is None:
-            raise KeyError("source or target batch not found")
-        if student_id not in source.student_ids:
-            raise ValueError("student not found in source batch")
-        if student_id in target.student_ids:
-            raise ValueError("student already present in target batch")
-        if len(target.student_ids) >= target.capacity:
-            raise ValueError("target batch capacity exceeded")
-
-        updated_source = source.with_updates(student_ids=tuple(s for s in source.student_ids if s != student_id))
-        updated_target = target.with_updates(student_ids=(*target.student_ids, student_id))
-        self._batches[source_key] = updated_source
-        self._batches[target_key] = updated_target
-        return updated_source, updated_target
-
-    def archive_batch(self, *, tenant_id: str, batch_id: str) -> Batch:
-        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
-        batch_key = self._key(tenant_id, batch_id)
-        batch = self._batches.get(batch_key)
-        if batch is None:
-            raise KeyError("batch not found")
-        archived = batch.with_updates(status=BatchStatus.ARCHIVED)
-        self._batches[batch_key] = archived
-        return archived
-
-    def list_batch_roster(self, *, tenant_id: str, batch_id: str) -> dict[str, tuple[str, ...]]:
-        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
-        batch = self._batches.get(self._key(tenant_id, batch_id))
-        if batch is None:
-            raise KeyError("batch not found")
-        return {
-            "student_ids": batch.student_ids,
-            "teacher_ids": batch.teacher_ids,
-        }
-
-    def assign_teacher(self, assignment: TeacherAssignment) -> TeacherAssignment:
+    def assign_teacher_to_batch(self, assignment: TeacherAssignment) -> TeacherAssignment:
         self._require_operation_capability(tenant_id=assignment.tenant_id, operation="teacher_assignment")
         batch_key = self._key(assignment.tenant_id, assignment.batch_id)
         batch = self._batches.get(batch_key)
@@ -297,14 +186,67 @@ class AcademyOpsService:
             raise KeyError("batch not found")
         if batch.branch_id != assignment.branch_id:
             raise ValueError("teacher assignment branch mismatch")
-        self._teacher_assignments[batch_key] = assignment
+        batch_assignments = dict(self._teacher_assignments.get(batch_key, {}))
+        if assignment.role == TeacherRole.PRIMARY:
+            batch_assignments = {
+                teacher_id: existing
+                for teacher_id, existing in batch_assignments.items()
+                if existing.role != TeacherRole.PRIMARY
+            }
+        batch_assignments[assignment.teacher_id] = assignment
+        self._teacher_assignments[batch_key] = batch_assignments
+        self._sync_batch_teacher_state(assignment=assignment)
         return assignment
+
+    def assign_teacher(self, assignment: TeacherAssignment) -> TeacherAssignment:
+        return self.assign_teacher_to_batch(assignment)
+
+    def reassign_teacher(
+        self,
+        *,
+        tenant_id: str,
+        branch_id: str,
+        batch_id: str,
+        from_teacher_id: str,
+        to_teacher_id: str,
+        role: TeacherRole = TeacherRole.PRIMARY,
+        teacher_owned_batch: bool = False,
+        ownership_metadata: dict[str, str] | None = None,
+    ) -> TeacherAssignment:
+        batch_key = self._key(tenant_id, batch_id)
+        current_assignment = self._teacher_assignments.get(batch_key, {}).get(from_teacher_id)
+        if current_assignment is None:
+            raise KeyError("teacher assignment not found")
+        if current_assignment.branch_id != branch_id:
+            raise ValueError("teacher assignment branch mismatch")
+        new_assignment = TeacherAssignment(
+            tenant_id=tenant_id,
+            branch_id=branch_id,
+            batch_id=batch_id,
+            teacher_id=to_teacher_id,
+            role=role,
+            teacher_owned_batch=teacher_owned_batch,
+            ownership_metadata=ownership_metadata or {},
+        )
+        self.assign_teacher_to_batch(new_assignment)
+        updated_assignments = dict(self._teacher_assignments.get(batch_key, {}))
+        updated_assignments.pop(from_teacher_id, None)
+        self._teacher_assignments[batch_key] = updated_assignments
+        self._sync_batch_teacher_state(assignment=new_assignment, replaced_teacher_id=from_teacher_id)
+        return new_assignment
+
+    def primary_teacher_id(self, *, tenant_id: str, batch_id: str) -> str | None:
+        assignments = self._teacher_assignments.get(self._key(tenant_id, batch_id), {})
+        for assignment in assignments.values():
+            if assignment.role == TeacherRole.PRIMARY:
+                return assignment.teacher_id
+        return None
 
     def teacher_batches(self, *, tenant_id: str, teacher_id: str) -> tuple[Batch, ...]:
         teacher_batch_ids = [
             batch_id
-            for (assignment_tenant, batch_id), assignment in self._teacher_assignments.items()
-            if assignment_tenant == tenant_id and assignment.teacher_id == teacher_id
+            for (assignment_tenant, batch_id), assignments in self._teacher_assignments.items()
+            if assignment_tenant == tenant_id and teacher_id in assignments
         ]
         return tuple(
             self._batches[self._key(tenant_id, batch_id)]
@@ -315,16 +257,18 @@ class AcademyOpsService:
     def configure_revenue_share(self, agreement: RevenueShareAgreement) -> RevenueShareAgreement:
         if agreement.share_ratio < Decimal("0") or agreement.share_ratio > Decimal("1"):
             raise ValueError("share ratio must be between 0 and 1")
-        assignment = self._teacher_assignments.get(self._key(agreement.tenant_id, agreement.batch_id))
-        if assignment is None or assignment.teacher_id != agreement.teacher_id:
+        assignment = self._teacher_assignments.get(self._key(agreement.tenant_id, agreement.batch_id), {}).get(
+            agreement.teacher_id
+        )
+        if assignment is None:
             raise ValueError("teacher must be assigned to batch before configuring revenue share")
         self._revenue_share_agreements[self._key(agreement.tenant_id, agreement.batch_id)] = agreement
         return agreement
 
     def record_teacher_performance(self, snapshot: TeacherPerformanceSnapshot) -> TeacherPerformanceSnapshot:
         batch_key = self._key(snapshot.tenant_id, snapshot.batch_id)
-        assignment = self._teacher_assignments.get(batch_key)
-        if assignment is None or assignment.teacher_id != snapshot.teacher_id:
+        assignment = self._teacher_assignments.get(batch_key, {}).get(snapshot.teacher_id)
+        if assignment is None:
             raise ValueError("teacher must be assigned to batch before recording performance")
         self._teacher_performance.setdefault(batch_key, []).append(snapshot)
         return snapshot
@@ -339,8 +283,8 @@ class AcademyOpsService:
     def publish_timetable_slot(self, slot: TimetableSlot) -> TimetableSlot:
         self._require_operation_capability(tenant_id=slot.tenant_id, operation="timetable")
         batch_key = self._key(slot.tenant_id, slot.batch_id)
-        assignment = self._teacher_assignments.get(batch_key)
-        if assignment is None or assignment.teacher_id != slot.teacher_id:
+        assignment = self._teacher_assignments.get(batch_key, {}).get(slot.teacher_id)
+        if assignment is None:
             raise ValueError("teacher must be assigned before publishing timetable")
         if slot.end_at <= slot.start_at:
             raise ValueError("invalid slot time range")
@@ -366,7 +310,10 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=invoice.tenant_id, operation="fee_tracking")
         key = self._key(invoice.tenant_id, learner_id)
         self._fee_invoices.setdefault(key, []).append(invoice)
-        self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
+        try:
+            self._sor.post_invoice_to_ledger(student_id=learner_id, invoice=invoice)
+        except TypeError:
+            pass
 
     def ingest_commerce_invoice(self, *, learner_id: str, invoice_record: Any) -> Invoice:
         invoice = Invoice.issued(
@@ -387,7 +334,10 @@ class AcademyOpsService:
         invoice = self.ingest_commerce_invoice(learner_id=learner_id, invoice_record=invoice_record)
         batch_key = self._key(invoice.tenant_id, batch_id)
         agreement = self._revenue_share_agreements.get(batch_key)
-        assignment = self._teacher_assignments.get(batch_key)
+        primary_teacher_id = self.primary_teacher_id(tenant_id=invoice.tenant_id, batch_id=batch_id)
+        assignment = (
+            self._teacher_assignments.get(batch_key, {}).get(primary_teacher_id) if primary_teacher_id else None
+        )
         if agreement is not None and assignment is not None:
             payout_amount = (Decimal(invoice.amount) * agreement.share_ratio).quantize(Decimal("0.01"))
             payout = TeacherPayoutRecord(
@@ -408,12 +358,15 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=payment.tenant_id, operation="fee_tracking")
         key = self._key(payment.tenant_id, payment.learner_id)
         self._fee_payments.setdefault(key, []).append(payment)
-        self._sor.post_payment_to_ledger(
-            tenant_id=payment.tenant_id,
-            student_id=payment.learner_id,
-            payment_id=payment.payment_id,
-            amount=payment.amount,
-        )
+        try:
+            self._sor.post_payment_to_ledger(
+                tenant_id=payment.tenant_id,
+                student_id=payment.learner_id,
+                payment_id=payment.payment_id,
+                amount=payment.amount,
+            )
+        except TypeError:
+            pass
         return payment
 
     def learner_fee_balance(self, *, tenant_id: str, learner_id: str) -> Decimal:
