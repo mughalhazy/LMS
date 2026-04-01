@@ -97,6 +97,7 @@ class CommerceService:
         amount: Decimal,
         currency: str,
         attempt: int,
+        idempotency_key: str,
     ) -> tuple[bool, str | None, bool]:
         ctx = TenantEntitlementContext(
             tenant_id=tenant_id,
@@ -114,7 +115,7 @@ class CommerceService:
 
         payment_tenant = TenantPaymentContext(tenant_id=tenant_id, country_code=ctx.country_code)
         entry = self._payment_orchestrator.process_checkout_payment(
-            idempotency_key=f"{tenant_id}:{learner_id}:{attempt}",
+            idempotency_key=f"{tenant_id}:{learner_id}:{idempotency_key}:{attempt}",
             tenant=payment_tenant,
             amount=int(amount * 100),
             currency=currency,
