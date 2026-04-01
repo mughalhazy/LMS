@@ -154,6 +154,7 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
     assert charge_map["learning.analytics.advanced"].amount == Decimal("0.70")
     assert charge_map["learning.analytics.advanced"].units == 7
     assert charge_map["assessment.author"].amount == Decimal("29.00")
+    assert commerce.monetization.validate_no_orphaned_monetized_capabilities() == (True, set())
 
 
 def test_pakistan_payment_router_connection_for_commerce_orchestration() -> None:
@@ -229,4 +230,3 @@ def test_bundle_creation_resolution_and_pricing_override() -> None:
     catalog_items = commerce.catalog.list_products(tenant_id="tenant_bundle", product_type=ProductType.BUNDLE)
     assert len(catalog_items) == 1
     assert [p.product_id for p in catalog_items[0].bundle_products] == ["p_course_a", "p_course_b"]
-

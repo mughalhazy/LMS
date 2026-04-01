@@ -60,7 +60,7 @@ class CapabilityMonetizationService:
 
     def plan_capability_mapping(self, plan_type: str) -> set[str]:
         """Single billing unit is capability_id; plans resolve to sets of capability_ids."""
-        return self._capability_registry.list_plan_capabilities(plan_type)
+        return self._subscription_service.get_plan_capabilities(plan_type)
 
     def enable_add_on(self, *, tenant_id: str, capability_id: str) -> None:
         if self._capability_registry.get_capability(capability_id) is None:
@@ -132,3 +132,18 @@ class CapabilityMonetizationService:
             )
 
         return sorted(charges, key=lambda charge: charge.capability_id)
+
+    def validate_no_orphaned_monetized_capabilities(self) -> tuple[bool, set[str]]:
+        mapped: set[str] = set()
+        for capability in self._capability_registry.list_capabilities():
+            if capability.included_in_add_ons or capability.usage_metered:
+                mapped.add(capability.capability_id)
+        for plan_id in ("free", "pro", "enterprise", "starter_academy", "growth_academy", "school_basic", "enterprise_learning"):
+            mapped.update(self._subscription_service.get_plan_capabilities(plan_id))
+
+        orphaned = {
+            capability.capability_id
+            for capability in self._capability_registry.list_capabilities()
+            if capability.monetizable and capability.capability_id not in mapped
+        }
+        return len(orphaned) == 0, orphaned
