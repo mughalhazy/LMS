@@ -5,24 +5,42 @@ from decimal import Decimal
 from enum import Enum
 
 
-class BillingCycle(str, Enum):
-    MONTHLY = "monthly"
-    YEARLY = "yearly"
+class ProductType(str, Enum):
+    COURSE = "course"
+    BUNDLE = "bundle"
+    SUBSCRIPTION = "subscription"
 
 
 @dataclass(frozen=True)
-class SubscriptionPlan:
-    plan_id: str
-    billing_cycle: BillingCycle
+class Product:
+    product_id: str
+    tenant_id: str
+    type: ProductType
+    title: str
+    description: str
     price: Decimal
-    capability_ids: tuple[str, ...] = field(default_factory=tuple)
+    currency: str
+    capability_ids: list[str]
+    metadata: dict[str, str] = field(default_factory=dict)
+    published: bool = True
 
-    def normalized(self) -> "SubscriptionPlan":
-        return SubscriptionPlan(
-            plan_id=self.plan_id.strip().lower(),
-            billing_cycle=BillingCycle(self.billing_cycle),
+    @property
+    def primary_capability_id(self) -> str:
+        return self.capability_ids[0]
+
+    def normalized(self) -> "Product":
+        normalized = Product(
+            product_id=self.product_id.strip(),
+            tenant_id=self.tenant_id.strip(),
+            type=ProductType(self.type),
+            title=self.title.strip(),
+            description=self.description.strip(),
             price=Decimal(self.price),
-            capability_ids=tuple(
-                sorted({capability_id.strip() for capability_id in self.capability_ids if capability_id.strip()})
-            ),
+            currency=self.currency.strip().upper(),
+            capability_ids=sorted({capability_id.strip() for capability_id in self.capability_ids if capability_id.strip()}),
+            metadata={str(k): str(v) for k, v in self.metadata.items()},
+            published=bool(self.published),
         )
+        if not normalized.capability_ids:
+            raise ValueError("product capability_ids are required")
+        return normalized
