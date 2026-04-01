@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,6 +27,21 @@ class PaymentLedgerEntry:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class PaymentTransactionLogEntry:
+    idempotency_key: str
+    tenant_id: str
+    amount: int
+    currency: str
+    attempt: int
+    provider: str
+    status: str
+    payment_id: str | None
+    retryable: bool
+    error: str | None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class PaymentOrchestrationService:
     """Checkout -> orchestration -> adapter -> verification -> ledger."""
 
@@ -43,6 +58,7 @@ class PaymentOrchestrationService:
         self._ledger: dict[str, PaymentLedgerEntry] = {}
         self._payment_id_to_idempotency_key: dict[str, str] = {}
         self._verification_tasks: dict[str, asyncio.Task[None]] = {}
+        self._transaction_log_store: dict[str, list[PaymentTransactionLogEntry]] = {}
 
     def process_checkout_payment(
         self,
@@ -61,10 +77,21 @@ class PaymentOrchestrationService:
 
         last_result = PaymentResult(ok=False, status="failure", provider=None, error="unknown")
         for attempt in range(self._max_retries + 1):
-            last_result = self._router.process_checkout(
-                tenant=tenant,
-                amount=amount,
-                invoice_id=invoice_id,
+            last_result = adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+            retryable = self._is_retryable(last_result)
+            self._transaction_log_store.setdefault(idempotency_key, []).append(
+                PaymentTransactionLogEntry(
+                    idempotency_key=idempotency_key,
+                    tenant_id=tenant.tenant_id,
+                    amount=amount,
+                    currency=currency,
+                    attempt=attempt,
+                    provider=last_result.provider,
+                    status=last_result.status,
+                    payment_id=last_result.payment_id,
+                    retryable=retryable,
+                    error=last_result.error,
+                )
             )
             if last_result.ok:
                 entry = PaymentLedgerEntry(
@@ -93,7 +120,7 @@ class PaymentOrchestrationService:
                 except RuntimeError:
                     self._ledger[idempotency_key] = self._run_verification(entry=entry)
                 return entry
-            if not self._is_retryable(last_result):
+            if not retryable:
                 break
 
         failed = PaymentLedgerEntry(
@@ -177,29 +204,8 @@ class PaymentOrchestrationService:
     def get_ledger_entry(self, *, idempotency_key: str) -> PaymentLedgerEntry | None:
         return self._ledger.get(idempotency_key)
 
-    def _run_verification(self, *, entry: PaymentLedgerEntry) -> PaymentLedgerEntry:
-        if entry.payment_id is None or entry.provider is None:
-            return PaymentLedgerEntry(
-                **{**entry.__dict__, "status": "failed", "error": "missing_payment_reference"}
-            )
-
-        verification = self._router.verify(
-            tenant=TenantPaymentContext(
-                tenant_id=entry.tenant_id,
-                country_code=entry.tenant_country_code,
-            ),
-            provider=entry.provider,
-            payment_id=entry.payment_id,
-        )
-        return PaymentLedgerEntry(
-            **{
-                **entry.__dict__,
-                "status": "verified" if verification.ok else "failed",
-                "verified": verification.ok,
-                "verified_at": datetime.now(timezone.utc) if verification.ok else None,
-                "error": verification.error,
-            }
-        )
+    def get_transaction_logs(self, *, idempotency_key: str) -> list[PaymentTransactionLogEntry]:
+        return list(self._transaction_log_store.get(idempotency_key, []))
 
     @staticmethod
     def _is_retryable(result: PaymentResult) -> bool:

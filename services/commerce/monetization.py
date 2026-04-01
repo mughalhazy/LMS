@@ -90,7 +90,7 @@ class CapabilityMonetizationService:
 
     def quote_product_amount(self, product: Product) -> Decimal:
         """Capability-driven rating hook for commerce product checkout."""
-        unit_price = self.resolve_capability_unit_price(product.capability_id)
+        unit_price = self.resolve_capability_unit_price(product.primary_capability_id)
         units = int(product.metadata.get("monetization_units", "1"))
         if units <= 0:
             raise ValueError("monetization_units must be >= 1")

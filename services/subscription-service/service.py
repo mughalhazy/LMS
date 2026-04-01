@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
+from services.commerce.billing import BillingService, InvoiceRecord
+from services.commerce.models import SubscriptionPlan
 from shared.models.capability_pricing import CapabilityPricing
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +49,7 @@ class CommerceSubscription:
     tenant_id: str
     plan_type: str
     source_order_id: str
+    plan_id: str = ""
     status: str = "active"
     renewals: int = 0
 
@@ -59,6 +62,10 @@ class SubscriptionService:
         self._tenant_add_on_purchases: dict[str, set[str]] = {}
         self._tenant_usage_ledger: dict[str, dict[str, int]] = {}
         self._commerce_subscriptions: dict[str, CommerceSubscription] = {}
+        self._subscription_plans: dict[str, SubscriptionPlan] = {}
+        self._tenant_capabilities_from_subscriptions: dict[str, set[str]] = {}
+        self._billing = BillingService()
+        self._subscription_invoices: dict[str, list[InvoiceRecord]] = {}
         self._capability_registry = _load_registry_service()()
 
     def upsert_tenant_subscription(self, subscription: TenantSubscription) -> None:
@@ -100,11 +107,15 @@ class SubscriptionService:
 
     def get_plan_capabilities(self, plan_type: str) -> set[str]:
         normalized_plan = plan_type.strip().lower()
-        return {
+        registry_capabilities = {
             capability.capability_id
             for capability in self._capability_registry.list_capabilities()
             if normalized_plan in capability.included_in_plans
         }
+        plan = self._subscription_plans.get(normalized_plan)
+        if plan is None:
+            return registry_capabilities
+        return registry_capabilities.union(plan.capability_ids)
 
     def is_enabled_for_subscription(
         self,
@@ -117,6 +128,8 @@ class SubscriptionService:
     ) -> bool:
         normalized_capability = capability.strip()
         if entitlement(normalized_capability):
+            return True
+        if normalized_capability in self._tenant_capabilities_from_subscriptions.get(tenant_id.strip(), set()):
             return True
         purchased = normalized_capability in self.get_purchased_capability_add_ons(tenant_id)
         if purchased:
@@ -134,36 +147,59 @@ class SubscriptionService:
             if normalized_add_on in capability.included_in_add_ons
         }
 
-    def create_or_activate_subscription(
+    def start_subscription(
         self,
         *,
         tenant_id: str,
         subscription_id: str,
-        plan_type: str,
+        plan: SubscriptionPlan,
         source_order_id: str,
     ) -> CommerceSubscription:
+        normalized_plan = plan.normalized()
+        self._subscription_plans[normalized_plan.plan_id] = normalized_plan
         normalized = CommerceSubscription(
             subscription_id=subscription_id.strip(),
             tenant_id=tenant_id.strip(),
-            plan_type=plan_type.strip().lower(),
+            plan_type=normalized_plan.plan_id,
             source_order_id=source_order_id.strip(),
+            plan_id=normalized_plan.plan_id,
             status="active",
             renewals=0,
         )
         self._commerce_subscriptions[normalized.subscription_id] = normalized
+        self._tenant_capabilities_from_subscriptions.setdefault(normalized.tenant_id, set()).update(
+            normalized_plan.capability_ids
+        )
+        invoice = self._billing.create_recurring_charge(
+            subscription_id=normalized.subscription_id,
+            plan=normalized_plan,
+            tenant_id=normalized.tenant_id,
+        )
+        self._subscription_invoices.setdefault(normalized.subscription_id, []).append(invoice)
         return normalized
 
     def renew_subscription(self, subscription_id: str) -> CommerceSubscription:
         current = self._commerce_subscriptions[subscription_id.strip()]
+        if current.status == "canceled":
+            raise ValueError("cannot renew canceled subscription")
         renewed = CommerceSubscription(
             subscription_id=current.subscription_id,
             tenant_id=current.tenant_id,
             plan_type=current.plan_type,
             source_order_id=current.source_order_id,
+            plan_id=current.plan_id,
             status="active",
             renewals=current.renewals + 1,
         )
         self._commerce_subscriptions[renewed.subscription_id] = renewed
+        plan = self._subscription_plans.get(renewed.plan_id or renewed.plan_type)
+        if plan is not None:
+            invoice = self._billing.create_recurring_charge(
+                subscription_id=renewed.subscription_id,
+                plan=plan,
+                tenant_id=renewed.tenant_id,
+            )
+            self._subscription_invoices.setdefault(renewed.subscription_id, []).append(invoice)
         return renewed
 
     def cancel_subscription(self, subscription_id: str) -> CommerceSubscription:
@@ -173,11 +209,34 @@ class SubscriptionService:
             tenant_id=current.tenant_id,
             plan_type=current.plan_type,
             source_order_id=current.source_order_id,
+            plan_id=current.plan_id,
             status="canceled",
             renewals=current.renewals,
         )
         self._commerce_subscriptions[canceled.subscription_id] = canceled
+        self._tenant_capabilities_from_subscriptions.pop(canceled.tenant_id, None)
         return canceled
 
     def get_subscription_contract(self, subscription_id: str) -> CommerceSubscription | None:
         return self._commerce_subscriptions.get(subscription_id.strip())
+
+    # Backward-compatible alias used by commerce service.
+    def create_or_activate_subscription(
+        self,
+        *,
+        tenant_id: str,
+        subscription_id: str,
+        plan_type: str,
+        source_order_id: str,
+    ) -> CommerceSubscription:
+        return self.start_subscription(
+            tenant_id=tenant_id,
+            subscription_id=subscription_id,
+            plan=SubscriptionPlan(
+                plan_id=plan_type,
+                billing_cycle="monthly",
+                price=Decimal("29.00"),
+                capability_ids=tuple(self.get_plan_capabilities(plan_type)),
+            ),
+            source_order_id=source_order_id,
+        )

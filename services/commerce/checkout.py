@@ -45,6 +45,10 @@ class CheckoutSession:
 @dataclass(frozen=True)
 class Order:
     order_id: str
+    user_id: str
+    product_ids: tuple[str, ...]
+    total_amount: Decimal
+    status: OrderStatus
     session_id: str
     tenant_id: str
     learner_id: str
@@ -53,8 +57,8 @@ class Order:
     amount: Decimal
     currency: str
     payment_id: str | None
-    status: OrderStatus
     transaction_id: str | None = None
+    idempotency_key: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -72,7 +76,7 @@ class Transaction:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-PaymentExecutor = Callable[[str, str, Decimal, str, int], tuple[bool, str | None, bool]]
+PaymentExecutor = Callable[[str, str, Decimal, str, int, str], tuple[bool, str | None, bool]]
 PriceResolver = Callable[[Product], Decimal]
 
 
@@ -92,14 +96,18 @@ class CheckoutService:
         catalog_service: CatalogService,
         payment_executor: PaymentExecutor,
         pricing_resolver: PriceResolver,
+        *,
+        max_retries: int = 2,
     ) -> None:
         self._catalog_service = catalog_service
         self._payment_executor = payment_executor
         self._pricing_resolver = pricing_resolver
+        self._max_retries = max_retries
         self._sessions: dict[str, CheckoutSession] = {}
         self._orders: dict[str, Order] = {}
         self._transactions: dict[str, Transaction] = {}
         self._idempotency_index: dict[tuple[str, str], str] = {}
+        self._transaction_log_store: dict[str, list[TransactionLogEntry]] = {}
 
     def start_session(
         self,
@@ -121,31 +129,81 @@ class CheckoutService:
         self._sessions[session.session_id] = session
         return session
 
+    def create_order(self, *, session: CheckoutSession, product: Product) -> Order:
+        base_amount = self.calculate_total((product,))
+        return Order(
+            order_id=f"order_{len(self._orders) + 1}",
+            user_id=session.learner_id,
+            product_ids=(product.product_id,),
+            total_amount=base_amount,
+            status=OrderStatus.CREATED,
+            session_id=session.session_id,
+            tenant_id=session.tenant_id,
+            learner_id=session.learner_id,
+            product=product,
+            capability_id=product.capability_id,
+            amount=base_amount,
+            currency=product.currency,
+            payment_id=None,
+            idempotency_key=session.idempotency_key,
+        )
+
+    def attach_products(self, *, order: Order, products: tuple[Product, ...]) -> Order:
+        return Order(
+            **{
+                **order.__dict__,
+                "product_ids": tuple(p.product_id for p in products),
+                "total_amount": self.calculate_total(products),
+            }
+        )
+
+    def calculate_total(self, products: tuple[Product, ...]) -> Decimal:
+        return sum((Decimal(self._pricing_resolver(product)) for product in products), Decimal("0"))
+
     async def submit_session(self, *, session_id: str, max_retries: int = 2) -> Order:
         session = self._sessions[session_id.strip()]
         idem_key = (session.tenant_id, session.idempotency_key)
         existing_order_id = self._idempotency_index.get(idem_key)
         if existing_order_id:
             return self._orders[existing_order_id]
+        configured_retries = self._max_retries if max_retries is None else max_retries
 
         product = self._catalog_service.resolve_sellable_product(
             tenant_id=session.tenant_id,
             product_id=session.product_id,
         )
 
-        amount = self._pricing_resolver(product)
+        order = self.create_order(session=session, product=product)
+        order = self.attach_products(order=order, products=(product,))
+
         payment_id: str | None = None
         success = False
         last_attempt = 0
         retryable = False
-        for attempt in range(max_retries + 1):
+        txn_logs: list[TransactionLogEntry] = []
+        for attempt in range(configured_retries + 1):
             last_attempt = attempt
             success, payment_id, retryable = self._payment_executor(
                 session.tenant_id,
                 session.learner_id,
-                amount,
-                product.currency,
+                order.total_amount,
+                order.currency,
                 attempt,
+                session.idempotency_key,
+            )
+            txn_logs.append(
+                TransactionLogEntry(
+                    log_id=f"txlog_{len(txn_logs) + 1}",
+                    idempotency_key=session.idempotency_key,
+                    tenant_id=session.tenant_id,
+                    learner_id=session.learner_id,
+                    attempt=attempt,
+                    amount=Decimal(amount),
+                    currency=product.currency,
+                    success=success,
+                    retryable=retryable,
+                    payment_id=payment_id,
+                )
             )
             if success:
                 break
@@ -159,7 +217,7 @@ class CheckoutService:
             tenant_id=session.tenant_id,
             learner_id=session.learner_id,
             product=product,
-            capability_id=product.capability_id,
+            capability_id=product.primary_capability_id,
             amount=Decimal(amount),
             currency=product.currency,
             payment_id=payment_id,
@@ -172,7 +230,7 @@ class CheckoutService:
             transaction_id=f"txn_{len(self._transactions) + 1}",
             order_id=order.order_id,
             tenant_id=order.tenant_id,
-            amount=order.amount,
+            amount=order.total_amount,
             currency=order.currency,
             payment_id=payment_id,
             status=TransactionStatus.SUCCEEDED if success else TransactionStatus.FAILED,
@@ -183,8 +241,9 @@ class CheckoutService:
         order = Order(**{**order.__dict__, "transaction_id": transaction.transaction_id})
         self._orders[order.order_id] = order
         self._idempotency_index[idem_key] = order.order_id
+        self._transaction_log_store[order.order_id] = txn_logs
         self._sessions[session.session_id] = CheckoutSession(
-            **{**session.__dict__, "status": CheckoutStatus.SUBMITTED, "attempt_count": max_retries + 1}
+            **{**session.__dict__, "status": CheckoutStatus.SUBMITTED, "attempt_count": last_attempt + 1}
         )
         return order
 
@@ -211,6 +270,9 @@ class CheckoutService:
 
     def get_transaction(self, transaction_id: str) -> Transaction | None:
         return self._transactions.get(transaction_id.strip())
+
+    def get_transaction_logs(self, *, order_id: str) -> list[TransactionLogEntry]:
+        return list(self._transaction_log_store.get(order_id.strip(), []))
 
 
 # Backward-compatible alias while promoting Order as first-class domain entity.
