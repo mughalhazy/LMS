@@ -24,6 +24,7 @@ _service_spec.loader.exec_module(_service_module)
 AcademyOpsService = _service_module.AcademyOpsService
 AttendanceRecord = _service_module.AttendanceRecord
 Batch = _service_module.Batch
+BatchStatus = _service_module.BatchStatus
 Branch = _service_module.Branch
 FeePayment = _service_module.FeePayment
 RevenueShareAgreement = _service_module.RevenueShareAgreement
@@ -39,10 +40,8 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_1",
             student_id="learner_1",
-            display_name="Ari Ops",
-            email="ari@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Ari Ops",
+            metadata={"country_code": "US", "segment_id": "academy"},
         )
     )
 
@@ -60,11 +59,17 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
             tenant_id="tenant_1",
             branch_id="branch_nyc",
             batch_id="batch_1",
+            course_id="course_python_1",
+            teacher_ids=("teacher_1",),
+            student_ids=("learner_1",),
+            timetable_id="tt_batch_1",
+            capacity=30,
+            status=BatchStatus.ACTIVE,
+            metadata={"mode": "evening"},
             academy_id="academy_1",
             title="Python Evening",
             start_date=date(2026, 4, 1),
             end_date=date(2026, 6, 30),
-            learner_ids=("learner_1",),
         )
     )
     service.assign_teacher(
@@ -120,10 +125,8 @@ def test_fee_tracking_integrates_system_of_record_ledger() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_2",
             student_id="learner_2",
-            display_name="Fee Student",
-            email="fee@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Fee Student",
+            metadata={"country_code": "US", "segment_id": "academy"},
         )
     )
 
@@ -167,10 +170,8 @@ def test_qc_autofix_validates_capability_driven_ops_and_sor_fee_link() -> None:
         UnifiedStudentProfile(
             tenant_id="tenant_qc",
             student_id="learner_qc_1",
-            display_name="QC Learner",
-            email="qc@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="QC Learner",
+            metadata={"country_code": "US", "segment_id": "academy"},
         )
     )
     service.record_fee_invoice(
@@ -199,10 +200,8 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
         UnifiedStudentProfile(
             tenant_id="tenant_eco",
             student_id="learner_eco_1",
-            display_name="Eco Learner",
-            email="eco@example.edu",
-            country_code="US",
-            segment_id="academy",
+            full_name="Eco Learner",
+            metadata={"country_code": "US", "segment_id": "academy"},
         )
     )
     service.upsert_branch(
@@ -219,11 +218,17 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
             tenant_id="tenant_eco",
             branch_id="branch_la",
             batch_id="batch_eco_1",
+            course_id="course_data_1",
+            teacher_ids=("teacher_eco_1",),
+            student_ids=("learner_eco_1",),
+            timetable_id="tt_eco_1",
+            capacity=25,
+            status=BatchStatus.ACTIVE,
+            metadata={"track": "data-systems"},
             academy_id="academy_eco",
             title="Data Systems",
             start_date=date(2026, 5, 1),
             end_date=date(2026, 7, 31),
-            learner_ids=("learner_eco_1",),
         )
     )
     service.assign_teacher(
@@ -283,3 +288,78 @@ def test_teacher_economy_batches_revenue_share_and_performance_tracking() -> Non
     payouts = service.teacher_payouts(tenant_id="tenant_eco", batch_id="batch_eco_1")
     assert len(payouts) == 1
     assert payouts[0].payout_amount == Decimal("30.00")
+
+
+def test_batch_roster_assignment_move_and_archive() -> None:
+    service = AcademyOpsService()
+    service.register_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_roster",
+            student_id="learner_roster_1",
+            full_name="Roster Student",
+            metadata={"country_code": "US", "segment_id": "academy"},
+        )
+    )
+    service.upsert_branch(
+        Branch(
+            tenant_id="tenant_roster",
+            branch_id="branch_roster",
+            academy_id="academy_roster",
+            name="Roster Campus",
+            timezone="UTC",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_roster",
+            branch_id="branch_roster",
+            batch_id="batch_source",
+            course_id="course_roster_1",
+            teacher_ids=("teacher_roster",),
+            student_ids=("learner_roster_1",),
+            timetable_id="tt_source",
+            capacity=2,
+            status=BatchStatus.ACTIVE,
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 5, 1),
+            metadata={},
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_roster",
+            branch_id="branch_roster",
+            batch_id="batch_target",
+            course_id="course_roster_1",
+            teacher_ids=("teacher_roster_2",),
+            student_ids=(),
+            timetable_id="tt_target",
+            capacity=2,
+            status=BatchStatus.ACTIVE,
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 5, 1),
+            metadata={},
+        )
+    )
+    updated_source = service.assign_students_to_batch(
+        tenant_id="tenant_roster",
+        batch_id="batch_source",
+        student_ids=["learner_roster_2"],
+    )
+    assert updated_source.student_ids == ("learner_roster_1", "learner_roster_2")
+
+    source, target = service.move_student_between_batches(
+        tenant_id="tenant_roster",
+        student_id="learner_roster_1",
+        source_batch_id="batch_source",
+        target_batch_id="batch_target",
+    )
+    assert source.student_ids == ("learner_roster_2",)
+    assert target.student_ids == ("learner_roster_1",)
+
+    roster = service.list_batch_roster(tenant_id="tenant_roster", batch_id="batch_target")
+    assert roster["student_ids"] == ("learner_roster_1",)
+    assert roster["teacher_ids"] == ("teacher_roster_2",)
+
+    archived = service.archive_batch(tenant_id="tenant_roster", batch_id="batch_target")
+    assert archived.status == BatchStatus.ARCHIVED

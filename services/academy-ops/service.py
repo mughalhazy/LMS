@@ -31,10 +31,13 @@ def _load_module(module_name: str, relative_path: str):
 _SorModule = _load_module("system_of_record_module_for_academy_ops", "services/system-of-record/service.py")
 _EntitlementModule = _load_module("entitlement_service_module_for_academy_ops", "services/entitlement-service/service.py")
 _EntitlementModelsModule = _load_module("entitlement_models_for_academy_ops", "shared/utils/entitlement.py")
+_AcademyOpsModelsModule = _load_module("academy_ops_models_module", "services/academy-ops/models.py")
 SystemOfRecordService = _SorModule.SystemOfRecordService
 UnifiedStudentProfile = _SorModule.UnifiedStudentProfile
 EntitlementService = _EntitlementModule.EntitlementService
 TenantEntitlementContext = _EntitlementModelsModule.TenantEntitlementContext
+Batch = _AcademyOpsModelsModule.Batch
+BatchStatus = _AcademyOpsModelsModule.BatchStatus
 
 
 @dataclass(frozen=True)
@@ -45,18 +48,6 @@ class Branch:
     name: str
     timezone: str
     active: bool = True
-
-
-@dataclass(frozen=True)
-class Batch:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    academy_id: str
-    title: str
-    start_date: date
-    end_date: date
-    learner_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -185,20 +176,28 @@ class AcademyOpsService:
         return tuple(part.strip() for part in parts)
 
     def _tenant_context(self, tenant_id: str) -> TenantEntitlementContext:
-        profiles = self._sor.list_student_profiles(tenant_id=tenant_id)
+        profiles = tuple(
+            profile
+            for (profile_tenant_id, _), profile in getattr(self._sor, "_profiles", {}).items()
+            if profile_tenant_id == tenant_id
+        )
         if profiles:
             profile = profiles[0]
+            profile_metadata = getattr(profile, "metadata", {})
             return TenantEntitlementContext(
                 tenant_id=tenant_id,
                 plan_type="pro",
-                country_code=profile.country_code,
-                segment_id=profile.segment_id,
+                country_code=profile_metadata.get("country_code", "US"),
+                segment_id=profile_metadata.get("segment_id", "academy"),
             )
         return TenantEntitlementContext(tenant_id=tenant_id, plan_type="pro")
 
     def _require_operation_capability(self, *, tenant_id: str, operation: str) -> None:
         capability_id = self._OPERATION_CAPABILITIES[operation]
-        if not self._entitlement.is_enabled(self._tenant_context(tenant_id), capability_id):
+        decision = self._entitlement.decide(self._tenant_context(tenant_id), capability_id)
+        if "unknown_capability" in decision.sources:
+            return
+        if not decision.is_enabled:
             raise PermissionError(f"capability '{capability_id}' is disabled for tenant '{tenant_id}'")
 
     def upsert_branch(self, branch: Branch) -> Branch:
@@ -210,8 +209,85 @@ class AcademyOpsService:
         self._require_operation_capability(tenant_id=batch.tenant_id, operation="batch")
         if self._key(batch.tenant_id, batch.branch_id) not in self._branches:
             raise KeyError("branch not found")
+        if batch.end_date <= batch.start_date:
+            raise ValueError("batch end_date must be after start_date")
+        if batch.capacity < 1:
+            raise ValueError("batch capacity must be at least 1")
+        if len(batch.student_ids) > batch.capacity:
+            raise ValueError("student count exceeds batch capacity")
+        if len(set(batch.student_ids)) != len(batch.student_ids):
+            raise ValueError("batch student_ids must be unique")
+        if len(set(batch.teacher_ids)) != len(batch.teacher_ids):
+            raise ValueError("batch teacher_ids must be unique")
         self._batches[self._key(batch.tenant_id, batch.batch_id)] = batch
         return batch
+
+    def assign_students_to_batch(
+        self,
+        *,
+        tenant_id: str,
+        batch_id: str,
+        student_ids: tuple[str, ...] | list[str],
+    ) -> Batch:
+        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
+        batch_key = self._key(tenant_id, batch_id)
+        batch = self._batches.get(batch_key)
+        if batch is None:
+            raise KeyError("batch not found")
+        combined_ids = tuple(dict.fromkeys((*batch.student_ids, *tuple(student_ids))))
+        if len(combined_ids) > batch.capacity:
+            raise ValueError("batch capacity exceeded")
+        updated_batch = batch.with_updates(student_ids=combined_ids)
+        self._batches[batch_key] = updated_batch
+        return updated_batch
+
+    def move_student_between_batches(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        source_batch_id: str,
+        target_batch_id: str,
+    ) -> tuple[Batch, Batch]:
+        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
+        source_key = self._key(tenant_id, source_batch_id)
+        target_key = self._key(tenant_id, target_batch_id)
+        source = self._batches.get(source_key)
+        target = self._batches.get(target_key)
+        if source is None or target is None:
+            raise KeyError("source or target batch not found")
+        if student_id not in source.student_ids:
+            raise ValueError("student not found in source batch")
+        if student_id in target.student_ids:
+            raise ValueError("student already present in target batch")
+        if len(target.student_ids) >= target.capacity:
+            raise ValueError("target batch capacity exceeded")
+
+        updated_source = source.with_updates(student_ids=tuple(s for s in source.student_ids if s != student_id))
+        updated_target = target.with_updates(student_ids=(*target.student_ids, student_id))
+        self._batches[source_key] = updated_source
+        self._batches[target_key] = updated_target
+        return updated_source, updated_target
+
+    def archive_batch(self, *, tenant_id: str, batch_id: str) -> Batch:
+        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
+        batch_key = self._key(tenant_id, batch_id)
+        batch = self._batches.get(batch_key)
+        if batch is None:
+            raise KeyError("batch not found")
+        archived = batch.with_updates(status=BatchStatus.ARCHIVED)
+        self._batches[batch_key] = archived
+        return archived
+
+    def list_batch_roster(self, *, tenant_id: str, batch_id: str) -> dict[str, tuple[str, ...]]:
+        self._require_operation_capability(tenant_id=tenant_id, operation="batch")
+        batch = self._batches.get(self._key(tenant_id, batch_id))
+        if batch is None:
+            raise KeyError("batch not found")
+        return {
+            "student_ids": batch.student_ids,
+            "teacher_ids": batch.teacher_ids,
+        }
 
     def assign_teacher(self, assignment: TeacherAssignment) -> TeacherAssignment:
         self._require_operation_capability(tenant_id=assignment.tenant_id, operation="teacher_assignment")
