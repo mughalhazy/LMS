@@ -476,6 +476,50 @@ class WorkflowEngine:
             return "update", "progress_update"
         return "update", "progress_update"
 
+
+    def bootstrap_default_workflows(self) -> tuple[str, ...]:
+        """Register pre-configured onboarding workflows (attendance, fees, notifications)."""
+        defaults = (
+            WorkflowDefinition(
+                workflow_id="wf_default_attendance",
+                name="Default Attendance Workflow",
+                enabled=True,
+                rules=(
+                    WorkflowRule(rule_id="rule_attendance_absence", trigger_type="attendance.absence_detected"),
+                ),
+                steps=(
+                    WorkflowStep(step_id="step_attendance_notify", step_type="notify", config={"message": "Attendance alert triggered."}),
+                    WorkflowStep(step_id="step_attendance_followup", step_type="action_item", config={"action_type": "attendance_follow_up", "priority": "high"}),
+                ),
+            ),
+            WorkflowDefinition(
+                workflow_id="wf_default_fees",
+                name="Default Fees Workflow",
+                enabled=True,
+                rules=(
+                    WorkflowRule(rule_id="rule_fee_missed", trigger_type="payment.missed"),
+                ),
+                steps=(
+                    WorkflowStep(step_id="step_fees_notify", step_type="notify", config={"message": "Fee reminder sent."}),
+                    WorkflowStep(step_id="step_fees_action", step_type="action_item", config={"action_type": "unpaid_fees_follow_up", "priority": "high"}),
+                ),
+            ),
+            WorkflowDefinition(
+                workflow_id="wf_default_notifications",
+                name="Default Notifications Workflow",
+                enabled=True,
+                rules=(
+                    WorkflowRule(rule_id="rule_progress_update", trigger_type="progress.updated"),
+                ),
+                steps=(
+                    WorkflowStep(step_id="step_progress_notify", step_type="notify", config={"message": "Progress update available."}),
+                ),
+            ),
+        )
+        for workflow in defaults:
+            self.register_workflow(workflow)
+        return tuple(workflow.workflow_id for workflow in defaults)
+
     def run_qc_autofix(self) -> dict[str, bool]:
         if self._notification_orchestrator is None:
             self._notification_orchestrator = NotificationOrchestrator()

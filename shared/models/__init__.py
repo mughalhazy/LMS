@@ -31,6 +31,7 @@ from .teacher_performance import TeacherPerformanceSnapshot
 from .network_analytics import StudentBenchmark, TeacherBenchmark, InstitutionBenchmark
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
 from .owner_economics import OwnerEconomicsSnapshot
+from .onboarding import OnboardingMode, OnboardingSession, OnboardingStatus
 
 __all__ = [
     "ExamSessionRecord",
@@ -74,4 +75,7 @@ __all__ = [
     "action_item",
     "priority_bucket",
     "OwnerEconomicsSnapshot",
+    "OnboardingMode",
+    "OnboardingSession",
+    "OnboardingStatus",
 ]
