@@ -15,13 +15,17 @@ def run_qc() -> dict[str, object]:
     service.register_tenant("tenant_alpha", TenantCapacityProfile(max_active_sessions=2, shard_count=3, burst_queue_limit=2))
     service.register_tenant("tenant_beta", TenantCapacityProfile(max_active_sessions=1, shard_count=3, burst_queue_limit=0))
 
-    s1 = service.start_session(tenant_id="tenant_alpha", learner_id="u1", exam_id="exam")
-    service.start_session(tenant_id="tenant_alpha", learner_id="u2", exam_id="exam")
-    service.submit_session(tenant_id="tenant_alpha", session_id=s1.session_id, score=91)
+    s1 = service.create_exam_session(tenant_id="tenant_alpha", exam_id="exam", student_id="u1")
+    s2 = service.create_exam_session(tenant_id="tenant_alpha", exam_id="exam", student_id="u2")
+    service.start_exam_session(tenant_id="tenant_alpha", exam_session_id=s1.exam_session_id)
+    service.start_exam_session(tenant_id="tenant_alpha", exam_session_id=s2.exam_session_id)
+    service.submit_exam_session(tenant_id="tenant_alpha", exam_session_id=s1.exam_session_id, score=91)
 
-    service.start_session(tenant_id="tenant_beta", learner_id="u3", exam_id="exam")
+    b1 = service.create_exam_session(tenant_id="tenant_beta", exam_id="exam", student_id="u3")
+    service.start_exam_session(tenant_id="tenant_beta", exam_session_id=b1.exam_session_id)
     try:
-        service.start_session(tenant_id="tenant_beta", learner_id="u4", exam_id="exam")
+        b2 = service.create_exam_session(tenant_id="tenant_beta", exam_id="exam", student_id="u4")
+        service.start_exam_session(tenant_id="tenant_beta", exam_session_id=b2.exam_session_id)
         hot_tenant_limited = False
     except RuntimeError:
         hot_tenant_limited = True

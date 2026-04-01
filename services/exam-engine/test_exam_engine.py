@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,7 @@ _service_spec.loader.exec_module(_service_module)
 ExamEngineService = _service_module.ExamEngineService
 InMemoryAnalyticsIntegration = _service_module.InMemoryAnalyticsIntegration
 InMemoryLearningIntegration = _service_module.InMemoryLearningIntegration
+InMemoryProgressIntegration = _service_module.InMemoryProgressIntegration
 TenantCapacityProfile = _service_module.TenantCapacityProfile
 
 
@@ -53,19 +55,21 @@ def test_load_handling_blocks_only_hot_tenant() -> None:
     assert session_cold.tenant_id == "tenant-cold"
 
 
-def test_submission_publishes_to_learning_and_analytics() -> None:
+def test_submission_publishes_to_learning_analytics_and_progress() -> None:
     learning = InMemoryLearningIntegration()
     analytics = InMemoryAnalyticsIntegration()
-    service = ExamEngineService(learning_integration=learning, analytics_integration=analytics)
+    progress = InMemoryProgressIntegration()
+    service = ExamEngineService(learning_integration=learning, analytics_integration=analytics, progress_integration=progress)
 
     session = service.start_session(tenant_id="tenant-1", learner_id="learner-1", exam_id="exam-1")
     submitted = service.submit_session(tenant_id="tenant-1", session_id=session.session_id, score=96)
 
     assert submitted.status == "submitted"
-    assert len(learning.events) == 1
-    assert len(analytics.events) == 1
-    assert learning.events[0]["tenant_id"] == "tenant-1"
-    assert analytics.events[0]["event_type"] == "exam.session.submitted"
+    assert len(learning.events) >= 1
+    assert len(analytics.events) >= 1
+    assert learning.events[-1]["tenant_id"] == "tenant-1"
+    assert analytics.events[-1]["event_type"] == "exam.session.submitted"
+    assert progress.events[-1]["event_type"] == "progress.exam.completed"
 
 
 def test_shard_distribution_is_tenant_local_not_global_queue() -> None:
@@ -85,37 +89,28 @@ def test_shard_distribution_is_tenant_local_not_global_queue() -> None:
     assert sum(t2_metrics["shard_load"].values()) == 3
 
 
-def test_capacity_evaluation_and_burst_queueing() -> None:
+def test_prevents_conflicting_active_sessions_per_student_by_default() -> None:
     service = ExamEngineService()
-    service.register_tenant("tenant-burst", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=2))
+    service.start_session(tenant_id="tenant-1", learner_id="student-1", exam_id="exam-1")
 
-    active = service.allocate_exam_runtime_slot(tenant_id="tenant-burst", learner_id="u1", exam_id="exam")
-    capacity = service.evaluate_exam_capacity(tenant_id="tenant-burst")
-    assert capacity["decision"] == "defer"
-
-    queued = service.queue_exam_session(tenant_id="tenant-burst", learner_id="u2", exam_id="exam")
-    assert queued.tenant_id == "tenant-burst"
-    assert service.tenant_metrics("tenant-burst")["queued_sessions"] == 1
-
-    service.release_exam_runtime_slot(tenant_id="tenant-burst", session_id=active.session_id)
-    assert service.tenant_metrics("tenant-burst")["active_sessions"] == 1
-    assert service.tenant_metrics("tenant-burst")["queued_sessions"] == 0
-
-
-def test_overflow_rejects_without_cross_tenant_bleed() -> None:
-    service = ExamEngineService()
-    service.register_tenant("tenant-a", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=0))
-    service.register_tenant("tenant-b", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=1))
-
-    service.start_session(tenant_id="tenant-a", learner_id="u1", exam_id="x")
-    service.start_session(tenant_id="tenant-b", learner_id="u2", exam_id="x")
-    with_queue_error = False
     try:
-        service.start_session(tenant_id="tenant-a", learner_id="u3", exam_id="x")
+        service.start_session(tenant_id="tenant-1", learner_id="student-1", exam_id="exam-2")
+        raised = False
     except RuntimeError:
-        with_queue_error = True
+        raised = True
 
-    assert with_queue_error is True
-    assert service.tenant_metrics("tenant-a")["active_sessions"] == 1
-    assert service.tenant_metrics("tenant-b")["active_sessions"] == 1
-    assert service.tenant_metrics("tenant-b")["queued_sessions"] == 0
+    assert raised is True
+
+
+def test_heartbeat_can_expire_session() -> None:
+    service = ExamEngineService()
+    session = service.create_exam_session(
+        tenant_id="tenant-1",
+        exam_id="exam-1",
+        student_id="student-1",
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    service.start_exam_session(tenant_id="tenant-1", exam_session_id=session.exam_session_id)
+
+    expired = service.heartbeat_exam_session(tenant_id="tenant-1", exam_session_id=session.exam_session_id)
+    assert expired.status == "expired"

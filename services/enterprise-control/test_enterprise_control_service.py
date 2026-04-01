@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -146,3 +148,60 @@ def test_config_integration_can_disable_strict_reason_path() -> None:
 
     assert status == 403
     assert payload["reason"] == "permission_not_granted"
+
+
+def test_cross_institution_teacher_link_assignment_and_listing_are_tenant_scoped() -> None:
+    service = EnterpriseControlService()
+    service.set_role_permissions(
+        tenant_id="tenant_target",
+        role="ops-admin",
+        permissions={"academy.teacher_assignment.cross_institution", "teacher.network.read"},
+    )
+    service.set_role_permissions(
+        tenant_id="tenant_home",
+        role="network-admin",
+        permissions={"teacher.network.manage"},
+    )
+
+    home_admin = IdentityContext(tenant_id="tenant_home", actor_id="home_admin", roles=("network-admin",))
+    target_admin = IdentityContext(tenant_id="tenant_target", actor_id="target_admin", roles=("ops-admin",))
+
+    affiliation = service.link_teacher_to_external_tenant(
+        identity=home_admin,
+        home_tenant_id="tenant_home",
+        teacher_id="teacher_1",
+        external_tenant_id="tenant_target",
+        max_concurrent_batches=1,
+    )
+    assert affiliation.external_tenant_id == "tenant_target"
+    assert affiliation.payout_tenant_id == "tenant_target"
+
+    assignment = service.assign_teacher_cross_institution(
+        identity=target_admin,
+        target_tenant_id="tenant_target",
+        home_tenant_id="tenant_home",
+        teacher_id="teacher_1",
+        branch_id="branch_1",
+        batch_id="batch_1",
+        payout_rate=12.5,
+    )
+    assert assignment.target_tenant_id == "tenant_target"
+    assert assignment.payout_tenant_id == "tenant_target"
+
+    affiliations = service.list_teacher_tenant_affiliations(
+        identity=target_admin,
+        tenant_id="tenant_target",
+        teacher_id="teacher_1",
+    )
+    assert len(affiliations) == 1
+    assert affiliations[0].home_tenant_id == "tenant_home"
+
+    with pytest.raises(ValueError, match="batch limit"):
+        service.assign_teacher_cross_institution(
+            identity=target_admin,
+            target_tenant_id="tenant_target",
+            home_tenant_id="tenant_home",
+            teacher_id="teacher_1",
+            branch_id="branch_1",
+            batch_id="batch_2",
+        )

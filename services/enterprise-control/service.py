@@ -4,6 +4,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(_ROOT))
 
 from shared.models.config import ConfigResolutionContext
+from shared.models.teacher_network import CrossInstitutionAssignment, TeacherTenantAffiliation
 
 
 def _load_module(module_name: str, relative_path: str):
@@ -67,6 +69,8 @@ class EnterpriseControlService:
         self._config_service = config_service or ConfigService()
         self._role_permissions: dict[tuple[str, str], set[str]] = {}
         self._audit_log: list[AuditLogEntry] = []
+        self._teacher_affiliations: dict[tuple[str, str, str], TeacherTenantAffiliation] = {}
+        self._cross_institution_assignments: dict[tuple[str, str, str], list[CrossInstitutionAssignment]] = {}
 
     def set_role_permissions(self, *, tenant_id: str, role: str, permissions: set[str]) -> None:
         key = (tenant_id.strip(), role.strip().lower())
@@ -262,3 +266,139 @@ class EnterpriseControlService:
 
     def has_strict_access_control(self) -> bool:
         return hasattr(self, "_evaluate_permission") and hasattr(self, "api_authorize")
+
+    def link_teacher_to_external_tenant(
+        self,
+        *,
+        identity: IdentityContext,
+        home_tenant_id: str,
+        teacher_id: str,
+        external_tenant_id: str,
+        permission_scope: tuple[str, ...] = ("academy.teacher_assignment.cross_institution",),
+        max_concurrent_batches: int = 1,
+        payout_tenant_id: str | None = None,
+        payout_account_ref: str = "",
+    ) -> TeacherTenantAffiliation:
+        normalized = identity.normalized()
+        target_home_tenant = home_tenant_id.strip()
+        target_external_tenant = external_tenant_id.strip()
+        if not teacher_id.strip():
+            raise ValueError("teacher_id is required")
+        if target_home_tenant == "" or target_external_tenant == "":
+            raise ValueError("tenant ids are required")
+        if target_home_tenant == target_external_tenant:
+            raise ValueError("external tenant must differ from home tenant")
+        if max_concurrent_batches < 1:
+            raise ValueError("max_concurrent_batches must be at least 1")
+
+        allowed, reason, audit = self._authorize_and_audit(
+            identity=normalized,
+            tenant_id=target_home_tenant,
+            permission="teacher.network.manage",
+            action="teacher.link_external_tenant",
+            resource=f"teacher:{teacher_id.strip()}",
+            metadata={"external_tenant_id": target_external_tenant},
+        )
+        if not allowed:
+            raise PermissionError(f"{reason}:{audit.event_id}")
+
+        normalized_scope = tuple(sorted({scope.strip().lower() for scope in permission_scope if scope.strip()}))
+        payout_tenant = (payout_tenant_id or target_external_tenant).strip()
+        if payout_tenant != target_external_tenant:
+            raise ValueError("payout tenant must match external tenant to preserve tenant economics")
+        affiliation = TeacherTenantAffiliation(
+            teacher_id=teacher_id.strip(),
+            home_tenant_id=target_home_tenant,
+            external_tenant_id=target_external_tenant,
+            linked_by_actor_id=normalized.actor_id,
+            permission_scope=normalized_scope,
+            max_concurrent_batches=max_concurrent_batches,
+            payout_tenant_id=payout_tenant,
+            payout_account_ref=payout_account_ref.strip(),
+        )
+        self._teacher_affiliations[(affiliation.home_tenant_id, affiliation.external_tenant_id, affiliation.teacher_id)] = affiliation
+        return affiliation
+
+    def assign_teacher_cross_institution(
+        self,
+        *,
+        identity: IdentityContext,
+        target_tenant_id: str,
+        home_tenant_id: str,
+        teacher_id: str,
+        branch_id: str,
+        batch_id: str,
+        payout_rate: float = 0.0,
+    ) -> CrossInstitutionAssignment:
+        normalized = identity.normalized()
+        target_tenant = target_tenant_id.strip()
+        key = (home_tenant_id.strip(), target_tenant, teacher_id.strip())
+        affiliation = self._teacher_affiliations.get(key)
+        if affiliation is None or not affiliation.is_active:
+            raise PermissionError("teacher is not linked to target tenant")
+
+        allowed, reason, audit = self._authorize_and_audit(
+            identity=normalized,
+            tenant_id=target_tenant,
+            permission="academy.teacher_assignment.cross_institution",
+            action="teacher.cross_institution_assign",
+            resource=f"batch:{batch_id.strip()}",
+            metadata={"teacher_id": teacher_id.strip(), "home_tenant_id": home_tenant_id.strip(), "branch_id": branch_id.strip()},
+        )
+        if not allowed:
+            raise PermissionError(f"{reason}:{audit.event_id}")
+
+        if "academy.teacher_assignment.cross_institution" not in affiliation.permission_scope:
+            raise PermissionError("affiliation_scope_denied")
+
+        assignment_key = (target_tenant, branch_id.strip(), batch_id.strip())
+        assignments = self._cross_institution_assignments.setdefault(assignment_key, [])
+        active_teacher_assignments = [
+            row
+            for rows in self._cross_institution_assignments.values()
+            for row in rows
+            if row.teacher_id == teacher_id.strip()
+            and row.home_tenant_id == home_tenant_id.strip()
+            and row.target_tenant_id == target_tenant
+        ]
+        if len(active_teacher_assignments) >= affiliation.max_concurrent_batches:
+            raise ValueError("cross-institution assignment batch limit reached")
+
+        assignment = CrossInstitutionAssignment(
+            teacher_id=teacher_id.strip(),
+            home_tenant_id=home_tenant_id.strip(),
+            target_tenant_id=target_tenant,
+            branch_id=branch_id.strip(),
+            batch_id=batch_id.strip(),
+            assigned_by_actor_id=normalized.actor_id,
+            payout_tenant_id=affiliation.payout_tenant_id or target_tenant,
+            payout_rate=Decimal(str(max(float(payout_rate), 0.0))),
+        )
+        assignments.append(assignment)
+        return assignment
+
+    def list_teacher_tenant_affiliations(
+        self,
+        *,
+        identity: IdentityContext,
+        tenant_id: str,
+        teacher_id: str,
+    ) -> tuple[TeacherTenantAffiliation, ...]:
+        normalized = identity.normalized()
+        target_tenant = tenant_id.strip()
+        allowed, reason, audit = self._authorize_and_audit(
+            identity=normalized,
+            tenant_id=target_tenant,
+            permission="teacher.network.read",
+            action="teacher.list_affiliations",
+            resource=f"teacher:{teacher_id.strip()}",
+        )
+        if not allowed:
+            raise PermissionError(f"{reason}:{audit.event_id}")
+
+        rows = [
+            affiliation
+            for (home_tenant, external_tenant, linked_teacher_id), affiliation in self._teacher_affiliations.items()
+            if linked_teacher_id == teacher_id.strip() and target_tenant in {home_tenant, external_tenant}
+        ]
+        return tuple(sorted(rows, key=lambda row: (row.home_tenant_id, row.external_tenant_id, row.teacher_id)))
