@@ -6,6 +6,13 @@ from decimal import Decimal
 from enum import Enum
 
 from shared.models.branch import Branch, BranchStatus
+from shared.models.timetable import TimetableSlot, TimetableSlotStatus
+
+
+class BatchStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    COMPLETED = "completed"
 
 
 class TeacherRole(str, Enum):
@@ -23,6 +30,16 @@ class Batch:
     start_date: date
     end_date: date
     learner_ids: tuple[str, ...] = ()
+    teacher_ids: tuple[str, ...] = ()
+    course_id: str = ""
+    timetable_id: str = ""
+    capacity: int = 1
+    status: BatchStatus = BatchStatus.ACTIVE
+    metadata: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def student_ids(self) -> tuple[str, ...]:
+        return self.learner_ids
 
 
 @dataclass(frozen=True)
@@ -38,25 +55,21 @@ class TeacherAssignment:
 
 
 @dataclass(frozen=True)
-class TimetableSlot:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    slot_id: str
-    teacher_id: str
-    start_at: datetime
-    end_at: datetime
-    room: str
-
-
-@dataclass(frozen=True)
 class AttendanceRecord:
+    attendance_id: str
     tenant_id: str
     branch_id: str
     batch_id: str
-    learner_id: str
-    slot_id: str
-    present: bool
+    class_session_id: str
+    student_id: str
+    teacher_id: str
+    status: str
+    notes: str = ""
+    marked_at: datetime = field(default_factory=datetime.utcnow)
+
+    @property
+    def learner_id(self) -> str:
+        return self.student_id
 
 
 @dataclass(frozen=True)
