@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import sys
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -45,7 +46,13 @@ EntitlementService = _EntitlementModule.EntitlementService
 
 
 class CommerceService:
-    def __init__(self, *, payment_orchestrator: PaymentOrchestrationService, payment_country_code: str = "US") -> None:
+    def __init__(
+        self,
+        *,
+        payment_orchestrator: PaymentOrchestrationService,
+        payment_country_code: str = "US",
+        operations_os_service: object | None = None,
+    ) -> None:
         self.catalog = CatalogService()
         self.billing = BillingService()
         self.subscription_service = SubscriptionService()
@@ -62,6 +69,19 @@ class CommerceService:
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
         self._teacher_revenue_share_records: list[dict[str, str]] = []
         self.owner_economics = OwnerEconomicsEngine()
+        self._operations_os_service = operations_os_service
+
+    def _resolve_reporting_run_date(self, reporting_period: str) -> date:
+        try:
+            year_str, month_str = reporting_period.split("-", 1)
+            year = int(year_str)
+            month = int(month_str)
+            if month == 12:
+                return date(year, month, 31)
+            next_month = date(year, month + 1, 1)
+            return next_month.fromordinal(next_month.toordinal() - 1)
+        except (ValueError, TypeError):
+            return date.today()
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
         resolved_type = type or product_type
@@ -263,6 +283,12 @@ class CommerceService:
         branches: tuple[object, ...],
         metadata: dict[str, str] | None = None,
     ):
+        operations_actions: tuple[object, ...] = ()
+        if self._operations_os_service is not None and hasattr(self._operations_os_service, "generate_daily_actions"):
+            run_date = self._resolve_reporting_run_date(reporting_period)
+            operations_actions = tuple(
+                self._operations_os_service.generate_daily_actions(tenant_id=tenant_id, run_date=run_date)
+            )
         return self.owner_economics.compute_profitability_snapshot(
             tenant_id=tenant_id,
             reporting_period=reporting_period,
@@ -271,6 +297,7 @@ class CommerceService:
             batches=batches,
             branches=branches,
             metadata=metadata,
+            operations_actions=operations_actions,
         )
 
     def schedule_reconciliation_job(self) -> None:

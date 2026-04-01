@@ -265,6 +265,50 @@ def test_bundle_creation_resolution_and_pricing_override() -> None:
     assert [p.product_id for p in catalog_items[0].bundle_products] == ["p_course_a", "p_course_b"]
 
 
+def test_owner_economics_snapshot_integrates_operations_os_actions() -> None:
+    class _OpsAction:
+        def __init__(self) -> None:
+            self.action_id = "action:tenant_ops:1"
+            self.action_type = "unpaid_fees_follow_up"
+            self.priority = "high"
+            self.reason = "Outstanding dues action pending"
+
+    class _OperationsOSStub:
+        def generate_daily_actions(self, *, tenant_id: str, run_date):  # noqa: ANN001
+            return (_OpsAction(),)
+
+    router = PaymentProviderRouter({"US": "mock_success"}, [MockSuccessAdapter()])
+    commerce = CommerceService(
+        payment_orchestrator=PaymentOrchestrationService(router=router),
+        operations_os_service=_OperationsOSStub(),
+    )
+    commerce.generate_academy_fee_invoice(
+        tenant_id="tenant_ops",
+        learner_id="stu_1",
+        fee_reference_id="fee_ref_1",
+        amount=Decimal("200.00"),
+        fee_type="tuition",
+    )
+    ledger_entries = (
+        type("LedgerEntry", (), {"student_id": "stu_1", "source_type": "invoice", "amount": Decimal("200.00")})(),
+    )
+    batches = (
+        type("BatchObj", (), {"batch_id": "batch_1", "branch_id": "branch_1", "learner_ids": ("stu_1",), "metadata": {"estimated_cost": "250"}})(),
+    )
+    branches = (
+        type("BranchObj", (), {"branch_id": "branch_1", "name": "Main", "active_batches": ("batch_1",), "metadata": {}})(),
+    )
+
+    snapshot = commerce.compute_owner_economics_snapshot(
+        tenant_id="tenant_ops",
+        reporting_period="2026-03",
+        ledger_entries=ledger_entries,
+        batches=batches,
+        branches=branches,
+    )
+    assert any(item["trigger_type"] == "operations_os_action" for item in snapshot.action_triggers)
+
+
 def test_capability_pricing_country_override_for_pk() -> None:
     router = PaymentProviderRouter({"PK": "mock_success"}, [MockSuccessAdapter()])
     commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router), payment_country_code="PK")

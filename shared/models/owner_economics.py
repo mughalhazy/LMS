@@ -17,4 +17,8 @@ class OwnerEconomicsSnapshot:
     estimated_profit: Decimal
     profitability_by_batch: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     profitability_by_branch: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    revenue_per_batch: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    cashflow_timeline: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    profitability: dict[str, Any] = field(default_factory=dict)
+    action_triggers: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     metadata: dict[str, Any] = field(default_factory=dict)
