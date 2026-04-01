@@ -8,9 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
-import base64
-import hashlib
-import hmac
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +28,7 @@ def _load_module(module_name: str, relative_path: str):
 
 _ContentOfflineModule = _load_module("offline_sync_content_module", "backend/services/content-service/offline.py")
 _ModelsModule = _load_module("offline_sync_models_module", "services/offline-sync/models.py")
+_MediaSecurityModule = _load_module("offline_sync_media_security_module", "services/media-security/service.py")
 
 
 def _load_progress_module():
@@ -63,32 +61,17 @@ _ProgressModule = _load_progress_module()
 _OfflineProgressModel = _load_module("offline_progress_model", "shared/models/offline_progress.py")
 
 OfflineContentManager = _ContentOfflineModule.OfflineContentManager
-OfflinePackage = _ModelsModule.OfflinePackage
 MediaSecurityService = _MediaSecurityModule.MediaSecurityService
 OfflineDownloadContext = _MediaSecurityModule.OfflineDownloadContext
 ProgressTrackingService = _ProgressModule.ProgressTrackingService
 OfflineProgressRecord = _OfflineProgressModel.OfflineProgressRecord
-
-
-@dataclass
-class OfflineProgressEnvelope:
-    operation_id: str
-    tenant_id: str
-    learner_id: str
-    course_id: str
-    lesson_id: str
-    enrollment_id: str
-    completion_status: str
-    score: float | None
-    time_spent_seconds: int
-    attempt_count: int
-    timestamp: str
-    sync_attempts: int = 0
-    last_error: str | None = None
+OfflineProgressEnvelope = _ModelsModule.OfflineProgressEnvelope
+SyncConflict = _ModelsModule.SyncConflict
+SyncConflictType = _ModelsModule.SyncConflictType
 
 
 class OfflineSyncService:
-    """Offline downloads + progress sync with failure-safe retries and deterministic conflict handling."""
+    """Offline downloads + progress sync with deterministic dedupe/conflict handling."""
 
     def __init__(
         self,
@@ -97,10 +80,12 @@ class OfflineSyncService:
         state_file: Path,
         learning_service: ProgressTrackingService | None = None,
         system_of_record_service: Any | None = None,
+        media_security_service: MediaSecurityService | None = None,
     ) -> None:
         self.downloads = OfflineContentManager(cache_root=cache_root)
         self.learning_service = learning_service or ProgressTrackingService()
         self.system_of_record_service = system_of_record_service
+        self.media_security_service = media_security_service or MediaSecurityService()
         self.state_file = state_file
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self._state = self._load_state()
@@ -151,6 +136,7 @@ class OfflineSyncService:
         latest_payload = asdict(record)
         latest_payload["local_timestamp"] = record.local_timestamp.isoformat()
         self._state["latest_progress"][self._resume_key(record)] = latest_payload
+        self._persist_state()
         return record
 
     def queue_progress_for_sync(self, record: OfflineProgressRecord) -> OfflineProgressRecord:
@@ -203,6 +189,10 @@ class OfflineSyncService:
         operation_id: str | None = None,
         package_expires_at: datetime | None = None,
     ) -> OfflineProgressEnvelope:
+        metadata: dict[str, Any] = {"enrollment_id": enrollment_id, "score": score, "attempt_count": attempt_count}
+        if package_expires_at is not None:
+            metadata["package_expires_at"] = package_expires_at.astimezone(timezone.utc).isoformat()
+
         record = self.record_offline_progress(
             tenant_id=tenant_id,
             student_id=learner_id,
@@ -212,7 +202,7 @@ class OfflineSyncService:
             completion_percent=100.0 if completion_status == "completed" else 50.0,
             local_timestamp=timestamp,
             reference_token=operation_id,
-            metadata={"enrollment_id": enrollment_id, "score": score, "attempt_count": attempt_count},
+            metadata=metadata,
         )
         self.queue_progress_for_sync(record)
         return OfflineProgressEnvelope(
@@ -227,6 +217,7 @@ class OfflineSyncService:
             time_spent_seconds=time_spent_seconds,
             attempt_count=attempt_count,
             timestamp=record.local_timestamp.isoformat(),
+            package_expires_at=metadata.get("package_expires_at"),
         )
 
     def pending_operations(self) -> list[OfflineProgressEnvelope]:
@@ -244,6 +235,7 @@ class OfflineSyncService:
                 time_spent_seconds=row.playback_position,
                 attempt_count=int(row.metadata.get("attempt_count", 1)),
                 timestamp=row.local_timestamp.isoformat(),
+                package_expires_at=row.metadata.get("package_expires_at"),
                 sync_attempts=int(row.metadata.get("sync_attempts", 0)),
                 last_error=row.metadata.get("last_error"),
             )
@@ -268,48 +260,14 @@ class OfflineSyncService:
                 continue
 
             try:
-                resolution = self._resolve_conflict(op=op, server=server)
-                if resolution == "drop_as_conflict":
+                detected = self.detect_sync_conflicts(op=op, server=server)
+                decision = self.resolve_sync_conflict(op=op, conflicts=detected)
+                if decision["status"] == "dropped":
+                    self.commit_sync_result(op=op, server=server, decision=decision)
                     conflicts += 1
-                    self._state["applied_reference_tokens"].append(op.operation_id)
-                    self._state["conflicts"].append(
-                        {
-                            "operation_id": op.operation_id,
-                            "tenant_id": op.tenant_id,
-                            "learner_id": op.learner_id,
-                            "course_id": op.course_id,
-                            "lesson_id": op.lesson_id,
-                            "strategy": "server_wins_due_to_fresher_remote_update",
-                            "at": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
                     continue
 
-                if hasattr(server, "record_offline_progress"):
-                    server.record_offline_progress(
-                        tenant_id=op.tenant_id,
-                        learner_id=op.learner_id,
-                        course_id=op.course_id,
-                        lesson_id=op.lesson_id,
-                        enrollment_id=op.enrollment_id,
-                        completion_percent=100.0 if op.completion_status == "completed" else 50.0,
-                        playback_position=op.time_spent_seconds,
-                        reference_token=op.operation_id,
-                        attempt_count=op.attempt_count,
-                    )
-                else:
-                    server.track_lesson_completion(
-                        tenant_id=op.tenant_id,
-                        learner_id=op.learner_id,
-                        course_id=op.course_id,
-                        lesson_id=op.lesson_id,
-                        enrollment_id=op.enrollment_id,
-                        completion_status=op.completion_status,
-                        score=op.score,
-                        time_spent_seconds=op.time_spent_seconds,
-                        attempt_count=op.attempt_count,
-                    )
-                self._state["applied_reference_tokens"].append(op.operation_id)
+                self.commit_sync_result(op=op, server=server, decision=decision)
                 succeeded += 1
             except Exception as exc:  # nosec - failure-safe retry queue
                 op.sync_attempts += 1
@@ -329,6 +287,7 @@ class OfflineSyncService:
                             "enrollment_id": op.enrollment_id,
                             "score": op.score,
                             "attempt_count": op.attempt_count,
+                            "package_expires_at": op.package_expires_at,
                             "sync_attempts": op.sync_attempts,
                             "last_error": str(exc),
                         },
@@ -351,7 +310,7 @@ class OfflineSyncService:
     def detect_sync_conflicts(self, *, op: OfflineProgressEnvelope, server: ProgressTrackingService) -> list[SyncConflict]:
         conflicts: list[SyncConflict] = []
 
-        if op.operation_id in self._state["applied_operation_ids"] or op.dedupe_key in self._state["applied_dedupe_keys"]:
+        if op.operation_id in self._state["applied_reference_tokens"]:
             conflicts.append(
                 SyncConflict(
                     conflict_type=SyncConflictType.DUPLICATE_PROGRESS_UPDATE,
@@ -411,6 +370,7 @@ class OfflineSyncService:
         return conflicts
 
     def resolve_sync_conflict(self, *, op: OfflineProgressEnvelope, conflicts: list[SyncConflict]) -> dict[str, Any]:
+        _ = op
         types = {item.conflict_type for item in conflicts}
         if SyncConflictType.DUPLICATE_PROGRESS_UPDATE in types:
             return {"status": "dropped", "strategy": "duplicate_ignored"}
@@ -432,8 +392,7 @@ class OfflineSyncService:
         decision: dict[str, Any],
     ) -> None:
         if decision["status"] == "dropped":
-            self._state["applied_operation_ids"].append(op.operation_id)
-            self._state["applied_dedupe_keys"].append(op.dedupe_key)
+            self._state["applied_reference_tokens"].append(op.operation_id)
             self._state["conflicts"].append(
                 {
                     "operation_id": op.operation_id,
@@ -447,19 +406,32 @@ class OfflineSyncService:
             )
             return
 
-        server.track_lesson_completion(
-            tenant_id=op.tenant_id,
-            learner_id=op.learner_id,
-            course_id=op.course_id,
-            lesson_id=op.lesson_id,
-            enrollment_id=op.enrollment_id,
-            completion_status=op.completion_status,
-            score=op.score,
-            time_spent_seconds=op.time_spent_seconds,
-            attempt_count=op.attempt_count,
-        )
-        self._state["applied_operation_ids"].append(op.operation_id)
-        self._state["applied_dedupe_keys"].append(op.dedupe_key)
+        if hasattr(server, "record_offline_progress"):
+            server.record_offline_progress(
+                tenant_id=op.tenant_id,
+                learner_id=op.learner_id,
+                course_id=op.course_id,
+                lesson_id=op.lesson_id,
+                enrollment_id=op.enrollment_id,
+                completion_percent=100.0 if op.completion_status == "completed" else 50.0,
+                playback_position=op.time_spent_seconds,
+                reference_token=op.operation_id,
+                attempt_count=op.attempt_count,
+            )
+        else:
+            server.track_lesson_completion(
+                tenant_id=op.tenant_id,
+                learner_id=op.learner_id,
+                course_id=op.course_id,
+                lesson_id=op.lesson_id,
+                enrollment_id=op.enrollment_id,
+                completion_status=op.completion_status,
+                score=op.score,
+                time_spent_seconds=op.time_spent_seconds,
+                attempt_count=op.attempt_count,
+            )
+
+        self._state["applied_reference_tokens"].append(op.operation_id)
 
         if self.system_of_record_service and hasattr(self.system_of_record_service, "commit_progress_sync_result"):
             self.system_of_record_service.commit_progress_sync_result(
@@ -499,6 +471,7 @@ class OfflineSyncService:
                     "enrollment_id": row.get("enrollment_id"),
                     "score": row.get("score"),
                     "attempt_count": row.get("attempt_count", 1),
+                    "package_expires_at": row.get("package_expires_at"),
                 },
             }
             for row in pending_rows
@@ -516,6 +489,23 @@ class OfflineSyncService:
     @staticmethod
     def _resume_key(record: OfflineProgressRecord) -> str:
         return f"{record.tenant_id}:{record.student_id}:{record.content_id}:{record.lesson_id}"
+
+    @staticmethod
+    def _to_utc(value: Any) -> datetime | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            dt = value
+        elif isinstance(value, str):
+            try:
+                dt = datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        else:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
 
 
 __all__ = ["OfflineProgressEnvelope", "OfflineSyncService", "SyncConflict", "SyncConflictType"]

@@ -4,10 +4,12 @@ import base64
 import hashlib
 import hmac
 import json
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
 import importlib.util
+from typing import Any
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
@@ -72,7 +74,10 @@ class MediaSecurityService:
         if validation_error:
             return self._deny(validation_error, entitlement)
 
-        token_grant = self.generate_secure_playback_token(policy=normalized_policy, context=context)
+        try:
+            token_grant = self.generate_secure_playback_token(policy=normalized_policy, context=context)
+        except ValueError:
+            return self._deny("TOKEN_POLICY_INVALID", entitlement)
         self._register_access(policy=normalized_policy, context=context)
 
         watermark_payload = dict(normalized_policy.watermark_payload)

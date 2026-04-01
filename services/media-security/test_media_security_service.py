@@ -133,3 +133,50 @@ def test_enforce_and_revoke_token_access() -> None:
 
     service.revoke_media_access(policy=policy, token=token, session_id=context.session_id)
     assert service.enforce_playback_token(token, policy=policy, context=context) is False
+
+
+def test_enforce_playback_token_blocks_unauthorized_device_reuse() -> None:
+    service = MediaSecurityService()
+    context = PlaybackContext(
+        tenant_id="tenant_secure",
+        user_id="user_1",
+        media_id="media_1",
+        session_id="session_a",
+        channel="web",
+        device_id="device_x",
+        ip_address="10.0.0.1",
+    )
+    policy = _default_policy(service, offline_allowed=True)
+
+    authorization = service.authorize_stream_access(policy=policy, context=context)
+    assert authorization.playback_token is not None
+
+    attacker_context = PlaybackContext(
+        tenant_id="tenant_secure",
+        user_id="user_1",
+        media_id="media_1",
+        session_id="session_a",
+        channel="web",
+        device_id="device_z",
+        ip_address="10.0.0.1",
+    )
+    assert service.enforce_playback_token(
+        authorization.playback_token.token, policy=policy, context=attacker_context
+    ) is False
+
+
+def test_authorize_stream_access_rejects_expired_token_policy() -> None:
+    service = MediaSecurityService()
+    context = PlaybackContext(
+        tenant_id="tenant_secure",
+        user_id="user_1",
+        media_id="media_1",
+        session_id="session_a",
+        channel="web",
+        device_id="device_x",
+        ip_address="10.0.0.1",
+    )
+    policy = _default_policy(service, token_expiry=service._utc_now() - timedelta(seconds=1))
+    auth = service.authorize_stream_access(policy=policy, context=context)
+    assert auth.decision == "deny"
+    assert auth.reason_code in {"TOKEN_POLICY_INVALID", "ENTITLEMENT_DENIED"}
