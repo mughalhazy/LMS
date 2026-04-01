@@ -136,6 +136,9 @@ class WorkflowEngine:
         key = (tenant_id.strip(), student_id.strip())
         self._student_parent_map[key] = tuple(user_id.strip() for user_id in parent_user_ids if user_id and user_id.strip())
 
+    def register_phone_user(self, *, phone: str, user_id: str) -> None:
+        self._notification_orchestrator.register_phone_user(phone=phone, user_id=user_id)
+
     def list_scheduled_steps(self) -> tuple[ScheduledStep, ...]:
         return tuple(sorted(self._scheduled_steps, key=lambda item: item.due_at))
 
@@ -296,6 +299,42 @@ class WorkflowEngine:
         self._create_event_action_if_applicable(trigger_event)
         return response
 
+    def handle_inbound_whatsapp_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
+        source_phone = str(envelope.get("source_phone") or "")
+        message = str(envelope.get("message") or "")
+        provider_verified = bool(envelope.get("provider_verified", False))
+        claimed_user_id = envelope.get("claimed_user_id")
+        tenant_id = str(envelope.get("tenant_id") or "")
+
+        mapping = self._notification_orchestrator.resolve_mapped_user(
+            source_phone=source_phone,
+            provider_verified=provider_verified,
+            claimed_user_id=str(claimed_user_id) if claimed_user_id is not None else None,
+        )
+        if mapping.get("status") != "accepted":
+            return mapping
+
+        mapped_user_id = str(mapping.get("mapped_user_id") or "")
+        normalized = " ".join(message.lower().strip().split())
+        if normalized.startswith("admin:") or normalized.startswith("/admin "):
+            return self._route_admin_command(
+                tenant_id=tenant_id,
+                user_id=mapped_user_id,
+                raw_message=message,
+            )
+
+        parsed = self._notification_orchestrator.handle_interactive_reply(
+            user_id=mapped_user_id,
+            reply=message,
+        )
+        if parsed.get("status") != "accepted":
+            return parsed
+        return self._route_inbound_action(
+            tenant_id=tenant_id,
+            user_id=mapped_user_id,
+            parsed=parsed,
+        )
+
     def _handle_attendance_marked_envelope(
         self,
         *,
@@ -425,6 +464,54 @@ class WorkflowEngine:
             suggested_next_step=config["next_step"],
             metadata={"event_id": event.event_id, "trigger_type": event.trigger_type},
         )
+
+    def _route_inbound_action(self, *, tenant_id: str, user_id: str, parsed: dict[str, Any]) -> dict[str, Any]:
+        routed_action = str(parsed.get("routed_action") or "")
+        deterministic_routes = {
+            "confirm_attendance": "attendance_confirmation_received",
+            "decline_attendance": "attendance_decline_received",
+            "acknowledge_reminder": "fee_interaction_acknowledged",
+            "snooze_reminder": "fee_interaction_snoozed",
+        }
+        workflow_action = deterministic_routes.get(routed_action)
+        if workflow_action is None:
+            return parsed | {"status": "ignored", "reason": "unsupported_inbound_action"}
+        return parsed | {
+            "status": "accepted",
+            "workflow_action": workflow_action,
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+        }
+
+    def _route_admin_command(self, *, tenant_id: str, user_id: str, raw_message: str) -> dict[str, Any]:
+        normalized = raw_message.strip()
+        payload = normalized.split(":", 1)[1] if ":" in normalized else normalized.split(" ", 1)[1]
+        command_body = payload.strip().lower()
+        deterministic_commands = {
+            "fees status": "admin_fee_status_lookup",
+            "attendance audit": "admin_attendance_audit",
+            "help": "admin_help",
+        }
+        command = deterministic_commands.get(command_body, "admin_unknown_command")
+        action = self._operations_os_service.create_action_item(
+            tenant_id=tenant_id or "global",
+            action_type=command,
+            priority="medium",
+            subject_type="admin_command",
+            subject_id=user_id,
+            reason=f"Admin command received: {command_body or 'empty'}.",
+            due_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            suggested_next_step="Review admin command and execute the standard operations runbook.",
+            metadata={"source": "whatsapp_inbound", "raw_message": raw_message},
+        )
+        return {
+            "status": "accepted",
+            "routed_action": "admin_command",
+            "workflow_action": command,
+            "action_item_id": action.action_id,
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+        }
 
     def run_due(self, *, now: datetime | None = None) -> dict[str, Any]:
         current_time = now or datetime.now(timezone.utc)

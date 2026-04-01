@@ -191,6 +191,24 @@ class NotificationOrchestrator:
 
         return self.handle_interactive_reply(user_id=mapped_user_id, reply=reply)
 
+    def resolve_mapped_user(
+        self,
+        *,
+        source_phone: str,
+        provider_verified: bool,
+        claimed_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not provider_verified:
+            return {"status": "rejected", "reason": "unverified_provider_event"}
+
+        normalized_phone = self._normalize_phone(source_phone)
+        mapped_user_id = self._phone_user_map.get(normalized_phone)
+        if mapped_user_id is None:
+            return {"status": "rejected", "reason": "unknown_phone"}
+        if claimed_user_id and claimed_user_id != mapped_user_id:
+            return {"status": "rejected", "reason": "spoofing_detected"}
+        return {"status": "accepted", "mapped_user_id": mapped_user_id}
+
     def register_phone_user(self, *, phone: str, user_id: str) -> None:
         self._phone_user_map[self._normalize_phone(phone)] = user_id
 
@@ -203,7 +221,10 @@ class NotificationOrchestrator:
         return template, message
 
     def _normalize_phone(self, phone: str) -> str:
-        return "".join(char for char in phone if char.isdigit() or char == "+").strip()
+        raw = phone.strip()
+        has_plus = raw.startswith("+")
+        digits_only = "".join(char for char in raw if char.isdigit())
+        return f"+{digits_only}" if has_plus and digits_only else digits_only
 
     def _execute_notification_action(
         self,
