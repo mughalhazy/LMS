@@ -2,6 +2,7 @@ from .invoice import Invoice
 from .academy import AcademyDeliveryMode, AcademyEnrollment, AcademyPackage
 from .capability import Capability
 from .capability_pricing import CapabilityPricing
+from .plan import Plan
 from .config import (
     ConfigLevel,
     ConfigOverride,
@@ -19,6 +20,7 @@ __all__ = [
     "AcademyPackage",
     "Capability",
     "CapabilityPricing",
+    "Plan",
     "ConfigLevel",
     "ConfigScope",
     "ConfigOverride",

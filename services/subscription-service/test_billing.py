@@ -39,3 +39,21 @@ def test_calculate_usage_based_charge() -> None:
     charge = service.calculate_capability_charge(tenant_id="tenant_1", pricing=pricing)
 
     assert charge == Decimal("10.00")
+
+
+def test_plan_catalog_exposes_pakistan_ready_plan_patterns() -> None:
+    service = SubscriptionService()
+
+    starter = service.get_plan("starter_academy")
+    growth = service.get_plan("growth_academy")
+    school = service.get_plan("school_basic")
+    enterprise_learning = service.get_plan("enterprise_learning")
+
+    assert starter is not None
+    assert growth is not None
+    assert school is not None
+    assert enterprise_learning is not None
+    assert "attendance_tracking" in starter.included_capability_ids
+    assert "fee_tracking" in growth.included_capability_ids
+    assert "parent_notifications" in school.included_capability_ids
+    assert "operations_dashboard" in enterprise_learning.included_capability_ids

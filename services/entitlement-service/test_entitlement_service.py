@@ -53,7 +53,6 @@ def test_unknown_capability_fails_closed() -> None:
     assert "unknown_capability" in decision.sources
 
 
-
 def test_resolve_enabled_capabilities_returns_effective_capability_set() -> None:
     service = EntitlementService()
     tenant = TenantEntitlementContext(

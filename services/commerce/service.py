@@ -120,10 +120,11 @@ class CommerceService:
         invoice = self.billing.create_invoice_for_order(order)
         order = self.checkout.reconcile_order(order_id=order.order_id)
         if invoice.invoice_type == "subscription":
+            plan_id = self.catalog.get_product(product_id).metadata.get("plan_id", "pro")
             self.subscription_service.create_or_activate_subscription(
                 tenant_id=tenant_id,
                 subscription_id=f"sub_{tenant_id}_{product_id}",
-                plan_type="pro",
+                plan_type=plan_id,
                 source_order_id=order.order_id,
             )
         return order, invoice
