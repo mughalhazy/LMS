@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from shared.models.invoice import Invoice
@@ -78,3 +78,25 @@ def build_financial_standing(
         overdue_amount=overdue_amount,
         standing=standing,
     )
+
+
+def is_profile_inactive(
+    *,
+    profile: object,
+    today: date,
+    inactivity_days: int,
+    paused_lifecycle_states: tuple[str, ...] = ("paused", "dropped"),
+) -> bool:
+    lifecycle_state = str(getattr(profile, "lifecycle_state", "")).lower()
+    if lifecycle_state in paused_lifecycle_states:
+        return True
+
+    metadata = getattr(profile, "metadata", {}) or {}
+    last_active_raw = str(metadata.get("activity.last_active_at", "")).strip()
+    if not last_active_raw:
+        return False
+    try:
+        last_active = datetime.fromisoformat(last_active_raw.replace("Z", "+00:00")).astimezone(timezone.utc).date()
+    except ValueError:
+        return False
+    return (today - last_active).days >= max(0, int(inactivity_days))
