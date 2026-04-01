@@ -33,6 +33,8 @@ __all__ = [
     "AddOn",
     "CapabilityPricing",
     "Plan",
+    "LedgerEntry",
+    "LedgerEntryType",
     "ConfigLevel",
     "ConfigScope",
     "ConfigOverride",

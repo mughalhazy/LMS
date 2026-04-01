@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from shared.models.academy import AcademyEnrollment
 from shared.models.config import ConfigResolutionContext
 from shared.models.invoice import Invoice
+from shared.models.ledger import LedgerEntry
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -236,10 +237,13 @@ class SystemOfRecordService:
             entry_id=f"led_{invoice.invoice_id}",
             tenant_id=invoice.tenant_id,
             student_id=student_id,
+            entry_type="invoice",
             amount=Decimal(invoice.amount),
             currency=currency,
-            source_type="invoice",
-            source_ref=invoice.invoice_id,
+            reference_type="invoice",
+            reference_id=invoice.invoice_id,
+            status="posted",
+            metadata={"invoice_status": invoice.status},
         )
         self._ledger.setdefault(key, []).append(entry)
         self._refresh_ledger_summary(*key)
@@ -253,10 +257,12 @@ class SystemOfRecordService:
             entry_id=f"pay_{payment_id}",
             tenant_id=tenant_id,
             student_id=student_id,
+            entry_type="payment",
             amount=Decimal(amount) * Decimal("-1"),
             currency=currency,
-            source_type="payment",
-            source_ref=payment_id,
+            reference_type="payment",
+            reference_id=payment_id,
+            status="posted",
         )
         self._ledger.setdefault(key, []).append(entry)
         self._refresh_ledger_summary(*key)
@@ -264,7 +270,7 @@ class SystemOfRecordService:
 
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
-        return tuple(self._ledger.get(key, []))
+        return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.timestamp))
 
     def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
         return sum((e.amount for e in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)), start=Decimal("0"))
@@ -292,7 +298,7 @@ class SystemOfRecordService:
             "ledger_consistency": True,
             "lifecycle_transitions": True,
             "payments_update_ledger": all(
-                entry.source_type != "payment" or entry.amount < 0
+                entry.entry_type != "payment" or entry.amount < 0
                 for entries in self._ledger.values()
                 for entry in entries
             ),
