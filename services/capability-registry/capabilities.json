@@ -1,76 +1,6 @@
 {
   "capabilities": [
     {
-      "capability_id": "academy.ops.attendance",
-      "name": "Academy Attendance Operations",
-      "description": "Capture and manage academy attendance operations.",
-      "category": "academy-ops",
-      "default_enabled": false,
-      "price": "1.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
-      "capability_id": "academy.ops.batch",
-      "name": "Academy Batch Operations",
-      "description": "Create and operate academy batches and branch schedules.",
-      "category": "academy-ops",
-      "default_enabled": false,
-      "price": "1.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
-      "capability_id": "academy.ops.fee_tracking",
-      "name": "Academy Fee Operations Tracking",
-      "description": "Track fee operations status and synchronize with system of record ledger.",
-      "category": "academy-ops",
-      "default_enabled": false,
-      "price": "1.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
-      "capability_id": "academy.ops.teacher_assignment",
-      "name": "Academy Teacher Assignment Operations",
-      "description": "Assign and manage teacher staffing per academy batch.",
-      "category": "academy-ops",
-      "default_enabled": false,
-      "price": "1.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
-      "capability_id": "academy.ops.timetable",
-      "name": "Academy Timetable Operations",
-      "description": "Publish and manage academy timetable slots.",
-      "category": "academy-ops",
-      "default_enabled": false,
-      "price": "1.00",
-      "usage_based": false,
-      "included_in_plans": [
-        "pro",
-        "enterprise"
-      ],
-      "included_in_add_ons": []
-    },
-    {
       "capability_id": "ai.tutor",
       "name": "AI Tutor",
       "description": "Enable AI tutor chat and guidance workflows.",
@@ -81,7 +11,12 @@
       "included_in_plans": [],
       "included_in_add_ons": [
         "ai_tutor_pack"
-      ]
+      ],
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "assessment.attempt",
@@ -96,7 +31,12 @@
         "pro",
         "enterprise"
       ],
-      "included_in_add_ons": []
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "assessment.author",
@@ -105,6 +45,51 @@
       "category": "assessment",
       "default_enabled": false,
       "price": "29.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
+    },
+    {
+      "capability_id": "attendance_tracking",
+      "name": "Attendance Tracking",
+      "description": "Track daily student attendance and flag absences in academy workflows.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "cohort_management",
+      "name": "Cohort Management",
+      "description": "Manage cohorts, groups, and section rosters for Pakistan academies.",
+      "category": "academy_ops",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
       "usage_based": false,
       "included_in_plans": [
         "pro",
@@ -125,7 +110,12 @@
         "pro",
         "enterprise"
       ],
-      "included_in_add_ons": []
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "course.write",
@@ -134,6 +124,71 @@
       "category": "course",
       "default_enabled": false,
       "price": "39.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
+    },
+    {
+      "capability_id": "exam_engine",
+      "name": "Exam Engine",
+      "description": "Deliver configurable tests, grading, and exam-session orchestration.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "fee_tracking",
+      "name": "Fee Tracking",
+      "description": "Track paid, pending, and overdue tuition fee balances.",
+      "category": "payments",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "installment_billing",
+      "name": "Installment Billing",
+      "description": "Create installment fee plans and due-date schedules for students.",
+      "category": "payments",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
       "usage_based": false,
       "included_in_plans": [
         "pro",
@@ -154,7 +209,12 @@
       ],
       "included_in_add_ons": [
         "analytics_advanced"
-      ]
+      ],
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "learning.analytics.basic",
@@ -169,23 +229,111 @@
         "pro",
         "enterprise"
       ],
-      "included_in_add_ons": []
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
-      "capability_id": "media.security.enforcement",
-      "name": "Media Security Enforcement",
-      "description": "Enforce tokenized playback, forensic watermarking, and anti-piracy restrictions.",
-      "category": "media-security",
-      "default_enabled": false,
-      "price": "49.00",
+      "capability_id": "manual_payment",
+      "name": "Manual Payment Collection",
+      "description": "Record over-the-counter and bank-transfer fee collections manually.",
+      "category": "payments",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
       "usage_based": false,
       "included_in_plans": [
         "pro",
         "enterprise"
       ],
-      "included_in_add_ons": [
-        "media_security_pack"
-      ]
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "offline_learning",
+      "name": "Offline Learning",
+      "description": "Support downloadable learning flows for intermittent connectivity environments.",
+      "category": "media",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "operations_dashboard",
+      "name": "Operations Dashboard",
+      "description": "Provide operators with operational KPIs across attendance and billing.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": false,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "0.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "owner_analytics",
+      "name": "Owner Analytics",
+      "description": "Provide owner-level business analytics for branch performance and collections.",
+      "category": "analytics",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "parent_notifications",
+      "name": "Parent Notifications",
+      "description": "Send attendance, fee, and progress notifications to parents.",
+      "category": "communication",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
     },
     {
       "capability_id": "platform.isolation.dedicated",
@@ -198,7 +346,12 @@
       "included_in_plans": [],
       "included_in_add_ons": [
         "dedicated_isolation"
-      ]
+      ],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "platform.support.priority",
@@ -213,7 +366,12 @@
       ],
       "included_in_add_ons": [
         "priority_support"
-      ]
+      ],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
     },
     {
       "capability_id": "recommendation.basic",
@@ -228,26 +386,200 @@
         "pro",
         "enterprise"
       ],
+      "included_in_add_ons": [],
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "global"
+      }
+    },
+    {
+      "capability_id": "secure_media_delivery",
+      "name": "Secure Media Delivery",
+      "description": "Deliver protected learning media with playback controls and link hardening.",
+      "category": "media",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "student_lifecycle_management",
+      "name": "Student Lifecycle Management",
+      "description": "Manage admission, active enrollment, transfers, and graduation states.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "teacher_assignment",
+      "name": "Teacher Assignment",
+      "description": "Assign teachers to subjects, cohorts, and scheduled sessions.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "teacher_dashboard",
+      "name": "Teacher Dashboard",
+      "description": "Provide teachers with daily class, attendance, and task insights.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": false,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "0.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "teacher_revenue_sharing",
+      "name": "Teacher Revenue Sharing",
+      "description": "Calculate teacher payout shares from collected student fee revenue.",
+      "category": "enterprise",
+      "default_enabled": false,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "timetable_scheduling",
+      "name": "Timetable Scheduling",
+      "description": "Plan and publish class timetables across teachers, cohorts, and rooms.",
+      "category": "academy_ops",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": false,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": false,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "whatsapp_primary_interface",
+      "name": "WhatsApp Primary Interface",
+      "description": "Use WhatsApp as the primary learner and parent interaction channel.",
+      "category": "communication",
+      "default_enabled": true,
+      "monetizable": false,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "0.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "enterprise"
+      ],
+      "included_in_add_ons": []
+    },
+    {
+      "capability_id": "whatsapp_workflows",
+      "name": "WhatsApp Workflows",
+      "description": "Run automated WhatsApp workflows for reminders and engagement.",
+      "category": "communication",
+      "default_enabled": true,
+      "monetizable": true,
+      "usage_metered": true,
+      "metadata": {
+        "market": "PK",
+        "scope": "academy"
+      },
+      "price": "1.00",
+      "usage_based": true,
+      "included_in_plans": [
+        "pro",
+        "enterprise"
+      ],
       "included_in_add_ons": []
     }
   ],
   "feature_to_capability": {
-    "dedicated_isolation": "platform.isolation.dedicated",
-    "priority_support": "platform.support.priority",
-    "catalog_basic": "commerce.catalog.basic",
-    "analytics_basic": "learning.analytics.basic",
-    "analytics_advanced": "learning.analytics.advanced",
-    "feature.analytics": "learning.analytics.basic",
-    "assessment.author": "assessment.author",
-    "assessment.attempt": "assessment.attempt",
-    "academy.batch": "academy.ops.batch",
-    "academy.attendance": "academy.ops.attendance",
-    "academy.timetable": "academy.ops.timetable",
-    "academy.teacher_assignment": "academy.ops.teacher_assignment",
-    "academy.fee_tracking": "academy.ops.fee_tracking",
-    "course.write": "course.write",
-    "recommendation.basic": "recommendation.basic",
     "ai.tutor": "ai.tutor",
-    "media.security.enforcement": "media.security.enforcement"
+    "analytics_advanced": "learning.analytics.advanced",
+    "analytics_basic": "learning.analytics.basic",
+    "assessment.attempt": "assessment.attempt",
+    "assessment.author": "assessment.author",
+    "attendance_tracking": "attendance_tracking",
+    "catalog_basic": "commerce.catalog.basic",
+    "cohort_management": "cohort_management",
+    "course.write": "course.write",
+    "dedicated_isolation": "platform.isolation.dedicated",
+    "exam_engine": "exam_engine",
+    "fee_tracking": "fee_tracking",
+    "installment_billing": "installment_billing",
+    "manual_payment": "manual_payment",
+    "offline_learning": "offline_learning",
+    "operations_dashboard": "operations_dashboard",
+    "owner_analytics": "owner_analytics",
+    "parent_notifications": "parent_notifications",
+    "priority_support": "platform.support.priority",
+    "recommendation.basic": "recommendation.basic",
+    "secure_media_delivery": "secure_media_delivery",
+    "student_lifecycle_management": "student_lifecycle_management",
+    "teacher_assignment": "teacher_assignment",
+    "teacher_dashboard": "teacher_dashboard",
+    "teacher_revenue_sharing": "teacher_revenue_sharing",
+    "timetable_scheduling": "timetable_scheduling",
+    "whatsapp_primary_interface": "whatsapp_primary_interface",
+    "whatsapp_workflows": "whatsapp_workflows"
   }
 }

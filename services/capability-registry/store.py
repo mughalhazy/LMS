@@ -30,6 +30,18 @@ def _parse_string_list(value: object) -> tuple[str, ...]:
     )
 
 
+def _parse_metadata(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    metadata: dict[str, str] = {}
+    for key, item in value.items():
+        normalized_key = str(key).strip()
+        normalized_value = str(item).strip()
+        if normalized_key and normalized_value:
+            metadata[normalized_key] = normalized_value
+    return metadata
+
+
 @lru_cache(maxsize=1)
 def _registry_payload() -> dict[str, object]:
     payload = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
@@ -55,8 +67,11 @@ def capability_index() -> dict[str, Capability]:
             description=str(item.get("description", "")).strip(),
             category=str(item.get("category", "")).strip(),
             default_enabled=bool(item.get("default_enabled", False)),
+            monetizable=bool(item.get("monetizable", True)),
+            usage_metered=bool(item.get("usage_metered", item.get("usage_based", False))),
+            metadata=_parse_metadata(item.get("metadata", {})),
             price=_parse_price(item.get("price", "0")),
-            usage_based=bool(item.get("usage_based", False)),
+            usage_based=bool(item.get("usage_metered", item.get("usage_based", False))),
             included_in_plans=_parse_string_list(item.get("included_in_plans", [])),
             included_in_add_ons=_parse_string_list(item.get("included_in_add_ons", [])),
         )
