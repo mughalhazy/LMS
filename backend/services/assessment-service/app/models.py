@@ -55,6 +55,8 @@ class AttemptRecord:
     status: AttemptStatus
     submitted_at: datetime | None = None
     grading_result_id: str | None = None
+    exam_session_id: str | None = None
+    isolation_key: str | None = None
 
 
 @dataclass

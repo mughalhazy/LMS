@@ -194,6 +194,8 @@ class AssessmentService:
             learner_id=request.learner_id,
             started_at=self._now(),
             status=AttemptStatus.STARTED,
+            exam_session_id=request.exam_session_id,
+            isolation_key=request.isolation_key,
         )
         persisted = self.store.create_attempt(attempt)
         self.metrics.inc("attempts_started")

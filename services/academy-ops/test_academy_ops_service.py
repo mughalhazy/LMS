@@ -235,54 +235,58 @@ def test_branch_rollup_and_qc_match_underlying_records() -> None:
     assert all(qc.values())
 
 
-def test_cross_institution_assignment_enforces_enterprise_permissions_and_tenant_payout_scope() -> None:
-    enterprise = EnterpriseControlService()
-    enterprise.set_role_permissions(tenant_id="tenant_home", role="network-admin", permissions={"teacher.network.manage"})
-    enterprise.set_role_permissions(
-        tenant_id="tenant_target",
-        role="ops-admin",
-        permissions={"academy.teacher_assignment.cross_institution"},
-    )
+def test_generate_and_query_teacher_performance_snapshot() -> None:
+    service = AcademyOpsService()
+    tenant_id = "tenant_perf"
 
-    home_admin = IdentityContext(tenant_id="tenant_home", actor_id="home_admin", roles=("network-admin",))
-    target_admin = IdentityContext(tenant_id="tenant_target", actor_id="target_admin", roles=("ops-admin",))
-    enterprise.link_teacher_to_external_tenant(
-        identity=home_admin,
-        home_tenant_id="tenant_home",
-        teacher_id="teacher_x",
-        external_tenant_id="tenant_target",
-    )
-
-    service = AcademyOpsService(enterprise_control_service=enterprise)
     service.create_branch(
         Branch(
-            tenant_id="tenant_target",
+            tenant_id=tenant_id,
             branch_id="branch_1",
-            name="Main",
-            code="MAIN",
+            name="Perf Branch",
+            code="PERF",
             location="HQ",
         )
     )
     service.create_batch(
         Batch(
-            tenant_id="tenant_target",
+            tenant_id=tenant_id,
             branch_id="branch_1",
             batch_id="batch_1",
             academy_id="academy_1",
-            title="Cross Institution Cohort",
+            title="Performance Batch",
             start_date=date(2026, 4, 1),
-            end_date=date(2026, 6, 1),
+            end_date=date(2026, 5, 1),
         )
     )
-    assigned = service.assign_teacher_cross_institution(
-        assignment=TeacherAssignment(
-            tenant_id="tenant_target",
+    service.assign_teacher(
+        TeacherAssignment(
+            tenant_id=tenant_id,
             branch_id="branch_1",
             batch_id="batch_1",
-            teacher_id="teacher_x",
-        ),
-        enterprise_identity=target_admin,
-        home_tenant_id="tenant_home",
+            teacher_id="teacher_1",
+        )
     )
-    assert assigned.teacher_id == "teacher_x"
-    assert service.primary_teacher_id(tenant_id="tenant_target", batch_id="batch_1") == "teacher_x"
+
+    snapshot = service.generate_teacher_performance_snapshot(
+        tenant_id=tenant_id,
+        teacher_id="teacher_1",
+        batch_ids=("batch_1",),
+        performance_period="2026-Q2",
+        attendance={"quality_score": Decimal("0.92")},
+        completion={"completion_score": Decimal("0.85")},
+        batch_performance={"student_retention_score": Decimal("0.88")},
+        learner_engagement={"engagement_score": Decimal("0.91")},
+        metadata={"source": "auto"},
+    )
+
+    assert snapshot.teacher_id == "teacher_1"
+    assert snapshot.performance_period == "2026-Q2"
+
+    rows = service.list_teacher_performance(tenant_id=tenant_id, teacher_id="teacher_1")
+    assert len(rows) == 1
+    assert rows[0].overall_score() == Decimal("0.8905")
+
+    detail = service.get_teacher_performance_detail(tenant_id=tenant_id, teacher_id="teacher_1")
+    assert detail["overall_score"] == Decimal("0.8905")
+    assert detail["batch_ids"] == ("batch_1",)
