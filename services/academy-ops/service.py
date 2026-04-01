@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.academy import AcademyEnrollment
 from shared.models.invoice import Invoice
+from shared.models.timetable import AttendanceSessionEvent, TimetableSlotStatus
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -74,6 +75,7 @@ class AcademyOpsService:
         self._batches: dict[tuple[str, str], Batch] = {}
         self._teacher_assignments: dict[tuple[str, str], dict[str, TeacherAssignment]] = {}
         self._timetable_slots: dict[tuple[str, str], list[TimetableSlot]] = {}
+        self._attendance_session_events: dict[tuple[str, str], list[AttendanceSessionEvent]] = {}
         self._attendance: dict[tuple[str, str], list[AttendanceRecord]] = {}
         self._events: list[dict[str, Any]] = []
         self._fee_invoices: dict[tuple[str, str], list[Invoice]] = {}
@@ -81,6 +83,7 @@ class AcademyOpsService:
         self._revenue_share_agreements: dict[tuple[str, str], RevenueShareAgreement] = {}
         self._teacher_performance: dict[tuple[str, str], list[TeacherPerformanceSnapshot]] = {}
         self._teacher_payouts: dict[tuple[str, str], list[TeacherPayoutRecord]] = {}
+        self._tenant_profile_hints: dict[str, tuple[str | None, str | None]] = {}
 
         self._domain_owner = {
             "academy.branch": "academy-ops",
@@ -283,20 +286,159 @@ class AcademyOpsService:
         return teacher_snapshots[-1] if teacher_snapshots else None
 
     def publish_timetable_slot(self, slot: TimetableSlot) -> TimetableSlot:
+        return self.create_timetable_slot(
+            tenant_id=slot.tenant_id,
+            branch_id=slot.branch_id,
+            slot=slot,
+        )
+
+    def _validate_timetable_slot(self, slot: TimetableSlot) -> None:
+        if slot.end_time <= slot.start_time:
+            raise ValueError("invalid slot time range")
+        if slot.status not in (TimetableSlotStatus.SCHEDULED, TimetableSlotStatus.CANCELLED):
+            raise ValueError("invalid timetable status")
+
+    @staticmethod
+    def _time_overlaps(start_a: time, end_a: time, start_b: time, end_b: time) -> bool:
+        return start_a < end_b and start_b < end_a
+
+    def _assert_no_teacher_conflict(
+        self,
+        *,
+        tenant_id: str,
+        teacher_id: str,
+        day_of_week: str,
+        start_time: time,
+        end_time: time,
+        ignore_slot_id: str | None = None,
+    ) -> None:
+        for (slot_tenant_id, _), slots in self._timetable_slots.items():
+            if slot_tenant_id != tenant_id:
+                continue
+            for existing in slots:
+                if existing.status == TimetableSlotStatus.CANCELLED:
+                    continue
+                if ignore_slot_id is not None and existing.slot_id == ignore_slot_id:
+                    continue
+                if existing.teacher_id != teacher_id or existing.day_of_week != day_of_week:
+                    continue
+                if self._time_overlaps(existing.start_time, existing.end_time, start_time, end_time):
+                    raise ValueError("teacher has an overlapping timetable slot")
+
+    def _sync_attendance_session_events(self, *, tenant_id: str, batch: Batch, slot: TimetableSlot) -> None:
+        batch_key = self._key(tenant_id, batch.batch_id)
+        events = self._attendance_session_events.setdefault(batch_key, [])
+        events[:] = [event for event in events if event.slot_id != slot.slot_id]
+        if slot.status == TimetableSlotStatus.CANCELLED:
+            return
+        for learner_id in batch.learner_ids:
+            events.append(
+                AttendanceSessionEvent(
+                    event_id=f"{slot.slot_id}:{learner_id}",
+                    tenant_id=tenant_id,
+                    branch_id=batch.branch_id,
+                    batch_id=batch.batch_id,
+                    slot_id=slot.slot_id,
+                    learner_id=learner_id,
+                    scheduled_for=datetime.combine(batch.start_date, slot.start_time),
+                )
+            )
+
+    def create_timetable_slot(self, *, tenant_id: str, branch_id: str, slot: TimetableSlot) -> TimetableSlot:
         self._require_operation_capability(tenant_id=slot.tenant_id, operation="timetable")
+        if slot.tenant_id != tenant_id or slot.branch_id != branch_id:
+            raise ValueError("slot tenant or branch mismatch")
         batch_key = self._key(slot.tenant_id, slot.batch_id)
         assignment = self._teacher_assignments.get(batch_key, {}).get(slot.teacher_id)
         if assignment is None:
             raise ValueError("teacher must be assigned before publishing timetable")
-        if slot.end_at <= slot.start_at:
-            raise ValueError("invalid slot time range")
+        self._validate_timetable_slot(slot)
+        self._assert_no_teacher_conflict(
+            tenant_id=tenant_id,
+            teacher_id=slot.teacher_id,
+            day_of_week=slot.day_of_week,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+        )
         self._timetable_slots.setdefault(batch_key, []).append(slot)
+        self._sync_attendance_session_events(tenant_id=tenant_id, batch=batch, slot=slot)
         return slot
+
+    def update_timetable_slot(
+        self,
+        *,
+        tenant_id: str,
+        branch_id: str,
+        batch_id: str,
+        slot_id: str,
+        slot: TimetableSlot,
+    ) -> TimetableSlot:
+        if slot.tenant_id != tenant_id or slot.branch_id != branch_id:
+            raise ValueError("slot tenant or branch mismatch")
+        if slot.slot_id != slot_id:
+            raise ValueError("slot_id must match payload")
+        if slot.batch_id != batch_id:
+            raise ValueError("batch_id must match payload")
+        slots = self._timetable_slots.get(self._key(tenant_id, batch_id), [])
+        existing_index = next((index for index, item in enumerate(slots) if item.slot_id == slot_id), None)
+        if existing_index is None:
+            raise KeyError("timetable slot not found")
+        self._validate_timetable_slot(slot)
+        self._assert_no_teacher_conflict(
+            tenant_id=tenant_id,
+            teacher_id=slot.teacher_id,
+            day_of_week=slot.day_of_week,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            ignore_slot_id=slot_id,
+        )
+        slots[existing_index] = slot
+        batch = self._batches[self._key(tenant_id, batch_id)]
+        self._sync_attendance_session_events(tenant_id=tenant_id, batch=batch, slot=slot)
+        return slot
+
+    def cancel_timetable_slot(self, *, tenant_id: str, branch_id: str, batch_id: str, slot_id: str) -> TimetableSlot:
+        slots = self._timetable_slots.get(self._key(tenant_id, batch_id), [])
+        for index, slot in enumerate(slots):
+            if slot.slot_id == slot_id:
+                if slot.branch_id != branch_id:
+                    raise ValueError("timetable slot branch mismatch")
+                cancelled = TimetableSlot(
+                    slot_id=slot.slot_id,
+                    batch_id=slot.batch_id,
+                    teacher_id=slot.teacher_id,
+                    day_of_week=slot.day_of_week,
+                    start_time=slot.start_time,
+                    end_time=slot.end_time,
+                    room_or_virtual_link=slot.room_or_virtual_link,
+                    recurrence_rule=slot.recurrence_rule,
+                    status=TimetableSlotStatus.CANCELLED,
+                    tenant_id=slot.tenant_id,
+                    branch_id=slot.branch_id,
+                )
+                slots[index] = cancelled
+                batch = self._batches[self._key(tenant_id, batch_id)]
+                self._sync_attendance_session_events(tenant_id=tenant_id, batch=batch, slot=cancelled)
+                return cancelled
+        raise KeyError("timetable slot not found")
+
+    def list_batch_schedule(self, *, tenant_id: str, branch_id: str, batch_id: str) -> tuple[TimetableSlot, ...]:
+        batch = self._batches.get(self._key(tenant_id, batch_id))
+        if batch is None:
+            raise KeyError("batch not found")
+        if batch.branch_id != branch_id:
+            raise ValueError("batch branch mismatch")
+        return tuple(self._timetable_slots.get(self._key(tenant_id, batch_id), ()))
 
     def register_batch_enrollment(self, enrollment: AcademyEnrollment) -> None:
         self._sor.register_academy_enrollment(enrollment)
 
     def register_student_profile(self, profile: UnifiedStudentProfile) -> UnifiedStudentProfile:
+        profile_metadata = getattr(profile, "metadata", {}) or {}
+        self._tenant_profile_hints[profile.tenant_id] = (
+            getattr(profile, "country_code", profile_metadata.get("country_code")),
+            getattr(profile, "segment_id", profile_metadata.get("segment_id")),
+        )
         return self._sor.upsert_student_profile(profile)
 
     def _emit_event(self, *, event_type: str, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
