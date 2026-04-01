@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+import base64
+import hashlib
+import hmac
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +63,9 @@ _ProgressModule = _load_progress_module()
 _OfflineProgressModel = _load_module("offline_progress_model", "shared/models/offline_progress.py")
 
 OfflineContentManager = _ContentOfflineModule.OfflineContentManager
+OfflinePackage = _ModelsModule.OfflinePackage
+MediaSecurityService = _MediaSecurityModule.MediaSecurityService
+OfflineDownloadContext = _MediaSecurityModule.OfflineDownloadContext
 ProgressTrackingService = _ProgressModule.ProgressTrackingService
 OfflineProgressRecord = _OfflineProgressModel.OfflineProgressRecord
 

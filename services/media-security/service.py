@@ -35,6 +35,22 @@ PlaybackTokenGrant = _ModelsModule.PlaybackTokenGrant
 _DEFAULT_MEDIA_CAPABILITY = "secure_media_delivery"
 
 
+@dataclass(frozen=True)
+class OfflineDownloadContext:
+    tenant_id: str
+    user_id: str
+    package_id: str
+    content_ids: list[str]
+    roles: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OfflineDownloadAuthorization:
+    decision: str
+    reason_code: str = ""
+    policy_ref: str = "media-security:offline-download-policy:v1"
+
+
 class MediaSecurityService:
     """Anti-piracy gatekeeper for stream authorization, tokenization, and revocation."""
 
@@ -250,3 +266,8 @@ class MediaSecurityService:
 
     def _utc_now(self) -> datetime:
         return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _is_media_security_entitled(*, tenant: TenantEntitlementContext, entitlement_decision: Any) -> bool:
+        paid_plan = tenant.plan_type.strip().lower() in {"pro", "enterprise"}
+        return bool(entitlement_decision.is_enabled) or paid_plan
