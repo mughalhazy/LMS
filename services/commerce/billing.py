@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 
@@ -22,6 +22,7 @@ class InvoiceState(str, Enum):
     DRAFT = "draft"
     ISSUED = "issued"
     PAID = "paid"
+    OVERDUE = "overdue"
     VOIDED = "voided"
     OVERDUE = "overdue"
 
@@ -102,6 +103,20 @@ class BillingLedgerEntry:
     amount: Decimal
     source_system: str = "system-of-record"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass(frozen=True)
+class SubscriptionBillingContract:
+    subscription_id: str
+    tenant_id: str
+    plan_type: str
+    amount: Decimal
+    currency: str
+    billing_cycle: BillingCycle
+    status: str = "active"
+    next_billing_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    payment_terms_days: int = 15
+    last_billed_at: datetime | None = None
 
 
 class BillingService:
