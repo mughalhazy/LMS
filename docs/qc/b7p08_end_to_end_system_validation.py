@@ -23,13 +23,14 @@ FLOW_SEQUENCE = [
     "tenant",
     "config",
     "capability",
+    "onboarding",
+    "batch",
     "enrollment",
-    "learning",
     "attendance",
-    "commerce",
+    "fee",
     "payment",
     "ledger",
-    "communication",
+    "whatsapp",
     "analytics",
 ]
 
@@ -42,6 +43,7 @@ class TenantContext:
     plan_type: str
     addon_flags: tuple[str, ...]
     user_id: str
+    payment_method: str = "wallet"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -113,10 +115,13 @@ def _resolve_config(ctx: TenantContext) -> dict[str, Any]:
         "PK": {
             "currency": "PKR",
             "timezone": "Asia/Karachi",
-            "payment_adapter": "jazzcash_pk",
             "communication_adapter": "meta_whatsapp_pk",
             "offline_sync": "low_bandwidth_sync_v2",
             "ledger_book": "pk_ifrs",
+            "payment_adapters": {
+                "wallet": "jazzcash_pk",
+                "bank_transfer": "easypaisa_pk",
+            },
         },
         "AE": {
             "currency": "AED",
@@ -128,7 +133,7 @@ def _resolve_config(ctx: TenantContext) -> dict[str, Any]:
         },
     }
 
-    return {
+    config = {
         "config": {
             **global_defaults,
             **by_country[ctx.country_code],
@@ -137,6 +142,9 @@ def _resolve_config(ctx: TenantContext) -> dict[str, Any]:
         },
         "provenance": ["global", "country", "tenant"],
     }
+    if ctx.country_code == "PK":
+        config["config"]["payment_adapter"] = config["config"]["payment_adapters"][ctx.payment_method]
+    return config
 
 
 def _resolve_capabilities(ctx: TenantContext) -> dict[str, bool]:
@@ -163,22 +171,29 @@ def _execute_flow(ctx: TenantContext) -> dict[str, Any]:
     capabilities = _resolve_capabilities(ctx)
     entitlement_allowed = all(capabilities[s] for s in ["enrollment", "learning", "attendance", "commerce", "payment", "ledger", "communication"])
 
+    onboarding_id = f"onb_{ctx.tenant_id}_{ctx.user_id}"
+    batch_id = f"bat_{ctx.tenant_id}_2026Q2"
     enrollment_id = f"enr_{ctx.tenant_id}_{ctx.user_id}"
     order_id = f"ord_{ctx.tenant_id}_{ctx.user_id}"
     payment_id = f"pay_{ctx.tenant_id}_{ctx.user_id}"
+    fee_amount = 1000
 
     events = {
         "tenant": {"tenant_id": ctx.tenant_id, "country_code": ctx.country_code, "status": "created"},
         "config": config_resolution,
         "capability": capabilities,
+        "onboarding": {"onboarding_id": onboarding_id, "status": "completed", "channel": "academy_counselor"},
+        "batch": {"batch_id": batch_id, "status": "scheduled", "kind": "academy_batch"},
         "enrollment": {"enrollment_id": enrollment_id, "status": "enrolled" if entitlement_allowed else "blocked"},
-        "learning": {
-            "lesson_id": "lesson_algebra_01",
-            "mode": "offline+online" if capabilities["offline_learning"] else "online",
-            "sync_status": "synced",
-        },
         "attendance": {"session_id": "sess_001", "present": True, "mode": config_resolution["config"]["attendance_mode"]},
-        "commerce": {"order_id": order_id, "gross_amount": 1000, "currency": config_resolution["config"]["currency"], "status": "confirmed"},
+        "fee": {
+            "fee_id": f"fee_{order_id}",
+            "order_id": order_id,
+            "amount_minor": fee_amount,
+            "currency": config_resolution["config"]["currency"],
+            "status": "assessed",
+            "payment_method": ctx.payment_method,
+        },
         "payment": {
             "payment_id": payment_id,
             "provider": config_resolution["config"]["payment_adapter"],
@@ -189,21 +204,22 @@ def _execute_flow(ctx: TenantContext) -> dict[str, Any]:
         "ledger": {
             "entry_id": f"led_{order_id}",
             "book": config_resolution["config"]["ledger_book"],
-            "debit": 1000,
-            "credit": 1000,
+            "debit": fee_amount,
+            "credit": fee_amount,
             "balanced": True,
             "teacher_payout": 600 if capabilities["teacher_payout"] else 0,
             "owner_revenue": 400 if capabilities["owner_revenue_share"] else 1000,
         },
-        "communication": {
+        "whatsapp": {
             "adapter": config_resolution["config"]["communication_adapter"],
             "primary": config_resolution["config"]["primary_channel"],
             "fallback": config_resolution["config"]["fallback_channel"],
+            "template": "fee_payment_confirmation",
             "status": "sent",
         },
         "analytics": {
             "pipeline": "engagement_and_revenue",
-            "events_ingested": 11,
+            "events_ingested": 12,
             "tier": "advanced" if capabilities["analytics"] else "core",
             "status": "published",
         },
@@ -223,7 +239,24 @@ def run_validation() -> dict[str, Any]:
     upstream, issues = _upstream_status()
 
     contexts = [
-        TenantContext("tenant_pk_academy", "PK", "academy", "enterprise", ("teacher_economy", "owner_economics", "advanced_analytics"), "user_pk_1"),
+        TenantContext(
+            "tenant_pk_academy_jazz",
+            "PK",
+            "academy",
+            "enterprise",
+            ("teacher_economy", "owner_economics", "advanced_analytics"),
+            "user_pk_1",
+            "wallet",
+        ),
+        TenantContext(
+            "tenant_pk_academy_easy",
+            "PK",
+            "academy",
+            "enterprise",
+            ("teacher_economy", "owner_economics", "advanced_analytics"),
+            "user_pk_2",
+            "bank_transfer",
+        ),
         TenantContext("tenant_us_academy", "US", "academy", "pro", ("teacher_economy",), "user_us_1"),
         TenantContext("tenant_ae_enterprise", "AE", "enterprise", "starter", ("owner_economics",), "user_ae_1"),
     ]
@@ -234,7 +267,10 @@ def run_validation() -> dict[str, Any]:
     check_flow_integrity = all(r["flow_sequence"] == FLOW_SEQUENCE for r in results)
     check_multitenant_isolation = len({r["events"]["ledger"]["entry_id"] for r in results}) == len(results)
     check_multi_capability = len({tuple(sorted(k for k, v in r["events"]["capability"].items() if v)) for r in results}) >= 2
-    check_offline_online_sync = all(r["events"]["learning"]["sync_status"] == "synced" for r in results)
+    check_onboarding_to_whatsapp = all(
+        all(stage in r["events"] for stage in ("onboarding", "batch", "enrollment", "attendance", "fee", "payment", "ledger", "whatsapp"))
+        for r in results
+    )
     check_payment_retry_reconcile = all(
         r["events"]["payment"]["retry_count"] >= 1 and r["events"]["payment"]["reconciliation_status"] == "reconciled"
         for r in results
@@ -244,10 +280,13 @@ def run_validation() -> dict[str, Any]:
         for r in results
     )
     check_country_readiness_config_only = all(
-        r["events"]["payment"]["provider"] in {"stripe_us", "jazzcash_pk", "network_global"}
-        and r["events"]["communication"]["adapter"] in {"meta_whatsapp_us", "meta_whatsapp_pk", "meta_whatsapp_me"}
+        r["events"]["payment"]["provider"] in {"stripe_us", "jazzcash_pk", "easypaisa_pk", "network_global"}
+        and r["events"]["whatsapp"]["adapter"] in {"meta_whatsapp_us", "meta_whatsapp_pk", "meta_whatsapp_me"}
         for r in results
     )
+    check_pk_payment_coverage = {
+        r["events"]["payment"]["provider"] for r in results if r["context"]["country_code"] == "PK"
+    } == {"jazzcash_pk", "easypaisa_pk"}
     check_no_segment_logic_in_runtime = all("segment" not in r["flow_sequence"] and "segment" not in r["events"] for r in results)
     check_capability_driven = all(
         r["events"]["capability"]["payment_retry"] and r["events"]["capability"]["payment_reconciliation"]
@@ -257,11 +296,12 @@ def run_validation() -> dict[str, Any]:
 
     checks = {
         "end_to_end_flow_complete": check_flow_integrity,
-        "pakistan_academy_flow": any(r["context"]["tenant_id"] == "tenant_pk_academy" for r in results),
+        "pakistan_academy_flow": any(r["context"]["tenant_id"].startswith("tenant_pk_academy") for r in results),
         "multi_tenant_isolation": check_multitenant_isolation,
         "multi_capability_combinations": check_multi_capability,
-        "offline_online_sync": check_offline_online_sync,
+        "academy_flow_chain_onboarding_batch_enrollment_attendance_fee_payment_ledger_whatsapp": check_onboarding_to_whatsapp,
         "payment_retry_reconciliation": check_payment_retry_reconcile,
+        "pakistan_payment_adapter_coverage_jazzcash_easypaisa": check_pk_payment_coverage,
         "teacher_and_owner_economics": check_teacher_owner_economics,
         "multi_country_readiness_config_adapters_only": check_country_readiness_config_only,
         "no_segment_based_logic": check_no_segment_logic_in_runtime,
