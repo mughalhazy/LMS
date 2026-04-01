@@ -196,3 +196,71 @@ def test_qc_no_business_logic_duplication() -> None:
     service = OperationsOSService()
 
     assert service.has_business_logic_duplication() is False
+
+
+def test_actions_are_deduplicated_with_consistent_priority() -> None:
+    service = OperationsOSService()
+    due_at = datetime(2026, 3, 31, tzinfo=timezone.utc)
+
+    first = service.create_action_item(
+        tenant_id="tenant_ops",
+        action_type="unpaid_fees_follow_up",
+        priority="low",
+        subject_type="student",
+        subject_id="stu_1",
+        reason="Payment overdue.",
+        due_at=due_at,
+        suggested_next_step="Follow up",
+        metadata={"source_alert_id": "fees:tenant_ops:stu_1:2026-03-31"},
+    )
+    second = service.create_action_item(
+        tenant_id="tenant_ops",
+        action_type="unpaid_fees_follow_up",
+        priority="medium",
+        subject_type="student",
+        subject_id="stu_1",
+        reason="Payment overdue.",
+        due_at=due_at,
+        suggested_next_step="Follow up",
+        metadata={"source_alert_id": "fees:tenant_ops:stu_1:2026-03-31"},
+    )
+
+    assert first.action_id == second.action_id
+    assert first.priority == "high"
+    assert len(service.list_actions(tenant_id="tenant_ops")) == 1
+
+
+def test_dashboard_resolution_state_and_workflow_pending_signal() -> None:
+    class _Step:
+        def __init__(self) -> None:
+            self.event_id = "evt_1"
+            self.tenant_id = "tenant_ops"
+            self.workflow_id = "wf_1"
+            self.step = type("WorkflowStepRef", (), {"step_id": "step_1"})()
+            self.context = {"student_id": "stu_pending"}
+
+    class _WorkflowEngineStub:
+        def list_scheduled_steps(self):
+            return (_Step(),)
+
+    service = OperationsOSService(workflow_engine=_WorkflowEngineStub())
+    created = service.create_action_item(
+        tenant_id="tenant_ops",
+        action_type="workflow_failure_triage",
+        priority="low",
+        subject_type="workflow_event",
+        subject_id="evt_1",
+        reason="Workflow delivery failed",
+        due_at=datetime(2026, 3, 31, tzinfo=timezone.utc),
+        suggested_next_step="Retry execution",
+        metadata={"event_id": "evt_1"},
+    )
+
+    before = service.get_daily_operations_dashboard("tenant_ops")
+    assert before.summary.total_overdue_follow_ups == 1
+    assert any(card.category == "workflow_pending" for card in before.alert_cards)
+    assert any(card.category == "workflow_failure" for card in before.alert_cards)
+
+    service.resolve_action_item(action_id=created.action_id, resolution_note="Recovered")
+    after = service.get_daily_operations_dashboard("tenant_ops")
+    assert after.summary.total_overdue_follow_ups == 0
