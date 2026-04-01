@@ -179,10 +179,12 @@ class AcademyOpsService:
         sor_service: SystemOfRecordService | None = None,
         entitlement_service: EntitlementService | None = None,
         commerce_service: Any | None = None,
+        enterprise_control_service: Any | None = None,
     ) -> None:
         self._sor = sor_service or SystemOfRecordService()
         self._entitlement = entitlement_service or EntitlementService()
         self._commerce = commerce_service
+        self._enterprise_control = enterprise_control_service
 
         self._branches: dict[tuple[str, str], Branch] = {}
         self._batches: dict[tuple[str, str], Batch] = {}
@@ -455,6 +457,29 @@ class AcademyOpsService:
         return assignment
 
     def assign_teacher(self, assignment: TeacherAssignment) -> TeacherAssignment:
+        return self.assign_teacher_to_batch(assignment)
+
+    def assign_teacher_cross_institution(
+        self,
+        *,
+        assignment: TeacherAssignment,
+        enterprise_identity: Any,
+        home_tenant_id: str,
+        payout_rate: Decimal = Decimal("0"),
+    ) -> TeacherAssignment:
+        if self._enterprise_control is None:
+            raise ValueError("enterprise control service is required for cross-institution assignments")
+        grant: CrossInstitutionAssignment = self._enterprise_control.assign_teacher_cross_institution(
+            identity=enterprise_identity,
+            target_tenant_id=assignment.tenant_id,
+            home_tenant_id=home_tenant_id,
+            teacher_id=assignment.teacher_id,
+            branch_id=assignment.branch_id,
+            batch_id=assignment.batch_id,
+            payout_rate=float(payout_rate),
+        )
+        if grant.payout_tenant_id != assignment.tenant_id:
+            raise ValueError("payout tenant mismatch; economics must remain tenant-separated")
         return self.assign_teacher_to_batch(assignment)
 
     def reassign_teacher(

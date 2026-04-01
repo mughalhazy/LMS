@@ -29,6 +29,16 @@ TeacherAssignment = _service_module.TeacherAssignment
 TimetableSlot = _service_module.TimetableSlot
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
+ENTERPRISE_MODULE_PATH = ROOT / "services/enterprise-control/service.py"
+_enterprise_spec = importlib.util.spec_from_file_location("enterprise_control_for_academy_ops_test", ENTERPRISE_MODULE_PATH)
+if _enterprise_spec is None or _enterprise_spec.loader is None:
+    raise RuntimeError("Unable to load enterprise-control module")
+_enterprise_module = importlib.util.module_from_spec(_enterprise_spec)
+sys.modules[_enterprise_spec.name] = _enterprise_module
+_enterprise_spec.loader.exec_module(_enterprise_module)
+EnterpriseControlService = _enterprise_module.EnterpriseControlService
+IdentityContext = _enterprise_module.IdentityContext
+
 
 def test_academy_wedge_end_to_end_unifies_academic_and_financial_state() -> None:
     service = AcademyOpsService()
