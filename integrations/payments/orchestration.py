@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -43,10 +44,18 @@ class PaymentTransactionLogEntry:
 
 
 class PaymentOrchestrationService:
-    def __init__(self, router: PaymentProviderRouter, *, max_retries: int = 2, verification_latency_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        router: PaymentProviderRouter,
+        *,
+        max_retries: int = 2,
+        verification_latency_seconds: float = 0.0,
+        backoff_base_seconds: float = 0.0,
+    ) -> None:
         self._router = router
         self._max_retries = max_retries
         self._verification_latency_seconds = verification_latency_seconds
+        self._backoff_base_seconds = max(backoff_base_seconds, 0.0)
         self._ledger: dict[str, PaymentLedgerEntry] = {}
         self._payment_id_to_idempotency_key: dict[str, str] = {}
         self._verification_tasks: dict[str, asyncio.Task[None]] = {}
@@ -59,10 +68,12 @@ class PaymentOrchestrationService:
         if existing:
             return existing
 
-        last_result = PaymentResult(ok=False, status="failure", provider=None, error="unknown")
+        last_result = PaymentResult(ok=False, status="failed", provider=None, error="unknown")
+        attempt = 0
         for attempt in range(self._max_retries + 1):
             last_result = self._router.process_checkout(tenant=tenant, amount=amount, invoice_id=invoice_id)
             retryable = self._is_retryable(last_result)
+            status = "success" if last_result.ok else ("retrying" if retryable and attempt < self._max_retries else "failed")
             self._transaction_log_store.setdefault(idempotency_key, []).append(
                 PaymentTransactionLogEntry(
                     idempotency_key=idempotency_key,
@@ -71,7 +82,7 @@ class PaymentOrchestrationService:
                     currency=currency,
                     attempt=attempt,
                     provider=last_result.provider,
-                    status=last_result.status,
+                    status=status,
                     payment_id=last_result.payment_id,
                     retryable=retryable,
                     error=last_result.error,
@@ -84,7 +95,7 @@ class PaymentOrchestrationService:
                     tenant_country_code=tenant.country_code,
                     amount=amount,
                     currency=currency,
-                    status="pending_verification",
+                    status="pending",
                     provider=last_result.provider,
                     payment_id=last_result.payment_id,
                     invoice_id=invoice_id,
@@ -104,6 +115,22 @@ class PaymentOrchestrationService:
                 return entry
             if not retryable:
                 break
+            self._ledger[idempotency_key] = PaymentLedgerEntry(
+                idempotency_key=idempotency_key,
+                tenant_id=tenant.tenant_id,
+                tenant_country_code=tenant.country_code,
+                amount=amount,
+                currency=currency,
+                status="retrying",
+                provider=last_result.provider,
+                payment_id=last_result.payment_id,
+                invoice_id=invoice_id,
+                attempt=attempt,
+                verified=False,
+                verified_at=None,
+                error=last_result.error,
+            )
+            self._sleep_with_backoff(attempt=attempt)
 
         failed = PaymentLedgerEntry(
             idempotency_key=idempotency_key,
@@ -125,7 +152,7 @@ class PaymentOrchestrationService:
 
     async def verify_payment_async(self, *, idempotency_key: str) -> PaymentLedgerEntry:
         entry = self._ledger[idempotency_key]
-        if entry.status != "pending_verification":
+        if entry.status != "pending":
             return entry
         if self._verification_latency_seconds > 0:
             await asyncio.sleep(self._verification_latency_seconds)
@@ -144,7 +171,7 @@ class PaymentOrchestrationService:
             payment_id=entry.payment_id,
         )
         if result.ok:
-            return PaymentLedgerEntry(**{**entry.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
+            return PaymentLedgerEntry(**{**entry.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
         return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": result.error or "verification_failed"})
 
     async def handle_provider_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentLedgerEntry | None:
@@ -155,10 +182,10 @@ class PaymentOrchestrationService:
         if idempotency_key is None:
             return None
         current = self._ledger[idempotency_key]
-        if current.status == "verified":
+        if current.status == "success":
             return current
         if callback_result.ok:
-            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
+            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "success", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
         else:
             updated = PaymentLedgerEntry(**{**current.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": callback_result.error or "callback_failed"})
         self._ledger[idempotency_key] = updated
@@ -182,6 +209,11 @@ class PaymentOrchestrationService:
     @staticmethod
     def _is_retryable(result: PaymentResult) -> bool:
         return bool(result.error and "timeout" in result.error.lower())
+
+    def _sleep_with_backoff(self, *, attempt: int) -> None:
+        if self._backoff_base_seconds <= 0:
+            return
+        time.sleep(self._backoff_base_seconds * (2**attempt))
 
 
 def build_pakistan_payment_router(default_provider: str = "jazzcash") -> PaymentProviderRouter:

@@ -135,13 +135,13 @@ def test_orchestration_supports_retries_idempotency_and_async_verification() -> 
     )
 
     assert first.payment_id is not None
-    assert first.status == "pending_verification"
+    assert first.status == "pending"
     assert second.payment_id == first.payment_id
     assert adapter.calls == 2
 
     verified = asyncio.run(orchestrator.await_verification(idempotency_key="idem_1"))
     assert verified.verified is True
-    assert verified.status == "verified"
+    assert verified.status == "success"
     assert verified.verified_at is not None
 
 
@@ -165,5 +165,49 @@ def test_orchestration_accepts_async_callback() -> None:
     )
 
     assert updated is not None
-    assert updated.status == "verified"
+    assert updated.status == "success"
     assert updated.verified is True
+
+
+def test_orchestration_records_retrying_before_final_failure() -> None:
+    class AlwaysTimeoutAdapter(FlakyRetryAdapter):
+        def process_payment(
+            self,
+            amount: int,
+            tenant: TenantPaymentContext,
+            invoice_id: str | None = None,
+        ) -> PaymentResult:
+            self.calls += 1
+            return PaymentResult(
+                ok=False,
+                status="failure",
+                provider=self.provider_key,
+                error="timeout",
+                invoice_id=invoice_id,
+            )
+
+    class InlineRouter:
+        def __init__(self, adapter: BasePaymentAdapter) -> None:
+            self._adapter = adapter
+
+        def process_checkout(self, *, tenant: object, amount: int, invoice_id: str | None = None) -> PaymentResult:
+            assert isinstance(tenant, TenantPaymentContext)
+            return self._adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+
+        def verify(self, *, tenant: TenantPaymentContext, provider: str, payment_id: str) -> PaymentVerificationResult:
+            return self._adapter.verify_payment(payment_id=payment_id, tenant=tenant)
+
+        def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
+            return self._adapter.parse_callback(payload)
+
+    adapter = AlwaysTimeoutAdapter()
+    orchestrator = PaymentOrchestrationService(router=InlineRouter(adapter), max_retries=1)
+    entry = orchestrator.process_checkout_payment(
+        idempotency_key="idem_fail",
+        tenant=TenantPaymentContext(tenant_id="tenant_pk", country_code="PK"),
+        amount=1000,
+        currency="PKR",
+    )
+    logs = orchestrator.get_transaction_logs(idempotency_key="idem_fail")
+    assert [log.status for log in logs] == ["retrying", "failed"]
+    assert entry.status == "failed"
