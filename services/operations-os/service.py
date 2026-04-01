@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -24,17 +25,46 @@ def _load_module(module_name: str, relative_path: str):
 
 
 _SystemOfRecordModule = _load_module("system_of_record_module_for_operations_os", "services/system-of-record/service.py")
-_ModelsModule = _load_module("operations_os_models", "services/operations-os/models.py")
-SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
 _SorReadModels = _load_module("system_of_record_read_models_for_operations_os", "services/system-of-record/read_models.py")
 _OperationsModels = _load_module("operations_os_models", "services/operations-os/models.py")
 
+SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
 DailyOperationsDashboard = _OperationsModels.DailyOperationsDashboard
 alert_card = _OperationsModels.alert_card
 action_item = _OperationsModels.action_item
 dashboard_summary = _OperationsModels.dashboard_summary
 priority_bucket = _OperationsModels.priority_bucket
 is_profile_inactive = _SorReadModels.is_profile_inactive
+
+
+@dataclass(frozen=True)
+class DailyAlert:
+    alert_id: str
+    tenant_id: str
+    student_id: str
+    alert_type: str
+    severity: str
+    message: str
+    source: str
+    metadata: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ActionItem:
+    action_id: str
+    tenant_id: str
+    action_type: str
+    priority: str
+    subject_type: str
+    subject_id: str
+    reason: str
+    due_at: datetime
+    status: str = "open"
+    suggested_next_step: str = ""
+    owner: str = "operations-os"
+    alert_id: str = ""
+    notes: str = ""
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -52,6 +82,10 @@ class AcademyOpsService:
 
     def __init__(self) -> None:
         self._attendance_exceptions: dict[tuple[str, date], list[dict[str, str]]] = {}
+        self._absence_streaks: dict[tuple[str, date], list[dict[str, int | str]]] = {}
+        self._inactivity_signals: dict[tuple[str, date], list[dict[str, int | str]]] = {}
+        self._failed_communications: dict[tuple[str, date], list[dict[str, int | str]]] = {}
+        self._operational_issues: dict[tuple[str, date], list[OperationalIssue]] = {}
         self._operational_alerts: dict[str, list[dict[str, str]]] = {}
 
     def upsert_attendance_exception(
@@ -129,6 +163,18 @@ class AcademyOpsService:
     def list_daily_attendance_exceptions(self, *, tenant_id: str, run_date: date) -> tuple[dict[str, str], ...]:
         return tuple(self._attendance_exceptions.get((tenant_id.strip(), run_date), []))
 
+    def list_absence_streaks(self, *, tenant_id: str, run_date: date) -> tuple[dict[str, int | str], ...]:
+        return tuple(self._absence_streaks.get((tenant_id.strip(), run_date), []))
+
+    def list_inactivity_signals(self, *, tenant_id: str, run_date: date) -> tuple[dict[str, int | str], ...]:
+        return tuple(self._inactivity_signals.get((tenant_id.strip(), run_date), []))
+
+    def list_failed_communications(self, *, tenant_id: str, run_date: date) -> tuple[dict[str, int | str], ...]:
+        return tuple(self._failed_communications.get((tenant_id.strip(), run_date), []))
+
+    def list_operational_issues(self, *, tenant_id: str, run_date: date) -> tuple[OperationalIssue, ...]:
+        return tuple(self._operational_issues.get((tenant_id.strip(), run_date), []))
+
     def create_operational_alert(
         self,
         *,
@@ -155,17 +201,34 @@ class AcademyOpsService:
 
 
 class OperationsOSService:
-    """Operations dashboard layer aggregating academy operations and SoR data."""
+    """Canonical admin control layer for daily action visibility."""
+
+    _ACTION_PRIORITY: dict[str, str] = {
+        "unpaid_fees_follow_up": "high",
+        "fee_follow_up": "high",
+        "repeated_absence_intervention": "high",
+        "overdue_operational_issue": "critical",
+        "workflow_failure_triage": "high",
+        "workflow_pending_review": "medium",
+        "inactivity_reengagement": "medium",
+        "failed_communication_retry": "medium",
+        "critical_alert": "high",
+    }
 
     def __init__(
         self,
         *,
         academy_ops_service: AcademyOpsService | None = None,
         system_of_record_service: SystemOfRecordService | None = None,
+        commerce_service: Any | None = None,
+        workflow_engine: Any | None = None,
     ) -> None:
         self._academy_ops_service = academy_ops_service or AcademyOpsService()
         self._system_of_record_service = system_of_record_service or SystemOfRecordService()
+        self._commerce_service = commerce_service
+        self._workflow_engine = workflow_engine
         self._actions: dict[str, ActionItem] = {}
+        self._action_dedupe: dict[str, str] = {}
         self._active_tenant_id: str | None = None
         self._active_run_date: date | None = None
 
@@ -191,28 +254,66 @@ class OperationsOSService:
             "enable_inactive_users": bool(effective.capability_enabled.get("operations.inactive_users", True)),
             "enable_followups": bool(effective.capability_enabled.get("operations.followups", True)),
             "enable_operational_alerts": bool(effective.capability_enabled.get("operations.operational_alerts", True)),
+            "enable_workflow_signals": bool(effective.capability_enabled.get("operations.workflow_signals", True)),
         }
+
+    def _resolve_priority(self, action_type: str, default_priority: str = "medium") -> str:
+        return self._ACTION_PRIORITY.get(action_type.strip(), default_priority.strip().lower())
 
     def list_unpaid_fee_cases(self) -> tuple[alert_card, ...]:
         tenant_id = self._active_tenant_id or ""
         run_date = self._active_run_date or date.today()
-        cases: list[alert_card] = []
+        cases: dict[str, alert_card] = {}
+
         for profile in self._system_of_record_service.list_student_profiles(tenant_id=tenant_id):
             balance = self._system_of_record_service.get_student_balance(tenant_id=tenant_id, student_id=profile.student_id)
-            if balance > 0:
-                cases.append(
-                    alert_card(
-                        alert_id=f"fees:{tenant_id}:{profile.student_id}:{run_date.isoformat()}",
-                        tenant_id=tenant_id,
-                        subject_id=profile.student_id,
-                        category="unpaid_fees",
-                        severity="high",
-                        title=f"Outstanding fees due: {balance}",
-                        source="system-of-record+commerce",
-                        metadata={"run_date": run_date.isoformat()},
-                    )
+            overdue_flag = str(profile.metadata.get("fee.overdue", "false")).lower() == "true"
+            if balance > 0 or overdue_flag:
+                reason = f"Outstanding fees due: {balance}"
+                cases[profile.student_id] = alert_card(
+                    alert_id=f"fees:{tenant_id}:{profile.student_id}:{run_date.isoformat()}",
+                    tenant_id=tenant_id,
+                    subject_id=profile.student_id,
+                    category="unpaid_fees",
+                    severity="high",
+                    title=reason,
+                    source="system-of-record+commerce",
+                    metadata={
+                        "run_date": run_date.isoformat(),
+                        "balance": str(balance),
+                        "drill_down_ref": f"ledger://{tenant_id}/{profile.student_id}",
+                    },
                 )
-        return tuple(cases)
+
+        commerce_billing = getattr(getattr(self._commerce_service, "billing", None), "_invoices", {})
+        for invoice in commerce_billing.values():
+            invoice_tenant = getattr(invoice, "tenant_id", getattr(invoice, "user_id", ""))
+            if invoice_tenant != tenant_id:
+                continue
+            invoice_status = str(getattr(invoice, "status", "")).lower()
+            if invoice_status not in {"overdue", "pending", "issued"}:
+                continue
+            learner_id = str(getattr(invoice, "order_id", "")).split(":")
+            student_id = learner_id[1] if len(learner_id) > 1 else "operations"
+            cases.setdefault(
+                student_id,
+                alert_card(
+                    alert_id=f"fees:{tenant_id}:{student_id}:{run_date.isoformat()}",
+                    tenant_id=tenant_id,
+                    subject_id=student_id,
+                    category="unpaid_fees",
+                    severity="high",
+                    title=f"Unpaid commerce invoice {getattr(invoice, 'invoice_id', '')}",
+                    source="system-of-record+commerce",
+                    metadata={
+                        "run_date": run_date.isoformat(),
+                        "invoice_id": str(getattr(invoice, "invoice_id", "")),
+                        "drill_down_ref": f"commerce://invoice/{getattr(invoice, 'invoice_id', '')}",
+                    },
+                ),
+            )
+
+        return tuple(cases.values())
 
     def list_absence_cases(self) -> tuple[alert_card, ...]:
         tenant_id = self._active_tenant_id or ""
@@ -227,7 +328,11 @@ class OperationsOSService:
                 severity="medium",
                 title=f"Absent in session {row['session_ref']}",
                 source="academy-ops",
-                metadata={"session_ref": row["session_ref"], "run_date": run_date.isoformat()},
+                metadata={
+                    "session_ref": row["session_ref"],
+                    "run_date": run_date.isoformat(),
+                    "drill_down_ref": f"attendance://{tenant_id}/{row['student_id']}/{row['session_ref']}",
+                },
             )
             for row in rows
             if row.get("attendance_state") == "absent"
@@ -249,24 +354,70 @@ class OperationsOSService:
                         category="inactive_user",
                         severity="medium",
                         title=f"User inactive for >= {inactivity_days} days",
-                        source="system-of-record",
-                        metadata={"inactive_days": str(inactivity_days)},
+                        source="system-of-record/progress",
+                        metadata={
+                            "inactive_days": str(inactivity_days),
+                            "drill_down_ref": f"progress://{tenant_id}/{profile.student_id}",
+                        },
                     )
                 )
         return tuple(cases)
+
+    def list_workflow_cases(self) -> tuple[alert_card, ...]:
+        tenant_id = self._active_tenant_id or ""
+        if self._workflow_engine is None:
+            return ()
+        cards: list[alert_card] = []
+        for step in getattr(self._workflow_engine, "list_scheduled_steps", lambda: ())():
+            if getattr(step, "tenant_id", "") != tenant_id:
+                continue
+            cards.append(
+                alert_card(
+                    alert_id=f"workflow-pending:{step.event_id}:{step.step.step_id}",
+                    tenant_id=tenant_id,
+                    subject_id=str(step.context.get("student_id") or step.event_id),
+                    category="workflow_pending",
+                    severity="medium",
+                    title=f"Workflow step pending: {step.step.step_id}",
+                    source="workflow-engine",
+                    metadata={
+                        "workflow_id": step.workflow_id,
+                        "event_id": step.event_id,
+                        "drill_down_ref": f"workflow://{step.workflow_id}/{step.event_id}/{step.step.step_id}",
+                    },
+                )
+            )
+        for action in self.list_open_actions(tenant_id=tenant_id):
+            if action.action_type != "workflow_failure_triage":
+                continue
+            cards.append(
+                alert_card(
+                    alert_id=f"workflow-failure:{action.action_id}",
+                    tenant_id=tenant_id,
+                    subject_id=action.subject_id,
+                    category="workflow_failure",
+                    severity="high",
+                    title=action.reason,
+                    source="workflow-engine",
+                    metadata={
+                        "action_id": action.action_id,
+                        "drill_down_ref": f"operations-action://{action.action_id}",
+                    },
+                )
+            )
+        return tuple(cards)
 
     def list_priority_actions(self) -> tuple[action_item, ...]:
         tenant_id = self._active_tenant_id or ""
         items: list[action_item] = []
         for row in self.list_actions(tenant_id=tenant_id, status="open"):
-            priority = "high" if row.action_type in {"fee_follow_up", "critical_alert"} else "medium"
             items.append(
                 action_item(
                     action_id=row.action_id,
                     tenant_id=row.tenant_id,
-                    subject_id=row.student_id,
+                    subject_id=row.subject_id,
                     action_type=row.action_type,
-                    priority=priority,
+                    priority=row.priority,
                     status=row.status,
                     owner=row.owner,
                     source_alert_id=row.alert_id,
@@ -287,8 +438,8 @@ class OperationsOSService:
             all_cards.extend(self.list_absence_cases())
         if policy["enable_inactive_users"]:
             all_cards.extend(self.list_inactive_user_cases())
-
-        overdue_followups = self.list_priority_actions() if policy["enable_followups"] else ()
+        if policy["enable_workflow_signals"]:
+            all_cards.extend(self.list_workflow_cases())
 
         if policy["enable_operational_alerts"]:
             for row in self._academy_ops_service.list_operational_alerts(tenant_id=self._active_tenant_id, unresolved_only=True):
@@ -300,12 +451,14 @@ class OperationsOSService:
                         category="operational_alert",
                         severity=row.get("severity", "medium"),
                         title=row.get("message", "Operational alert"),
-                        source="academy-ops",
+                        source="operations-os",
                         status=row.get("status", "open"),
+                        metadata={"drill_down_ref": f"operations-alert://{row['alert_id']}"},
                     )
                 )
 
-        priorities: dict[str, list[action_item]] = {"high": [], "medium": [], "low": []}
+        overdue_followups = self.list_priority_actions() if policy["enable_followups"] else ()
+        priorities: dict[str, list[action_item]] = {"critical": [], "high": [], "medium": [], "low": []}
         for item in overdue_followups:
             priorities.setdefault(item.priority, []).append(item)
         buckets = tuple(
@@ -327,7 +480,7 @@ class OperationsOSService:
     def build_daily_alerts(self, *, tenant_id: str, run_date: date) -> tuple[DailyAlert, ...]:
         self._active_tenant_id = tenant_id
         self._active_run_date = run_date
-        cards = [*self.list_unpaid_fee_cases(), *self.list_absence_cases()]
+        cards = [*self.list_unpaid_fee_cases(), *self.list_absence_cases(), *self.list_inactive_user_cases(), *self.list_workflow_cases()]
         return tuple(
             DailyAlert(
                 alert_id=card.alert_id,
@@ -342,6 +495,10 @@ class OperationsOSService:
             for card in cards
         )
 
+    def _action_dedupe_key(self, *, tenant_id: str, action_type: str, subject_type: str, subject_id: str, metadata: dict[str, Any]) -> str:
+        source_key = str(metadata.get("source_alert_id") or metadata.get("event_id") or "")
+        return f"{tenant_id}:{action_type}:{subject_type}:{subject_id}:{source_key}"
+
     def create_action_item(
         self,
         *,
@@ -355,21 +512,36 @@ class OperationsOSService:
         suggested_next_step: str,
         metadata: dict[str, Any] | None = None,
     ) -> ActionItem:
+        normalized_metadata = {str(key): str(value) for key, value in dict(metadata or {}).items()}
+        dedupe_key = self._action_dedupe_key(
+            tenant_id=tenant_id.strip(),
+            action_type=action_type.strip(),
+            subject_type=subject_type.strip(),
+            subject_id=subject_id.strip(),
+            metadata=normalized_metadata,
+        )
+        existing_action_id = self._action_dedupe.get(dedupe_key)
+        if existing_action_id is not None:
+            return self._actions[existing_action_id]
+
         action_id = f"action:{tenant_id}:{len(self._actions) + 1}"
+        normalized_priority = self._resolve_priority(action_type, default_priority=priority)
         action = ActionItem(
             action_id=action_id,
             tenant_id=tenant_id.strip(),
             action_type=action_type.strip(),
-            priority=priority.strip().lower(),
+            priority=normalized_priority,
             subject_type=subject_type.strip(),
             subject_id=subject_id.strip(),
             reason=reason.strip(),
             due_at=due_at,
             status="open",
             suggested_next_step=suggested_next_step.strip(),
-            metadata=dict(metadata or {}),
+            alert_id=normalized_metadata.get("source_alert_id", ""),
+            metadata=normalized_metadata,
         )
         self._actions[action.action_id] = action
+        self._action_dedupe[dedupe_key] = action.action_id
         return action
 
     def list_open_actions(self, *, tenant_id: str) -> tuple[ActionItem, ...]:
@@ -388,6 +560,9 @@ class OperationsOSService:
             due_at=action.due_at,
             status="resolved",
             suggested_next_step=action.suggested_next_step,
+            owner=action.owner,
+            alert_id=action.alert_id,
+            notes=resolution_note.strip(),
             metadata={**action.metadata, "resolution_note": resolution_note.strip()},
         )
         self._actions[action_id] = resolved
@@ -406,6 +581,9 @@ class OperationsOSService:
             due_at=min(action.due_at, datetime.now(timezone.utc) + timedelta(hours=4)),
             status="escalated",
             suggested_next_step=action.suggested_next_step,
+            owner=action.owner,
+            alert_id=action.alert_id,
+            notes=action.notes,
             metadata={
                 **action.metadata,
                 "escalated_to": escalated_to.strip(),
@@ -420,7 +598,7 @@ class OperationsOSService:
         due_end_of_day = datetime.combine(run_date, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=23, minutes=59)
 
         for alert in self.build_daily_alerts(tenant_id=tenant_id, run_date=run_date):
-            if alert.alert_type == "fees":
+            if alert.alert_type == "unpaid_fees":
                 created.append(
                     self.create_action_item(
                         tenant_id=tenant_id,
@@ -431,7 +609,7 @@ class OperationsOSService:
                         reason=alert.message,
                         due_at=due_end_of_day,
                         suggested_next_step="Contact guardian and collect payment commitment.",
-                        metadata={"source_alert_id": alert.alert_id},
+                        metadata={"source_alert_id": alert.alert_id, "drill_down_ref": alert.metadata.get("drill_down_ref", "")},
                     )
                 )
 
@@ -504,7 +682,7 @@ class OperationsOSService:
 
     # Backward-compatible API
     def create_action(self, *, alert: DailyAlert, action_type: str, owner: str, notes: str = "") -> ActionItem:
-        return self.create_action_item(
+        action = self.create_action_item(
             tenant_id=alert.tenant_id,
             action_type=action_type,
             priority="medium",
@@ -515,6 +693,9 @@ class OperationsOSService:
             suggested_next_step=f"Owner {owner.strip()} to follow up.",
             metadata={"source_alert_id": alert.alert_id, "notes": notes.strip()},
         )
+        updated = ActionItem(**{**action.__dict__, "owner": owner.strip(), "notes": notes.strip()})
+        self._actions[action.action_id] = updated
+        return updated
 
     def resolve_action(self, *, action_id: str, notes: str = "") -> ActionItem:
         return self.resolve_action_item(action_id=action_id, resolution_note=notes)
