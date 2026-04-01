@@ -67,25 +67,9 @@ class JazzCashAdapter:
             error=None if is_success else "verification_failed",
         )
 
-    def get_status(self, transaction_id: str) -> PaymentVerificationResponse:
-        return self._transaction_store.get(
-            transaction_id,
-            PaymentVerificationResponse(status="pending", transaction_id=transaction_id, amount=0, reference_id=None),
-        )
 
-    def process_payment(self, amount: int, tenant: TenantPaymentContext, invoice_id: str | None = None) -> PaymentResult:
-        if amount <= 0:
-            return PaymentResult(ok=False, status="failure", provider=self.provider_key, error="invalid_amount", invoice_id=invoice_id)
-
-        initiated = self.initiate_payment(
-            PaymentInitiationRequest(
-                amount=amount,
-                currency="PKR",
-                tenant_id=tenant.tenant_id,
-                reference_id=invoice_id,
-            )
-        )
-        return PaymentResult(ok=True, status="success", payment_id=initiated.transaction_id, provider=self.provider_key, invoice_id=invoice_id)
+    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+        return self.verify_payment(payment_id=payment_id, tenant=tenant)
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:

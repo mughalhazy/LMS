@@ -6,14 +6,15 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
-from .billing import BillingService, InvoiceRecord
+from .billing import BillingService, InvoiceRecord, InvoiceStatus
 from .catalog import CatalogService
-from .checkout import CheckoutService, Order, OrderStatus
+from .checkout import CheckoutService, Order, OrderStatus, Transaction, TransactionStatus
 from .models import Bundle, Product, ProductType
 from .monetization import CapabilityCharge, CapabilityMonetizationService
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 from integrations.payments.base_adapter import TenantPaymentContext
+from integrations.payments.reconciliation import PaymentReconciliationEngine
 from integrations.payments.orchestration import PaymentOrchestrationService
 from shared.utils.entitlement import TenantEntitlementContext
 
@@ -56,6 +57,7 @@ class CommerceService:
             entitlement_service=self.entitlement_service,
         )
         self._payment_orchestrator = payment_orchestrator
+        self._reconciliation_engine: PaymentReconciliationEngine | None = None
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
         resolved_type = type or product_type
@@ -102,7 +104,7 @@ class CommerceService:
             amount=int(amount * 100),
             currency=currency,
         )
-        if entry.status in {"pending_verification", "verified"} and entry.payment_id:
+        if entry.status in {"pending", "success"} and entry.payment_id:
             return True, entry.payment_id, False
         return False, None, bool(entry.error and "timeout" in entry.error.lower())
 
@@ -133,6 +135,50 @@ class CommerceService:
 
     def calculate_capability_charges(self, tenant: TenantEntitlementContext) -> list[CapabilityCharge]:
         return self.monetization.calculate_tenant_capability_charges(tenant)
+
+    def configure_reconciliation(self, engine: PaymentReconciliationEngine) -> None:
+        self._reconciliation_engine = engine
+
+    def apply_reconciliation(self, *, order_id: str, invoice_id: str, payment_id: str, resolved: bool) -> None:
+        order = self.checkout.get_order(order_id)
+        if order is None:
+            raise KeyError("order not found")
+        invoice = self.billing.get_invoice(invoice_id)
+        if invoice is None:
+            raise KeyError("invoice not found")
+        if resolved:
+            self.checkout.reconcile_order(order_id=order_id)
+            updated_invoice = InvoiceRecord(
+                invoice_id=invoice.invoice_id,
+                user_id=invoice.user_id,
+                order_id=invoice.order_id,
+                amount=invoice.amount,
+                status=InvoiceStatus.PAID,
+                currency=invoice.currency,
+                invoice_type=invoice.invoice_type,
+                ledger_entry_id=invoice.ledger_entry_id,
+            )
+        else:
+            self.checkout._orders[order_id] = Order(**{**order.__dict__, "status": OrderStatus.FAILED})
+            if order.transaction_id:
+                txn = self.checkout._transactions[order.transaction_id]
+                self.checkout._transactions[order.transaction_id] = Transaction(**{**txn.__dict__, "status": TransactionStatus.FAILED})
+            updated_invoice = InvoiceRecord(
+                invoice_id=invoice.invoice_id,
+                user_id=invoice.user_id,
+                order_id=invoice.order_id,
+                amount=invoice.amount,
+                status=InvoiceStatus.OVERDUE,
+                currency=invoice.currency,
+                invoice_type=invoice.invoice_type,
+                ledger_entry_id=invoice.ledger_entry_id,
+            )
+        self.billing._invoices[invoice_id] = updated_invoice
+
+    def schedule_reconciliation_job(self) -> None:
+        if self._reconciliation_engine is None:
+            raise RuntimeError("reconciliation engine not configured")
+        self._reconciliation_engine.schedule_periodic_reconciliation()
 
 
 def build_commerce_service_for_pakistan(default_provider: str = "jazzcash") -> CommerceService:

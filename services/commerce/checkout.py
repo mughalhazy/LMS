@@ -25,8 +25,10 @@ class OrderStatus(str, Enum):
 
 
 class TransactionStatus(str, Enum):
-    SUCCEEDED = "succeeded"
+    PENDING = "pending"
+    SUCCESS = "success"
     FAILED = "failed"
+    RETRYING = "retrying"
     RECONCILED = "reconciled"
 
 
@@ -90,14 +92,26 @@ class Transaction:
 
 PaymentExecutor = Callable[[str, str, Decimal, str, int, str], tuple[bool, str | None, bool]]
 PriceResolver = Callable[[Product], Decimal]
+FailureNotifier = Callable[[str, str, str], None]
 
 
 class CheckoutService:
-    def __init__(self, catalog_service: CatalogService, payment_executor: PaymentExecutor, pricing_resolver: PriceResolver, *, max_retries: int = 2) -> None:
+    def __init__(
+        self,
+        catalog_service: CatalogService,
+        payment_executor: PaymentExecutor,
+        pricing_resolver: PriceResolver,
+        *,
+        max_retries: int = 2,
+        backoff_base_seconds: float = 0.0,
+        failure_notifier: FailureNotifier | None = None,
+    ) -> None:
         self._catalog_service = catalog_service
         self._payment_executor = payment_executor
         self._pricing_resolver = pricing_resolver
         self._max_retries = max_retries
+        self._backoff_base_seconds = max(backoff_base_seconds, 0.0)
+        self._failure_notifier = failure_notifier
         self._sessions: dict[str, CheckoutSession] = {}
         self._orders: dict[str, Order] = {}
         self._transactions: dict[str, Transaction] = {}
@@ -161,7 +175,7 @@ class CheckoutService:
             )
             if success or not retryable:
                 break
-            await asyncio.sleep(0)
+            await self._sleep_with_backoff(attempt=attempt)
 
         order_id = f"order_{len(self._orders) + 1}"
         status = OrderStatus.PAID if success else OrderStatus.FAILED
@@ -189,7 +203,7 @@ class CheckoutService:
             amount=total,
             currency=product.currency,
             payment_id=payment_id,
-            status=TransactionStatus.SUCCEEDED if success else TransactionStatus.FAILED,
+            status=TransactionStatus.SUCCESS if success else TransactionStatus.FAILED,
             retryable=retryable,
             attempt=last_attempt,
         )
@@ -200,6 +214,8 @@ class CheckoutService:
         self._idempotency_index[idem_key] = order.order_id
         self._transaction_log_store[order.order_id] = logs
         self._sessions[session.session_id] = CheckoutSession(**{**session.__dict__, "status": CheckoutStatus.SUBMITTED, "attempt_count": last_attempt + 1})
+        if not success and self._failure_notifier:
+            self._failure_notifier(session.tenant_id, session.learner_id, order.order_id)
         return order
 
     def reconcile_order(self, *, order_id: str) -> Order:
@@ -221,6 +237,12 @@ class CheckoutService:
 
     def get_transaction_logs(self, *, order_id: str) -> list[TransactionLogEntry]:
         return list(self._transaction_log_store.get(order_id.strip(), []))
+
+    async def _sleep_with_backoff(self, *, attempt: int) -> None:
+        if self._backoff_base_seconds <= 0:
+            await asyncio.sleep(0)
+            return
+        await asyncio.sleep(self._backoff_base_seconds * (2**attempt))
 
 
 OrderRecord = Order
