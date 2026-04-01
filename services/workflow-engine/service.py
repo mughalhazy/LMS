@@ -45,6 +45,7 @@ TenantPaymentContext = _PaymentsBaseModule.TenantPaymentContext
 SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
 
 WorkflowStepType = Literal["notify", "wait", "escalate", "academy_ops", "payment", "action_item"]
+WHATSAPP_OPERATIONS_CAPABILITY = "communication.whatsapp.operations"
 
 
 @dataclass(frozen=True)
@@ -481,6 +482,7 @@ class WorkflowEngine:
             "workflow_action": workflow_action,
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "capability": WHATSAPP_OPERATIONS_CAPABILITY,
         }
 
     def _route_admin_command(self, *, tenant_id: str, user_id: str, raw_message: str) -> dict[str, Any]:
@@ -511,6 +513,7 @@ class WorkflowEngine:
             "action_item_id": action.action_id,
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "capability": WHATSAPP_OPERATIONS_CAPABILITY,
         }
 
     def run_due(self, *, now: datetime | None = None) -> dict[str, Any]:
@@ -591,6 +594,7 @@ class WorkflowEngine:
                         "deliveries": deliveries,
                         "template_name": template_name,
                         "routing_order": routing_order,
+                        "capability": WHATSAPP_OPERATIONS_CAPABILITY,
                     }
                 elif item.step.step_type in {"wait", "escalate"}:
                     result = {"status": "orchestrated", "action": item.step.step_type, "detail": item.step.config}
@@ -807,4 +811,6 @@ class WorkflowEngine:
             "academy_sor_contract": contract_summary["academy_to_system_of_record"],
             "workflow_notifications_contract": contract_summary["workflow_to_notifications"],
             "no_broken_dependencies": all(contract_summary.values()),
+            "whatsapp_operational_loop_ready": can_handle_event_envelopes and multi_step_execution_enabled and integration_ready["notification"],
+            "whatsapp_operations_capability": WHATSAPP_OPERATIONS_CAPABILITY,
         }
