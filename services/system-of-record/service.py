@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import builtins
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,38 @@ FinancialState = _ModelsModule.FinancialState
 LedgerEntry = _ModelsModule.LedgerEntry
 LifecycleTransitionError = _ModelsModule.LifecycleTransitionError
 UnifiedStudentProfile = _ModelsModule.UnifiedStudentProfile
+_UnifiedStudentProfileModel = _ModelsModule.UnifiedStudentProfile
+
+
+class StudentLifecycleState(str, Enum):
+    ENROLLED = "enrolled"
+    ACTIVE = "active"
+    SUSPENDED = "paused"
+    GRADUATED = "completed"
+    WITHDRAWN = "dropped"
+
+
+builtins.StudentLifecycleState = StudentLifecycleState
+
+
+def UnifiedStudentProfile(**kwargs: Any) -> _UnifiedStudentProfileModel:
+    metadata = dict(kwargs.pop("metadata", {}) or {})
+    full_name = kwargs.pop("full_name", "").strip() or kwargs.pop("display_name", "").strip() or "Learner"
+    email = kwargs.pop("email", "").strip()
+    if email:
+        metadata.setdefault("email", email)
+    country_code = kwargs.pop("country_code", "").strip()
+    if country_code:
+        metadata.setdefault("country_code", country_code)
+    segment_id = kwargs.pop("segment_id", "").strip()
+    if segment_id:
+        metadata.setdefault("segment_id", segment_id)
+    return _UnifiedStudentProfileModel(
+        student_id=kwargs["student_id"],
+        tenant_id=kwargs["tenant_id"],
+        full_name=full_name,
+        metadata=metadata,
+    )
 
 
 class SystemOfRecordService:
@@ -135,6 +169,9 @@ class SystemOfRecordService:
 
     def get_student_profile(self, *, tenant_id: str, student_id: str) -> UnifiedStudentProfile | None:
         return self._profiles.get(self._profile_key(tenant_id=tenant_id, student_id=student_id))
+
+    def list_student_profiles(self, *, tenant_id: str) -> tuple[UnifiedStudentProfile, ...]:
+        return tuple(profile for (profile_tenant_id, _), profile in self._profiles.items() if profile_tenant_id == tenant_id)
 
     def update_academic_state(
         self,
@@ -231,6 +268,52 @@ class SystemOfRecordService:
             status=status_map[state],
         )
 
+    def on_enrollment_created(self, *, tenant_id: str, student_id: str, learning_object_id: str = "", enrollment_id: str = "") -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="enrolled")
+        metadata = dict(profile.metadata)
+        if learning_object_id:
+            metadata["learning_object_id"] = learning_object_id
+        if enrollment_id:
+            metadata["enrollment_id"] = enrollment_id
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_learning_started(self, *, tenant_id: str, student_id: str, enrollment_id: str = "") -> UnifiedStudentProfile:
+        return self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="active")
+
+    def on_progress_milestone(
+        self, *, tenant_id: str, student_id: str, milestone_key: str, progress_percentage: float
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        metadata = dict(profile.metadata)
+        metadata[f"milestone.{milestone_key}"] = str(progress_percentage)
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_completion(self, *, tenant_id: str, student_id: str, completion_ref: str = "") -> UnifiedStudentProfile:
+        profile = self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="completed")
+        metadata = dict(profile.metadata)
+        if completion_ref:
+            metadata["completion_ref"] = completion_ref
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_pause(self, *, tenant_id: str, student_id: str, reason: str = "") -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        if profile.lifecycle_state in {"completed", "dropped"}:
+            raise LifecycleTransitionError("cannot pause terminal lifecycle state")
+        return self.update_academic_state(tenant_id=tenant_id, student_id=student_id, status=AcademicStatus.PAUSED, notes=reason)
+
+    def on_dropout(self, *, tenant_id: str, student_id: str, reason: str = "") -> UnifiedStudentProfile:
+        return self.update_academic_state(tenant_id=tenant_id, student_id=student_id, status=AcademicStatus.DROPPED, notes=reason)
+
     def register_academy_enrollment(self, enrollment: AcademyEnrollment) -> None:
         key = self._profile_key(tenant_id=enrollment.tenant_id, student_id=enrollment.learner_id)
         self._academic_enrollments.setdefault(key, []).append(enrollment)
@@ -326,12 +409,51 @@ class SystemOfRecordService:
         self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
         return updated
 
+    def record_attendance(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        batch_id: str,
+        class_session_id: str,
+        status: str,
+        attendance_rate: Decimal,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        records = self._attendance.setdefault(self._profile_key(tenant_id=tenant_id, student_id=student_id), [])
+        records.append({"batch_id": batch_id, "class_session_id": class_session_id, "status": status})
+        missed = sum(1 for entry in records if entry["status"] == "absent")
+        attended = len(records) - missed
+        metadata = dict(profile.metadata)
+        metadata["attendance.last_status"] = status
+        metadata["attendance.last_session_id"] = class_session_id
+        updated = replace(
+            profile,
+            attendance_summary=_ModelsModule.AttendanceSummary(
+                attended_sessions=attended,
+                missed_sessions=missed,
+                attendance_rate=Decimal(attendance_rate),
+            ),
+            metadata=metadata,
+        )
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
         return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.posted_at))
 
     def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
         return sum((e.amount for e in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)), start=Decimal("0"))
+
+    def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            return False
+        computed_balance = self.get_student_balance(tenant_id=tenant_id, student_id=student_id)
+        return profile.financial_state.current_balance == computed_balance
 
     def _refresh_ledger_summary(self, tenant_id: str, student_id: str) -> None:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)

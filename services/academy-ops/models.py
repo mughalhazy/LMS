@@ -6,7 +6,13 @@ from decimal import Decimal
 from enum import Enum
 
 from shared.models.branch import Branch, BranchStatus
-from shared.models.timetable import TimetableSlotStatus
+from shared.models.timetable import TimetableSlot, TimetableSlotStatus
+
+
+class BatchStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    COMPLETED = "completed"
 
 
 class TeacherRole(str, Enum):
@@ -24,6 +30,16 @@ class Batch:
     start_date: date
     end_date: date
     learner_ids: tuple[str, ...] = ()
+    teacher_ids: tuple[str, ...] = ()
+    course_id: str = ""
+    timetable_id: str = ""
+    capacity: int = 1
+    status: BatchStatus = BatchStatus.ACTIVE
+    metadata: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def student_ids(self) -> tuple[str, ...]:
+        return self.learner_ids
 
 
 @dataclass(frozen=True)
@@ -39,21 +55,6 @@ class TeacherAssignment:
 
 
 @dataclass(frozen=True)
-class TimetableSlot:
-    tenant_id: str
-    branch_id: str
-    batch_id: str
-    slot_id: str
-    teacher_id: str
-    day_of_week: str
-    start_time: time
-    end_time: time
-    room_or_virtual_link: str
-    recurrence_rule: str
-    status: TimetableSlotStatus = TimetableSlotStatus.SCHEDULED
-
-
-@dataclass(frozen=True)
 class AttendanceRecord:
     attendance_id: str
     tenant_id: str
@@ -65,6 +66,10 @@ class AttendanceRecord:
     status: str
     notes: str = ""
     marked_at: datetime = field(default_factory=datetime.utcnow)
+
+    @property
+    def learner_id(self) -> str:
+        return self.student_id
 
 
 @dataclass(frozen=True)
