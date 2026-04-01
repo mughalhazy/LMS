@@ -167,3 +167,66 @@ def test_orchestration_accepts_async_callback() -> None:
     assert updated is not None
     assert updated.status == "verified"
     assert updated.verified is True
+
+
+def test_callback_routes_to_verify_and_emits_payment_verified_event() -> None:
+    class VerifyingRouter:
+        def __init__(self) -> None:
+            self.verify_calls = 0
+
+        def process_checkout(self, *, tenant: object, amount: int, invoice_id: str | None = None) -> PaymentResult:
+            assert isinstance(tenant, TenantPaymentContext)
+            return PaymentResult(ok=True, status="success", provider="jazzcash", payment_id="jz_txn_1", invoice_id=invoice_id)
+
+        def verify(self, *, tenant: TenantPaymentContext, provider: str, payment_id: str) -> PaymentVerificationResult:
+            self.verify_calls += 1
+            return PaymentVerificationResult(ok=True, status="verified", payment_id=payment_id, provider=provider, error=None)
+
+        def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
+            return PaymentVerificationResult(ok=True, status="verified", payment_id=str(payload["payment_id"]), provider=provider, error=None)
+
+    router = VerifyingRouter()
+    orchestrator = PaymentOrchestrationService(router=router)
+    tenant = TenantPaymentContext(tenant_id="user_123", country_code="PK")
+    created = orchestrator.process_checkout_payment(idempotency_key="idem_evt_1", tenant=tenant, amount=2000, currency="PKR", invoice_id="ord_123")
+
+    updated = asyncio.run(
+        orchestrator.handle_provider_callback(
+            provider="jazzcash",
+            payload={"provider": "jazzcash", "payment_id": created.payment_id, "status": "success", "user_id": "user_123", "order_id": "ord_123"},
+        )
+    )
+
+    assert updated is not None
+    assert router.verify_calls == 1
+    events = orchestrator.get_emitted_payment_verified_events()
+    assert len(events) == 1
+    assert events[0].transaction_id == created.payment_id
+    assert events[0].status == "verified"
+    assert events[0].user_id == "user_123"
+    assert events[0].order_id == "ord_123"
+
+
+def test_duplicate_callback_is_idempotent_and_duplicate_safe() -> None:
+    orchestrator = PaymentOrchestrationService(router=build_pakistan_payment_router(default_provider="jazzcash"))
+    payment_id = "jz_duplicate_1"
+
+    first = asyncio.run(
+        orchestrator.handle_provider_callback(
+            provider="jazzcash",
+            payload={"provider": "jazzcash", "payment_id": payment_id, "status": "success", "user_id": "user_duplicate", "order_id": "order_duplicate"},
+        )
+    )
+    second = asyncio.run(
+        orchestrator.handle_provider_callback(
+            provider="jazzcash",
+            payload={"provider": "jazzcash", "payment_id": payment_id, "status": "success", "user_id": "user_duplicate", "order_id": "order_duplicate"},
+        )
+    )
+
+    assert first is not None and second is not None
+    assert first.status == "verified"
+    assert second.status == "verified"
+    events = orchestrator.get_emitted_payment_verified_events()
+    assert len(events) == 1
+    assert events[0].transaction_id == payment_id
