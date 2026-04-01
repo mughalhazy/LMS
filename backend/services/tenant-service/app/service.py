@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
+import os
 from functools import lru_cache
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -36,6 +38,33 @@ def resolve_subscription_plan(plan_type: str):
     except RuntimeError:
         return None
     return module.resolve_plan(plan_type)
+
+
+
+def _plan_capability_mapping() -> dict[str, set[str]]:
+    raw_payload = os.getenv("SUBSCRIPTION_PLAN_CAPABILITIES_JSON", "")
+    if not raw_payload.strip():
+        return {}
+    try:
+        parsed = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+
+    mapping: dict[str, set[str]] = {}
+    for plan_key, capabilities in parsed.items():
+        if not isinstance(plan_key, str) or not isinstance(capabilities, list):
+            continue
+        normalized_plan = plan_key.strip().lower()
+        if not normalized_plan:
+            continue
+        mapping[normalized_plan] = {
+            capability.strip()
+            for capability in capabilities
+            if isinstance(capability, str) and capability.strip()
+        }
+    return mapping
 
 DEFAULT_EFFECTIVE_SETTINGS = {
     "security.require_mfa": True,
@@ -137,6 +166,10 @@ class TenantService:
 
     def get_tenant_capabilities(self, tenant_id: str) -> set[str]:
         tenant = self.get_tenant(tenant_id)
+        plan_mapping = _plan_capability_mapping()
+        if tenant.plan_type.lower() in plan_mapping:
+            return plan_mapping[tenant.plan_type.lower()]
+
         capabilities: set[str] = set()
         context = TenantEntitlementContext(
             tenant_id=tenant.tenant_id,
@@ -222,7 +255,7 @@ class TenantService:
 
     def effective_settings(self, tenant: Tenant, include_defaults: bool) -> dict:
         cfg = asdict(tenant.configuration)
-        country_behavior = self._resolve_profile_overrides(cfg.get("country_behavior_profiles", {}))
+        country_behavior = self._resolve_profile_overrides(tenant.country_code, cfg.get("country_behavior_profiles", {}))
         if include_defaults:
             merged = DEFAULT_EFFECTIVE_SETTINGS.copy()
             merged.update(cfg.get("security_baseline", {}))
@@ -232,7 +265,11 @@ class TenantService:
         cfg.update(country_behavior)
         return cfg
 
-    def _resolve_profile_overrides(self, profiles: dict[str, dict[str, str]]) -> dict[str, str]:
+    def _resolve_profile_overrides(self, country_code: str, profiles: dict[str, dict[str, str]]) -> dict[str, str]:
         normalized_profiles = {key.upper(): value for key, value in profiles.items() if isinstance(value, dict)}
-        profile = normalized_profiles.get(SETTINGS_PROFILE_DEFAULT_KEY.upper(), {})
-        return {key: value for key, value in profile.items() if key in SETTINGS_PROFILE_FIELDS}
+        default_profile = normalized_profiles.get(SETTINGS_PROFILE_DEFAULT_KEY.upper(), {})
+        country_profile = normalized_profiles.get(country_code.upper(), {})
+
+        resolved = {key: value for key, value in default_profile.items() if key in SETTINGS_PROFILE_FIELDS}
+        resolved.update({key: value for key, value in country_profile.items() if key in SETTINGS_PROFILE_FIELDS})
+        return resolved

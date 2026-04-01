@@ -62,7 +62,7 @@ class Tenant:
             tenant_id=self.tenant_id,
             name=self.name,
             country_code=self.country_code,
-            segment_type=self.segment_type,
+            segment_context={"type": self.segment_type, "attributes": {}},
             plan_type=self.plan_type,
             addon_flags=self.addon_flags,
         ).normalized()
