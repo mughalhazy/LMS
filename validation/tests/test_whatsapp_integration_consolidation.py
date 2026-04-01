@@ -22,10 +22,8 @@ def _load_module(module_name: str, relative_path: str):
 
 
 WorkflowModule = _load_module("workflow_whatsapp_validation_module", "services/workflow-engine/service.py")
-NotificationModule = _load_module("notification_whatsapp_validation_module", "services/notification-service/orchestration.py")
 
 WorkflowEngine = WorkflowModule.WorkflowEngine
-NotificationOrchestrator = NotificationModule.NotificationOrchestrator
 
 
 def test_attendance_and_fee_events_route_to_whatsapp_without_duplicate_sends() -> None:
@@ -98,21 +96,48 @@ def test_attendance_and_fee_events_route_to_whatsapp_without_duplicate_sends() -
 
 
 def test_whatsapp_replies_are_mapped_to_actions() -> None:
-    orchestrator = NotificationOrchestrator()
-    orchestrator.register_phone_user(phone="+1 (555) 000-1111", user_id="parent-1")
+    engine = WorkflowEngine()
+    engine.register_phone_user(phone="+1 (555) 000-1111", user_id="parent-1")
 
-    attendance_reply = orchestrator.handle_inbound_whatsapp(
-        source_phone="+1 (555) 000-1111",
-        reply="WF:wf_default_attendance|OP:attendance|ACTION:confirm",
-        provider_verified=True,
+    attendance_reply = engine.handle_inbound_whatsapp_envelope(
+        {
+            "tenant_id": "tenant-whatsapp",
+            "source_phone": "+1 (555) 000-1111",
+            "message": "WF:wf_default_attendance|OP:attendance|ACTION:confirm",
+            "provider_verified": True,
+        }
     )
     assert attendance_reply["status"] == "accepted"
     assert attendance_reply["routed_action"] == "confirm_attendance"
+    assert attendance_reply["workflow_action"] == "attendance_confirmation_received"
 
-    fee_reply = orchestrator.handle_inbound_whatsapp(
-        source_phone="+1 (555) 000-1111",
-        reply="WF:wf_default_fees|OP:fee|ACTION:ack",
-        provider_verified=True,
+    fee_reply = engine.handle_inbound_whatsapp_envelope(
+        {
+            "tenant_id": "tenant-whatsapp",
+            "source_phone": "+1 (555) 000-1111",
+            "message": "WF:wf_default_fees|OP:fee|ACTION:ack",
+            "provider_verified": True,
+        }
     )
     assert fee_reply["status"] == "accepted"
     assert fee_reply["routed_action"] == "acknowledge_reminder"
+    assert fee_reply["workflow_action"] == "fee_interaction_acknowledged"
+
+
+def test_whatsapp_admin_commands_are_routed_deterministically_via_workflow_engine() -> None:
+    engine = WorkflowEngine()
+    engine.register_phone_user(phone="+1 (555) 222-3333", user_id="admin-1")
+
+    admin_reply = engine.handle_inbound_whatsapp_envelope(
+        {
+            "tenant_id": "tenant-whatsapp",
+            "source_phone": "+1 (555) 222-3333",
+            "message": "ADMIN:fees status",
+            "provider_verified": True,
+        }
+    )
+
+    assert admin_reply["status"] == "accepted"
+    assert admin_reply["routed_action"] == "admin_command"
+    assert admin_reply["workflow_action"] == "admin_fee_status_lookup"
+    assert "action_item_id" in admin_reply
