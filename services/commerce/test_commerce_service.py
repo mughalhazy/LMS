@@ -157,6 +157,29 @@ def test_capability_monetization_add_on_usage_and_plan_mapping() -> None:
     assert commerce.monetization.validate_no_orphaned_monetized_capabilities() == (True, set())
 
 
+def test_add_on_enablement_flow_lists_eligible_purchase_and_revoke() -> None:
+    router = PaymentProviderRouter({"PK": "mock_success"}, [MockSuccessAdapter()])
+    commerce = CommerceService(payment_orchestrator=PaymentOrchestrationService(router=router), payment_country_code="PK")
+    tenant = TenantEntitlementContext(
+        tenant_id="tenant_pk_addon",
+        plan_type="growth_academy",
+        add_ons=tuple(),
+        country_code="PK",
+        segment_id="academy",
+    )
+    commerce.entitlement_service.upsert_tenant_context(tenant)
+
+    eligible = commerce.monetization.list_eligible_add_ons_for_tenant(tenant=tenant)
+    assert {item.addon_id for item in eligible} >= {"owner_analytics"}
+
+    commerce.monetization.purchase_add_on(tenant=tenant, addon_id="owner_analytics", actor_id="test_actor")
+    assert commerce.entitlement_service.is_enabled(tenant, "owner_analytics") is True
+    assert commerce.subscription_service.get_add_on_activation_audit_log("tenant_pk_addon")[0]["actor_id"] == "test_actor"
+
+    commerce.monetization.revoke_add_on(tenant_id="tenant_pk_addon", addon_id="owner_analytics", reason="expired")
+    assert commerce.entitlement_service.is_enabled(tenant, "owner_analytics") is False
+
+
 def test_pakistan_payment_router_connection_for_commerce_orchestration() -> None:
     from services.commerce.service import build_commerce_service_for_pakistan
 
