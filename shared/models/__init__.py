@@ -27,6 +27,7 @@ from .config import (
 from .timetable import AttendanceSessionEvent, TimetableSlot, TimetableSlotStatus
 from .template import Template
 from .operations_dashboard import action_item, alert_card, dashboard_summary, priority_bucket
+from .owner_economics import OwnerEconomicsSnapshot
 
 __all__ = [
     "Invoice",
@@ -64,4 +65,5 @@ __all__ = [
     "alert_card",
     "action_item",
     "priority_bucket",
+    "OwnerEconomicsSnapshot",
 ]
