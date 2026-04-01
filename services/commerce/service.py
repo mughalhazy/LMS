@@ -44,7 +44,7 @@ EntitlementService = _EntitlementModule.EntitlementService
 
 
 class CommerceService:
-    def __init__(self, *, payment_orchestrator: PaymentOrchestrationService) -> None:
+    def __init__(self, *, payment_orchestrator: PaymentOrchestrationService, payment_country_code: str = "US") -> None:
         self.catalog = CatalogService()
         self.billing = BillingService()
         self.subscription_service = SubscriptionService()
@@ -57,6 +57,7 @@ class CommerceService:
             entitlement_service=self.entitlement_service,
         )
         self._payment_orchestrator = payment_orchestrator
+        self._payment_country_code = payment_country_code.upper()
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
@@ -93,14 +94,17 @@ class CommerceService:
         return self.monetization.quote_product_amount(product)
 
     def _execute_payment(self, tenant_id: str, learner_id: str, amount: Decimal, currency: str, attempt: int, idempotency_key: str) -> tuple[bool, str | None, bool]:
-        config = self.config_service.resolve(ConfigResolutionContext(tenant_id=tenant_id, country_code="US", segment_id="academy"))
+        config = self.config_service.resolve(
+            ConfigResolutionContext(tenant_id=tenant_id, country_code=self._payment_country_code, segment_id="academy")
+        )
         max_attempts = int(config.behavior_tuning.get("commerce.checkout.max_payment_retries", 2)) + 1
         if attempt >= max_attempts:
             return False, None, False
 
+        country_code = "PK" if currency.upper() == "PKR" else self._payment_country_code
         entry = self._payment_orchestrator.process_checkout_payment(
             idempotency_key=f"{tenant_id}:{learner_id}:{idempotency_key}:{attempt}",
-            tenant=TenantPaymentContext(tenant_id=tenant_id, country_code="US"),
+            tenant=TenantPaymentContext(tenant_id=tenant_id, country_code=country_code),
             amount=int(amount * 100),
             currency=currency,
         )
@@ -184,4 +188,7 @@ class CommerceService:
 def build_commerce_service_for_pakistan(default_provider: str = "jazzcash") -> CommerceService:
     from integrations.payments.orchestration import build_pakistan_payment_orchestration
 
-    return CommerceService(payment_orchestrator=build_pakistan_payment_orchestration(default_provider=default_provider))
+    return CommerceService(
+        payment_orchestrator=build_pakistan_payment_orchestration(default_provider=default_provider),
+        payment_country_code="PK",
+    )

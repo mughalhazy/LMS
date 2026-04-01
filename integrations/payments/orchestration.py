@@ -283,6 +283,11 @@ class PaymentOrchestrationService:
             )
         )
 
+    def _sleep_with_backoff(self, *, attempt: int) -> None:
+        if self._backoff_base_seconds <= 0:
+            return
+        time.sleep(self._backoff_base_seconds * (2**attempt))
+
 
 def build_pakistan_payment_router(default_provider: str = "jazzcash") -> PaymentProviderRouter:
     return PaymentProviderRouter(country_provider_config={"PK": default_provider}, adapters=[JazzCashAdapter(), EasyPaisaAdapter(), RaastAdapter()])

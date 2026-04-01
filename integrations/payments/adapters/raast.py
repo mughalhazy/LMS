@@ -60,7 +60,7 @@ class RaastAdapter:
             invoice_id=invoice_id,
         )
 
-    def get_status(self, *, reference_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
+    def _status_from_reference(self, *, reference_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         _ = tenant
         record = self._records_by_reference.get(reference_id)
         if record is None:
@@ -94,7 +94,7 @@ class RaastAdapter:
 
     def verify_payment(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
         reference_id = payment_id.removeprefix("rs_")
-        by_reference = self.get_status(reference_id=reference_id, tenant=tenant)
+        by_reference = self._status_from_reference(reference_id=reference_id, tenant=tenant)
         if by_reference.error != "reference_not_found":
             return by_reference
 
@@ -105,10 +105,25 @@ class RaastAdapter:
             provider=self.provider_key,
             error=None if payment_id.startswith("rs_") else "verification_failed",
         )
-
-
-    def get_status(self, *, payment_id: str, tenant: TenantPaymentContext) -> PaymentVerificationResult:
-        return self.verify_payment(payment_id=payment_id, tenant=tenant)
+    def get_status(
+        self,
+        *,
+        payment_id: str | None = None,
+        reference_id: str | None = None,
+        tenant: TenantPaymentContext,
+    ) -> PaymentVerificationResult:
+        resolved_reference = reference_id
+        if resolved_reference is None and payment_id is not None:
+            resolved_reference = payment_id.removeprefix("rs_")
+        if resolved_reference is None:
+            return PaymentVerificationResult(
+                ok=False,
+                status="failed",
+                payment_id=payment_id or "rs_unknown",
+                provider=self.provider_key,
+                error="missing_reference_or_payment_id",
+            )
+        return self._status_from_reference(reference_id=resolved_reference, tenant=tenant)
 
     def parse_callback(self, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         if payload.get("provider") != self.provider_key:
