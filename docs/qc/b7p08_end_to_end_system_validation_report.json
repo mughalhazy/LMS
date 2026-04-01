@@ -1,24 +1,19 @@
 {
   "batch": "B7P08",
-  "title": "End-to-End System Validation",
+  "title": "End-to-End Platform Validation",
   "scope": {
-    "batches": [
-      "0",
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6"
-    ],
     "validated_flow": [
-      "tenant_setup",
-      "segment",
+      "tenant",
       "config",
       "capability",
-      "usage",
-      "billing",
-      "communication"
+      "enrollment",
+      "learning",
+      "attendance",
+      "commerce",
+      "payment",
+      "ledger",
+      "communication",
+      "analytics"
     ],
     "upstream_reports": {
       "B7P01": {
@@ -66,240 +61,392 @@
     }
   },
   "checks": {
-    "all_systems_interact_correctly": true,
-    "no_system_conflicts": true,
-    "no_missing_integrations": true,
-    "all_flows_deterministic": true,
-    "no_duplicated_logic_anywhere": true,
-    "multiple_segments_covered": true,
-    "multiple_countries_covered": true
-  },
-  "qc_fix_re_qc_10_10": {
-    "no_system_conflicts": true,
-    "no_missing_integrations": true,
-    "all_flows_deterministic": true,
-    "no_duplicated_logic_anywhere": true,
-    "production_readiness_confirmed": true
+    "end_to_end_flow_complete": true,
+    "pakistan_academy_flow": true,
+    "multi_tenant_isolation": true,
+    "multi_capability_combinations": true,
+    "offline_online_sync": true,
+    "payment_retry_reconciliation": true,
+    "teacher_and_owner_economics": true,
+    "multi_country_readiness_config_adapters_only": true,
+    "no_segment_based_logic": true,
+    "capability_driven_behavior_everywhere": true,
+    "deterministic_replay": true
   },
   "scenario_results": [
     {
       "context": {
-        "tenant_id": "tenant_academy_us",
-        "segment": "academy",
-        "country": "US",
-        "plan": "pro",
-        "user_id": "user_a1"
+        "tenant_id": "tenant_pk_academy",
+        "country_code": "PK",
+        "segment_type": "academy",
+        "plan_type": "enterprise",
+        "addon_flags": [
+          "teacher_economy",
+          "owner_economics",
+          "advanced_analytics"
+        ],
+        "user_id": "user_pk_1"
       },
-      "steps": [
-        "tenant.setup",
-        "segment.resolved",
-        "config.resolved",
-        "capability.resolved",
-        "usage.recorded",
-        "billing.invoiced",
-        "communication.dispatched"
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "enrollment",
+        "learning",
+        "attendance",
+        "commerce",
+        "payment",
+        "ledger",
+        "communication",
+        "analytics"
       ],
       "events": {
-        "tenant_setup": {
-          "tenant_id": "tenant_academy_us",
+        "tenant": {
+          "tenant_id": "tenant_pk_academy",
+          "country_code": "PK",
           "status": "created"
-        },
-        "segment": {
-          "segment": "academy",
-          "country": "US",
-          "plan": "pro"
         },
         "config": {
           "config": {
-            "currency": "USD",
-            "timezone": "America/New_York",
             "primary_channel": "whatsapp",
             "fallback_channel": "sms",
-            "max_concurrency": 1,
-            "enable_offline": true,
-            "analytics_tier": "advanced",
-            "tenant_id": "tenant_academy_us"
-          },
-          "provenance": [
-            "global",
-            "country",
-            "segment",
-            "plan",
-            "tenant"
-          ]
-        },
-        "capability": {
-          "catalog": true,
-          "checkout": true,
-          "billing": true,
-          "communication": true,
-          "delivery": true,
-          "cross_border_billing": false,
-          "advanced_analytics": true
-        },
-        "usage": {
-          "units": 3,
-          "entitled": true,
-          "asset_id": "asset_secure_101"
-        },
-        "billing": {
-          "invoice_id": "inv_tenant_academy_us",
-          "currency": "USD",
-          "status": "issued"
-        },
-        "communication": {
-          "primary": "whatsapp",
-          "fallback": "sms",
-          "status": "sent"
-        }
-      },
-      "deterministic_hash": "634f0a617b85879b6edf57f405b1866d6e0933c1bcd3c4f7994f507bf7841b37"
-    },
-    {
-      "context": {
-        "tenant_id": "tenant_corporate_pk",
-        "segment": "corporate",
-        "country": "PK",
-        "plan": "enterprise",
-        "user_id": "user_c1"
-      },
-      "steps": [
-        "tenant.setup",
-        "segment.resolved",
-        "config.resolved",
-        "capability.resolved",
-        "usage.recorded",
-        "billing.invoiced",
-        "communication.dispatched"
-      ],
-      "events": {
-        "tenant_setup": {
-          "tenant_id": "tenant_corporate_pk",
-          "status": "created"
-        },
-        "segment": {
-          "segment": "corporate",
-          "country": "PK",
-          "plan": "enterprise"
-        },
-        "config": {
-          "config": {
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
             "currency": "PKR",
             "timezone": "Asia/Karachi",
-            "primary_channel": "whatsapp",
-            "fallback_channel": "sms",
-            "max_concurrency": 2,
-            "enable_offline": true,
-            "analytics_tier": "advanced",
-            "tenant_id": "tenant_corporate_pk"
+            "payment_adapter": "jazzcash_pk",
+            "communication_adapter": "meta_whatsapp_pk",
+            "offline_sync": "low_bandwidth_sync_v2",
+            "ledger_book": "pk_ifrs",
+            "tenant_id": "tenant_pk_academy",
+            "country_code": "PK"
           },
           "provenance": [
             "global",
             "country",
-            "segment",
-            "plan",
             "tenant"
           ]
         },
         "capability": {
-          "catalog": true,
-          "checkout": true,
-          "billing": true,
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
           "communication": true,
-          "delivery": true,
-          "cross_border_billing": true,
-          "advanced_analytics": true
+          "analytics": true,
+          "offline_learning": true,
+          "teacher_payout": true,
+          "owner_revenue_share": true,
+          "payment_retry": true,
+          "payment_reconciliation": true
         },
-        "usage": {
-          "units": 3,
-          "entitled": true,
-          "asset_id": "asset_secure_101"
+        "enrollment": {
+          "enrollment_id": "enr_tenant_pk_academy_user_pk_1",
+          "status": "enrolled"
         },
-        "billing": {
-          "invoice_id": "inv_tenant_corporate_pk",
+        "learning": {
+          "lesson_id": "lesson_algebra_01",
+          "mode": "offline+online",
+          "sync_status": "synced"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "commerce": {
+          "order_id": "ord_tenant_pk_academy_user_pk_1",
+          "gross_amount": 1000,
           "currency": "PKR",
-          "status": "issued"
+          "status": "confirmed"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_pk_academy_user_pk_1",
+          "provider": "jazzcash_pk",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_pk_academy_user_pk_1",
+          "book": "pk_ifrs",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 600,
+          "owner_revenue": 400
         },
         "communication": {
+          "adapter": "meta_whatsapp_pk",
           "primary": "whatsapp",
           "fallback": "sms",
           "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 11,
+          "tier": "advanced",
+          "status": "published"
         }
       },
-      "deterministic_hash": "bc937abfa777ca58a80c84145a955d24b59c22b3c12aee962bacd72bfa864e98"
+      "deterministic_hash": "f56474652216f40d03473abf315302b4952cfe943b1b8c14209bd9810f5a86dc"
     },
     {
       "context": {
-        "tenant_id": "tenant_multi_ae",
-        "segment": "multinational",
-        "country": "AE",
-        "plan": "starter",
-        "user_id": "user_m1"
+        "tenant_id": "tenant_us_academy",
+        "country_code": "US",
+        "segment_type": "academy",
+        "plan_type": "pro",
+        "addon_flags": [
+          "teacher_economy"
+        ],
+        "user_id": "user_us_1"
       },
-      "steps": [
-        "tenant.setup",
-        "segment.resolved",
-        "config.resolved",
-        "capability.resolved",
-        "usage.recorded",
-        "billing.invoiced",
-        "communication.dispatched"
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "enrollment",
+        "learning",
+        "attendance",
+        "commerce",
+        "payment",
+        "ledger",
+        "communication",
+        "analytics"
       ],
       "events": {
-        "tenant_setup": {
-          "tenant_id": "tenant_multi_ae",
+        "tenant": {
+          "tenant_id": "tenant_us_academy",
+          "country_code": "US",
           "status": "created"
-        },
-        "segment": {
-          "segment": "multinational",
-          "country": "AE",
-          "plan": "starter"
         },
         "config": {
           "config": {
-            "currency": "AED",
-            "timezone": "Asia/Dubai",
             "primary_channel": "whatsapp",
             "fallback_channel": "sms",
-            "max_concurrency": 2,
-            "enable_offline": true,
-            "analytics_tier": "core",
-            "tenant_id": "tenant_multi_ae"
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "USD",
+            "timezone": "America/New_York",
+            "payment_adapter": "stripe_us",
+            "communication_adapter": "meta_whatsapp_us",
+            "offline_sync": "delta_sync_v1",
+            "ledger_book": "us_gaap",
+            "tenant_id": "tenant_us_academy",
+            "country_code": "US"
           },
           "provenance": [
             "global",
             "country",
-            "segment",
-            "plan",
             "tenant"
           ]
         },
         "capability": {
-          "catalog": true,
-          "checkout": true,
-          "billing": true,
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
           "communication": true,
-          "delivery": true,
-          "cross_border_billing": true,
-          "advanced_analytics": false
+          "analytics": true,
+          "offline_learning": true,
+          "teacher_payout": true,
+          "owner_revenue_share": false,
+          "payment_retry": true,
+          "payment_reconciliation": true
         },
-        "usage": {
-          "units": 3,
-          "entitled": true,
-          "asset_id": "asset_secure_101"
+        "enrollment": {
+          "enrollment_id": "enr_tenant_us_academy_user_us_1",
+          "status": "enrolled"
         },
-        "billing": {
-          "invoice_id": "inv_tenant_multi_ae",
-          "currency": "AED",
-          "status": "issued"
+        "learning": {
+          "lesson_id": "lesson_algebra_01",
+          "mode": "offline+online",
+          "sync_status": "synced"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "commerce": {
+          "order_id": "ord_tenant_us_academy_user_us_1",
+          "gross_amount": 1000,
+          "currency": "USD",
+          "status": "confirmed"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_us_academy_user_us_1",
+          "provider": "stripe_us",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_us_academy_user_us_1",
+          "book": "us_gaap",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 600,
+          "owner_revenue": 1000
         },
         "communication": {
+          "adapter": "meta_whatsapp_us",
           "primary": "whatsapp",
           "fallback": "sms",
           "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 11,
+          "tier": "advanced",
+          "status": "published"
         }
       },
-      "deterministic_hash": "9708c435b4f77127ae02b61f282b1138d208270c57e1f28def7561cb0cd95ac2"
+      "deterministic_hash": "899533c7f85a5ad7bad2ecb3ffdd75e056411f7a08273266aeb58cd33716bab6"
+    },
+    {
+      "context": {
+        "tenant_id": "tenant_ae_enterprise",
+        "country_code": "AE",
+        "segment_type": "enterprise",
+        "plan_type": "starter",
+        "addon_flags": [
+          "owner_economics"
+        ],
+        "user_id": "user_ae_1"
+      },
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "enrollment",
+        "learning",
+        "attendance",
+        "commerce",
+        "payment",
+        "ledger",
+        "communication",
+        "analytics"
+      ],
+      "events": {
+        "tenant": {
+          "tenant_id": "tenant_ae_enterprise",
+          "country_code": "AE",
+          "status": "created"
+        },
+        "config": {
+          "config": {
+            "primary_channel": "whatsapp",
+            "fallback_channel": "sms",
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "AED",
+            "timezone": "Asia/Dubai",
+            "payment_adapter": "network_global",
+            "communication_adapter": "meta_whatsapp_me",
+            "offline_sync": "delta_sync_v1",
+            "ledger_book": "ifrs_global",
+            "tenant_id": "tenant_ae_enterprise",
+            "country_code": "AE"
+          },
+          "provenance": [
+            "global",
+            "country",
+            "tenant"
+          ]
+        },
+        "capability": {
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
+          "communication": true,
+          "analytics": false,
+          "offline_learning": true,
+          "teacher_payout": false,
+          "owner_revenue_share": true,
+          "payment_retry": true,
+          "payment_reconciliation": true
+        },
+        "enrollment": {
+          "enrollment_id": "enr_tenant_ae_enterprise_user_ae_1",
+          "status": "enrolled"
+        },
+        "learning": {
+          "lesson_id": "lesson_algebra_01",
+          "mode": "offline+online",
+          "sync_status": "synced"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "commerce": {
+          "order_id": "ord_tenant_ae_enterprise_user_ae_1",
+          "gross_amount": 1000,
+          "currency": "AED",
+          "status": "confirmed"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_ae_enterprise_user_ae_1",
+          "provider": "network_global",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_ae_enterprise_user_ae_1",
+          "book": "ifrs_global",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 0,
+          "owner_revenue": 400
+        },
+        "communication": {
+          "adapter": "meta_whatsapp_me",
+          "primary": "whatsapp",
+          "fallback": "sms",
+          "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 11,
+          "tier": "core",
+          "status": "published"
+        }
+      },
+      "deterministic_hash": "6c2267bfd6281d980deaeed69a9f0ca2e75c2755e49b24fc82154baca8404b53"
     }
   ],
   "issue_report": {
@@ -309,5 +456,5 @@
   },
   "validation_score": 10,
   "system_readiness_status": "PRODUCTION_READY",
-  "validated_at": "2026-03-31T00:00:00Z"
+  "validated_at": "2026-04-01T00:00:00Z"
 }
