@@ -71,3 +71,30 @@ def test_interactive_reply_is_parsed_for_workflow_update() -> None:
     assert parsed["workflow_id"] == "wf-ops-1"
     assert parsed["operation"] == "update"
     assert parsed["payload"]["task"] == "attendance"
+
+
+def test_whatsapp_send_is_idempotent_for_same_key() -> None:
+    orchestrator = NotificationOrchestrator()
+
+    first = orchestrator.send_whatsapp_operation(
+        tenant_country_code="US",
+        user_id="+15550000001",
+        workflow_id="wf-ops-2",
+        operation="reminder",
+        template_name="fee_reminder",
+        template_context={"invoice_id": "INV-1", "amount": "100", "currency": "USD", "due_date": "2026-04-10"},
+        idempotency_key="evt-1:wf-ops-2:reminder:+15550000001",
+    )
+    second = orchestrator.send_whatsapp_operation(
+        tenant_country_code="US",
+        user_id="+15550000001",
+        workflow_id="wf-ops-2",
+        operation="reminder",
+        template_name="fee_reminder",
+        template_context={"invoice_id": "INV-1", "amount": "100", "currency": "USD", "due_date": "2026-04-10"},
+        idempotency_key="evt-1:wf-ops-2:reminder:+15550000001",
+    )
+
+    assert first.ok is True
+    assert second.ok is True
+    assert len(orchestrator._idempotent_send_log) == 1
