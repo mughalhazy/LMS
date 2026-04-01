@@ -1,0 +1,20 @@
+{
+  "event_type": "attendance.marked",
+  "version": "1.0.0",
+  "producer": "academy-ops",
+  "consumers": [
+    "system-of-record",
+    "workflows",
+    "operations-os"
+  ],
+  "payload": {
+    "attendance_id": "string",
+    "batch_id": "string",
+    "class_session_id": "string",
+    "student_id": "string",
+    "teacher_id": "string",
+    "status": "present|absent|late|excused",
+    "marked_at": "ISO-8601 datetime",
+    "notes": "string"
+  }
+}

@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
@@ -74,6 +75,7 @@ class AcademyOpsService:
         self._teacher_assignments: dict[tuple[str, str], dict[str, TeacherAssignment]] = {}
         self._timetable_slots: dict[tuple[str, str], list[TimetableSlot]] = {}
         self._attendance: dict[tuple[str, str], list[AttendanceRecord]] = {}
+        self._events: list[dict[str, Any]] = []
         self._fee_invoices: dict[tuple[str, str], list[Invoice]] = {}
         self._fee_payments: dict[tuple[str, str], list[FeePayment]] = {}
         self._revenue_share_agreements: dict[tuple[str, str], RevenueShareAgreement] = {}
@@ -297,14 +299,98 @@ class AcademyOpsService:
     def register_student_profile(self, profile: UnifiedStudentProfile) -> UnifiedStudentProfile:
         return self._sor.upsert_student_profile(profile)
 
-    def record_attendance(self, record: AttendanceRecord) -> AttendanceRecord:
+    def _emit_event(self, *, event_type: str, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        event = {
+            "event_id": str(uuid4()),
+            "event_type": event_type,
+            "tenant_id": tenant_id,
+            "timestamp": datetime.utcnow(),
+            "payload": payload,
+            "feeds": ("system-of-record", "workflows", "operations-os"),
+        }
+        self._events.append(event)
+        return event
+
+    def mark_attendance(self, record: AttendanceRecord) -> AttendanceRecord:
         self._require_operation_capability(tenant_id=record.tenant_id, operation="attendance")
         batch_key = self._key(record.tenant_id, record.batch_id)
         slots = self._timetable_slots.get(batch_key, [])
-        if not any(slot.slot_id == record.slot_id for slot in slots):
+        if not any(slot.slot_id == record.class_session_id for slot in slots):
             raise KeyError("timetable slot not found")
+        if not any(slot.teacher_id == record.teacher_id for slot in slots):
+            raise ValueError("teacher is not assigned to class session")
+        batch = self._batches.get(batch_key)
+        if batch is None:
+            raise KeyError("batch not found")
+        if record.student_id not in batch.learner_ids:
+            raise ValueError("student is not enrolled in batch")
         self._attendance.setdefault(batch_key, []).append(record)
+        self._emit_event(
+            event_type="attendance.marked",
+            tenant_id=record.tenant_id,
+            payload={
+                "attendance_id": record.attendance_id,
+                "batch_id": record.batch_id,
+                "class_session_id": record.class_session_id,
+                "student_id": record.student_id,
+                "teacher_id": record.teacher_id,
+                "status": record.status,
+                "marked_at": record.marked_at.isoformat(),
+                "notes": record.notes,
+            },
+        )
+        if record.status == "absent":
+            self._emit_event(
+                event_type="attendance.absence_detected",
+                tenant_id=record.tenant_id,
+                payload={
+                    "attendance_id": record.attendance_id,
+                    "batch_id": record.batch_id,
+                    "class_session_id": record.class_session_id,
+                    "student_id": record.student_id,
+                    "teacher_id": record.teacher_id,
+                    "marked_at": record.marked_at.isoformat(),
+                },
+            )
         return record
+
+    def record_attendance(self, record: AttendanceRecord) -> AttendanceRecord:
+        return self.mark_attendance(record)
+
+    def bulk_mark_attendance(self, *, records: list[AttendanceRecord]) -> tuple[AttendanceRecord, ...]:
+        return tuple(self.mark_attendance(record) for record in records)
+
+    def get_attendance_for_batch(self, *, tenant_id: str, batch_id: str) -> tuple[AttendanceRecord, ...]:
+        return tuple(self._attendance.get(self._key(tenant_id, batch_id), ()))
+
+    def get_student_attendance_summary(self, *, tenant_id: str, batch_id: str, student_id: str) -> dict[str, Any]:
+        records = [
+            record
+            for record in self._attendance.get(self._key(tenant_id, batch_id), [])
+            if record.student_id == student_id
+        ]
+        summary = {"present": 0, "absent": 0, "late": 0, "excused": 0}
+        for record in records:
+            summary[record.status] += 1
+        total = len(records)
+        present_weighted = summary["present"] + summary["late"] + summary["excused"]
+        attendance_rate = (Decimal(present_weighted) / Decimal(total)).quantize(Decimal("0.0001")) if total else Decimal("0.0000")
+        return {
+            "tenant_id": tenant_id,
+            "batch_id": batch_id,
+            "student_id": student_id,
+            "total_sessions": total,
+            "by_status": summary,
+            "attendance_rate": attendance_rate,
+        }
+
+    def list_events(self, *, tenant_id: str | None = None, event_type: str | None = None) -> tuple[dict[str, Any], ...]:
+        events = self._events
+        if tenant_id is not None:
+            events = [event for event in events if event["tenant_id"] == tenant_id]
+        if event_type is not None:
+            events = [event for event in events if event["event_type"] == event_type]
+        return tuple(events)
 
     def record_fee_invoice(self, *, learner_id: str, invoice: Invoice) -> None:
         self._require_operation_capability(tenant_id=invoice.tenant_id, operation="fee_tracking")
@@ -403,6 +489,11 @@ class AcademyOpsService:
             "segment_branching_removed": self.is_single_source_of_truth(),
             "fee_tracking_connected_to_sor": fee_tracking_connected,
             "system_of_record_qc_pass": all(sor_qc.values()),
+            "attendance_event_feeds_configured": all(
+                set(event["feeds"]) == {"system-of-record", "workflows", "operations-os"}
+                for event in self._events
+                if event["event_type"].startswith("attendance.")
+            ),
         }
 
     def has_learning_core_overlap(self) -> bool:
