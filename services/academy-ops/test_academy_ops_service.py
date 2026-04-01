@@ -29,6 +29,16 @@ TeacherAssignment = _service_module.TeacherAssignment
 TimetableSlot = _service_module.TimetableSlot
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
+ENTERPRISE_MODULE_PATH = ROOT / "services/enterprise-control/service.py"
+_enterprise_spec = importlib.util.spec_from_file_location("enterprise_control_for_academy_ops_test", ENTERPRISE_MODULE_PATH)
+if _enterprise_spec is None or _enterprise_spec.loader is None:
+    raise RuntimeError("Unable to load enterprise-control module")
+_enterprise_module = importlib.util.module_from_spec(_enterprise_spec)
+sys.modules[_enterprise_spec.name] = _enterprise_module
+_enterprise_spec.loader.exec_module(_enterprise_module)
+EnterpriseControlService = _enterprise_module.EnterpriseControlService
+IdentityContext = _enterprise_module.IdentityContext
+
 
 def test_academy_wedge_end_to_end_unifies_academic_and_financial_state() -> None:
     service = AcademyOpsService()
@@ -223,3 +233,56 @@ def test_branch_rollup_and_qc_match_underlying_records() -> None:
 
     qc = service.run_qc_autofix()
     assert all(qc.values())
+
+
+def test_cross_institution_assignment_enforces_enterprise_permissions_and_tenant_payout_scope() -> None:
+    enterprise = EnterpriseControlService()
+    enterprise.set_role_permissions(tenant_id="tenant_home", role="network-admin", permissions={"teacher.network.manage"})
+    enterprise.set_role_permissions(
+        tenant_id="tenant_target",
+        role="ops-admin",
+        permissions={"academy.teacher_assignment.cross_institution"},
+    )
+
+    home_admin = IdentityContext(tenant_id="tenant_home", actor_id="home_admin", roles=("network-admin",))
+    target_admin = IdentityContext(tenant_id="tenant_target", actor_id="target_admin", roles=("ops-admin",))
+    enterprise.link_teacher_to_external_tenant(
+        identity=home_admin,
+        home_tenant_id="tenant_home",
+        teacher_id="teacher_x",
+        external_tenant_id="tenant_target",
+    )
+
+    service = AcademyOpsService(enterprise_control_service=enterprise)
+    service.create_branch(
+        Branch(
+            tenant_id="tenant_target",
+            branch_id="branch_1",
+            name="Main",
+            code="MAIN",
+            location="HQ",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_target",
+            branch_id="branch_1",
+            batch_id="batch_1",
+            academy_id="academy_1",
+            title="Cross Institution Cohort",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 6, 1),
+        )
+    )
+    assigned = service.assign_teacher_cross_institution(
+        assignment=TeacherAssignment(
+            tenant_id="tenant_target",
+            branch_id="branch_1",
+            batch_id="batch_1",
+            teacher_id="teacher_x",
+        ),
+        enterprise_identity=target_admin,
+        home_tenant_id="tenant_home",
+    )
+    assert assigned.teacher_id == "teacher_x"
+    assert service.primary_teacher_id(tenant_id="tenant_target", batch_id="batch_1") == "teacher_x"
