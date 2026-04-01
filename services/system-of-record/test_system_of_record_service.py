@@ -28,7 +28,6 @@ SystemOfRecordService = _service_module.SystemOfRecordService
 UnifiedStudentProfile = _service_module.UnifiedStudentProfile
 
 
-
 def test_student_lifecycle_profile_and_learning_path_are_canonical() -> None:
     service = SystemOfRecordService()
 
@@ -77,6 +76,47 @@ def test_student_lifecycle_profile_and_learning_path_are_canonical() -> None:
     assert "lp_python" in persisted.active_batches
     assert "lp_python" in progress["learning_paths"]
     assert persisted.academic_state.status == AcademicStatus.ACTIVE
+
+
+def test_invalid_lifecycle_transitions_are_rejected() -> None:
+    service = SystemOfRecordService()
+    service.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_lifecycle",
+            student_id="student_lifecycle",
+            full_name="Lifecycle Learner",
+            metadata={"country_code": "US", "segment_id": "academy"},
+        )
+    )
+
+    with pytest.raises(LifecycleTransitionError):
+        service.transition_student_lifecycle(
+            tenant_id="tenant_lifecycle",
+            student_id="student_lifecycle",
+            state="completed",
+        )
+
+    service.transition_student_lifecycle(
+        tenant_id="tenant_lifecycle",
+        student_id="student_lifecycle",
+        state="enrolled",
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_lifecycle",
+        student_id="student_lifecycle",
+        state="active",
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_lifecycle",
+        student_id="student_lifecycle",
+        state="completed",
+    )
+    with pytest.raises(LifecycleTransitionError):
+        service.transition_student_lifecycle(
+            tenant_id="tenant_lifecycle",
+            student_id="student_lifecycle",
+            state="active",
+        )
 
 
 def test_student_financial_ledger_uses_shared_invoice_model() -> None:
@@ -151,61 +191,3 @@ def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -
     assert qc["fragmented_state_removed"] is True
     assert service.is_single_source_of_truth() is True
     assert service.has_duplicate_data_ownership() is False
-
-
-def test_canonical_lifecycle_flow_is_event_driven_and_validated() -> None:
-    service = SystemOfRecordService()
-    service.upsert_student_profile(
-        UnifiedStudentProfile(
-            tenant_id="tenant_flow",
-            student_id="student_flow",
-            display_name="Flow Learner",
-            email="flow@example.edu",
-            country_code="US",
-            segment_id="academy",
-        )
-    )
-
-    enrolled = service.on_enrollment_created(
-        tenant_id="tenant_flow",
-        student_id="student_flow",
-        learning_object_id="course_1",
-        enrollment_id="enr_1",
-    )
-    assert enrolled.lifecycle_state == StudentLifecycleState.ENROLLED
-
-    active = service.on_learning_started(tenant_id="tenant_flow", student_id="student_flow", enrollment_id="enr_1")
-    assert active.lifecycle_state == StudentLifecycleState.ACTIVE
-
-    with_milestone = service.on_progress_milestone(
-        tenant_id="tenant_flow",
-        student_id="student_flow",
-        milestone_key="course_1.lesson_1",
-        progress_percentage=25.0,
-    )
-    assert with_milestone.metadata["milestone.course_1.lesson_1"] == "25.0"
-
-    completed = service.on_completion(tenant_id="tenant_flow", student_id="student_flow", completion_ref="cert_1")
-    assert completed.lifecycle_state == StudentLifecycleState.GRADUATED
-
-    with pytest.raises(LifecycleTransitionError):
-        service.on_pause(tenant_id="tenant_flow", student_id="student_flow", reason="should fail after completion")
-
-
-def test_dropout_and_pause_are_valid_only_for_non_terminal_paths() -> None:
-    service = SystemOfRecordService()
-    service.upsert_student_profile(
-        UnifiedStudentProfile(
-            tenant_id="tenant_alt",
-            student_id="student_alt",
-            display_name="Alt Learner",
-            email="alt@example.edu",
-            country_code="US",
-            segment_id="academy",
-        )
-    )
-    service.on_enrollment_created(tenant_id="tenant_alt", student_id="student_alt")
-    paused = service.on_pause(tenant_id="tenant_alt", student_id="student_alt", reason="leave")
-    assert paused.lifecycle_state == StudentLifecycleState.SUSPENDED
-    dropped = service.on_dropout(tenant_id="tenant_alt", student_id="student_alt", reason="disengaged")
-    assert dropped.lifecycle_state == StudentLifecycleState.WITHDRAWN

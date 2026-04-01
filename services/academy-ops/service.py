@@ -345,6 +345,17 @@ class AcademyOpsService:
             for batch_id in active_batch_ids
             for assignment in self._teacher_assignments.get(self._key(tenant_id, batch_id), {}).values()
         }
+        attendance_records = [
+            record
+            for batch_id in active_batch_ids
+            for record in self._attendance.get(self._key(tenant_id, batch_id), [])
+        ]
+        present_like = sum(1 for record in attendance_records if record.status in {"present", "late", "excused"})
+        attendance_rate = (
+            (Decimal(present_like) / Decimal(len(attendance_records))).quantize(Decimal("0.0001"))
+            if attendance_records
+            else Decimal("0.0000")
+        )
         return {
             "tenant_id": tenant_id,
             "branch_id": branch_id,
@@ -358,6 +369,8 @@ class AcademyOpsService:
             "active_batch_ids": active_batch_ids,
             "learner_count": learners,
             "teacher_count": len(teachers),
+            "attendance_marked_count": len(attendance_records),
+            "attendance_rate": attendance_rate,
             "metadata": branch.metadata,
             "economics_ready": {
                 "owner_economics": True,
@@ -609,6 +622,9 @@ class AcademyOpsService:
             start_time=slot.start_time,
             end_time=slot.end_time,
         )
+        batch = self._batches.get(batch_key)
+        if batch is None:
+            raise KeyError("batch not found")
         self._timetable_slots.setdefault(batch_key, []).append(slot)
         batch = self._batches.get(batch_key)
         if batch is None:
@@ -766,6 +782,24 @@ class AcademyOpsService:
                     "marked_at": record.marked_at.isoformat(),
                 },
             )
+        profile = self._sor.get_student_profile(tenant_id=record.tenant_id, student_id=record.student_id)
+        if profile is not None:
+            summary = self.get_student_attendance_summary(
+                tenant_id=record.tenant_id,
+                batch_id=record.batch_id,
+                student_id=record.student_id,
+            )
+            attended = summary["by_status"]["present"] + summary["by_status"]["late"] + summary["by_status"]["excused"]
+            missed = summary["by_status"]["absent"]
+            updated_profile = replace(
+                profile,
+                attendance_summary=profile.attendance_summary.__class__(
+                    attended_sessions=attended,
+                    missed_sessions=missed,
+                    attendance_rate=summary["attendance_rate"],
+                ),
+            )
+            self._sor.upsert_student_profile(updated_profile)
         return record
 
     def record_attendance(self, record: AttendanceRecord) -> AttendanceRecord:

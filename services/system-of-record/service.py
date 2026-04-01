@@ -108,6 +108,15 @@ def UnifiedStudentProfile(**kwargs: Any) -> _UnifiedStudentProfileModel:
 
 
 class SystemOfRecordService:
+    _ALLOWED_LIFECYCLE_TRANSITIONS: dict[str, set[str]] = {
+        "prospect": {"enrolled"},
+        "enrolled": {"active", "paused", "dropped"},
+        "active": {"paused", "completed", "dropped"},
+        "paused": {"active", "dropped"},
+        "completed": set(),
+        "dropped": set(),
+    }
+
     def __init__(
         self,
         *,
@@ -246,6 +255,13 @@ class SystemOfRecordService:
         }
         if state not in status_map:
             raise LifecycleTransitionError(f"unsupported lifecycle state: {state}")
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        current_state = profile.lifecycle_state
+        allowed_next = self._ALLOWED_LIFECYCLE_TRANSITIONS.get(current_state, set())
+        if state != current_state and state not in allowed_next:
+            raise LifecycleTransitionError(f"invalid lifecycle transition: {current_state} -> {state}")
         return self.update_academic_state(
             tenant_id=tenant_id,
             student_id=student_id,
@@ -454,18 +470,46 @@ class SystemOfRecordService:
             last_payment_id=last_payment,
         )
 
+    def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        profile = self._profiles.get(key)
+        if profile is None:
+            return False
+        entries = self._ledger.get(key, [])
+        invoiced = sum((e.amount for e in entries if e.source_type == "invoice"), start=Decimal("0"))
+        paid = sum((e.amount.copy_abs() for e in entries if e.source_type == "payment"), start=Decimal("0"))
+        balance = invoiced - paid
+        return (
+            profile.ledger_summary.total_invoiced == invoiced
+            and profile.ledger_summary.total_paid == paid
+            and profile.ledger_summary.current_balance == balance
+            and profile.financial_state.current_balance == balance
+            and profile.financial_state.dues_outstanding == max(balance, Decimal("0"))
+            and all(entry.source_type != "payment" or entry.amount <= 0 for entry in entries)
+        )
+
     def run_qc_autofix(self) -> dict[str, bool]:
         for tenant_id, student_id in list(self._profiles):
             self._refresh_ledger_summary(tenant_id, student_id)
+        lifecycle_transitions_valid = all(
+            profile.lifecycle_state in self._ALLOWED_LIFECYCLE_TRANSITIONS
+            and profile.academic_state.status.value == profile.lifecycle_state
+            for profile in self._profiles.values()
+            if profile.lifecycle_state != "prospect"
+        )
+        ledger_consistency = all(
+            self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
+            for tenant_id, student_id in self._profiles
+        )
         return {
             "student_profile_unified_state": True,
-            "ledger_consistency": True,
-            "lifecycle_transitions": True,
+            "ledger_consistency": ledger_consistency,
+            "lifecycle_transitions": lifecycle_transitions_valid,
             "payments_update_ledger": all(
-                entry.source_type != "payment" or entry.amount < 0
+                entry.source_type != "payment" or entry.amount <= 0
                 for entries in self._ledger.values()
                 for entry in entries
-            ),
+            ) and ledger_consistency,
             "fragmented_state_removed": self.is_single_source_of_truth(),
         }
 
