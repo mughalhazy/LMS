@@ -57,6 +57,17 @@ class EnrollmentService:
 
         return enrollment
 
+    def on_enrollment_created(self, request: EnrollmentRequest) -> Enrollment:
+        """Create enrollment from an enrollment-created lifecycle event."""
+        return self.enroll_learner(request)
+
+    def on_learning_started(self, *, enrollment_id: str) -> Enrollment:
+        """Mark an enrolled learner as actively learning (event-driven no-op in this bounded context)."""
+        enrollment = self.get_enrollment_status(enrollment_id)
+        if enrollment.status != EnrollmentStatus.ENROLLED:
+            raise ValidationError("learning can only start from enrolled status")
+        return enrollment
+
     def unenroll_learner(self, *, enrollment_id: str, actor_id: str) -> Enrollment:
         enrollment = self.get_enrollment_status(enrollment_id)
         if enrollment.status == EnrollmentStatus.UNENROLLED:
