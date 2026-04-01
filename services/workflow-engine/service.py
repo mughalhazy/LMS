@@ -33,6 +33,7 @@ _AcademyOpsModule = _load_module("workflow_engine_academy_ops_service", "service
 _OperationsOSModule = _load_module("workflow_engine_operations_os_service", "services/operations-os/service.py")
 _PaymentsModule = _load_module("workflow_engine_payments_orchestration", "integrations/payments/orchestration.py")
 _PaymentsBaseModule = _load_module("workflow_engine_payments_base", "integrations/payments/base_adapter.py")
+_SystemOfRecordModule = _load_module("workflow_engine_system_of_record", "services/system-of-record/service.py")
 
 ConfigService = _ConfigModule.ConfigService
 NotificationOrchestrator = _NotificationModule.NotificationOrchestrator
@@ -41,6 +42,7 @@ OperationsOSService = _OperationsOSModule.OperationsOSService
 PaymentOrchestrationService = _PaymentsModule.PaymentOrchestrationService
 build_pakistan_payment_orchestration = _PaymentsModule.build_pakistan_payment_orchestration
 TenantPaymentContext = _PaymentsBaseModule.TenantPaymentContext
+SystemOfRecordService = _SystemOfRecordModule.SystemOfRecordService
 
 WorkflowStepType = Literal["notify", "wait", "escalate", "academy_ops", "payment", "action_item"]
 
@@ -113,12 +115,14 @@ class WorkflowEngine:
         academy_ops_service: AcademyOpsService | None = None,
         operations_os_service: OperationsOSService | None = None,
         payment_orchestration_service: PaymentOrchestrationService | None = None,
+        system_of_record_service: SystemOfRecordService | None = None,
     ) -> None:
         self._config_service = config_service or ConfigService()
         self._notification_orchestrator = notification_orchestrator or NotificationOrchestrator()
         self._academy_ops_service = academy_ops_service or AcademyOpsService()
         self._operations_os_service = operations_os_service or OperationsOSService()
         self._payment_orchestration_service = payment_orchestration_service or build_pakistan_payment_orchestration()
+        self._system_of_record_service = system_of_record_service or SystemOfRecordService()
         self._workflows: dict[str, WorkflowDefinition] = {}
         self._scheduled_steps: list[ScheduledStep] = []
         self._scheduled_step_keys: set[str] = set()
@@ -186,6 +190,15 @@ class WorkflowEngine:
 
     def _resolve_step_due_at(self, *, event: WorkflowTriggerEvent, step: WorkflowStep) -> datetime:
         base_due = event.timestamp + timedelta(seconds=max(0, step.delay_seconds))
+        schedule_from_context_key = step.config.get("schedule_from_context_key")
+        if isinstance(schedule_from_context_key, str):
+            schedule_value = event.context.get(schedule_from_context_key)
+            if isinstance(schedule_value, str):
+                try:
+                    parsed = datetime.fromisoformat(schedule_value.replace("Z", "+00:00"))
+                    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    pass
         schedule_at = step.config.get("schedule_at")
         if isinstance(schedule_at, str):
             try:
@@ -444,7 +457,7 @@ class WorkflowEngine:
                         trigger_type=item.trigger_type,
                         step_config=item.step.config,
                     )
-                    template_context = dict(item.context)
+                    template_context = self._build_fee_template_context(item=item)
                     template_context.setdefault("message", str(item.step.config.get("message", "workflow notification")))
                     recipients = tuple(item.context.get("notification_recipients") or ()) or (item.actor_user_id,)
                     routing_order = self._config_service.resolve_communication_routing(
@@ -596,11 +609,33 @@ class WorkflowEngine:
         normalized = trigger_type.strip().lower()
         if normalized.startswith("attendance."):
             return "attendance", "attendance_notification"
+        if normalized in {"fee.overdue"}:
+            return "reminder", "fee_overdue_escalation"
+        if normalized in {"fee.due"}:
+            return "reminder", "fee_reminder"
         if normalized in {"payment.due", "payment.missed", "payment.overdue"}:
             return "reminder", "fee_reminder"
         if normalized.startswith("progress.") or normalized.startswith("learning.progress"):
             return "update", "progress_update"
         return "update", "progress_update"
+
+    def _build_fee_template_context(self, *, item: ScheduledStep) -> dict[str, Any]:
+        context = dict(item.context)
+        profile = self._system_of_record_service.get_student_profile(tenant_id=item.tenant_id, student_id=item.actor_user_id)
+        if profile is not None:
+            context.setdefault("student_name", profile.full_name)
+            if profile.ledger_summary.last_invoice_id:
+                context.setdefault("invoice_id", profile.ledger_summary.last_invoice_id)
+            context.setdefault("amount", str(profile.financial_state.dues_outstanding))
+            metadata_due_date = profile.metadata.get("fee.due_date")
+            if metadata_due_date:
+                context.setdefault("due_date", metadata_due_date)
+            if "currency" not in context:
+                ledger = self._system_of_record_service.get_student_ledger(tenant_id=item.tenant_id, student_id=item.actor_user_id)
+                last_invoice_entry = next((entry for entry in reversed(ledger) if entry.source_type == "invoice"), None)
+                if last_invoice_entry is not None:
+                    context["currency"] = last_invoice_entry.currency
+        return context
 
 
     def bootstrap_default_workflows(self) -> tuple[str, ...]:

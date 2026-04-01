@@ -57,6 +57,10 @@ class WhatsAppAdapter(CommunicationAdapter):
                 "Fee reminder: invoice {invoice_id} of {amount} {currency} "
                 "is due on {due_date}."
             ),
+            "fee_overdue_escalation": (
+                "Overdue alert: invoice {invoice_id} of {amount} {currency} "
+                "was due on {due_date}. Please pay immediately."
+            ),
             "progress_update": (
                 "Progress update: {student_name} completed {progress_percent}% "
                 "in {course_name}."
