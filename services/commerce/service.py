@@ -61,6 +61,7 @@ class CommerceService:
         self._payment_country_code = payment_country_code.upper()
         self._reconciliation_engine: PaymentReconciliationEngine | None = None
         self.owner_economics = OwnerEconomicsEngine()
+        self._teacher_revenue_share_records: list[dict[str, str]] = []
 
     def add_product(self, *, product_id: str, tenant_id: str, title: str, price: Decimal, currency: str, description: str = "", capability_ids: list[str] | None = None, metadata: dict[str, str] | None = None, type: ProductType | None = None, product_type: ProductType | None = None, sku: str | None = None) -> Product:
         resolved_type = type or product_type
@@ -171,6 +172,8 @@ class CommerceService:
         invoice_id: str,
         revenue_amount: Decimal,
         payout_amount: Decimal,
+        payment_id: str | None = None,
+        ledger_entry_id: str | None = None,
     ) -> dict[str, str]:
         record = {
             "tenant_id": tenant_id,
@@ -179,6 +182,8 @@ class CommerceService:
             "invoice_id": invoice_id,
             "revenue_amount": str(Decimal(revenue_amount).quantize(Decimal("0.01"))),
             "payout_amount": str(Decimal(payout_amount).quantize(Decimal("0.01"))),
+            "payment_id": payment_id or "",
+            "ledger_entry_id": ledger_entry_id or "",
         }
         self._teacher_revenue_share_records.append(record)
         return record
