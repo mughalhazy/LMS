@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -60,9 +60,14 @@ def _load_progress_module():
 
 
 _LearningModule = _load_progress_module()
+_ReadModels = _load_module("system_of_record_read_models", "services/system-of-record/read_models.py")
 
 ConfigService = _ConfigModule.ConfigService
 ProgressTrackingService = _LearningModule.ProgressTrackingService
+AttendanceSummary = _ReadModels.AttendanceSummary
+ProgressSummary = _ReadModels.ProgressSummary
+StudentOperationalState = _ReadModels.StudentOperationalState
+build_financial_standing = _ReadModels.build_financial_standing
 
 
 class StudentLifecycleState(str, Enum):
@@ -142,6 +147,8 @@ class SystemOfRecordService:
         self._profiles: dict[tuple[str, str], UnifiedStudentProfile] = {}
         self._ledger: dict[tuple[str, str], list[LedgerEntry]] = {}
         self._academic_enrollments: dict[tuple[str, str], list[AcademyEnrollment]] = {}
+        self._attendance: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self._invoices: dict[tuple[str, str], list[Invoice]] = {}
 
         # Domain ownership registry to enforce no duplicate data ownership.
         self._domain_owner = {
@@ -253,6 +260,26 @@ class SystemOfRecordService:
         key = self._profile_key(tenant_id=enrollment.tenant_id, student_id=enrollment.learner_id)
         self._academic_enrollments.setdefault(key, []).append(enrollment)
 
+    def record_attendance(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        class_id: str,
+        attended: bool,
+        attended_at: datetime | None = None,
+    ) -> None:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        self._attendance.setdefault(key, []).append(
+            {
+                "class_id": class_id,
+                "attended": attended,
+                "attended_at": attended_at or datetime.now(timezone.utc),
+            }
+        )
+
     def assign_learning_path(
         self,
         *,
@@ -299,6 +326,7 @@ class SystemOfRecordService:
             source_ref=invoice.invoice_id,
         )
         self._ledger.setdefault(key, []).append(entry)
+        self._invoices.setdefault(key, []).append(invoice)
         profile = self._profiles[key]
         financial = profile.financial_state
         updated_profile = replace(
@@ -313,6 +341,111 @@ class SystemOfRecordService:
         self._profiles[key] = updated_profile
         self._assert_ledger_consistency(tenant_id=invoice.tenant_id, student_id=student_id)
         return entry
+
+    def _build_attendance_summary(self, *, tenant_id: str, student_id: str) -> AttendanceSummary:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        records = self._attendance.get(key, [])
+        total_sessions = len(records)
+        attended_sessions = sum(1 for item in records if item["attended"])
+        attendance_rate = round((attended_sessions / total_sessions) * 100, 2) if total_sessions else 0.0
+        attended_dates = [item["attended_at"] for item in records if item["attended"]]
+        last_attended_at = max(attended_dates) if attended_dates else None
+        status = "good" if attendance_rate >= 80 else ("watch" if attendance_rate >= 60 else "at_risk")
+        return AttendanceSummary(
+            total_sessions=total_sessions,
+            attended_sessions=attended_sessions,
+            attendance_rate=attendance_rate,
+            last_attended_at=last_attended_at,
+            status=status,
+        )
+
+    def _build_progress_summary(self, *, tenant_id: str, student_id: str) -> ProgressSummary:
+        progress = self._learning_service.get_learner_progress(tenant_id=tenant_id, learner_id=student_id)
+        learning_paths: dict[str, dict[str, Any]] = progress.get("learning_paths", {})
+        path_items = list(learning_paths.values())
+        active_count = sum(1 for path in path_items if path.get("status") == "in_progress")
+        completed_count = sum(1 for path in path_items if path.get("status") == "completed")
+        avg_progress = round(
+            sum(float(path.get("progress_percentage", 0.0)) for path in path_items) / len(path_items),
+            2,
+        ) if path_items else 0.0
+        stalled_count = sum(
+            1
+            for path in path_items
+            if path.get("status") == "in_progress"
+            and path.get("last_activity_at")
+            and path["last_activity_at"] < datetime.utcnow() - timedelta(days=14)
+        )
+        status = "good" if avg_progress >= 70 else ("watch" if avg_progress >= 40 else "at_risk")
+        return ProgressSummary(
+            active_learning_paths=active_count,
+            completed_learning_paths=completed_count,
+            avg_progress_percent=avg_progress,
+            stalled_learning_paths=stalled_count,
+            status=status,
+        )
+
+    def get_student_operational_state(self, *, tenant_id: str, student_id: str) -> StudentOperationalState:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        enrollments = self._academic_enrollments.get(key, [])
+        current_enrollment = enrollments[-1] if enrollments else None
+        attendance = self._build_attendance_summary(tenant_id=tenant_id, student_id=student_id)
+        progress = self._build_progress_summary(tenant_id=tenant_id, student_id=student_id)
+        financial = build_financial_standing(profile=profile, invoices=tuple(self._invoices.get(key, [])))
+        is_inactive = profile.lifecycle_state in {
+            StudentLifecycleState.PROSPECT,
+            StudentLifecycleState.SUSPENDED,
+            StudentLifecycleState.WITHDRAWN,
+        }
+        reasons: list[str] = []
+        if attendance.status == "at_risk":
+            reasons.append("low_attendance")
+        if progress.status == "at_risk" or progress.stalled_learning_paths > 0:
+            reasons.append("learning_progress")
+        if financial.standing in {"due", "overdue"}:
+            reasons.append("financial_dues")
+        if profile.lifecycle_state == StudentLifecycleState.SUSPENDED:
+            reasons.append("lifecycle_suspended")
+        return StudentOperationalState(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            display_name=profile.display_name,
+            lifecycle_state=profile.lifecycle_state.value,
+            batch_id=current_enrollment.cohort_id if current_enrollment else None,
+            class_status="active" if profile.lifecycle_state == StudentLifecycleState.ACTIVE else "inactive",
+            attendance=attendance,
+            progress=progress,
+            financial=financial,
+            has_dues=financial.dues_amount > 0,
+            is_overdue=financial.overdue_amount > 0,
+            is_inactive=is_inactive,
+            at_risk=bool(reasons),
+            at_risk_reasons=tuple(reasons),
+        )
+
+    def list_students_with_dues(self, *, tenant_id: str) -> tuple[StudentOperationalState, ...]:
+        states = [
+            self.get_student_operational_state(tenant_id=tenant_id, student_id=profile.student_id)
+            for profile in self.list_student_profiles(tenant_id=tenant_id)
+        ]
+        return tuple(state for state in states if state.has_dues)
+
+    def list_inactive_students(self, *, tenant_id: str) -> tuple[StudentOperationalState, ...]:
+        states = [
+            self.get_student_operational_state(tenant_id=tenant_id, student_id=profile.student_id)
+            for profile in self.list_student_profiles(tenant_id=tenant_id)
+        ]
+        return tuple(state for state in states if state.is_inactive)
+
+    def list_at_risk_students(self, *, tenant_id: str) -> tuple[StudentOperationalState, ...]:
+        states = [
+            self.get_student_operational_state(tenant_id=tenant_id, student_id=profile.student_id)
+            for profile in self.list_student_profiles(tenant_id=tenant_id)
+        ]
+        return tuple(state for state in states if state.at_risk)
 
     def post_payment_to_ledger(
         self,

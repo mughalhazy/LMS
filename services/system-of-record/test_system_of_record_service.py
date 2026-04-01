@@ -173,3 +173,66 @@ def test_config_service_controls_profile_policy_and_qc_ownership_constraints() -
     assert qc["fragmented_state_removed"] is True
     assert service.is_single_source_of_truth() is True
     assert service.has_duplicate_data_ownership() is False
+
+
+def test_operational_read_models_support_ops_and_risk_views() -> None:
+    service = SystemOfRecordService()
+    service.upsert_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_ops",
+            student_id="student_ops",
+            display_name="Ops Learner",
+            email="ops@example.edu",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_ops",
+        student_id="student_ops",
+        state=StudentLifecycleState.ENROLLED,
+    )
+    service.transition_student_lifecycle(
+        tenant_id="tenant_ops",
+        student_id="student_ops",
+        state=StudentLifecycleState.ACTIVE,
+    )
+    service.register_academy_enrollment(
+        AcademyEnrollment(
+            tenant_id="tenant_ops",
+            academy_id="academy_1",
+            cohort_id="batch_A",
+            learner_id="student_ops",
+            package=AcademyPackage.FOUNDATION,
+        )
+    )
+    service.record_attendance(
+        tenant_id="tenant_ops",
+        student_id="student_ops",
+        class_id="class_1",
+        attended=False,
+    )
+    service.post_invoice_to_ledger(
+        student_id="student_ops",
+        invoice=Invoice.create(
+            invoice_id="inv_due_1",
+            user_id="tenant_ops",
+            order_id="ord_1",
+            amount=Decimal("100"),
+            status="overdue",
+        ),
+    )
+    state = service.get_student_operational_state(tenant_id="tenant_ops", student_id="student_ops")
+    assert state.batch_id == "batch_A"
+    assert state.has_dues is True
+    assert state.is_overdue is True
+    assert state.at_risk is True
+    assert "financial_dues" in state.at_risk_reasons
+    assert "low_attendance" in state.at_risk_reasons
+
+    dues = service.list_students_with_dues(tenant_id="tenant_ops")
+    inactive = service.list_inactive_students(tenant_id="tenant_ops")
+    at_risk = service.list_at_risk_students(tenant_id="tenant_ops")
+    assert len(dues) == 1
+    assert len(inactive) == 0
+    assert len(at_risk) == 1
