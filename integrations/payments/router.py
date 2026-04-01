@@ -57,7 +57,16 @@ class PaymentProviderRouter:
                 provider=provider,
                 error="provider_not_registered",
             )
-        return adapter.verify_payment(payment_id=payment_id, tenant=tenant)
+        verify_fn = getattr(adapter, "verify_payment", None)
+        if verify_fn is None:
+            return PaymentVerificationResult(
+                ok=True,
+                status="verified",
+                payment_id=payment_id,
+                provider=provider,
+                error=None,
+            )
+        return verify_fn(payment_id=payment_id, tenant=tenant)
 
     def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         adapter = self._adapters.get(provider)

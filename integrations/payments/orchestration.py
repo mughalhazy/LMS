@@ -34,7 +34,7 @@ class PaymentTransactionLogEntry:
     amount: int
     currency: str
     attempt: int
-    provider: str
+    provider: str | None
     status: str
     payment_id: str | None
     retryable: bool
@@ -43,15 +43,7 @@ class PaymentTransactionLogEntry:
 
 
 class PaymentOrchestrationService:
-    """Checkout -> orchestration -> adapter -> verification -> ledger."""
-
-    def __init__(
-        self,
-        router: PaymentProviderRouter,
-        *,
-        max_retries: int = 2,
-        verification_latency_seconds: float = 0.0,
-    ) -> None:
+    def __init__(self, router: PaymentProviderRouter, *, max_retries: int = 2, verification_latency_seconds: float = 0.0) -> None:
         self._router = router
         self._max_retries = max_retries
         self._verification_latency_seconds = verification_latency_seconds
@@ -60,15 +52,7 @@ class PaymentOrchestrationService:
         self._verification_tasks: dict[str, asyncio.Task[None]] = {}
         self._transaction_log_store: dict[str, list[PaymentTransactionLogEntry]] = {}
 
-    def process_checkout_payment(
-        self,
-        *,
-        idempotency_key: str,
-        tenant: TenantPaymentContext,
-        amount: int,
-        currency: str,
-        invoice_id: str | None = None,
-    ) -> PaymentLedgerEntry:
+    def process_checkout_payment(self, *, idempotency_key: str, tenant: TenantPaymentContext, amount: int, currency: str, invoice_id: str | None = None) -> PaymentLedgerEntry:
         if amount <= 0:
             raise ValueError("amount must be greater than 0")
         existing = self._ledger.get(idempotency_key)
@@ -77,7 +61,7 @@ class PaymentOrchestrationService:
 
         last_result = PaymentResult(ok=False, status="failure", provider=None, error="unknown")
         for attempt in range(self._max_retries + 1):
-            last_result = adapter.process_payment(amount=amount, tenant=tenant, invoice_id=invoice_id)
+            last_result = self._router.process_checkout(tenant=tenant, amount=amount, invoice_id=invoice_id)
             retryable = self._is_retryable(last_result)
             self._transaction_log_store.setdefault(idempotency_key, []).append(
                 PaymentTransactionLogEntry(
@@ -114,9 +98,7 @@ class PaymentOrchestrationService:
                     self._payment_id_to_idempotency_key[entry.payment_id] = idempotency_key
                 try:
                     loop = asyncio.get_running_loop()
-                    self._verification_tasks[idempotency_key] = loop.create_task(
-                        self.verify_payment_async(idempotency_key=idempotency_key)
-                    )
+                    self._verification_tasks[idempotency_key] = loop.create_task(self.verify_payment_async(idempotency_key=idempotency_key))
                 except RuntimeError:
                     self._ledger[idempotency_key] = self._run_verification(entry=entry)
                 return entry
@@ -153,12 +135,19 @@ class PaymentOrchestrationService:
         self._verification_tasks.pop(idempotency_key, None)
         return verified
 
-    async def handle_provider_callback(
-        self,
-        *,
-        provider: str,
-        payload: dict[str, Any],
-    ) -> PaymentLedgerEntry | None:
+    def _run_verification(self, *, entry: PaymentLedgerEntry) -> PaymentLedgerEntry:
+        if not entry.payment_id or not entry.provider:
+            return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "error": "missing_payment_reference"})
+        result = self._router.verify(
+            tenant=TenantPaymentContext(tenant_id=entry.tenant_id, country_code=entry.tenant_country_code),
+            provider=entry.provider,
+            payment_id=entry.payment_id,
+        )
+        if result.ok:
+            return PaymentLedgerEntry(**{**entry.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
+        return PaymentLedgerEntry(**{**entry.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": result.error or "verification_failed"})
+
+    async def handle_provider_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentLedgerEntry | None:
         callback_result = self._router.parse_callback(provider=provider, payload=payload)
         if callback_result is None:
             return None
@@ -168,27 +157,10 @@ class PaymentOrchestrationService:
         current = self._ledger[idempotency_key]
         if current.status == "verified":
             return current
-
         if callback_result.ok:
-            updated = PaymentLedgerEntry(
-                **{
-                    **current.__dict__,
-                    "status": "verified",
-                    "verified": True,
-                    "verified_at": datetime.now(timezone.utc),
-                    "error": None,
-                }
-            )
+            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "verified", "verified": True, "verified_at": datetime.now(timezone.utc), "error": None})
         else:
-            updated = PaymentLedgerEntry(
-                **{
-                    **current.__dict__,
-                    "status": "failed",
-                    "verified": False,
-                    "verified_at": None,
-                    "error": callback_result.error or "callback_failed",
-                }
-            )
+            updated = PaymentLedgerEntry(**{**current.__dict__, "status": "failed", "verified": False, "verified_at": None, "error": callback_result.error or "callback_failed"})
         self._ledger[idempotency_key] = updated
         task = self._verification_tasks.pop(idempotency_key, None)
         if task and not task.done():
@@ -213,19 +185,8 @@ class PaymentOrchestrationService:
 
 
 def build_pakistan_payment_router(default_provider: str = "jazzcash") -> PaymentProviderRouter:
-    """Commerce orchestration entrypoint for Pakistan-specific provider routing."""
-    return PaymentProviderRouter(
-        country_provider_config={"PK": default_provider},
-        adapters=[JazzCashAdapter(), EasyPaisaAdapter(), RaastAdapter()],
-    )
+    return PaymentProviderRouter(country_provider_config={"PK": default_provider}, adapters=[JazzCashAdapter(), EasyPaisaAdapter(), RaastAdapter()])
 
 
-def build_pakistan_payment_orchestration(
-    default_provider: str = "jazzcash",
-    *,
-    max_retries: int = 2,
-) -> PaymentOrchestrationService:
-    return PaymentOrchestrationService(
-        router=build_pakistan_payment_router(default_provider=default_provider),
-        max_retries=max_retries,
-    )
+def build_pakistan_payment_orchestration(default_provider: str = "jazzcash", *, max_retries: int = 2) -> PaymentOrchestrationService:
+    return PaymentOrchestrationService(router=build_pakistan_payment_router(default_provider=default_provider), max_retries=max_retries)
