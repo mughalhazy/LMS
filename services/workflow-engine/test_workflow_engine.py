@@ -326,3 +326,107 @@ def test_bootstrap_default_workflows_registers_attendance_fees_and_notifications
         "wf_default_notifications",
     }
 
+
+def test_fee_due_and_overdue_flow_uses_sor_ledger_and_template_selection() -> None:
+    sor = _service_module.SystemOfRecordService()
+    profile = _service_module._SystemOfRecordModule.UnifiedStudentProfile(
+        tenant_id="tenant_fee",
+        student_id="student_77",
+        full_name="Amina Noor",
+        metadata={"fee.due_date": "2026-04-05"},
+    )
+    sor.upsert_student_profile(profile)
+    sor.update_financial_state(
+        tenant_id="tenant_fee",
+        student_id="student_77",
+        current_balance=150,
+        dues_outstanding=150,
+        payment_status="pending",
+        installment_status="due",
+    )
+
+    engine = WorkflowEngine(system_of_record_service=sor)
+    now = datetime(2026, 4, 1, 8, 0, tzinfo=timezone.utc)
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_fee_due_overdue",
+            name="Fee Due + Overdue",
+            enabled=True,
+            rules=(
+                WorkflowRule(rule_id="rule_fee_due", trigger_type="fee.due"),
+                WorkflowRule(rule_id="rule_fee_overdue", trigger_type="fee.overdue"),
+            ),
+            steps=(WorkflowStep(step_id="step_notify_fee", step_type="notify", config={}),),
+        )
+    )
+
+    engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_fee_due",
+            tenant_id="tenant_fee",
+            country_code="PK",
+            segment_id="academy",
+            trigger_type="fee.due",
+            actor_user_id="student_77",
+            context={},
+            timestamp=now,
+        )
+    )
+    engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_fee_overdue",
+            tenant_id="tenant_fee",
+            country_code="PK",
+            segment_id="academy",
+            trigger_type="fee.overdue",
+            actor_user_id="student_77",
+            context={},
+            timestamp=now,
+        )
+    )
+
+    run = engine.run_due(now=now + timedelta(minutes=1))
+    assert len(run["executed"]) == 2
+    by_event = {item["event_id"]: item["result"] for item in run["executed"]}
+    assert by_event["evt_fee_due"]["template_name"] == "fee_reminder"
+    assert by_event["evt_fee_overdue"]["template_name"] == "fee_overdue_escalation"
+
+
+def test_schedule_based_trigger_uses_event_context_timestamp() -> None:
+    engine = WorkflowEngine()
+    now = datetime(2026, 4, 1, 9, 0, tzinfo=timezone.utc)
+    scheduled_for = now + timedelta(hours=6)
+    engine.register_workflow(
+        WorkflowDefinition(
+            workflow_id="wf_fee_scheduled",
+            name="Scheduled Fee Reminder",
+            enabled=True,
+            rules=(WorkflowRule(rule_id="rule_fee_due", trigger_type="fee.due"),),
+            steps=(
+                WorkflowStep(
+                    step_id="step_fee_scheduled_notify",
+                    step_type="notify",
+                    config={"schedule_from_context_key": "reminder_at"},
+                ),
+            ),
+        )
+    )
+
+    scheduled = engine.handle_trigger(
+        WorkflowTriggerEvent(
+            event_id="evt_fee_schedule",
+            tenant_id="tenant_sched",
+            country_code="US",
+            segment_id="academy",
+            trigger_type="fee.due",
+            actor_user_id="student_sched",
+            context={"reminder_at": scheduled_for.isoformat().replace("+00:00", "Z")},
+            timestamp=now,
+        )
+    )
+    assert scheduled["scheduled"][0]["due_at"] == scheduled_for.isoformat()
+
+    before = engine.run_due(now=now + timedelta(hours=1))
+    assert before["executed"] == []
+    after = engine.run_due(now=scheduled_for + timedelta(minutes=1))
+    assert len(after["executed"]) == 1
