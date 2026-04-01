@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
+from shared.models.template import Template
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "services/workflow-engine/service.py"

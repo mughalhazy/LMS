@@ -5,6 +5,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from shared.models.template import Template
 from shared.models.workflow import WorkflowAction, WorkflowDefinition, WorkflowTrigger
 
 spec = importlib.util.spec_from_file_location(

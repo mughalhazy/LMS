@@ -13,6 +13,7 @@ from integrations.communication import (
     WhatsAppAdapter,
     WhatsAppOperationType,
 )
+from shared.models.template import Template
 from shared.models.workflow import WorkflowAction, WorkflowDefinition
 
 
@@ -173,7 +174,17 @@ class NotificationOrchestrator:
         recipients = list(action.config.get("recipients") or context.get("recipients") or [])
         operation = str(action.config.get("operation", "update")).lower()
         channel = str(action.config.get("channel", "whatsapp")).lower()
-        message = str(action.config.get("message", "Workflow notification"))
+        locale = str(context.get("locale", "default"))
+        template_id = action.config.get("template_id")
+        if isinstance(template_id, str) and template_id in self._templates:
+            template, message = self.render_template(
+                template_id=template_id,
+                payload=context,
+                locale=locale,
+            )
+            channel = template.channel.lower()
+        else:
+            message = str(action.config.get("message", "Workflow notification"))
         choices = list(action.config.get("choices") or ["ACK"])
 
         delivery_results: list[dict[str, Any]] = []
