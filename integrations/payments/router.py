@@ -39,7 +39,15 @@ class PaymentProviderRouter:
         tenant_context = normalize_tenant(tenant)
         provider_key = self.resolve_provider(tenant_context)
         adapter = self._adapters[provider_key]
-        return adapter.process_payment(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
+        result = adapter.process_payment(amount=amount, tenant=tenant_context, invoice_id=invoice_id)
+        return PaymentResult(
+            ok=bool(result.ok),
+            status=self._normalize_status(result.status, ok=result.ok, stage="checkout"),
+            payment_id=result.payment_id,
+            provider=result.provider or provider_key,
+            error=result.error,
+            invoice_id=result.invoice_id or invoice_id,
+        )
 
     def verify(
         self,
@@ -66,10 +74,39 @@ class PaymentProviderRouter:
                 provider=provider,
                 error=None,
             )
-        return verify_fn(payment_id=payment_id, tenant=tenant)
+        result = verify_fn(payment_id=payment_id, tenant=tenant)
+        return PaymentVerificationResult(
+            ok=bool(result.ok),
+            status=self._normalize_status(result.status, ok=result.ok, stage="verification"),
+            payment_id=result.payment_id or payment_id,
+            provider=result.provider or provider,
+            error=result.error,
+        )
 
     def parse_callback(self, *, provider: str, payload: dict[str, Any]) -> PaymentVerificationResult | None:
         adapter = self._adapters.get(provider)
         if adapter is None:
             return None
-        return adapter.parse_callback(payload)
+        result = adapter.parse_callback(payload)
+        if result is None:
+            return None
+        return PaymentVerificationResult(
+            ok=bool(result.ok),
+            status=self._normalize_status(result.status, ok=result.ok, stage="verification"),
+            payment_id=result.payment_id,
+            provider=result.provider or provider,
+            error=result.error,
+        )
+
+    @staticmethod
+    def _normalize_status(status: str, *, ok: bool, stage: str) -> str:
+        normalized = (status or "").strip().lower()
+        if stage == "checkout":
+            if ok:
+                if normalized in {"success", "pending"}:
+                    return normalized
+                return "success"
+            return "failure"
+        if ok:
+            return "verified"
+        return "failed"
