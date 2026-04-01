@@ -191,7 +191,18 @@ class CheckoutService:
                 break
             await asyncio.sleep(0)
 
-        order = Order(**{**order.__dict__, "payment_id": payment_id})
+        order = Order(
+            order_id=f"order_{len(self._orders) + 1}",
+            session_id=session.session_id,
+            tenant_id=session.tenant_id,
+            learner_id=session.learner_id,
+            product=product,
+            capability_id=product.primary_capability_id,
+            amount=Decimal(amount),
+            currency=product.currency,
+            payment_id=payment_id,
+            status=OrderStatus.CREATED,
+        )
         order = self._transition_order(order, OrderStatus.PENDING)
         order = self._transition_order(order, OrderStatus.PAID if success else OrderStatus.FAILED)
 
