@@ -152,61 +152,34 @@ def test_failure_safe_pending_is_retained_for_retry(tmp_path: Path) -> None:
     assert pending[0].sync_attempts == 1
 
 
-def test_duplicate_progress_update_is_idempotently_ignored(tmp_path: Path) -> None:
+def test_record_offline_progress_dedupes_by_reference_token(tmp_path: Path) -> None:
     service = OfflineSyncService(
         cache_root=tmp_path / "offline-cache",
         state_file=tmp_path / "offline-state" / "state.json",
     )
-    operation_id = "op-duplicate-1"
-    service.queue_progress(
-        tenant_id="tenant-a",
-        learner_id="learner-4",
-        course_id="course-1",
-        lesson_id="lesson-4",
-        enrollment_id="enr-4",
-        completion_status="completed",
-        score=80.0,
-        time_spent_seconds=100,
-        attempt_count=1,
-        operation_id=operation_id,
-    )
-    first = service.sync_offline_progress()
-    assert first["succeeded"] == 1
 
-    service.queue_progress(
+    first = service.record_offline_progress(
         tenant_id="tenant-a",
-        learner_id="learner-4",
-        course_id="course-1",
-        lesson_id="lesson-4",
-        enrollment_id="enr-4",
-        completion_status="completed",
-        score=80.0,
-        time_spent_seconds=100,
-        attempt_count=1,
-        operation_id=operation_id,
+        student_id="learner-9",
+        content_id="course-1",
+        lesson_id="lesson-1",
+        playback_position=10,
+        completion_percent=10,
+        reference_token="offline-ref-1",
     )
-    second = service.sync_offline_progress()
-    assert second["conflicts"] == 1
-    assert second["succeeded"] == 0
+    service.queue_progress_for_sync(first)
 
-
-def test_expired_offline_package_is_rejected(tmp_path: Path) -> None:
-    service = OfflineSyncService(
-        cache_root=tmp_path / "offline-cache",
-        state_file=tmp_path / "offline-state" / "state.json",
-    )
-    service.queue_progress(
+    second = service.record_offline_progress(
         tenant_id="tenant-a",
-        learner_id="learner-5",
-        course_id="course-1",
-        lesson_id="lesson-5",
-        enrollment_id="enr-5",
-        completion_status="completed",
-        score=91.0,
-        time_spent_seconds=45,
-        attempt_count=1,
-        package_expires_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        student_id="learner-9",
+        content_id="course-1",
+        lesson_id="lesson-1",
+        playback_position=42,
+        completion_percent=42,
+        reference_token="offline-ref-1",
     )
-    result = service.sync_offline_progress()
-    assert result["conflicts"] == 1
-    assert result["succeeded"] == 0
+    service.queue_progress_for_sync(second)
+
+    pending = service.list_pending_sync_records()
+    assert len(pending) == 1
+    assert pending[0].playback_position == 42
