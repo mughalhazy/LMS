@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime
+import hashlib
+import hmac
 from typing import Any, Callable, TypeVar
 
 from integrations.communication.base_adapter import CommunicationRouter, CommunicationUser, Tenant
@@ -13,7 +15,9 @@ from .schemas import (
     DeliveryDrainRequest,
     EventNotificationRequest,
     EventRouteUpsertRequest,
+    InboundWhatsAppReplyRequest,
     NotificationOrchestrationRequest,
+    PhoneBindingUpsertRequest,
     PreferenceUpsertRequest,
 )
 from .store import (
@@ -23,7 +27,7 @@ from .store import (
     ServiceUnavailableError,
 )
 from workflows import WorkflowEngine
-from shared.models.workflow import WorkflowDefinition
+from shared.models.workflow import WorkflowAction, WorkflowDefinition, WorkflowTrigger
 
 T = TypeVar("T")
 
@@ -87,6 +91,51 @@ class NotificationService:
         self.raised_alerts: list[dict[str, Any]] = []
         self.follow_up_tasks: list[dict[str, Any]] = []
         self.workflow_engine = WorkflowEngine(self)
+        self._phone_binding_secret = b"notification-service-phone-binding-v1"
+
+    _WHATSAPP_ACTION_ROUTE: dict[tuple[str, str], dict[str, Any]] = {
+        ("attendance", "confirm"): {
+            "workflow_name": "WhatsApp Attendance Confirmation",
+            "trigger_type": "inactivity",
+            "trigger_config": {"days": 0},
+            "actions": [
+                WorkflowAction(
+                    action_type="create_follow_up_task",
+                    config={"task_type": "attendance_confirmation", "title": "Attendance confirmed"},
+                )
+            ],
+        },
+        ("reminder", "ack"): {
+            "workflow_name": "WhatsApp Reminder Acknowledged",
+            "trigger_type": "inactivity",
+            "trigger_config": {"days": 0},
+            "actions": [
+                WorkflowAction(
+                    action_type="create_follow_up_task",
+                    config={"task_type": "reminder_acknowledged", "title": "Reminder acknowledged"},
+                )
+            ],
+        },
+        ("update", "query"): {
+            "workflow_name": "WhatsApp Simple Query",
+            "trigger_type": "inactivity",
+            "trigger_config": {"days": 0},
+            "actions": [
+                WorkflowAction(
+                    action_type="send_notification",
+                    config={
+                        "subject": "Learner query received",
+                        "body": "A WhatsApp query needs follow-up.",
+                        "channels": ["in_app"],
+                    },
+                ),
+                WorkflowAction(
+                    action_type="create_follow_up_task",
+                    config={"task_type": "learner_query", "title": "Respond to learner WhatsApp query"},
+                ),
+            ],
+        },
+    }
 
 
     def execute_workflows(
@@ -106,6 +155,94 @@ class NotificationService:
             tenant_country_code=tenant_country_code,
         )
         return 200, result
+
+    def upsert_phone_binding(self, req: PhoneBindingUpsertRequest) -> tuple[int, dict[str, Any]]:
+        self._ensure_service_available()
+        normalized_phone = self._normalize_phone(req.phone_e164)
+        if normalized_phone is None:
+            return 400, {"error": "invalid_phone"}
+
+        try:
+            self._with_database_retry(
+                lambda: self.store.upsert_phone_binding(
+                    tenant_id=req.tenant_id,
+                    phone_hash=self._phone_hash(req.tenant_id, normalized_phone),
+                    user_id=req.user_id,
+                )
+            )
+        except DatabaseUnavailableError as exc:
+            return 503, {"error": "database_unavailable", "detail": str(exc)}
+
+        return 200, {"tenant_id": req.tenant_id, "user_id": req.user_id, "phone_bound": True}
+
+    def handle_whatsapp_inbound_reply(self, req: InboundWhatsAppReplyRequest) -> tuple[int, dict[str, Any]]:
+        try:
+            self._ensure_service_available()
+        except ServiceUnavailableError as exc:
+            return 503, {"error": "service_restarting", "detail": str(exc)}
+
+        normalized_phone = self._normalize_phone(req.from_phone_e164)
+        if normalized_phone is None:
+            return 400, {"error": "invalid_phone"}
+
+        phone_hash = self._phone_hash(req.tenant_id, normalized_phone)
+        try:
+            user_id = self._with_database_retry(
+                lambda: self.store.get_user_by_phone_hash(tenant_id=req.tenant_id, phone_hash=phone_hash)
+            )
+        except DatabaseUnavailableError as exc:
+            return 503, {"error": "database_unavailable", "detail": str(exc)}
+
+        if user_id is None:
+            return 403, {"error": "phone_not_mapped", "tenant_id": req.tenant_id}
+
+        parsed = self.whatsapp_adapter.parse_interactive_reply(user_id=user_id, reply=req.reply)
+        if parsed is None:
+            parsed = self.whatsapp_adapter.classify_free_text_reply(user_id=user_id, reply=req.reply)
+        if parsed is None:
+            return 202, {"status": "ignored", "reason": "unrecognized_reply", "user_id": user_id}
+
+        route = self._WHATSAPP_ACTION_ROUTE.get((parsed.operation, parsed.action))
+        if route is None:
+            return 202, {
+                "status": "ignored",
+                "reason": "unsupported_action",
+                "operation": parsed.operation,
+                "action": parsed.action,
+                "user_id": user_id,
+            }
+
+        workflow = WorkflowDefinition(
+            workflow_id=f"wa-{parsed.operation}-{parsed.action}",
+            name=str(route["workflow_name"]),
+            trigger=WorkflowTrigger(
+                trigger_type=str(route["trigger_type"]),
+                config=dict(route["trigger_config"]),
+            ),
+            actions=list(route["actions"]),
+        )
+
+        status, payload = self.execute_workflows(
+            tenant_id=req.tenant_id,
+            workflows=[workflow],
+            context={
+                "inactive_days": 0,
+                "recipients": [user_id],
+                "reply": req.reply,
+                "reply_operation": parsed.operation,
+                "reply_action": parsed.action,
+                "reply_payload": parsed.payload,
+            },
+            tenant_country_code=req.tenant_country_code,
+        )
+        payload["routing"] = {
+            "mode": "workflow_engine_only",
+            "operation": parsed.operation,
+            "action": parsed.action,
+            "user_id": user_id,
+            "workflow_id": workflow.workflow_id,
+        }
+        return status, payload
 
     def upsert_preference(self, req: PreferenceUpsertRequest) -> tuple[int, dict[str, Any]]:
         if not req.channels:
@@ -415,3 +552,17 @@ class NotificationService:
         if preference is None:
             return True
         return preference.channels.get(channel, False)
+
+    @staticmethod
+    def _normalize_phone(phone_e164: str) -> str | None:
+        digits = "".join(char for char in phone_e164 if char.isdigit() or char == "+")
+        if not digits.startswith("+"):
+            return None
+        number = digits[1:]
+        if not number.isdigit() or not 8 <= len(number) <= 15:
+            return None
+        return f"+{number}"
+
+    def _phone_hash(self, tenant_id: str, normalized_phone: str) -> str:
+        payload = f"{tenant_id}:{normalized_phone}".encode("utf-8")
+        return hmac.new(self._phone_binding_secret, payload, hashlib.sha256).hexdigest()
