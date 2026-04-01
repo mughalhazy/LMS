@@ -1,0 +1,18 @@
+{
+  "event_type": "attendance.absence_detected",
+  "version": "1.0.0",
+  "producer": "academy-ops",
+  "consumers": [
+    "system-of-record",
+    "workflows",
+    "operations-os"
+  ],
+  "payload": {
+    "attendance_id": "string",
+    "batch_id": "string",
+    "class_session_id": "string",
+    "student_id": "string",
+    "teacher_id": "string",
+    "marked_at": "ISO-8601 datetime"
+  }
+}

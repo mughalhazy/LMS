@@ -100,18 +100,103 @@ def test_branch_batch_teacher_timetable_and_attendance_workflow() -> None:
         )
     )
 
-    attendance = service.record_attendance(
+    attendance = service.mark_attendance(
         AttendanceRecord(
+            attendance_id="att_1",
             tenant_id="tenant_1",
             branch_id="branch_nyc",
             batch_id="batch_1",
-            learner_id="learner_1",
-            slot_id=slot.slot_id,
-            present=True,
+            class_session_id=slot.slot_id,
+            student_id="learner_1",
+            teacher_id="teacher_1",
+            status="present",
+            notes="On time",
         )
     )
 
-    assert attendance.present is True
+    assert attendance.status == "present"
+    batch_attendance = service.get_attendance_for_batch(tenant_id="tenant_1", batch_id="batch_1")
+    assert len(batch_attendance) == 1
+    summary = service.get_student_attendance_summary(tenant_id="tenant_1", batch_id="batch_1", student_id="learner_1")
+    assert summary["by_status"]["present"] == 1
+    assert summary["attendance_rate"] == Decimal("1.0000")
+    attendance_events = service.list_events(tenant_id="tenant_1", event_type="attendance.marked")
+    assert len(attendance_events) == 1
+    assert attendance_events[0]["feeds"] == ("system-of-record", "workflows", "operations-os")
+
+
+def test_bulk_mark_attendance_and_absence_events() -> None:
+    service = AcademyOpsService()
+    service.register_student_profile(
+        UnifiedStudentProfile(
+            tenant_id="tenant_3",
+            student_id="learner_3",
+            display_name="Bulk Student",
+            email="bulk@example.edu",
+            country_code="US",
+            segment_id="academy",
+        )
+    )
+    service.upsert_branch(
+        Branch(
+            tenant_id="tenant_3",
+            branch_id="branch_sf",
+            academy_id="academy_3",
+            name="SF Campus",
+            timezone="America/Los_Angeles",
+        )
+    )
+    service.create_batch(
+        Batch(
+            tenant_id="tenant_3",
+            branch_id="branch_sf",
+            batch_id="batch_3",
+            academy_id="academy_3",
+            title="Operations",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 6, 1),
+            learner_ids=("learner_3",),
+        )
+    )
+    service.assign_teacher(
+        TeacherAssignment(
+            tenant_id="tenant_3",
+            branch_id="branch_sf",
+            batch_id="batch_3",
+            teacher_id="teacher_3",
+        )
+    )
+    start = datetime(2026, 4, 3, 18, 0, 0)
+    service.publish_timetable_slot(
+        TimetableSlot(
+            tenant_id="tenant_3",
+            branch_id="branch_sf",
+            batch_id="batch_3",
+            slot_id="slot_3",
+            teacher_id="teacher_3",
+            start_at=start,
+            end_at=start + timedelta(hours=2),
+            room="R-21",
+        )
+    )
+
+    marked = service.bulk_mark_attendance(
+        records=[
+            AttendanceRecord(
+                attendance_id="att_3_1",
+                tenant_id="tenant_3",
+                branch_id="branch_sf",
+                batch_id="batch_3",
+                class_session_id="slot_3",
+                student_id="learner_3",
+                teacher_id="teacher_3",
+                status="absent",
+            )
+        ]
+    )
+    assert len(marked) == 1
+    absent_events = service.list_events(tenant_id="tenant_3", event_type="attendance.absence_detected")
+    assert len(absent_events) == 1
 
 
 def test_fee_tracking_integrates_system_of_record_ledger() -> None:
