@@ -139,6 +139,27 @@ class CommerceService:
     def checkout_and_invoice_sync(self, **kwargs: str):
         return asyncio.run(self.checkout_and_invoice(**kwargs))
 
+    def generate_academy_fee_invoice(
+        self,
+        *,
+        tenant_id: str,
+        learner_id: str,
+        fee_reference_id: str,
+        amount: Decimal,
+        fee_type: str,
+        currency: str = "USD",
+    ) -> InvoiceRecord:
+        invoice = InvoiceRecord(
+            invoice_id=f"fee_{fee_reference_id}",
+            user_id=tenant_id,
+            order_id=f"academy_fee:{learner_id}:{fee_reference_id}",
+            amount=Decimal(amount),
+            currency=currency,
+            invoice_type=f"academy_fee:{fee_type}",
+        )
+        self.billing._invoices[invoice.invoice_id] = invoice
+        return invoice
+
     def enable_capability_add_on(self, *, tenant_id: str, capability_id: str, country_code: str = "", plan_id: str = "") -> None:
         self.monetization.enable_add_on(tenant_id=tenant_id, capability_id=capability_id, country_code=country_code or self._payment_country_code, plan_id=plan_id)
 

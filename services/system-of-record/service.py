@@ -240,13 +240,10 @@ class SystemOfRecordService:
             entry_id=f"led_{invoice.invoice_id}",
             tenant_id=invoice.tenant_id,
             student_id=student_id,
-            entry_type="invoice",
+            source_type="invoice",
             amount=Decimal(invoice.amount),
             currency=currency,
-            reference_type="invoice",
-            reference_id=invoice.invoice_id,
-            status="posted",
-            metadata={"invoice_status": invoice.status},
+            source_ref=invoice.invoice_id,
         )
         self._ledger.setdefault(key, []).append(entry)
         self._refresh_ledger_summary(*key)
@@ -260,20 +257,62 @@ class SystemOfRecordService:
             entry_id=f"pay_{payment_id}",
             tenant_id=tenant_id,
             student_id=student_id,
-            entry_type="payment",
+            source_type="payment",
             amount=Decimal(amount) * Decimal("-1"),
             currency=currency,
-            reference_type="payment",
-            reference_id=payment_id,
-            status="posted",
+            source_ref=payment_id,
         )
         self._ledger.setdefault(key, []).append(entry)
         self._refresh_ledger_summary(*key)
         return entry
 
+    def post_fee_action_to_ledger(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        action_type: str,
+        reference_id: str,
+        metadata: dict[str, str] | None = None,
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"fee_{action_type}_{reference_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            source_type=f"fee_action:{action_type}",
+            amount=Decimal("0"),
+            currency="USD",
+            source_ref=reference_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
+    def set_student_fee_overdue_status(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        overdue: bool,
+        source: str,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        metadata = dict(profile.metadata)
+        metadata["fee.overdue"] = "true" if overdue else "false"
+        metadata["fee.overdue_source"] = source
+        metadata["fee.overdue_updated_at"] = datetime.now(timezone.utc).isoformat()
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
     def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
         key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
-        return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.timestamp))
+        return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.posted_at))
 
     def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
         return sum((e.amount for e in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)), start=Decimal("0"))
@@ -301,7 +340,7 @@ class SystemOfRecordService:
             "ledger_consistency": True,
             "lifecycle_transitions": True,
             "payments_update_ledger": all(
-                entry.entry_type != "payment" or entry.amount < 0
+                entry.source_type != "payment" or entry.amount < 0
                 for entries in self._ledger.values()
                 for entry in entries
             ),
