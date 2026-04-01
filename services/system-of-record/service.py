@@ -331,6 +331,44 @@ class SystemOfRecordService:
         self.attach_batch(tenant_id=tenant_id, student_id=student_id, batch_id=learning_path_id)
         return self._learning_service.get_learner_progress(tenant_id=tenant_id, learner_id=student_id)
 
+    def commit_progress_sync_result(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        course_id: str,
+        lesson_id: str,
+        operation_id: str,
+        completion_status: str,
+        score: float | None,
+        time_spent_seconds: int,
+        attempt_count: int,
+        source: str = "offline-sync",
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+
+        if profile.academic_state.status in {AcademicStatus.DROPPED}:
+            raise LifecycleTransitionError("cannot mutate progress for dropped learner")
+
+        self._learning_service.track_lesson_completion(
+            tenant_id=tenant_id,
+            learner_id=student_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+            enrollment_id=operation_id,
+            completion_status=completion_status,
+            score=score,
+            time_spent_seconds=time_spent_seconds,
+            attempt_count=attempt_count,
+        )
+        metadata = dict(profile.metadata)
+        metadata[f"progress_sync.{course_id}.{lesson_id}"] = f"{source}:{operation_id}:{completion_status}"
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
     def post_invoice_to_ledger(self, *, student_id: str, invoice: Invoice, currency: str = "USD") -> LedgerEntry:
         key = self._profile_key(tenant_id=invoice.tenant_id, student_id=student_id)
         if key not in self._profiles:
