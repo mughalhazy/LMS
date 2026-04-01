@@ -33,6 +33,7 @@ from integrations.payments.orchestration import PaymentOrchestrationService
 from integrations.payments.router import PaymentProviderRouter
 
 ExamEngineService = ExamModule.ExamEngineService
+InMemoryCapabilityIntegration = ExamModule.InMemoryCapabilityIntegration
 TenantCapacityProfile = ExamModule.TenantCapacityProfile
 AcademyOpsService = AcademyModule.AcademyOpsService
 Batch = AcademyModule.Batch
@@ -51,7 +52,14 @@ def _bootstrap_ops(tenant_id: str) -> tuple[AcademyOpsService, CommerceService]:
 
 
 def test_e2e_student_exam_session_is_tenant_isolated_and_burst_safe() -> None:
-    exam = ExamEngineService()
+    exam = ExamEngineService(
+        capability_integration=InMemoryCapabilityIntegration(
+            enabled_capabilities={
+                "tenant_a": {"assessment.attempt"},
+                "tenant_b": {"assessment.attempt"},
+            }
+        )
+    )
     exam.register_tenant("tenant_a", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=1))
     exam.register_tenant("tenant_b", TenantCapacityProfile(max_active_sessions=1, shard_count=2, burst_queue_limit=0))
 

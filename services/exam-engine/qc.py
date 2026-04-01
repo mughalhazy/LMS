@@ -7,11 +7,18 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from service import ExamEngineService, TenantCapacityProfile
+from service import ExamEngineService, InMemoryCapabilityIntegration, TenantCapacityProfile
 
 
 def run_qc() -> dict[str, object]:
-    service = ExamEngineService()
+    service = ExamEngineService(
+        capability_integration=InMemoryCapabilityIntegration(
+            enabled_capabilities={
+                "tenant_alpha": {"assessment.attempt"},
+                "tenant_beta": {"assessment.attempt"},
+            }
+        )
+    )
     service.register_tenant("tenant_alpha", TenantCapacityProfile(max_active_sessions=2, shard_count=3, burst_queue_limit=2))
     service.register_tenant("tenant_beta", TenantCapacityProfile(max_active_sessions=1, shard_count=3, burst_queue_limit=0))
 

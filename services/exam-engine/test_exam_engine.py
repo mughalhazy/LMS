@@ -16,13 +16,29 @@ _service_spec.loader.exec_module(_service_module)
 
 ExamEngineService = _service_module.ExamEngineService
 InMemoryAnalyticsIntegration = _service_module.InMemoryAnalyticsIntegration
+InMemoryCapabilityIntegration = _service_module.InMemoryCapabilityIntegration
 InMemoryLearningIntegration = _service_module.InMemoryLearningIntegration
 InMemoryProgressIntegration = _service_module.InMemoryProgressIntegration
 TenantCapacityProfile = _service_module.TenantCapacityProfile
 
 
+def _service_with_capability() -> ExamEngineService:
+    return ExamEngineService(
+        capability_integration=InMemoryCapabilityIntegration(
+            enabled_capabilities={
+                "tenant-a": {"assessment.attempt"},
+                "tenant-b": {"assessment.attempt"},
+                "tenant-hot": {"assessment.attempt"},
+                "tenant-cold": {"assessment.attempt"},
+                "tenant-1": {"assessment.attempt"},
+                "tenant-2": {"assessment.attempt"},
+            }
+        )
+    )
+
+
 def test_sessions_are_tenant_isolated() -> None:
-    service = ExamEngineService()
+    service = _service_with_capability()
     s1 = service.start_session(tenant_id="tenant-a", learner_id="u1", exam_id="math")
     service.start_session(tenant_id="tenant-b", learner_id="u2", exam_id="science")
 
@@ -36,7 +52,7 @@ def test_sessions_are_tenant_isolated() -> None:
 
 
 def test_load_handling_blocks_only_hot_tenant() -> None:
-    service = ExamEngineService()
+    service = _service_with_capability()
     service.register_tenant("tenant-hot", TenantCapacityProfile(max_active_sessions=2, shard_count=4))
     service.register_tenant("tenant-cold", TenantCapacityProfile(max_active_sessions=2, shard_count=4))
 
@@ -59,7 +75,12 @@ def test_submission_publishes_to_learning_analytics_and_progress() -> None:
     learning = InMemoryLearningIntegration()
     analytics = InMemoryAnalyticsIntegration()
     progress = InMemoryProgressIntegration()
-    service = ExamEngineService(learning_integration=learning, analytics_integration=analytics, progress_integration=progress)
+    service = ExamEngineService(
+        learning_integration=learning,
+        analytics_integration=analytics,
+        progress_integration=progress,
+        capability_integration=InMemoryCapabilityIntegration(enabled_capabilities={"tenant-1": {"assessment.attempt"}}),
+    )
 
     session = service.start_session(tenant_id="tenant-1", learner_id="learner-1", exam_id="exam-1")
     submitted = service.submit_session(tenant_id="tenant-1", session_id=session.session_id, score=96)
@@ -73,7 +94,7 @@ def test_submission_publishes_to_learning_analytics_and_progress() -> None:
 
 
 def test_shard_distribution_is_tenant_local_not_global_queue() -> None:
-    service = ExamEngineService()
+    service = _service_with_capability()
     service.register_tenant("tenant-1", TenantCapacityProfile(max_active_sessions=100, shard_count=2))
     service.register_tenant("tenant-2", TenantCapacityProfile(max_active_sessions=100, shard_count=2))
 
@@ -90,7 +111,7 @@ def test_shard_distribution_is_tenant_local_not_global_queue() -> None:
 
 
 def test_prevents_conflicting_active_sessions_per_student_by_default() -> None:
-    service = ExamEngineService()
+    service = _service_with_capability()
     service.start_session(tenant_id="tenant-1", learner_id="student-1", exam_id="exam-1")
 
     try:
@@ -103,7 +124,7 @@ def test_prevents_conflicting_active_sessions_per_student_by_default() -> None:
 
 
 def test_heartbeat_can_expire_session() -> None:
-    service = ExamEngineService()
+    service = _service_with_capability()
     session = service.create_exam_session(
         tenant_id="tenant-1",
         exam_id="exam-1",

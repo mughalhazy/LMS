@@ -96,9 +96,11 @@ class InMemoryProgressIntegration:
 
 
 @dataclass
-class AllowAllCapabilityIntegration:
+class InMemoryCapabilityIntegration:
+    enabled_capabilities: dict[str, set[str]] = field(default_factory=dict)
+
     def is_enabled(self, *, tenant_id: str, capability_id: str) -> bool:
-        return True
+        return capability_id in self.enabled_capabilities.get(tenant_id, set())
 
 
 class ExamEngineService:
@@ -119,14 +121,16 @@ class ExamEngineService:
         self._analytics = analytics_integration or InMemoryAnalyticsIntegration()
         self._attempts = assessment_attempt_integration or InMemoryAssessmentAttemptIntegration()
         self._progress = progress_integration or InMemoryProgressIntegration()
-        self._capabilities = capability_integration or AllowAllCapabilityIntegration()
+        if capability_integration is None:
+            raise ValueError("capability_integration is required for strict runtime capability resolution")
+        self._capabilities = capability_integration
         self._tenant_partitions: dict[str, TenantPartition] = {}
 
     def register_tenant(self, tenant_id: str, profile: TenantCapacityProfile | None = None) -> None:
         if tenant_id not in self._tenant_partitions:
-            self._tenant_partitions[tenant_id] = _TenantPartition(profile=profile or TenantCapacityProfile())
+            self._tenant_partitions[tenant_id] = TenantPartition(profile=profile or TenantCapacityProfile())
 
-    def _partition_for(self, tenant_id: str) -> _TenantPartition:
+    def _partition_for(self, tenant_id: str) -> TenantPartition:
         if tenant_id not in self._tenant_partitions:
             self.register_tenant(tenant_id)
         return self._tenant_partitions[tenant_id]
@@ -183,7 +187,7 @@ class ExamEngineService:
                 return
             queued = partition.shard_queues[shard].pop(0)
             session = partition.sessions.get(queued.exam_session_id)
-            if session is None or session.status != "scheduled":
+            if session is None or session.status not in {"scheduled", "queued"}:
                 continue
             self.start_exam_session(tenant_id=session.tenant_id, exam_session_id=session.exam_session_id)
             return
@@ -226,13 +230,13 @@ class ExamEngineService:
             assigned_shard=shard,
             metadata=dict(metadata or {}),
         )
-        partition.sessions[exam_session_id] = session
+        partition.sessions[session.exam_session_id] = session
 
         self._publish(
             {
                 "tenant_id": tenant_id,
                 "event_type": "exam.session.created",
-                "exam_session_id": exam_session_id,
+                "exam_session_id": session.exam_session_id,
                 "attempt_id": session.attempt_id,
                 "student_id": student_id,
                 "exam_id": exam_id,
@@ -240,7 +244,11 @@ class ExamEngineService:
                 "assigned_shard": shard,
             }
         )
-        self._append_audit(tenant_id=tenant_id, action="exam.session.created", details={"exam_session_id": exam_session_id})
+        self._append_audit(
+            tenant_id=tenant_id,
+            action="exam.session.created",
+            details={"exam_session_id": session.exam_session_id},
+        )
         return session
 
     def start_exam_session(self, *, tenant_id: str, exam_session_id: str) -> ExamSession:
@@ -255,6 +263,7 @@ class ExamEngineService:
             queue = partition.shard_queues[session.assigned_shard or 0]
             if len(queue) >= partition.profile.burst_queue_limit:
                 raise RuntimeError("TENANT_EXAM_CAPACITY_REACHED")
+            session.status = "queued"
             queue.append(QueuedExamSession(exam_session_id=session.exam_session_id, shard_id=session.assigned_shard or 0, queued_at=datetime.now(timezone.utc)))
             self._append_audit(tenant_id=tenant_id, action="exam.session.queued", details={"exam_session_id": session.exam_session_id})
             return session
@@ -299,7 +308,7 @@ class ExamEngineService:
         self._append_audit(tenant_id=tenant_id, action="exam.session.heartbeat", details={"exam_session_id": session.exam_session_id})
         return session
 
-    def _drain_next_queued(self, partition: _TenantPartition) -> None:
+    def _drain_next_queued(self, partition: TenantPartition) -> None:
         if len(partition.active_sessions) >= partition.profile.max_active_sessions:
             return
         for shard_id in sorted(partition.shard_queues):
