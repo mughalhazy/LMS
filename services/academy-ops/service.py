@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import builtins
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,7 @@ EntitlementService = _EntitlementModule.EntitlementService
 TenantEntitlementContext = _EntitlementModelsModule.TenantEntitlementContext
 AttendanceRecord = _ModelsModule.AttendanceRecord
 Batch = _ModelsModule.Batch
+BatchStatus = _ModelsModule.BatchStatus
 Branch = _ModelsModule.Branch
 FeePayment = _ModelsModule.FeePayment
 RevenueShareAgreement = _ModelsModule.RevenueShareAgreement
@@ -50,6 +52,113 @@ TeacherPerformanceSnapshot = _ModelsModule.TeacherPerformanceSnapshot
 TeacherRole = _ModelsModule.TeacherRole
 TimetableSlot = _ModelsModule.TimetableSlot
 BranchStatus = _ModelsModule.BranchStatus
+_BranchModel = _ModelsModule.Branch
+_BatchModel = _ModelsModule.Batch
+_TimetableSlotModel = _ModelsModule.TimetableSlot
+
+_UnifiedStudentProfileModel = _SorModule.UnifiedStudentProfile
+
+
+def UnifiedStudentProfile(**kwargs: Any) -> _UnifiedStudentProfileModel:
+    """Compatibility constructor for canonical student profile model."""
+    metadata = dict(kwargs.pop("metadata", {}) or {})
+    full_name = kwargs.pop("full_name", "").strip()
+    if not full_name:
+        full_name = kwargs.pop("display_name", "").strip()
+    email = kwargs.pop("email", "").strip()
+    if email:
+        metadata.setdefault("email", email)
+    country_code = kwargs.pop("country_code", "").strip()
+    if country_code:
+        metadata.setdefault("country_code", country_code)
+    segment_id = kwargs.pop("segment_id", "").strip()
+    if segment_id:
+        metadata.setdefault("segment_id", segment_id)
+    if "student_id" not in kwargs or "tenant_id" not in kwargs:
+        raise ValueError("student_id and tenant_id are required")
+    return _UnifiedStudentProfileModel(
+        student_id=kwargs["student_id"],
+        tenant_id=kwargs["tenant_id"],
+        full_name=full_name or "Learner",
+        metadata=metadata,
+    )
+
+
+def Branch(**kwargs: Any) -> _BranchModel:
+    metadata = dict(kwargs.pop("metadata", {}) or {})
+    academy_id = kwargs.pop("academy_id", "").strip()
+    timezone_hint = kwargs.pop("timezone", "").strip()
+    if academy_id:
+        metadata.setdefault("academy_id", academy_id)
+    if timezone_hint:
+        metadata.setdefault("timezone", timezone_hint)
+    return _BranchModel(
+        branch_id=kwargs["branch_id"],
+        tenant_id=kwargs["tenant_id"],
+        name=kwargs.get("name", "").strip() or kwargs["branch_id"],
+        code=kwargs.get("code", "").strip() or kwargs["branch_id"].upper(),
+        location=kwargs.get("location", "").strip() or timezone_hint or "unknown",
+        manager_id=kwargs.get("manager_id"),
+        capacity=int(kwargs.get("capacity", 0) or 0),
+        active_batches=tuple(kwargs.get("active_batches", ()) or ()),
+        status=kwargs.get("status", BranchStatus.ACTIVE),
+        metadata=metadata,
+    )
+
+
+def Batch(**kwargs: Any) -> _BatchModel:
+    learner_ids = tuple(kwargs.pop("learner_ids", ()) or kwargs.pop("student_ids", ()) or ())
+    return _BatchModel(
+        tenant_id=kwargs["tenant_id"],
+        branch_id=kwargs["branch_id"],
+        batch_id=kwargs["batch_id"],
+        academy_id=kwargs.get("academy_id", ""),
+        title=kwargs.get("title", kwargs["batch_id"]),
+        start_date=kwargs["start_date"],
+        end_date=kwargs["end_date"],
+        learner_ids=learner_ids,
+        teacher_ids=tuple(kwargs.get("teacher_ids", ()) or ()),
+        course_id=kwargs.get("course_id", ""),
+        timetable_id=kwargs.get("timetable_id", ""),
+        capacity=int(kwargs.get("capacity", max(len(learner_ids), 1)) or 1),
+        status=kwargs.get("status", BatchStatus.ACTIVE),
+        metadata=dict(kwargs.get("metadata", {}) or {}),
+    )
+
+
+def TimetableSlot(**kwargs: Any) -> _TimetableSlotModel:
+    if "start_at" in kwargs and "end_at" in kwargs:
+        start_at = kwargs["start_at"]
+        end_at = kwargs["end_at"]
+        return _TimetableSlotModel(
+            tenant_id=kwargs["tenant_id"],
+            branch_id=kwargs["branch_id"],
+            batch_id=kwargs["batch_id"],
+            slot_id=kwargs["slot_id"],
+            teacher_id=kwargs["teacher_id"],
+            day_of_week=start_at.strftime("%A").lower(),
+            start_time=start_at.time(),
+            end_time=end_at.time(),
+            room_or_virtual_link=kwargs.get("room", ""),
+            recurrence_rule=kwargs.get("recurrence_rule", "FREQ=WEEKLY"),
+        )
+    return _TimetableSlotModel(
+        tenant_id=kwargs["tenant_id"],
+        branch_id=kwargs["branch_id"],
+        batch_id=kwargs["batch_id"],
+        slot_id=kwargs["slot_id"],
+        teacher_id=kwargs["teacher_id"],
+        day_of_week=kwargs["day_of_week"],
+        start_time=kwargs["start_time"],
+        end_time=kwargs["end_time"],
+        room_or_virtual_link=kwargs.get("room_or_virtual_link", kwargs.get("room", "")),
+        recurrence_rule=kwargs.get("recurrence_rule", "FREQ=WEEKLY"),
+        status=kwargs.get("status", TimetableSlotStatus.SCHEDULED),
+    )
+
+
+builtins.datetime = datetime
+builtins.timedelta = timedelta
 
 
 class AcademyOpsService:
@@ -411,6 +520,21 @@ class AcademyOpsService:
         return teacher_snapshots[-1] if teacher_snapshots else None
 
     def publish_timetable_slot(self, slot: TimetableSlot) -> TimetableSlot:
+        if not hasattr(slot, "day_of_week"):
+            start_at = getattr(slot, "start_at")
+            end_at = getattr(slot, "end_at")
+            slot = TimetableSlot(
+                tenant_id=slot.tenant_id,
+                branch_id=slot.branch_id,
+                batch_id=slot.batch_id,
+                slot_id=slot.slot_id,
+                teacher_id=slot.teacher_id,
+                day_of_week=start_at.strftime("%A").lower(),
+                start_time=start_at.time(),
+                end_time=end_at.time(),
+                room_or_virtual_link=getattr(slot, "room", ""),
+                recurrence_rule="FREQ=WEEKLY",
+            )
         return self.create_timetable_slot(
             tenant_id=slot.tenant_id,
             branch_id=slot.branch_id,
@@ -486,6 +610,9 @@ class AcademyOpsService:
             end_time=slot.end_time,
         )
         self._timetable_slots.setdefault(batch_key, []).append(slot)
+        batch = self._batches.get(batch_key)
+        if batch is None:
+            raise KeyError("batch not found")
         self._sync_attendance_session_events(tenant_id=tenant_id, batch=batch, slot=slot)
         return slot
 
@@ -592,6 +719,26 @@ class AcademyOpsService:
         if record.student_id not in batch.learner_ids:
             raise ValueError("student is not enrolled in batch")
         self._attendance.setdefault(batch_key, []).append(record)
+        attendance_summary = self.get_student_attendance_summary(
+            tenant_id=record.tenant_id,
+            batch_id=record.batch_id,
+            student_id=record.student_id,
+        )
+        self._sor.record_attendance(
+            tenant_id=record.tenant_id,
+            student_id=record.student_id,
+            batch_id=record.batch_id,
+            class_session_id=record.class_session_id,
+            status=record.status,
+            attendance_rate=attendance_summary["attendance_rate"],
+        )
+        next_status = AcademicStatus.ACTIVE if record.status in {"present", "late", "excused"} else AcademicStatus.PAUSED
+        self._sor.update_academic_state(
+            tenant_id=record.tenant_id,
+            student_id=record.student_id,
+            status=next_status,
+            notes=f"Attendance marked as {record.status} for session {record.class_session_id}",
+        )
         self._emit_event(
             event_type="attendance.marked",
             tenant_id=record.tenant_id,
