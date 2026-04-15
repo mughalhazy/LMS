@@ -416,7 +416,7 @@ export default function CoursesPage() {
 
       {/* ── MOBILE NAV SHEET ── */}
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
-        <SheetContent side="left" className="w-[260px] p-0">
+        <SheetContent side="left" className="w-[75vw] max-w-[240px] p-0">
           <SheetHeader className="px-5 py-4 border-b border-border">
             <SheetTitle className="flex items-center gap-2 text-[14px] font-bold">
               <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center shrink-0">
