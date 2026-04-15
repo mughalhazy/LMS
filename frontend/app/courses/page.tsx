@@ -7,9 +7,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -19,6 +17,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet"
 import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 
@@ -172,6 +173,94 @@ function SortHeader({
   )
 }
 
+// ── Mobile card ────────────────────────────────────────────────────────────
+
+function CourseCard({
+  course, selected, onToggle,
+}: {
+  course: Course; selected: boolean; onToggle: () => void
+}) {
+  return (
+    <div
+      className={cn(
+        "bg-white border border-border rounded-[14px] p-3.5 flex flex-col gap-2.5 transition-all active:scale-[0.99]",
+        selected && "border-[var(--lms-accent)] bg-[var(--accent-lt)]"
+      )}
+      onClick={onToggle}
+    >
+      {/* Top row: avatar + title + actions */}
+      <div className="flex items-start gap-2.5">
+        <ModeAvatar mode={course.mode} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13.5px] font-semibold text-[var(--ink)] leading-snug">{course.title}</div>
+          {course.code && (
+            <div className="text-[11px] text-[var(--ink-4)] font-mono mt-0.5">@{course.code}</div>
+          )}
+        </div>
+        {/* Actions */}
+        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+          <StatusChip course={course} />
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-7 h-7 inline-flex items-center justify-center rounded-[7px] text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)] transition-colors outline-none">
+              <Icon name="more" size="sm" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[148px] rounded-[10px] shadow-[var(--sh-md)]">
+              <DropdownMenuItem className="text-[12.5px]">View</DropdownMenuItem>
+              <DropdownMenuItem className="text-[12.5px]">
+                <Icon name="edit" size="sm" color="muted" className="mr-1.5" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {getChipState(course).state === "draft" && (
+                <DropdownMenuItem className="text-[12.5px]">
+                  <Icon name="publish" size="sm" color="muted" className="mr-1.5" />
+                  Publish
+                </DropdownMenuItem>
+              )}
+              {getChipState(course).state === "published" && (
+                <DropdownMenuItem className="text-[12.5px] text-[var(--amber)]">
+                  <Icon name="archived" size="sm" className="mr-1.5 text-[var(--amber)]" />
+                  Archive
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-[12.5px] text-[var(--red)]">
+                <Icon name="delete" size="sm" className="mr-1.5 text-[var(--red)]" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-3 text-[11px] text-[var(--ink-3)]">
+        {course.category && (
+          <span className="flex items-center gap-1">
+            <Icon name="category" size="xs" color="muted" />
+            {course.category}
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <Icon name="clock" size="xs" color="muted" />
+          {fmtDuration(course.duration)}
+        </span>
+        {course.enrollments > 0 && (
+          <span className="flex items-center gap-1">
+            <Icon name="users" size="xs" color="muted" />
+            {course.enrollments.toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {/* Completion bar (only when enrolled) */}
+      {course.completion !== null && (
+        <CompletionCell pct={course.completion} />
+      )}
+    </div>
+  )
+}
+
 // ── Nav items ──────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
@@ -179,6 +268,22 @@ const NAV_ITEMS = [
   { label: "Organizations" }, { label: "Departments" }, { label: "Compliance" },
   { label: "Reports" }, { label: "Settings" }, { label: "Alerts", badge: 7 },
 ]
+
+// ── Shared select className ────────────────────────────────────────────────
+
+const SELECT_CLS = [
+  "h-9 w-full px-3 pr-8 rounded-[9px] border text-sm font-medium",
+  "bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer transition-colors appearance-none",
+  "bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')]",
+  "bg-no-repeat bg-[right_10px_center]",
+].join(" ")
+
+const SELECT_CLS_DESKTOP = [
+  "h-8 px-2 pr-7 rounded-[7px] border text-xs font-medium",
+  "bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer transition-colors appearance-none",
+  "bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')]",
+  "bg-no-repeat bg-[right_8px_center]",
+].join(" ")
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
@@ -193,8 +298,9 @@ export default function CoursesPage() {
   const [selected, setSelected]         = useState<Set<string>>(new Set())
   const [page, setPage]                 = useState(1)
   const [perPage, setPerPage]           = useState(25)
+  const [navOpen, setNavOpen]           = useState(false)
+  const [filterOpen, setFilterOpen]     = useState(false)
 
-  // Close any open dropdown when clicking outside
   useEffect(() => {
     const handler = () => {}
     document.addEventListener("click", handler)
@@ -224,6 +330,7 @@ export default function CoursesPage() {
   }, [query, statusFilter, deliveryFilter, instructorFilter, sortCol, sortDir])
 
   const hasFilters = query || statusFilter || deliveryFilter || instructorFilter
+  const activeFilterCount = [statusFilter, deliveryFilter, instructorFilter].filter(Boolean).length
 
   // ── Pagination ──
   const totalPages = Math.ceil(filtered.length / perPage)
@@ -260,45 +367,184 @@ export default function CoursesPage() {
   return (
     <div className="min-h-screen bg-[var(--canvas)]">
 
+      {/* ── MOBILE NAV SHEET ── */}
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" className="w-[260px] p-0">
+          <SheetHeader className="px-5 py-4 border-b border-border">
+            <SheetTitle className="flex items-center gap-2 text-[14px] font-bold">
+              <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center shrink-0">
+                <Icon name="learner" size="xs" color="inverse" />
+              </div>
+              Meridian
+            </SheetTitle>
+          </SheetHeader>
+          <nav className="py-2">
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.label}
+                onClick={() => setNavOpen(false)}
+                className={cn(
+                  "w-full text-left px-5 py-2.5 text-sm font-medium flex items-center justify-between transition-colors",
+                  item.active
+                    ? "bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold"
+                    : "text-[var(--ink-3)] hover:bg-[var(--subtle)] hover:text-[var(--ink-2)]"
+                )}
+              >
+                {item.label}
+                {item.badge && (
+                  <span className="bg-[var(--red-md)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+          {/* Mobile quick-add actions */}
+          <div className="px-4 pt-2 pb-4 flex flex-col gap-2 border-t border-border mt-2">
+            <Button size="sm" className="w-full gap-1.5 justify-start">
+              <Icon name="add" size="sm" color="inverse" />
+              Create Course
+            </Button>
+            <Button variant="outline" size="sm" className="w-full gap-1.5 justify-start">
+              <Icon name="enroll" size="sm" color="muted" />
+              Add User
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ── MOBILE FILTER SHEET ── */}
+      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
+        <SheetContent side="bottom" className="rounded-t-[18px] px-5 pb-8 pt-5 max-h-[80vh]">
+          <SheetHeader className="mb-5">
+            <SheetTitle className="text-[15px] font-bold text-[var(--ink)]">Filters &amp; Sort</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)]">Status</label>
+              <select
+                className={cn(SELECT_CLS, statusFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)]" : "border-border")}
+                value={statusFilter}
+                onChange={e => { setStatus(e.target.value); setPage(1) }}
+              >
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)]">Delivery mode</label>
+              <select
+                className={cn(SELECT_CLS, deliveryFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)]" : "border-border")}
+                value={deliveryFilter}
+                onChange={e => { setDelivery(e.target.value); setPage(1) }}
+              >
+                <option value="">All modes</option>
+                <option value="self_paced">Self-paced</option>
+                <option value="instructor_led">Instructor-led</option>
+                <option value="blended">Blended</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)]">Instructor</label>
+              <select
+                className={cn(SELECT_CLS, instructorFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)]" : "border-border")}
+                value={instructorFilter}
+                onChange={e => { setInstructor(e.target.value); setPage(1) }}
+              >
+                <option value="">All courses</option>
+                <option value="assigned">Has instructor</option>
+                <option value="unassigned">No instructor</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)]">Sort by</label>
+              <select
+                className={cn(SELECT_CLS, "border-border")}
+                value={`${sortCol}_${sortDir}`}
+                onChange={e => {
+                  const [col, dir] = e.target.value.split("_")
+                  setSortCol(col); setSortDir(dir as "asc" | "desc"); setPage(1)
+                }}
+              >
+                <option value="updated_desc">Updated (newest)</option>
+                <option value="updated_asc">Updated (oldest)</option>
+                <option value="title_asc">Title A–Z</option>
+                <option value="title_desc">Title Z–A</option>
+                <option value="enrollments_desc">Enrollments ↓</option>
+                <option value="status_asc">Status</option>
+              </select>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => { clearFilters(); setFilterOpen(false) }}
+              >
+                Clear all
+              </Button>
+              <Button size="sm" className="flex-1" onClick={() => setFilterOpen(false)}>
+                Show {filtered.length} courses
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* ── UTILITY BAR ── */}
-      <header className="h-12 bg-white border-b border-border flex items-center px-7 gap-2 sticky top-0 z-40 shadow-[var(--sh-xs)]">
+      <header className="h-12 bg-white border-b border-border flex items-center px-4 md:px-7 gap-2 sticky top-0 z-40 shadow-[var(--sh-xs)]">
+        {/* Hamburger — mobile only */}
+        <button
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-[7px] text-[var(--ink-3)] hover:bg-[var(--subtle)] transition-colors mr-0.5"
+          onClick={() => setNavOpen(true)}
+        >
+          <Icon name="menu" size="sm" color="muted" />
+        </button>
+
+        {/* Logo */}
         <div className="flex items-center gap-1.5 mr-2">
           <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center">
             <Icon name="learner" size="xs" color="inverse" />
           </div>
           <span className="text-[13px] font-bold tracking-[-0.02em]">Meridian</span>
         </div>
-        <Button variant="outline" size="sm" className="h-7 text-[11px] font-semibold">+ User</Button>
-        <Button size="sm" className="h-7 text-[11px] font-semibold">+ Course</Button>
-        <Button variant="outline" size="sm" className="h-7 text-[11px] font-semibold">+ Organization</Button>
+
+        {/* Quick-add buttons — desktop only */}
+        <Button variant="outline" size="sm" className="hidden md:inline-flex h-7 text-[11px] font-semibold">+ User</Button>
+        <Button size="sm" className="hidden md:inline-flex h-7 text-[11px] font-semibold">+ Course</Button>
+        <Button variant="outline" size="sm" className="hidden md:inline-flex h-7 text-[11px] font-semibold">+ Organization</Button>
+
         <div className="ml-auto flex items-center gap-1.5">
-          {/* Tenant selector */}
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-[11px] font-semibold text-[var(--ink-2)]">
+          {/* Tenant + role — desktop only */}
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex h-7 gap-1.5 text-[11px] font-semibold text-[var(--ink-2)]">
             <Icon name="home" size="xs" color="muted" />
             Acme Corp
             <Icon name="expand" size="xs" color="muted" />
           </Button>
-          {/* Role switcher */}
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-[11px] font-semibold text-[var(--ink-2)]">
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex h-7 gap-1.5 text-[11px] font-semibold text-[var(--ink-2)]">
             <span className="w-[5px] h-[5px] rounded-full bg-[var(--ink-3)] inline-block" />
             Admin
             <Icon name="expand" size="xs" color="muted" />
           </Button>
-          {/* Notification */}
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 relative">
+
+          {/* Notification — always visible */}
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
             <Icon name="notification" size="sm" color="muted" />
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--red-md)] border-2 border-white" />
           </Button>
-          {/* User */}
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-[12px] font-semibold">
-            <div className="w-6 h-6 rounded-full bg-[var(--ink)] text-white text-[10px] font-bold flex items-center justify-center">AK</div>
-            Ali Khan
-          </Button>
+
+          {/* Avatar — always visible */}
+          <div className="w-7 h-7 rounded-full bg-[var(--ink)] text-white text-[10px] font-bold flex items-center justify-center cursor-pointer">
+            AK
+          </div>
         </div>
       </header>
 
-      {/* ── NAV BAR ── */}
-      <nav className="h-10 bg-white border-b border-border flex items-center px-7 gap-0.5 sticky top-12 z-30">
+      {/* ── NAV BAR — desktop only ── */}
+      <nav className="hidden md:flex h-10 bg-white border-b border-border items-center px-7 gap-0.5 sticky top-12 z-30">
         {NAV_ITEMS.map(item => (
           <button
             key={item.label}
@@ -320,34 +566,36 @@ export default function CoursesPage() {
       </nav>
 
       {/* ── CANVAS ── */}
-      <main className="p-7 max-w-[1100px] mx-auto">
+      <main className="p-4 md:p-7 md:max-w-[1100px] md:mx-auto">
 
         {/* Page header */}
-        <div className="flex items-start justify-between mb-5 animate-fade-up">
+        <div className="flex items-start justify-between mb-4 md:mb-5 animate-fade-up">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-[var(--ink)] mb-0.5">Courses</h1>
-            <p className="text-sm text-[var(--ink-3)]">
+            <h1 className="text-xl md:text-2xl font-extrabold tracking-[-0.03em] text-[var(--ink)] mb-0.5">Courses</h1>
+            <p className="text-xs md:text-sm text-[var(--ink-3)]">
               {COURSES.length} courses · {COURSES.filter(c => c.status === "published" && c.pub_status === "published").length} published
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Button variant="outline" size="sm" className="gap-1.5">
+            {/* Export/Import — desktop only */}
+            <Button variant="outline" size="sm" className="hidden md:inline-flex gap-1.5">
               <Icon name="export" size="sm" color="muted" />
               Export
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="hidden md:inline-flex gap-1.5">
               <Icon name="upload" size="sm" color="muted" />
               Import
             </Button>
+            {/* Create — always visible, icon-only on mobile */}
             <Button size="sm" className="gap-1.5">
               <Icon name="add" size="sm" color="inverse" />
-              Create Course
+              <span className="hidden sm:inline">Create Course</span>
             </Button>
           </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="bg-white border border-border rounded-[14px] px-3.5 py-2.5 flex items-center gap-2 mb-2 shadow-[var(--sh-xs)] animate-fade-up flex-wrap">
+        {/* ── FILTER BAR — desktop ── */}
+        <div className="hidden md:flex bg-white border border-border rounded-[14px] px-3.5 py-2.5 items-center gap-2 mb-2 shadow-[var(--sh-xs)] animate-fade-up flex-wrap">
           <div className="relative flex-1 min-w-40">
             <Icon name="search" size="sm" color="muted"
               className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -360,14 +608,8 @@ export default function CoursesPage() {
             />
           </div>
           <div className="w-px h-[18px] bg-border shrink-0" />
-          {/* Status filter */}
           <select
-            className={cn(
-              "h-8 px-2 pr-7 rounded-[7px] border text-xs font-medium bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer transition-colors appearance-none",
-              "bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')]",
-              "bg-no-repeat bg-[right_8px_center]",
-              statusFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border"
-            )}
+            className={cn(SELECT_CLS_DESKTOP, statusFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border")}
             value={statusFilter}
             onChange={e => { setStatus(e.target.value); setPage(1) }}
           >
@@ -377,14 +619,8 @@ export default function CoursesPage() {
             <option value="scheduled">Scheduled</option>
             <option value="archived">Archived</option>
           </select>
-          {/* Delivery filter */}
           <select
-            className={cn(
-              "h-8 px-2 pr-7 rounded-[7px] border text-xs font-medium bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer transition-colors appearance-none",
-              "bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')]",
-              "bg-no-repeat bg-[right_8px_center]",
-              deliveryFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border"
-            )}
+            className={cn(SELECT_CLS_DESKTOP, deliveryFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border")}
             value={deliveryFilter}
             onChange={e => { setDelivery(e.target.value); setPage(1) }}
           >
@@ -393,14 +629,8 @@ export default function CoursesPage() {
             <option value="instructor_led">Instructor-led</option>
             <option value="blended">Blended</option>
           </select>
-          {/* Instructor filter */}
           <select
-            className={cn(
-              "h-8 px-2 pr-7 rounded-[7px] border text-xs font-medium bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer transition-colors appearance-none",
-              "bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')]",
-              "bg-no-repeat bg-[right_8px_center]",
-              instructorFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border"
-            )}
+            className={cn(SELECT_CLS_DESKTOP, instructorFilter ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)] font-semibold" : "border-border")}
             value={instructorFilter}
             onChange={e => { setInstructor(e.target.value); setPage(1) }}
           >
@@ -412,7 +642,7 @@ export default function CoursesPage() {
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ink-4)] whitespace-nowrap">
             Sort:
             <select
-              className="h-8 px-2 pr-7 rounded-[7px] border border-border text-xs font-medium bg-[var(--canvas)] text-[var(--ink-2)] outline-none cursor-pointer appearance-none bg-[image:url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2210%22%20height=%226%22%20fill=%22none%22%3E%3Cpath%20d=%22M1%201l4%204%204-4%22%20stroke=%22%238C8C84%22%20stroke-width=%221.5%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E')] bg-no-repeat bg-[right_8px_center] min-w-[100px]"
+              className={cn(SELECT_CLS_DESKTOP, "border-border min-w-[100px]")}
               value={`${sortCol}_${sortDir}`}
               onChange={e => {
                 const [col, dir] = e.target.value.split("_")
@@ -441,32 +671,65 @@ export default function CoursesPage() {
           )}
         </div>
 
+        {/* ── FILTER BAR — mobile ── */}
+        <div className="flex md:hidden items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <Icon name="search" size="sm" color="muted"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            />
+            <Input
+              className="pl-8 h-9 text-sm bg-white border-border focus-visible:ring-1 focus-visible:ring-[var(--lms-accent)] rounded-[10px]"
+              placeholder="Search courses…"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setPage(1) }}
+            />
+          </div>
+          <button
+            onClick={() => setFilterOpen(true)}
+            className={cn(
+              "h-9 px-3 rounded-[10px] border text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors",
+              activeFilterCount > 0
+                ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)]"
+                : "border-border bg-white text-[var(--ink-3)]"
+            )}
+          >
+            <Icon name="filter" size="xs" color={activeFilterCount > 0 ? "primary" : "muted"} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[var(--lms-accent)] text-white text-[9px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Bulk toolbar */}
         {someSelected && (
-          <div className="bg-[var(--ink)] rounded-[14px] px-4 py-2.5 flex items-center gap-2.5 mb-2.5 animate-fade-up">
+          <div className="bg-[var(--ink)] rounded-[14px] px-3.5 md:px-4 py-2.5 flex items-center gap-2 md:gap-2.5 mb-3 animate-fade-up flex-wrap">
             <span className="text-[13px] font-bold text-white mr-1">{selected.size} selected</span>
             <div className="w-px h-[18px] bg-white/15 shrink-0" />
-            <button className="px-3 py-1.5 rounded-[5px] text-xs font-semibold text-white/80 border border-white/15 hover:bg-white/10 hover:text-white transition-all">
+            <button className="px-2.5 md:px-3 py-1.5 rounded-[5px] text-xs font-semibold text-white/80 border border-white/15 hover:bg-white/10 hover:text-white transition-all">
               Publish
             </button>
-            <button className="px-3 py-1.5 rounded-[5px] text-xs font-semibold text-yellow-300 border border-yellow-300/25 hover:bg-white/10 transition-all">
+            <button className="px-2.5 md:px-3 py-1.5 rounded-[5px] text-xs font-semibold text-yellow-300 border border-yellow-300/25 hover:bg-white/10 transition-all">
               Archive
             </button>
-            <button className="px-3 py-1.5 rounded-[5px] text-xs font-semibold text-white/80 border border-white/15 hover:bg-white/10 hover:text-white transition-all">
+            <button className="hidden md:block px-3 py-1.5 rounded-[5px] text-xs font-semibold text-white/80 border border-white/15 hover:bg-white/10 hover:text-white transition-all">
               Export
             </button>
             <button
               onClick={() => setSelected(new Set())}
               className="ml-auto text-xs font-semibold text-white/40 px-2 py-1 rounded hover:text-white hover:bg-white/10 transition-all"
             >
-              ✕ Clear selection
+              ✕ Clear
             </button>
           </div>
         )}
 
-        {/* ── TABLE STATES ── */}
-        {viewState === "skeleton" && (
-          <div className="bg-white border border-border rounded-[14px] overflow-hidden shadow-[var(--sh-xs)]">
+        {/* ── SKELETON ── */}
+        {viewState === "skeleton" && (<>
+          {/* Desktop skeleton */}
+          <div className="hidden md:block bg-white border border-border rounded-[14px] overflow-hidden shadow-[var(--sh-xs)]">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 h-10 border-b border-border last:border-0">
                 <Skeleton className="w-3.5 h-3.5 rounded shrink-0" />
@@ -481,8 +744,29 @@ export default function CoursesPage() {
               </div>
             ))}
           </div>
-        )}
+          {/* Mobile skeleton */}
+          <div className="md:hidden flex flex-col gap-2.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white border border-border rounded-[14px] p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-start gap-2.5">
+                  <Skeleton className="w-7 h-7 rounded-[6px] shrink-0" />
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-2.5 w-1/3" />
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <div className="flex gap-3">
+                  <Skeleton className="h-2.5 w-16" />
+                  <Skeleton className="h-2.5 w-12" />
+                  <Skeleton className="h-2.5 w-14" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>)}
 
+        {/* ── EMPTY ── */}
         {viewState === "empty" && (
           <div className="bg-white border border-border rounded-[14px] shadow-[var(--sh-xs)] py-16 flex flex-col items-center text-center gap-3">
             <Icon name="courses" size="xl" color="muted" />
@@ -499,6 +783,7 @@ export default function CoursesPage() {
           </div>
         )}
 
+        {/* ── ERROR ── */}
         {viewState === "error" && (
           <div className="bg-white border border-border rounded-[14px] shadow-[var(--sh-xs)] py-10 flex flex-col items-center text-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[var(--red-bg)] border border-[var(--red-bd)] flex items-center justify-center">
@@ -515,8 +800,11 @@ export default function CoursesPage() {
           </div>
         )}
 
-        {viewState === "loaded" && (
-          <div className="bg-white border border-border rounded-[14px] overflow-hidden shadow-[var(--sh-xs)] animate-fade-up">
+        {/* ── LOADED ── */}
+        {viewState === "loaded" && (<>
+
+          {/* ── DESKTOP TABLE ── */}
+          <div className="hidden md:block bg-white border border-border rounded-[14px] overflow-hidden shadow-[var(--sh-xs)] animate-fade-up">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-[var(--subtle)]">
@@ -529,12 +817,12 @@ export default function CoursesPage() {
                         className="w-3.5 h-3.5 rounded-[4px] border-[1.5px] border-[var(--border-s)] cursor-pointer accent-[var(--ink)]"
                       />
                     </TableHead>
-                    <SortHeader col="title"       label="Course"      currentCol={sortCol} currentDir={sortDir} onSort={handleSort} />
+                    <SortHeader col="title"       label="Course"       currentCol={sortCol} currentDir={sortDir} onSort={handleSort} />
                     <TableHead className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)] h-[34px] whitespace-nowrap">Instructor</TableHead>
-                    <SortHeader col="status"      label="Status"      currentCol={sortCol} currentDir={sortDir} onSort={handleSort} />
+                    <SortHeader col="status"      label="Status"       currentCol={sortCol} currentDir={sortDir} onSort={handleSort} />
                     <TableHead className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)] h-[34px] whitespace-nowrap">Category</TableHead>
-                    <SortHeader col="duration"    label="Duration"    currentCol={sortCol} currentDir={sortDir} onSort={handleSort} align="right" />
-                    <SortHeader col="enrollments" label="Enrollments" currentCol={sortCol} currentDir={sortDir} onSort={handleSort} align="right" />
+                    <SortHeader col="duration"    label="Duration"     currentCol={sortCol} currentDir={sortDir} onSort={handleSort} align="right" />
+                    <SortHeader col="enrollments" label="Enrollments"  currentCol={sortCol} currentDir={sortDir} onSort={handleSort} align="right" />
                     <TableHead className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-[var(--ink-4)] h-[34px] whitespace-nowrap">Completion</TableHead>
                     <SortHeader col="updated"     label="Last Updated" currentCol={sortCol} currentDir={sortDir} onSort={handleSort} />
                     <TableHead className="w-11 text-center sticky right-0 bg-[var(--subtle)]" />
@@ -563,7 +851,6 @@ export default function CoursesPage() {
                         )}
                         onClick={() => toggleRow(course.id)}
                       >
-                        {/* Checkbox */}
                         <TableCell className="pl-3.5 w-10" onClick={e => e.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -572,7 +859,6 @@ export default function CoursesPage() {
                             className="w-3.5 h-3.5 rounded-[4px] border-[1.5px] border-[var(--border-s)] cursor-pointer accent-[var(--ink)]"
                           />
                         </TableCell>
-                        {/* Course identity — 3-line stack (P-70) */}
                         <TableCell>
                           <div className="flex items-center gap-2.5">
                             <ModeAvatar mode={course.mode} />
@@ -583,35 +869,25 @@ export default function CoursesPage() {
                             </div>
                           </div>
                         </TableCell>
-                        {/* Instructor (BG-027: ID only until endpoint updated) */}
                         <TableCell>
                           {course.instructor
                             ? <span className="text-[9px] text-[var(--ink-4)] font-mono bg-[var(--subtle)] border border-dashed border-[var(--border-s)] px-1.5 py-0.5 rounded">{course.instructor}</span>
                             : <span className="text-[var(--ink-4)] text-xs">—</span>
                           }
                         </TableCell>
-                        {/* Status chip */}
                         <TableCell><StatusChip course={course} /></TableCell>
-                        {/* Category */}
                         <TableCell className="text-xs text-[var(--ink-2)]">{course.category ?? "—"}</TableCell>
-                        {/* Duration */}
                         <TableCell className="text-right text-xs text-[var(--ink-3)]">{fmtDuration(course.duration)}</TableCell>
-                        {/* Enrollments */}
                         <TableCell className="text-right text-[13px] font-semibold text-[var(--ink-2)]">{course.enrollments.toLocaleString()}</TableCell>
-                        {/* Completion */}
                         <TableCell><CompletionCell pct={course.completion} /></TableCell>
-                        {/* Last updated */}
                         <TableCell className="text-xs text-[var(--ink-3)] whitespace-nowrap">{course.updated}</TableCell>
-                        {/* Row actions */}
                         <TableCell
                           className="text-center sticky right-0 bg-white w-11"
                           onClick={e => e.stopPropagation()}
                           style={{ background: isSel ? "var(--accent-lt)" : "white" }}
                         >
                           <DropdownMenu>
-                            <DropdownMenuTrigger
-                              className="w-7 h-7 p-0 inline-flex items-center justify-center rounded-[7px] text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)] transition-colors outline-none"
-                            >
+                            <DropdownMenuTrigger className="w-7 h-7 p-0 inline-flex items-center justify-center rounded-[7px] text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)] transition-colors outline-none">
                               <Icon name="more" size="sm" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-[148px] rounded-[10px] shadow-[var(--sh-md)]">
@@ -648,7 +924,7 @@ export default function CoursesPage() {
               </Table>
             </div>
 
-            {/* Pagination */}
+            {/* Pagination — desktop */}
             <div className="flex items-center justify-between px-4 py-[11px] border-t border-border">
               <div className="flex items-center gap-1.5 text-xs text-[var(--ink-3)]">
                 Per page:
@@ -664,42 +940,76 @@ export default function CoursesPage() {
                 Showing <strong className="text-[var(--ink-2)] font-semibold">{(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)}</strong> of <strong className="text-[var(--ink-2)] font-semibold">{filtered.length}</strong>
               </p>
               <div className="flex items-center gap-0.5">
-                <button
-                  disabled={page === 1}
-                  onClick={() => setPage(p => p - 1)}
-                  className="w-[30px] h-7 rounded-[6px] border border-border bg-white flex items-center justify-center text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] hover:border-[var(--border-s)] disabled:opacity-30 disabled:cursor-default transition-all"
-                >
+                <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                  className="w-[30px] h-7 rounded-[6px] border border-border bg-white flex items-center justify-center text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] hover:border-[var(--border-s)] disabled:opacity-30 disabled:cursor-default transition-all">
                   ‹
                 </button>
                 {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                   const p = i + 1
                   return (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
+                    <button key={p} onClick={() => setPage(p)}
                       className={cn(
                         "w-[30px] h-7 rounded-[6px] border text-xs font-semibold transition-all",
                         p === page
                           ? "bg-[var(--ink)] text-white border-[var(--ink)]"
                           : "bg-white text-[var(--ink-2)] border-border hover:bg-[var(--subtle)] hover:border-[var(--border-s)]"
-                      )}
-                    >
+                      )}>
                       {p}
                     </button>
                   )
                 })}
                 {totalPages > 5 && <span className="text-xs text-[var(--ink-4)] px-0.5">…</span>}
-                <button
-                  disabled={page === totalPages || totalPages === 0}
-                  onClick={() => setPage(p => p + 1)}
-                  className="w-[30px] h-7 rounded-[6px] border border-border bg-white flex items-center justify-center text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] hover:border-[var(--border-s)] disabled:opacity-30 disabled:cursor-default transition-all"
-                >
+                <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage(p => p + 1)}
+                  className="w-[30px] h-7 rounded-[6px] border border-border bg-white flex items-center justify-center text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] hover:border-[var(--border-s)] disabled:opacity-30 disabled:cursor-default transition-all">
                   ›
                 </button>
               </div>
             </div>
           </div>
-        )}
+
+          {/* ── MOBILE CARD LIST ── */}
+          <div className="md:hidden">
+            {pageRows.length === 0 ? (
+              <div className="bg-white border border-border rounded-[14px] py-12 flex flex-col items-center text-center gap-2 shadow-[var(--sh-xs)]">
+                <Icon name="search" size="lg" color="muted" />
+                <p className="text-sm font-semibold text-[var(--ink)]">No courses match your filters.</p>
+                <button onClick={clearFilters} className="text-xs text-[var(--lms-accent)] font-semibold mt-0.5">Clear filters</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5 animate-fade-up">
+                {pageRows.map(course => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    selected={selected.has(course.id)}
+                    onToggle={() => toggleRow(course.id)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination — mobile: prev/next + count only */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-xs text-[var(--ink-3)]">
+                  <strong className="text-[var(--ink-2)] font-semibold">{(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)}</strong> of {filtered.length}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                    className="h-8 px-3 rounded-[8px] border border-border bg-white text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] disabled:opacity-30 disabled:cursor-default transition-all">
+                    ← Prev
+                  </button>
+                  <span className="text-xs font-semibold text-[var(--ink-3)] px-1">{page} / {totalPages}</span>
+                  <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+                    className="h-8 px-3 rounded-[8px] border border-border bg-white text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] disabled:opacity-30 disabled:cursor-default transition-all">
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </>)}
 
         {/* Dev state switcher — remove before production */}
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[var(--ink)] rounded-full px-1.5 py-1.5 flex gap-0.5 z-50 shadow-[var(--sh-lg)]">
