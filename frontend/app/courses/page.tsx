@@ -173,93 +173,136 @@ function SortHeader({
   )
 }
 
-// ── Mobile card ────────────────────────────────────────────────────────────
+// ── Mobile card (premium native) ──────────────────────────────────────────
 
 function CourseCard({
   course, selected, onToggle,
 }: {
   course: Course; selected: boolean; onToggle: () => void
 }) {
+  const { state } = getChipState(course)
+  const completionColor = !course.completion ? "" :
+    course.completion >= 75 ? "bg-[var(--green-md)]" :
+    course.completion >= 50 ? "bg-[var(--amber-md)]" : "bg-[var(--red-md)]"
+
   return (
     <div
       className={cn(
-        "bg-white border border-border rounded-[14px] p-3.5 flex flex-col gap-2.5 transition-all active:scale-[0.99]",
-        selected && "border-[var(--lms-accent)] bg-[var(--accent-lt)]"
+        "bg-white rounded-[18px] overflow-hidden transition-all duration-150 active:scale-[0.985] active:shadow-[var(--sh-xs)]",
+        "shadow-[0_2px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.04)]",
+        selected && "ring-2 ring-[var(--lms-accent)] ring-offset-1 bg-[var(--accent-lt)]"
       )}
       onClick={onToggle}
     >
-      {/* Top row: avatar + title + actions */}
-      <div className="flex items-start gap-2.5">
-        <ModeAvatar mode={course.mode} />
-        <div className="flex-1 min-w-0">
-          <div className="text-[13.5px] font-semibold text-[var(--ink)] leading-snug">{course.title}</div>
-          {course.code && (
-            <div className="text-[11px] text-[var(--ink-4)] font-mono mt-0.5">@{course.code}</div>
+      <div className="p-4">
+        {/* Top row: avatar + title + actions */}
+        <div className="flex items-start gap-3">
+          {/* Larger mode avatar */}
+          <div className={cn(
+            "w-9 h-9 rounded-[9px] text-[11px] font-bold flex items-center justify-center shrink-0",
+            getModeConfig(course.mode).cls
+          )}>
+            {getModeConfig(course.mode).abbr}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="text-[14px] font-semibold text-[var(--ink)] leading-snug tracking-[-0.01em]">
+              {course.title}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {course.code && (
+                <span className="text-[10.5px] text-[var(--ink-4)] font-mono">@{course.code}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 shrink-0 -mt-0.5" onClick={e => e.stopPropagation()}>
+            <StatusChip course={course} />
+            <DropdownMenu>
+              <DropdownMenuTrigger className="w-7 h-7 inline-flex items-center justify-center rounded-full text-[var(--ink-4)] hover:bg-[var(--subtle)] transition-colors outline-none">
+                <Icon name="more" size="sm" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[160px] rounded-[14px] shadow-[var(--sh-lg)]">
+                <DropdownMenuItem className="text-[13px] py-2.5">
+                  <Icon name="course" size="sm" color="muted" className="mr-2" />
+                  View Course
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-[13px] py-2.5">
+                  <Icon name="edit" size="sm" color="muted" className="mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {state === "draft" && (
+                  <DropdownMenuItem className="text-[13px] py-2.5">
+                    <Icon name="publish" size="sm" color="muted" className="mr-2" />
+                    Publish
+                  </DropdownMenuItem>
+                )}
+                {state === "published" && (
+                  <DropdownMenuItem className="text-[13px] py-2.5 text-[var(--amber)]">
+                    <Icon name="archived" size="sm" className="mr-2 text-[var(--amber)]" />
+                    Archive
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-[13px] py-2.5 text-[var(--red)]">
+                  <Icon name="delete" size="sm" className="mr-2 text-[var(--red)]" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Stats pills */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {course.category && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--subtle)] rounded-full text-[11px] text-[var(--ink-3)] font-medium">
+              {course.category}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--subtle)] rounded-full text-[11px] text-[var(--ink-3)] font-medium">
+            <Icon name="clock" size="xs" color="muted" />
+            {fmtDuration(course.duration)}
+          </span>
+          {course.enrollments > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--subtle)] rounded-full text-[11px] text-[var(--ink-3)] font-medium">
+              <Icon name="users" size="xs" color="muted" />
+              {course.enrollments.toLocaleString()}
+            </span>
           )}
         </div>
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-          <StatusChip course={course} />
-          <DropdownMenu>
-            <DropdownMenuTrigger className="w-7 h-7 inline-flex items-center justify-center rounded-[7px] text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)] transition-colors outline-none">
-              <Icon name="more" size="sm" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[148px] rounded-[10px] shadow-[var(--sh-md)]">
-              <DropdownMenuItem className="text-[12.5px]">View</DropdownMenuItem>
-              <DropdownMenuItem className="text-[12.5px]">
-                <Icon name="edit" size="sm" color="muted" className="mr-1.5" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {getChipState(course).state === "draft" && (
-                <DropdownMenuItem className="text-[12.5px]">
-                  <Icon name="publish" size="sm" color="muted" className="mr-1.5" />
-                  Publish
-                </DropdownMenuItem>
-              )}
-              {getChipState(course).state === "published" && (
-                <DropdownMenuItem className="text-[12.5px] text-[var(--amber)]">
-                  <Icon name="archived" size="sm" className="mr-1.5 text-[var(--amber)]" />
-                  Archive
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-[12.5px] text-[var(--red)]">
-                <Icon name="delete" size="sm" className="mr-1.5 text-[var(--red)]" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-3 text-[11px] text-[var(--ink-3)]">
-        {course.category && (
-          <span className="flex items-center gap-1">
-            <Icon name="category" size="xs" color="muted" />
-            {course.category}
-          </span>
-        )}
-        <span className="flex items-center gap-1">
-          <Icon name="clock" size="xs" color="muted" />
-          {fmtDuration(course.duration)}
-        </span>
-        {course.enrollments > 0 && (
-          <span className="flex items-center gap-1">
-            <Icon name="users" size="xs" color="muted" />
-            {course.enrollments.toLocaleString()}
-          </span>
-        )}
-      </div>
-
-      {/* Completion bar (only when enrolled) */}
+      {/* Completion strip — flush bottom of card */}
       {course.completion !== null && (
-        <CompletionCell pct={course.completion} />
+        <div className="px-4 pb-3.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10.5px] font-semibold text-[var(--ink-4)] uppercase tracking-[0.04em]">Completion</span>
+            <span className="text-[11px] font-bold text-[var(--ink-2)]">{course.completion}%</span>
+          </div>
+          <div className="h-1 bg-[var(--subtle)] rounded-full overflow-hidden">
+            <div
+              className={cn("h-1 rounded-full transition-all duration-500", completionColor)}
+              style={{ width: `${course.completion}%` }}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
+// ── Mobile bottom tab bar ──────────────────────────────────────────────────
+
+const BOTTOM_TABS = [
+  { label: "Dashboard", icon: "dashboard" as const },
+  { label: "Courses",   icon: "courses"   as const, active: true },
+  { label: "Users",     icon: "users"     as const },
+  { label: "Reports",   icon: "analytics" as const },
+  { label: "More",      icon: "menu"      as const },
+]
 
 // ── Nav items ──────────────────────────────────────────────────────────────
 
@@ -300,12 +343,16 @@ export default function CoursesPage() {
   const [perPage, setPerPage]           = useState(25)
   const [navOpen, setNavOpen]           = useState(false)
   const [filterOpen, setFilterOpen]     = useState(false)
+  const [mobileLimit, setMobileLimit]   = useState(10)
 
   useEffect(() => {
     const handler = () => {}
     document.addEventListener("click", handler)
     return () => document.removeEventListener("click", handler)
   }, [])
+
+  // Reset mobile list when filters change
+  useEffect(() => { setMobileLimit(10) }, [filtered])
 
   // ── Filter + sort (BG-026: client-side only) ──
   const filtered = useMemo(() => {
@@ -496,14 +543,6 @@ export default function CoursesPage() {
 
       {/* ── UTILITY BAR ── */}
       <header className="h-12 bg-white border-b border-border flex items-center px-4 md:px-7 gap-2 sticky top-0 z-40 shadow-[var(--sh-xs)]">
-        {/* Hamburger — mobile only */}
-        <button
-          className="md:hidden w-8 h-8 flex items-center justify-center rounded-[7px] text-[var(--ink-3)] hover:bg-[var(--subtle)] transition-colors mr-0.5"
-          onClick={() => setNavOpen(true)}
-        >
-          <Icon name="menu" size="sm" color="muted" />
-        </button>
-
         {/* Logo */}
         <div className="flex items-center gap-1.5 mr-2">
           <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center">
@@ -566,7 +605,7 @@ export default function CoursesPage() {
       </nav>
 
       {/* ── CANVAS ── */}
-      <main className="p-4 md:p-7 md:max-w-[1100px] md:mx-auto">
+      <main className="p-4 pb-28 md:pb-7 md:p-7 md:max-w-[1100px] md:mx-auto">
 
         {/* Page header */}
         <div className="flex items-start justify-between mb-4 md:mb-5 animate-fade-up">
@@ -671,36 +710,85 @@ export default function CoursesPage() {
           )}
         </div>
 
-        {/* ── FILTER BAR — mobile ── */}
-        <div className="flex md:hidden items-center gap-2 mb-3">
-          <div className="relative flex-1">
+        {/* ── SEARCH + FILTER CHIPS — mobile ── */}
+        <div className="md:hidden mb-3 flex flex-col gap-2">
+          {/* Search */}
+          <div className="relative">
             <Icon name="search" size="sm" color="muted"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
             />
             <Input
-              className="pl-8 h-9 text-sm bg-white border-border focus-visible:ring-1 focus-visible:ring-[var(--lms-accent)] rounded-[10px]"
+              className="pl-10 h-11 text-[13.5px] bg-white border-0 shadow-[0_2px_12px_rgba(0,0,0,0.07)] rounded-[14px] focus-visible:ring-2 focus-visible:ring-[var(--lms-accent)]"
               placeholder="Search courses…"
               value={query}
               onChange={e => { setQuery(e.target.value); setPage(1) }}
             />
+            {query && (
+              <button
+                onClick={() => { setQuery(""); setPage(1) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[var(--ink-4)] text-white flex items-center justify-center"
+              >
+                <Icon name="close" size="xs" color="inverse" />
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => setFilterOpen(true)}
-            className={cn(
-              "h-9 px-3 rounded-[10px] border text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors",
-              activeFilterCount > 0
-                ? "border-[var(--lms-accent)] bg-[var(--accent-lt)] text-[var(--lms-accent)]"
-                : "border-border bg-white text-[var(--ink-3)]"
+          {/* Scrollable filter chips */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none -mx-4 px-4">
+            {[
+              { label: "All",            val: "",              field: "status" as const },
+              { label: "Published",      val: "published",     field: "status" as const },
+              { label: "Draft",          val: "draft",         field: "status" as const },
+              { label: "Scheduled",      val: "scheduled",     field: "status" as const },
+              { label: "Archived",       val: "archived",      field: "status" as const },
+              { label: "Self-paced",     val: "self_paced",    field: "delivery" as const },
+              { label: "Instructor-led", val: "instructor_led",field: "delivery" as const },
+              { label: "Blended",        val: "blended",       field: "delivery" as const },
+            ].map(chip => {
+              const isActive = chip.val === ""
+                ? !statusFilter && !deliveryFilter
+                : chip.field === "status" ? statusFilter === chip.val : deliveryFilter === chip.val
+              return (
+                <button
+                  key={chip.label}
+                  onClick={() => {
+                    if (chip.val === "") { clearFilters(); return }
+                    if (chip.field === "status") { setStatus(isActive ? "" : chip.val); setPage(1) }
+                    else { setDelivery(isActive ? "" : chip.val); setPage(1) }
+                  }}
+                  className={cn(
+                    "shrink-0 h-8 px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all duration-150",
+                    isActive
+                      ? "bg-[var(--ink)] text-white shadow-[var(--sh-sm)]"
+                      : "bg-white text-[var(--ink-3)] shadow-[0_1px_4px_rgba(0,0,0,0.07)]"
+                  )}
+                >
+                  {chip.label}
+                </button>
+              )
+            })}
+            {/* More filters */}
+            <button
+              onClick={() => setFilterOpen(true)}
+              className={cn(
+                "shrink-0 h-8 px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all duration-150 flex items-center gap-1.5",
+                instructorFilter
+                  ? "bg-[var(--lms-accent)] text-white shadow-[var(--sh-sm)]"
+                  : "bg-white text-[var(--ink-3)] shadow-[0_1px_4px_rgba(0,0,0,0.07)]"
+              )}
+            >
+              <Icon name="filter" size="xs" color={instructorFilter ? "inverse" : "muted"} />
+              More
+            </button>
+          </div>
+          {/* Result count */}
+          <p className="text-[11.5px] text-[var(--ink-4)] font-medium px-0.5">
+            {filtered.length} {filtered.length === 1 ? "course" : "courses"}
+            {hasFilters && (
+              <button onClick={clearFilters} className="ml-2 text-[var(--lms-accent)] font-semibold">
+                Clear
+              </button>
             )}
-          >
-            <Icon name="filter" size="xs" color={activeFilterCount > 0 ? "primary" : "muted"} />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[var(--lms-accent)] text-white text-[9px] font-bold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+          </p>
         </div>
 
         {/* Bulk toolbar */}
@@ -747,19 +835,24 @@ export default function CoursesPage() {
           {/* Mobile skeleton */}
           <div className="md:hidden flex flex-col gap-2.5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="bg-white border border-border rounded-[14px] p-3.5 flex flex-col gap-2.5">
-                <div className="flex items-start gap-2.5">
-                  <Skeleton className="w-7 h-7 rounded-[6px] shrink-0" />
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <Skeleton className="h-3.5 w-3/4" />
-                    <Skeleton className="h-2.5 w-1/3" />
+              <div key={i} className="bg-white rounded-[18px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="p-4 flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="w-9 h-9 rounded-[9px] shrink-0" />
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <Skeleton className="h-[14px] w-3/4 rounded-[6px]" />
+                      <Skeleton className="h-[11px] w-1/3 rounded-[6px]" />
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded-full shrink-0" />
                   </div>
-                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-14 rounded-full" />
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </div>
                 </div>
-                <div className="flex gap-3">
-                  <Skeleton className="h-2.5 w-16" />
-                  <Skeleton className="h-2.5 w-12" />
-                  <Skeleton className="h-2.5 w-14" />
+                <div className="px-4 pb-3.5">
+                  <Skeleton className="h-1 w-full rounded-full" />
                 </div>
               </div>
             ))}
@@ -969,15 +1062,15 @@ export default function CoursesPage() {
 
           {/* ── MOBILE CARD LIST ── */}
           <div className="md:hidden">
-            {pageRows.length === 0 ? (
-              <div className="bg-white border border-border rounded-[14px] py-12 flex flex-col items-center text-center gap-2 shadow-[var(--sh-xs)]">
+            {filtered.length === 0 ? (
+              <div className="bg-white rounded-[18px] py-12 flex flex-col items-center text-center gap-2 shadow-[0_2px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.04)]">
                 <Icon name="search" size="lg" color="muted" />
                 <p className="text-sm font-semibold text-[var(--ink)]">No courses match your filters.</p>
                 <button onClick={clearFilters} className="text-xs text-[var(--lms-accent)] font-semibold mt-0.5">Clear filters</button>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5 animate-fade-up">
-                {pageRows.map(course => (
+                {filtered.slice(0, mobileLimit).map(course => (
                   <CourseCard
                     key={course.id}
                     course={course}
@@ -988,31 +1081,26 @@ export default function CoursesPage() {
               </div>
             )}
 
-            {/* Pagination — mobile: prev/next + count only */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-xs text-[var(--ink-3)]">
-                  <strong className="text-[var(--ink-2)] font-semibold">{(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)}</strong> of {filtered.length}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                    className="h-8 px-3 rounded-[8px] border border-border bg-white text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] disabled:opacity-30 disabled:cursor-default transition-all">
-                    ← Prev
-                  </button>
-                  <span className="text-xs font-semibold text-[var(--ink-3)] px-1">{page} / {totalPages}</span>
-                  <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
-                    className="h-8 px-3 rounded-[8px] border border-border bg-white text-xs font-semibold text-[var(--ink-2)] hover:bg-[var(--subtle)] disabled:opacity-30 disabled:cursor-default transition-all">
-                    Next →
-                  </button>
-                </div>
-              </div>
+            {/* Load more */}
+            {mobileLimit < filtered.length && (
+              <button
+                onClick={() => setMobileLimit(l => l + 10)}
+                className="w-full mt-4 h-11 rounded-[14px] bg-white text-[13px] font-semibold text-[var(--ink-2)] shadow-[0_2px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.04)] active:scale-[0.985] transition-all"
+              >
+                Load more · {filtered.length - mobileLimit} remaining
+              </button>
+            )}
+            {mobileLimit >= filtered.length && filtered.length > 10 && (
+              <p className="text-center text-[11px] text-[var(--ink-4)] mt-4">
+                All {filtered.length} courses loaded
+              </p>
             )}
           </div>
 
         </>)}
 
         {/* Dev state switcher — remove before production */}
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[var(--ink)] rounded-full px-1.5 py-1.5 flex gap-0.5 z-50 shadow-[var(--sh-lg)]">
+        <div className="fixed bottom-[84px] left-1/2 -translate-x-1/2 bg-[var(--ink)] rounded-full px-1.5 py-1.5 flex gap-0.5 z-50 shadow-[var(--sh-lg)] md:bottom-5">
           {(["loaded", "skeleton", "empty", "error"] as const).map(s => (
             <button
               key={s}
@@ -1028,6 +1116,36 @@ export default function CoursesPage() {
         </div>
 
       </main>
+
+      {/* ── FAB — mobile only ── */}
+      <button
+        className="md:hidden fixed bottom-[76px] right-4 z-40 w-14 h-14 rounded-full bg-[var(--ink)] text-white flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.22),0_2px_6px_rgba(0,0,0,0.14)] active:scale-[0.92] transition-all duration-150"
+        aria-label="Create Course"
+      >
+        <Icon name="add" size="md" color="inverse" />
+      </button>
+
+      {/* ── BOTTOM TAB BAR — mobile only ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-[64px] bg-white border-t border-border flex items-stretch">
+        {BOTTOM_TABS.map(tab => (
+          <button
+            key={tab.label}
+            onClick={tab.icon === "menu" ? () => setNavOpen(true) : undefined}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-[3px] transition-colors relative",
+              tab.active ? "text-[var(--ink)]" : "text-[var(--ink-4)]"
+            )}
+          >
+            <Icon name={tab.icon} size="md" color={tab.active ? "default" : "muted"} />
+            <span className={cn("text-[9.5px] font-semibold tracking-[0.01em]", tab.active && "font-bold")}>
+              {tab.label}
+            </span>
+            {tab.active && (
+              <span className="absolute top-1.5 w-1 h-1 rounded-full bg-[var(--ink)]" />
+            )}
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }
