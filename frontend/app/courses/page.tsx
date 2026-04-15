@@ -351,9 +351,6 @@ export default function CoursesPage() {
     return () => document.removeEventListener("click", handler)
   }, [])
 
-  // Reset mobile list when filters change
-  useEffect(() => { setMobileLimit(10) }, [filtered])
-
   // ── Filter + sort (BG-026: client-side only) ──
   const filtered = useMemo(() => {
     let rows = COURSES
@@ -375,6 +372,9 @@ export default function CoursesPage() {
     })
     return rows
   }, [query, statusFilter, deliveryFilter, instructorFilter, sortCol, sortDir])
+
+  // Reset mobile list when filters change
+  useEffect(() => { setMobileLimit(10) }, [filtered])
 
   const hasFilters = query || statusFilter || deliveryFilter || instructorFilter
   const activeFilterCount = [statusFilter, deliveryFilter, instructorFilter].filter(Boolean).length
