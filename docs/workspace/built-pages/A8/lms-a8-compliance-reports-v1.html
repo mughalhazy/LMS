@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Compliance Reports
+  Archetype: A8 Insight — Grid layout
+  Created  : 2026-03-23
+  Surface  : Admin
+  Repo     : reporting-service (POST /reports/compliance → ComplianceReport)
+             certificate-service (GET /api/v1/certificates/{id} only — no list — BG-133)
+             enrollment-service (EnrollmentResponse missing due_date/name/title — BG-134)
+  Modes    : Explore (compliance KPIs + dept breakdown + escalation + expiry) · Export (ComplianceRecord table)
+  Endpoints: POST /reports/compliance  → ComplianceReportResponse  (ReportFilterRequest)
+             GET  /api/v1/certificates/{id}  (single only — no list — BG-133)
+             GET  /api/v1/enrollments  (no enrichment fields — BG-134)
+  Gaps     : BG-133 (no certificate list endpoint — expiry widget mocked)
+             BG-134 (EnrollmentResponse missing due_date/learner_name/course_title)
+             BG-131 (no GET /reports — report regenerated each submit; pre-existing)
+             BG-132 (ReportExport.data encoding undefined — export stubbed; pre-existing)
+  Patterns : A8 Insight — Grid layout: topbar + filter bar + KPI strip + chart grid + action table
+             zoom:1.25 · Admin surface · --pp:28px · row-height:40px
+             Explore: KPI strip + dept compliance bar + status donut + escalation bar + expiry timeline
+             Non-Compliant focus table: ComplianceRecord filtered to non_compliance_flag=true
+             Export: full ComplianceRecord table + CSV/PDF stub
+             P-56 skeleton · P-55 inline error
+  CSS base : Verbatim :root + shared components from lms-a8-reports-v1.html (last sealed A8)
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Compliance Reports</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a8-reports-v1.html (last sealed A8) ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ── A8 INSIGHT LAYOUT ── */
+.layout{display:flex;flex-direction:column;min-height:100vh;background:var(--canvas);}
+
+/* Topbar */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:16px;flex-shrink:0;position:sticky;top:0;z-index:20;}
+.tb-title{font-size:16px;font-weight:800;color:var(--ink);}
+.tb-badge{padding:2px 8px;border-radius:var(--r-pill);background:var(--red-bg);border:1px solid var(--red-bd);font-size:11px;font-weight:700;color:var(--red);}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.mode-toggle{display:flex;background:var(--subtle);border-radius:var(--r-sm);padding:3px;gap:2px;}
+.mode-btn{padding:5px 14px;border-radius:6px;border:none;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all 120ms;color:var(--ink-3);background:transparent;}
+.mode-btn.active{background:var(--white);color:var(--ink);box-shadow:var(--sh-xs);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-gen-time{font-size:12px;color:var(--ink-4);}
+
+/* Filter bar */
+.filter-bar{background:var(--white);border-bottom:1px solid var(--border);padding:12px var(--pp);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.fb-label{font-size:12px;font-weight:700;color:var(--ink-3);white-space:nowrap;}
+.fb-select{height:34px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;color:var(--ink-2);cursor:pointer;outline:none;transition:border-color 100ms;}
+.fb-select:focus{border-color:var(--border-focus);}
+.fb-input{height:34px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;color:var(--ink-2);outline:none;transition:border-color 100ms;width:130px;}
+.fb-input:focus{border-color:var(--border-focus);}
+.fb-sep{color:var(--ink-4);font-size:13px;}
+.fb-run{padding:7px 18px;border-radius:var(--r-sm);border:none;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.fb-run:hover{opacity:.9;}
+.fb-clear{font-size:12px;color:var(--ink-3);cursor:pointer;padding:4px 8px;border-radius:4px;background:none;border:none;font-family:var(--font);transition:all 100ms;}
+.fb-clear:hover{background:var(--subtle);color:var(--ink-2);}
+.active-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.filter-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r-pill);background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);font-size:11px;font-weight:600;color:var(--accent);}
+.filter-chip-x{cursor:pointer;opacity:.6;font-size:13px;margin-left:2px;}
+.filter-chip-x:hover{opacity:1;}
+
+/* Page canvas */
+.page-canvas{flex:1;padding:var(--pp);display:flex;flex-direction:column;gap:20px;max-width:1400px;width:100%;}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.kpi-card{background:var(--white);border-radius:var(--r);padding:20px;border:1px solid var(--border);box-shadow:var(--sh-xs);position:relative;overflow:hidden;}
+.kpi-card.l1{border-left:3px solid var(--accent);}
+.kpi-card.l1-green{border-left:3px solid var(--green);}
+.kpi-card.l1-red{border-left:3px solid var(--red);}
+.kpi-card.l1-amber{border-left:3px solid var(--amber);}
+.kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);margin-bottom:8px;}
+.kpi-value{font-size:32px;font-weight:800;color:var(--ink);line-height:1;margin-bottom:4px;}
+.kpi-value.green{color:var(--green);}
+.kpi-value.amber{color:var(--amber);}
+.kpi-value.red{color:var(--red);}
+.kpi-unit{font-size:12px;color:var(--ink-3);}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;margin-top:6px;padding:2px 6px;border-radius:var(--r-pill);}
+.kpi-delta.up{background:var(--green-bg);color:var(--green);}
+.kpi-delta.down{background:var(--red-bg);color:var(--red);}
+.kpi-delta.neutral{background:var(--subtle);color:var(--ink-3);}
+
+/* Chart grid */
+.chart-grid{display:grid;grid-template-columns:1fr 300px;gap:16px;}
+.chart-card{background:var(--white);border-radius:var(--r);padding:20px;border:1px solid var(--border);box-shadow:var(--sh-xs);}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.chart-title{font-size:13px;font-weight:700;color:var(--ink);word-spacing:0.08em;}
+.chart-subtitle{font-size:11px;color:var(--ink-4);margin-top:2px;}
+
+/* Horizontal bar chart — stacked compliant/non-compliant */
+.hbar-chart{display:flex;flex-direction:column;gap:10px;}
+.hbar-row{display:flex;align-items:center;gap:10px;}
+.hbar-label{font-size:12px;color:var(--ink-2);width:100px;flex-shrink:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hbar-track{flex:1;height:20px;background:var(--subtle);border-radius:4px;overflow:hidden;display:flex;}
+.hbar-seg{height:100%;transition:width 600ms cubic-bezier(.23,1,.32,1);}
+.hbar-seg.compliant{background:var(--green);}
+.hbar-seg.non_compliant{background:var(--red);opacity:.8;}
+.hbar-seg.in_progress{background:var(--accent);opacity:.75;}
+.hbar-pct{font-size:11px;font-weight:700;color:var(--green);width:36px;text-align:right;flex-shrink:0;}
+
+/* Donut chart */
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.donut-chart{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0;}
+.donut-center{position:absolute;inset:22px;border-radius:50%;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut-pct{font-size:20px;font-weight:800;color:var(--ink);}
+.donut-pct-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-4);}
+.donut-legend{width:100%;display:flex;flex-direction:column;gap:8px;}
+.donut-leg-row{display:flex;align-items:center;justify-content:space-between;}
+.donut-leg-left{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);}
+.donut-leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.donut-leg-val{font-size:12px;font-weight:700;color:var(--ink);}
+
+/* Second row charts */
+.chart-row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Escalation bar chart */
+.esc-chart{display:flex;align-items:flex-end;gap:16px;height:90px;padding-top:8px;}
+.esc-col{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;}
+.esc-bar-wrap{width:100%;display:flex;align-items:flex-end;justify-content:center;height:64px;}
+.esc-bar{width:36px;border-radius:4px 4px 0 0;transition:height 600ms cubic-bezier(.23,1,.32,1);}
+.esc-bar.none{background:var(--border-s);}
+.esc-bar.low{background:var(--teal);}
+.esc-bar.medium{background:var(--amber-bg);border:1px solid var(--amber-bd);}
+.esc-bar.high{background:var(--red);opacity:.85;}
+.esc-val{font-size:12px;font-weight:700;color:var(--ink);}
+.esc-label{font-size:10px;color:var(--ink-3);text-transform:capitalize;}
+
+/* Expiry timeline — mocked (BG-133) */
+.expiry-timeline{display:flex;flex-direction:column;gap:8px;}
+.expiry-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:var(--r-sm);background:var(--subtle);}
+.expiry-window{font-size:12px;font-weight:700;color:var(--ink-2);}
+.expiry-count{font-size:13px;font-weight:800;}
+.expiry-count.urgent{color:var(--red);}
+.expiry-count.warn{color:var(--amber);}
+.expiry-count.ok{color:var(--green);}
+.expiry-bar{flex:1;height:6px;border-radius:3px;background:var(--border);margin:0 12px;overflow:hidden;}
+.expiry-fill{height:100%;border-radius:3px;}
+.expiry-fill.urgent{background:var(--red);}
+.expiry-fill.warn{background:var(--amber);}
+.expiry-fill.ok{background:var(--green);}
+
+/* Non-compliant focus section */
+.section-header{display:flex;align-items:center;justify-content:space-between;}
+.section-title{font-size:14px;font-weight:700;color:var(--ink);word-spacing:0.08em;}
+.section-sub{font-size:12px;color:var(--ink-3);margin-top:2px;}
+.nc-count-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r-pill);background:var(--red-bg);border:1px solid var(--red-bd);font-size:12px;font-weight:700;color:var(--red);}
+
+/* Export section */
+.export-section{display:flex;flex-direction:column;gap:16px;}
+.export-header{display:flex;align-items:center;justify-content:space-between;}
+.export-title{font-size:14px;font-weight:700;color:var(--ink);word-spacing:0.08em;}
+.export-actions{display:flex;align-items:center;gap:8px;}
+.export-btn{display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.export-btn:hover{border-color:var(--border-s);color:var(--ink);}
+.export-btn.primary{border:none;background:var(--accent);color:white;}
+.export-btn.primary:hover{opacity:.9;}
+
+/* Data table */
+.table-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);overflow:hidden;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);white-space:nowrap;background:var(--subtle);}
+td{padding:0 14px;height:40px;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--subtle);}
+.cell-name{font-weight:600;color:var(--ink);}
+.cell-mono{font-family:monospace;font-size:12px;font-weight:400;color:var(--ink-3);}
+.cell-red{color:var(--red);font-weight:600;}
+
+/* Status chips */
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:11px;font-weight:700;}
+.chip.completed{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.chip.in_progress{background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);color:var(--accent);}
+.chip.not_started{background:var(--subtle);border:1px solid var(--border);color:var(--ink-4);}
+.chip.non_compliant{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+.chip.esc-none{background:var(--subtle);border:1px solid var(--border);color:var(--ink-4);}
+.chip.esc-low{background:var(--teal-bg);border:1px solid var(--teal-bd);color:var(--teal);}
+.chip.esc-medium{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber);}
+.chip.esc-high{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border);background:var(--white);}
+.pag-info{font-size:12px;color:var(--ink-3);}
+.pag-controls{display:flex;align-items:center;gap:6px;}
+.pag-btn{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-3);transition:all 100ms;}
+.pag-btn:hover{border-color:var(--border-s);color:var(--ink);}
+.pag-btn:disabled{opacity:.4;cursor:not-allowed;}
+.pag-page{font-size:12px;color:var(--ink-2);padding:0 8px;}
+
+/* Empty / Error states */
+.page-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;text-align:center;}
+.pe-icon{font-size:40px;opacity:.3;margin-bottom:14px;}
+.pe-title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.pe-sub{font-size:13px;color:var(--ink-3);max-width:360px;line-height:1.6;margin-bottom:20px;}
+.err-block{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:20px 24px;display:flex;gap:14px;align-items:flex-start;margin:24px var(--pp);}
+.err-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.err-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:4px;}
+.err-msg{font-size:13px;color:var(--red);opacity:.85;line-height:1.5;}
+.err-retry{margin-top:12px;padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--white);color:var(--red);transition:all 100ms;}
+.err-retry:hover{background:var(--red-bg);}
+
+/* Toast */
+.toast{position:fixed;bottom:60px;right:24px;background:#1A1A18;color:white;padding:10px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:300;opacity:0;transition:opacity 200ms;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="layout" id="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="tb-title">Compliance Reports</span>
+    <span class="tb-badge" id="nc-badge">18 Non-Compliant</span>
+    <div class="tb-divider"></div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-explore" onclick="setMode('explore')">Explore</button>
+      <button class="mode-btn" id="mode-export" onclick="setMode('export')">Export</button>
+    </div>
+    <div class="tb-r">
+      <span class="tb-gen-time" id="gen-time">Generated: 23 Mar 2026, 09:41</span>
+      <button class="btn-g" onclick="refreshReport()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <span class="fb-label">Filters</span>
+    <select class="fb-select" id="f-dept" onchange="updateFilterChips()">
+      <option value="">All Departments</option>
+      <option value="engineering" selected>Engineering</option>
+      <option value="product">Product</option>
+      <option value="sales">Sales</option>
+      <option value="operations">Operations</option>
+      <option value="hr">HR</option>
+    </select>
+    <select class="fb-select" id="f-policy" onchange="updateFilterChips()">
+      <option value="">All Policies</option>
+      <option value="pol-001" selected>Security Policy 2025</option>
+      <option value="pol-002">Data Privacy Policy</option>
+      <option value="pol-003">Code of Conduct</option>
+    </select>
+    <select class="fb-select" id="f-course" onchange="updateFilterChips()">
+      <option value="">All Courses</option>
+      <option value="c002" selected>Security Fundamentals</option>
+      <option value="c006">Data Privacy & Compliance</option>
+      <option value="c013">GDPR Deep Dive</option>
+    </select>
+    <span class="fb-sep">Due</span>
+    <input class="fb-input" type="date" id="f-from" value="2026-01-01">
+    <span class="fb-sep">to</span>
+    <input class="fb-input" type="date" id="f-to" value="2026-03-23">
+    <button class="fb-run" onclick="runReport()">Generate Report</button>
+    <div class="active-filters" id="active-filters">
+      <span class="filter-chip">Engineering <span class="filter-chip-x" onclick="clearFilter('f-dept')">×</span></span>
+      <span class="filter-chip">Security Policy 2025 <span class="filter-chip-x" onclick="clearFilter('f-policy')">×</span></span>
+      <span class="filter-chip">Security Fundamentals <span class="filter-chip-x" onclick="clearFilter('f-course')">×</span></span>
+    </div>
+    <button class="fb-clear" onclick="clearAllFilters()">Clear all</button>
+  </div>
+
+  <!-- PAGE CANVAS -->
+  <div class="page-canvas" id="page-canvas">
+    <!-- content injected by render() -->
+  </div>
+
+</div><!-- /.layout -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded')">Loaded</button>
+  <button class="stb" onclick="setState('skeleton')">Skeleton</button>
+  <button class="stb" onclick="setState('empty')">Empty</button>
+  <button class="stb" onclick="setState('error')">Error</button>
+</div>
+
+<script>
+/* ── MOCK DATA ──────────────────────────────────────────────────────────────
+   ComplianceRecord shaped to reporting-service models.py:
+     learner_id, learner_name, department, role, policy_id, mandatory_course_id,
+     mandatory_course_title, assignment_date, due_date, completion_status,
+     completion_date, exemption_flag, exemption_reason, non_compliance_flag, escalation_level
+   CompletionStatus: completed | in_progress | not_started
+   BG-131: report_id captured client-side only — no GET /reports/{id}
+   BG-132: export buttons fire POST /exports but download stubbed
+   BG-133: certificate expiry widget fully mocked — no GET /api/v1/certificates list endpoint
+   BG-134: EnrollmentResponse has no due_date/learner_name/course_title — using reporting-service aggregation
+   ─────────────────────────────────────────────────────────────────────── */
+
+const MOCK_KPIs = [
+  { metric:'total_assigned',      value:248, unit:'learners' },
+  { metric:'compliant',           value:186, unit:'learners (74.9%)' },
+  { metric:'non_compliant',       value:18,  unit:'learners' },
+  { metric:'expiring_30d',        value:12,  unit:'certs (BG-133 mocked)' }
+];
+
+const DEPT_COMPLIANCE = [
+  { dept:'Engineering',  compliant:42, in_progress:8,  non_compliant:5,  total:55 },
+  { dept:'Product',      compliant:29, in_progress:5,  non_compliant:3,  total:37 },
+  { dept:'Sales',        compliant:38, in_progress:7,  non_compliant:6,  total:51 },
+  { dept:'Operations',   compliant:51, in_progress:4,  non_compliant:2,  total:57 },
+  { dept:'HR',           compliant:26, in_progress:3,  non_compliant:2,  total:31 },
+  { dept:'Finance',      compliant:0,  in_progress:6,  non_compliant:0,  total:17 },
+];
+
+const STATUS_DONUT = [
+  { label:'Completed',   val:186, color:'#18794E',   cls:'compliant' },
+  { label:'In Progress', val:44,  color:'#5B5BD6',   cls:'in_progress' },
+  { label:'Not Started', val:18,  color:'#C42B1C',   cls:'non_compliant' }
+];
+
+const ESC_LEVELS = [
+  { level:'none',   count:12, maxH:64 },
+  { level:'low',    count:4,  maxH:64 },
+  { level:'medium', count:1,  maxH:64 },
+  { level:'high',   count:1,  maxH:64 }
+];
+
+// BG-133: certificate-service has no list endpoint — expiry data mocked
+const CERT_EXPIRY = [
+  { window:'Next 30 days', count:12, cls:'urgent', pct:60 },
+  { window:'31–60 days',   count:8,  cls:'warn',   pct:40 },
+  { window:'61–90 days',   count:5,  cls:'ok',     pct:25 }
+];
+
+// Non-compliant learners — ComplianceRecord with non_compliance_flag=true
+const NC_RECORDS = [
+  { learner_id:'u-017', learner_name:'Marcus Chen',    department:'Engineering', role:'Senior Engineer',   policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', non_compliance_flag:true, escalation_level:'high' },
+  { learner_id:'u-034', learner_name:'Priya Sharma',   department:'Sales',       role:'Account Executive', policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-02-28', completion_status:'in_progress',  non_compliance_flag:true, escalation_level:'medium' },
+  { learner_id:'u-051', learner_name:'Tom Bauer',      department:'Sales',       role:'Sales Manager',     policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', non_compliance_flag:true, escalation_level:'medium' },
+  { learner_id:'u-063', learner_name:'Aisha Okonkwo',  department:'Engineering', role:'DevOps Lead',       policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-15', due_date:'2026-03-07', completion_status:'not_started', non_compliance_flag:true, escalation_level:'low' },
+  { learner_id:'u-079', learner_name:'Lena Fischer',   department:'Product',     role:'Product Manager',   policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-15', due_date:'2026-03-07', completion_status:'in_progress',  non_compliance_flag:true, escalation_level:'low' },
+  { learner_id:'u-082', learner_name:'James Liu',      department:'Engineering', role:'Backend Engineer',  policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-20', due_date:'2026-03-14', completion_status:'not_started', non_compliance_flag:true, escalation_level:'low' },
+  { learner_id:'u-091', learner_name:'Nina Petrov',    department:'Sales',       role:'BDR',               policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-20', due_date:'2026-03-14', completion_status:'not_started', non_compliance_flag:true, escalation_level:'none' },
+  { learner_id:'u-104', learner_name:'Sam Oduya',      department:'Product',     role:'Designer',          policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-25', due_date:'2026-03-21', completion_status:'in_progress',  non_compliance_flag:true, escalation_level:'none' },
+];
+
+// Full export table — all ComplianceRecords (compliant + non-compliant)
+const ALL_RECORDS = [
+  ...NC_RECORDS,
+  { learner_id:'u-001', learner_name:'Alex Rivera',    department:'Engineering', role:'Lead Engineer',      policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-05', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-002', learner_name:'Sarah Kim',      department:'Product',     role:'Product Lead',       policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-05', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-003', learner_name:'David Torres',   department:'Operations',  role:'Ops Manager',        policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-05', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-004', learner_name:'Emma Wilson',    department:'HR',          role:'HR Manager',         policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-05', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-005', learner_name:'Chris Nakamura', department:'Engineering', role:'Staff Engineer',     policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-08', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-006', learner_name:'Fatima Al-Zahra',department:'Sales',       role:'Regional Manager',   policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-08', due_date:'2026-02-28', completion_status:'in_progress',  non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-007', learner_name:'Ben Hoover',     department:'Operations',  role:'Team Lead',          policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-08', due_date:'2026-02-28', completion_status:'completed',   non_compliance_flag:false, escalation_level:'none' },
+  { learner_id:'u-008', learner_name:'Rachel Green',   department:'Product',     role:'UX Lead',            policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-07', completion_status:'in_progress',  non_compliance_flag:false, escalation_level:'none' },
+];
+
+const REPORT_ENVELOPE = {
+  report_id:'rpt-' + Math.random().toString(36).slice(2,10),
+  report_type:'compliance',
+  generated_at: new Date().toISOString(),
+  tenant_id:'t-001',
+  filters:{ department:'engineering', policy_id:'pol-001', course_id:'c002' },
+  row_count: ALL_RECORDS.length
+};
+
+/* ── STATE ── */
+let currentMode = 'explore';
+let currentState = 'loaded';
+
+/* ── HELPERS ── */
+function chip(status) {
+  const map = { completed:'completed', in_progress:'in_progress', not_started:'not_started' };
+  const labels = { completed:'Completed', in_progress:'In Progress', not_started:'Not Started' };
+  return `<span class="chip ${map[status]||''}">${labels[status]||status}</span>`;
+}
+function escChip(level) {
+  const cls = { none:'esc-none', low:'esc-low', medium:'esc-medium', high:'esc-high' };
+  return `<span class="chip ${cls[level]||'esc-none'}">${level.charAt(0).toUpperCase()+level.slice(1)}</span>`;
+}
+function fmtDate(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+function daysOverdue(due) {
+  const now = new Date('2026-03-23');
+  const d = new Date(due+'T00:00:00');
+  const diff = Math.floor((now-d)/(1000*60*60*24));
+  return diff > 0 ? diff : 0;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+/* ── MODE TOGGLE ── */
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('mode-explore').classList.toggle('active', m==='explore');
+  document.getElementById('mode-export').classList.toggle('active', m==='export');
+  render();
+}
+
+/* ── FILTER CHIPS ── */
+function updateFilterChips() {}
+function clearFilter(id) { document.getElementById(id).value=''; updateFilterChips(); }
+function clearAllFilters() {
+  ['f-dept','f-policy','f-course'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-from').value='';
+  document.getElementById('f-to').value='';
+  document.getElementById('active-filters').innerHTML='';
+}
+function runReport() { showToast('Report generated — report_id: ' + REPORT_ENVELOPE.report_id); }
+function refreshReport() { showToast('Data refreshed'); render(); }
+
+/* ── EXPORT HANDLER ── */
+// BG-132: ReportExport.data encoding undefined — download stubbed
+function doExport(fmt) { showToast('Exporting as ' + fmt.toUpperCase() + '… (BG-132: download stubbed)'); }
+
+/* ── STATE SWITCHER ── */
+function setState(s) {
+  currentState = s;
+  document.querySelectorAll('.stb').forEach(b=>b.classList.toggle('on', b.textContent.toLowerCase()===s));
+  render();
+}
+
+/* ── RENDER ── */
+function render() {
+  const canvas = document.getElementById('page-canvas');
+  if (currentState === 'skeleton') { canvas.innerHTML = renderSkeleton(); return; }
+  if (currentState === 'empty') { canvas.innerHTML = renderEmpty(); return; }
+  if (currentState === 'error') { canvas.innerHTML = renderError(); return; }
+  if (currentMode === 'explore') { canvas.innerHTML = renderExplore(); }
+  else { canvas.innerHTML = renderExport(); }
+}
+
+function renderExplore() {
+  const kpiColors = ['l1','l1-green','l1-red','l1-amber'];
+  const kpiValColors = ['','green','red','amber'];
+  const kpiHTML = MOCK_KPIs.map((k,i)=>`
+    <div class="kpi-card ${kpiColors[i]}">
+      <div class="kpi-label">${k.metric.replace(/_/g,' ')}</div>
+      <div class="kpi-value ${kpiValColors[i]}">${k.value}</div>
+      <div class="kpi-unit">${k.unit}</div>
+    </div>`).join('');
+
+  const deptBars = DEPT_COMPLIANCE.map(d=>{
+    const cPct = Math.round(d.compliant/d.total*100);
+    const ipPct = Math.round(d.in_progress/d.total*100);
+    const ncPct = Math.round(d.non_compliant/d.total*100);
+    return `<div class="hbar-row">
+      <div class="hbar-label">${d.dept}</div>
+      <div class="hbar-track">
+        <div class="hbar-seg compliant" style="width:${cPct}%"></div>
+        <div class="hbar-seg in_progress" style="width:${ipPct}%"></div>
+        <div class="hbar-seg non_compliant" style="width:${ncPct}%"></div>
+      </div>
+      <div class="hbar-pct">${cPct}%</div>
+    </div>`;
+  }).join('');
+
+  const total248 = 248;
+  const compliant186 = 186; const ip44 = 44; const nc18 = 18;
+  const cDeg = Math.round(compliant186/total248*360);
+  const ipDeg = Math.round(ip44/total248*360);
+  const donutStyle = `conic-gradient(var(--green) 0deg ${cDeg}deg, #5B5BD6 ${cDeg}deg ${cDeg+ipDeg}deg, var(--red) ${cDeg+ipDeg}deg 360deg)`;
+  const donutLegend = [
+    {label:'Compliant',    val:186, color:'var(--green)'},
+    {label:'In Progress',  val:44,  color:'#5B5BD6'},
+    {label:'Non-Compliant',val:18,  color:'var(--red)'}
+  ].map(r=>`<div class="donut-leg-row">
+    <div class="donut-leg-left"><div class="donut-leg-dot" style="background:${r.color}"></div>${r.label}</div>
+    <div class="donut-leg-val">${r.val}</div>
+  </div>`).join('');
+
+  const maxCount = Math.max(...ESC_LEVELS.map(e=>e.count));
+  const escBars = ESC_LEVELS.map(e=>{
+    const h = Math.round((e.count/maxCount)*56);
+    return `<div class="esc-col">
+      <div class="esc-bar-wrap"><div class="esc-bar ${e.level}" style="height:${h}px"></div></div>
+      <div class="esc-val">${e.count}</div>
+      <div class="esc-label">${e.level}</div>
+    </div>`;
+  }).join('');
+
+  // BG-133: expiry data mocked — certificate-service has no list endpoint
+  const expiryRows = CERT_EXPIRY.map(e=>`
+    <div class="expiry-row">
+      <span class="expiry-window">${e.window}</span>
+      <div class="expiry-bar"><div class="expiry-fill ${e.cls}" style="width:${e.pct}%"></div></div>
+      <span class="expiry-count ${e.cls}">${e.count}</span>
+    </div>`).join('');
+
+  const ncRows = NC_RECORDS.map(r=>{
+    const od = daysOverdue(r.due_date);
+    return `<tr>
+      <td><div class="cell-name">${r.learner_name}</div><div style="font-size:11px;color:var(--ink-3)">${r.learner_id}</div></td>
+      <td>${r.department}</td>
+      <td style="text-align:center">${r.role}</td>
+      <td style="text-align:center">${r.mandatory_course_title}</td>
+      <td>${fmtDate(r.due_date)}</td>
+      <td style="text-align:center"><span class="cell-red">${od} days</span></td>
+      <td style="text-align:center">${chip(r.completion_status)}</td>
+      <td style="text-align:center">${escChip(r.escalation_level)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <!-- KPI STRIP -->
+    <div class="kpi-strip">${kpiHTML}</div>
+
+    <!-- CHART ROW 1: dept compliance bar + status donut -->
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Compliance by Department</div>
+            <div class="chart-subtitle">Compliant · In Progress · Non-Compliant</div>
+          </div>
+        </div>
+        <div class="hbar-chart">${deptBars}</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div class="chart-title">Compliance Status</div></div>
+        <div class="donut-wrap">
+          <div class="donut-chart" style="background:${donutStyle}">
+            <div class="donut-center">
+              <div class="donut-pct">75%</div>
+              <div class="donut-pct-label">Compliant</div>
+            </div>
+          </div>
+          <div class="donut-legend">${donutLegend}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART ROW 2: escalation levels + cert expiry -->
+    <div class="chart-row2">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Escalation Levels</div>
+            <div class="chart-subtitle">Non-compliant learners by escalation tier</div>
+          </div>
+        </div>
+        <div class="esc-chart">${escBars}</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Certificate Expiry</div>
+            <!-- BG-133: certificate-service has no list endpoint — data mocked -->
+            <div class="chart-subtitle">Upcoming expirations (mocked — BG-133)</div>
+          </div>
+        </div>
+        <div class="expiry-timeline">${expiryRows}</div>
+      </div>
+    </div>
+
+    <!-- NON-COMPLIANT FOCUS TABLE -->
+    <div>
+      <div class="section-header" style="margin-bottom:12px">
+        <div>
+          <div class="section-title">Non-Compliant Learners</div>
+          <div class="section-sub">Overdue · Action required · Sorted by escalation level</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="nc-count-badge">18 learners</span>
+          <button class="btn-g" onclick="doExport('csv')">↓ Export CSV</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Learner</th>
+                <th>Department</th>
+                <th style="text-align:center">Role</th>
+                <th style="text-align:center">Course</th>
+                <th>Due Date</th>
+                <th>Days Overdue</th>
+                <th style="text-align:center">Status</th>
+                <th>Escalation</th>
+              </tr>
+            </thead>
+            <tbody>${ncRows}</tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <div class="pag-info">Showing 8 of 18 non-compliant learners · Report ID: <span class="cell-mono">${REPORT_ENVELOPE.report_id}</span></div>
+          <div class="pag-controls">
+            <button class="pag-btn" disabled>‹</button>
+            <span class="pag-page">Page 1 of 3</span>
+            <button class="pag-btn">›</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderExport() {
+  const allRows = ALL_RECORDS.map(r=>`<tr>
+    <td><div class="cell-name">${r.learner_name}</div><div class="cell-mono">${r.learner_id}</div></td>
+    <td>${r.department}</td>
+    <td>${r.role}</td>
+    <td class="cell-mono">${r.policy_id}</td>
+    <td>${r.mandatory_course_title}</td>
+    <td>${fmtDate(r.assignment_date)}</td>
+    <td>${fmtDate(r.due_date)}</td>
+    <td>${chip(r.completion_status)}</td>
+    <td>${r.non_compliance_flag ? '<span class="chip non_compliant">Non-Compliant</span>' : '<span class="chip completed">Compliant</span>'}</td>
+    <td>${escChip(r.escalation_level)}</td>
+  </tr>`).join('');
+
+  return `
+    <div class="export-section">
+      <div class="export-header">
+        <div>
+          <div class="export-title">Full Compliance Report</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:3px">
+            ${ALL_RECORDS.length} records · Report ID: <span class="cell-mono">${REPORT_ENVELOPE.report_id}</span>
+          </div>
+        </div>
+        <div class="export-actions">
+          <!-- BG-132: ReportExport.data encoding undefined — download stubbed -->
+          <button class="export-btn" onclick="doExport('csv')">↓ Export CSV</button>
+          <button class="export-btn primary" onclick="doExport('pdf')">↓ Export PDF</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Learner</th>
+                <th>Department</th>
+                <th>Role</th>
+                <th>Policy</th>
+                <th>Course</th>
+                <th>Assigned</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Compliance</th>
+                <th>Escalation</th>
+              </tr>
+            </thead>
+            <tbody>${allRows}</tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <div class="pag-info">Showing ${ALL_RECORDS.length} of ${REPORT_ENVELOPE.row_count} records</div>
+          <div class="pag-controls">
+            <button class="pag-btn" disabled>‹</button>
+            <span class="pag-page">Page 1 of 32</span>
+            <button class="pag-btn">›</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSkeleton() {
+  return `
+    <div class="kpi-strip">
+      ${[0,1,2,3].map(()=>`<div class="kpi-card"><div class="sk" style="height:12px;width:60%;margin-bottom:12px"></div><div class="sk" style="height:32px;width:40%"></div></div>`).join('')}
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="sk" style="height:12px;width:40%;margin-bottom:16px"></div><div class="sk" style="height:180px"></div></div>
+      <div class="chart-card"><div class="sk" style="height:12px;width:60%;margin-bottom:16px"></div><div class="sk" style="height:140px;border-radius:50%"></div></div>
+    </div>
+    <div class="chart-row2">
+      ${[0,1].map(()=>`<div class="chart-card"><div class="sk" style="height:12px;width:40%;margin-bottom:16px"></div><div class="sk" style="height:100px"></div></div>`).join('')}
+    </div>
+    <div class="table-card"><div style="padding:20px">${[0,1,2,3,4].map(()=>`<div class="sk" style="height:14px;margin-bottom:12px"></div>`).join('')}</div></div>`;
+}
+
+function renderEmpty() {
+  return `<div class="page-empty">
+    <div class="pe-icon">📋</div>
+    <div class="pe-title">No compliance data</div>
+    <div class="pe-sub">No records match the current filters. Adjust the department, policy, or date range and regenerate.</div>
+    <button class="btn-primary" onclick="clearAllFilters()">Clear filters</button>
+  </div>`;
+}
+
+function renderError() {
+  return `<div class="err-block">
+    <div class="err-icon">⚠</div>
+    <div>
+      <div class="err-title">Failed to generate compliance report</div>
+      <div class="err-msg">POST /reports/compliance returned 503. The reporting service may be temporarily unavailable.</div>
+      <button class="err-retry" onclick="setState('loaded')">Retry</button>
+    </div>
+  </div>`;
+}
+
+/* ── INIT ── */
+render();
+</script>
+</body>
+</html>

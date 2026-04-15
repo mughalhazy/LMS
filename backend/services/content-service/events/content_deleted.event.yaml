@@ -1,0 +1,31 @@
+event_type: content_deleted
+event_topic: lms.content.deleted.v1
+producer_service: content-service
+consumer_services:
+  - course-service
+  - lesson-service
+  - search-index-service
+  - cache-service
+  - analytics-service
+  - audit-service
+purpose: >-
+  Published when content is soft-deleted or hard-deleted so references can be cleaned up,
+  caches invalidated, and compliance/audit workflows completed.
+envelope_schema:
+  event_id: uuid
+  event_type: content_deleted
+  source_system: content-service
+  tenant_id: uuid
+  actor_id: uuid
+  timestamp: datetime
+  schema_version: v1
+payload_schema:
+  content_id: uuid
+  deletion_mode: enum[soft_delete,hard_delete]
+  reason_code: enum[user_request,retention_policy,policy_violation,duplicate_content]
+  affected_versions: integer[]
+  recoverable_until: datetime|null
+  references_detected:
+    course_count: integer
+    lesson_count: integer
+  deleted_at: datetime

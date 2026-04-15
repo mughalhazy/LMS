@@ -1,0 +1,29 @@
+event_type: cohort_completed
+version: 1
+producer_service: cohort-service
+topic: lms.cohort.cohort_completed.v1
+purpose: >-
+  Published when a cohort reaches completion so certifications, archival,
+  compliance reporting, and post-cohort analytics can execute asynchronously.
+payload:
+  cohort_id: uuid
+  tenant_id: uuid
+  completion_status: enum[completed, completed_with_exceptions]
+  completed_at: datetime
+  completed_by: uuid
+  completion_summary:
+    total_members: integer
+    completed_members: integer
+    in_progress_members: integer
+    dropped_members: integer
+    completion_rate: number
+  final_schedule_version: integer
+  metadata:
+    type: object
+    additional_properties: string|number|boolean
+consumers:
+  - certification-service
+  - reporting-service
+  - notification-service
+  - analytics-service
+  - audit-service

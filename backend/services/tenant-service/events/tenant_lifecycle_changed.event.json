@@ -1,0 +1,12 @@
+{
+  "event_type": "tenant.lifecycle.changed",
+  "version": "1.0.0",
+  "description": "Published when tenant lifecycle state changes.",
+  "payload": {
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "state": "active|suspended|archived|decommissioned",
+    "reason": "string",
+    "timestamp": "RFC3339 datetime"
+  }
+}

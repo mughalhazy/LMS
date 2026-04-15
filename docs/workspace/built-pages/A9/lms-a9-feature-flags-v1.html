@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Feature Flags
+  Archetype: A9 Settings — Sidebar layout
+  Created  : 2026-03-23
+  Surface  : Super Admin
+  Repo     : tenant-service
+               PATCH /api/v1/tenants/{tenant_id}/feature-flags → TenantConfigurationResponse
+                     body: ManageFeatureFlagsRequest
+                           { feature_flag_changes: dict[str,bool], actor_id: str = "system" }
+               TenantConfigurationResponse: { tenant_id, configuration: dict, effective_settings: dict }
+               DEFAULT_EFFECTIVE_SETTINGS: { "feature.analytics": true, ... }
+  Gaps     : BG-138 — no GET /configuration, feature_flags dict mocked
+             (no new gaps — PATCH /feature-flags endpoint present and sufficient)
+  Patterns : A9 Settings — Sidebar layout · Feature Flags item active (Platform group)
+             CSS base: lms-a9-security-settings-v1.html (:root + layout verbatim)
+             P-77 word-spacing on .ss-title
+  Mock     : FEATURE_FLAGS (dict[str,bool] from TenantConfiguration.feature_flags)
+               Keys follow effective_settings naming convention: "feature.<name>"
+  Sections : Core Features (platform capabilities)
+             Experimental (beta/preview flags)
+             Integrations (third-party feature gates)
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Feature Flags</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a9-security-settings-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --nav-w:240px;--save-bar-h:64px;--topbar-h:56px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* ── A9 SETTINGS LAYOUT ── */
+.topbar{height:var(--topbar-h);background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;position:sticky;top:0;z-index:30;}
+.tb-icon{font-size:16px;color:var(--ink-3);}
+.tb-title{font-size:16px;font-weight:700;color:var(--ink);}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.tb-section{font-size:14px;font-weight:500;color:var(--ink-2);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-user{font-size:13px;color:var(--ink-3);}
+
+.settings-shell{display:flex;min-height:calc(100vh - var(--topbar-h));}
+
+.settings-nav{width:var(--nav-w);flex-shrink:0;background:var(--white);border-right:1px solid var(--border);position:sticky;top:var(--topbar-h);height:calc(100vh - var(--topbar-h));overflow-y:auto;display:flex;flex-direction:column;}
+.nav-head{padding:20px 16px 12px;border-bottom:1px solid var(--border);}
+.nav-head-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);}
+.nav-body{padding:8px 8px;flex:1;}
+.nav-group{margin-bottom:4px;}
+.nav-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:10px 10px 4px;display:block;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;width:100%;border:none;background:transparent;text-align:left;font-family:var(--font);}
+.nav-item:hover{background:var(--subtle);color:var(--ink-2);}
+.nav-item.active{background:var(--accent-lt);color:var(--accent);font-weight:700;}
+.nav-item-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
+.nav-item-label{flex:1;}
+.nav-foot{padding:12px 16px;border-top:1px solid var(--border);font-size:11px;font-weight:500;color:var(--ink-4);}
+
+.settings-content{flex:1;padding:var(--pp);padding-bottom:calc(var(--save-bar-h) + 24px);overflow-y:auto;}
+.content-head{margin-bottom:24px;}
+.content-title{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-0.03em;word-spacing:0.08em;}
+.content-desc{font-size:13px;font-weight:500;color:var(--ink-3);margin-top:6px;line-height:1.6;max-width:640px;}
+
+.setting-section{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);margin-bottom:20px;overflow:hidden;}
+.ss-head{padding:20px 24px 0;}
+.ss-title{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;word-spacing:0.08em;}
+.ss-desc{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.5;}
+.ss-divider{height:1px;background:var(--border);margin:16px 0;}
+.ss-body{padding:0 24px 24px;}
+
+/* Chip */
+.chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+.chip.on{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.chip.off{background:var(--subtle);border:1px solid var(--border);color:var(--ink-4);}
+.chip.beta{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber);}
+
+/* Feature flag rows */
+.flag-list{display:flex;flex-direction:column;}
+.flag-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);}
+.flag-row:last-child{border-bottom:none;padding-bottom:0;}
+.flag-key{font-size:11px;font-weight:400;color:var(--ink-3);font-family:'SF Mono','Fira Code',monospace;background:var(--subtle);padding:2px 7px;border-radius:4px;flex-shrink:0;min-width:200px;}
+.flag-info{flex:1;display:flex;flex-direction:column;gap:2px;}
+.flag-label{font-size:13px;font-weight:600;color:var(--ink);}
+.flag-desc{font-size:11px;font-weight:500;color:var(--ink-3);}
+.flag-badges{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+/* Toggle */
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-track{position:absolute;inset:0;border-radius:var(--r-pill);background:var(--border);transition:background 150ms;cursor:pointer;}
+.toggle input:checked + .toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:white;transition:transform 150ms;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+.toggle input:checked ~ .toggle-thumb{transform:translateX(16px);}
+
+/* Summary bar */
+.flag-summary{display:flex;align-items:center;gap:20px;padding:14px 20px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);margin-bottom:20px;}
+.flag-summary-item{display:flex;flex-direction:column;gap:2px;}
+.fsi-count{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-0.04em;line-height:1;}
+.fsi-label{font-size:11px;font-weight:500;color:var(--ink-3);}
+.flag-summary-divider{width:1px;height:32px;background:var(--border);}
+
+/* Save bar */
+.save-bar{position:fixed;bottom:0;left:var(--nav-w);right:0;height:var(--save-bar-h);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 12px rgba(0,0,0,.04);}
+.save-bar-status{flex:1;display:flex;align-items:center;gap:8px;}
+.save-dot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+.save-msg{font-size:13px;color:var(--ink-3);}
+.save-msg strong{color:var(--ink-2);font-weight:700;}
+.btn-reset{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-2);transition:all 100ms;}
+.btn-reset:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-save{padding:8px 20px;border-radius:var(--r-sm);border:none;background:var(--accent);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;color:white;transition:all 100ms;}
+.btn-save:hover{opacity:.9;}
+.save-bar.clean .save-dot{display:none;}
+.save-bar.clean .save-msg{display:none;}
+.save-bar.clean .btn-reset{opacity:.4;pointer-events:none;}
+.save-bar.clean .btn-save{opacity:.4;pointer-events:none;}
+
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;color:white;padding:10px 20px;border-radius:var(--r-pill);font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity 200ms;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* ── SKELETON ── */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sk-text{height:12px;}
+
+/* ── STATE BAR (dev-only) ── */
+.state-bar{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:var(--r-pill);padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <span class="tb-icon">⚙</span>
+  <span class="tb-title">Settings</span>
+  <div class="tb-divider"></div>
+  <span class="tb-section">Feature Flags</span>
+  <div class="tb-r">
+    <span class="tb-user">Super Admin · ten-001</span>
+  </div>
+</header>
+
+<div class="settings-shell">
+
+  <!-- SETTINGS NAV -->
+  <nav class="settings-nav">
+    <div class="nav-head">
+      <span class="nav-head-title">Settings</span>
+    </div>
+    <div class="nav-body">
+      <div class="nav-group">
+        <span class="nav-group-label">Workspace</span>
+        <button class="nav-item">
+          <span class="nav-item-icon">🏢</span>
+          <span class="nav-item-label">Organization</span>
+        </button>
+        <button class="nav-item">
+          <span class="nav-item-icon">🖥</span>
+          <span class="nav-item-label">Platform</span>
+        </button>
+        <button class="nav-item">
+          <span class="nav-item-icon">🔒</span>
+          <span class="nav-item-label">Security</span>
+        </button>
+        <button class="nav-item">
+          <span class="nav-item-icon">🌐</span>
+          <span class="nav-item-label">Localization</span>
+        </button>
+      </div>
+      <div class="nav-group">
+        <span class="nav-group-label">Platform</span>
+        <button class="nav-item active">
+          <span class="nav-item-icon">🚩</span>
+          <span class="nav-item-label">Feature Flags</span>
+        </button>
+        <button class="nav-item">
+          <span class="nav-item-icon">🔗</span>
+          <span class="nav-item-label">Integrations</span>
+        </button>
+      </div>
+    </div>
+    <div class="nav-foot">ten-001 · v1</div>
+  </nav>
+
+  <!-- SETTINGS CONTENT -->
+  <main class="settings-content">
+    <div class="content-head">
+      <div class="content-title">Feature Flags</div>
+      <div class="content-desc">Enable or disable platform capabilities per tenant. Changes are saved to TenantConfiguration.feature_flags via PATCH /feature-flags and take effect immediately for all users.</div>
+    </div>
+
+    <div id="sections-canvas">
+
+    <!-- Summary bar -->
+    <div class="flag-summary" id="flag-summary">
+      <div class="flag-summary-item">
+        <div class="fsi-count" id="count-total">0</div>
+        <div class="fsi-label">Total flags</div>
+      </div>
+      <div class="flag-summary-divider"></div>
+      <div class="flag-summary-item">
+        <div class="fsi-count" id="count-on" style="color:var(--green);">0</div>
+        <div class="fsi-label">Enabled</div>
+      </div>
+      <div class="flag-summary-divider"></div>
+      <div class="flag-summary-item">
+        <div class="fsi-count" id="count-off" style="color:var(--ink-3);">0</div>
+        <div class="fsi-label">Disabled</div>
+      </div>
+      <div class="flag-summary-divider"></div>
+      <div class="flag-summary-item">
+        <div class="fsi-count" id="count-beta" style="color:var(--amber);">0</div>
+        <div class="fsi-label">Beta</div>
+      </div>
+    </div>
+
+    <!-- Section: Core Features -->
+    <div class="setting-section">
+      <div class="ss-head">
+        <div class="ss-title">Core Features</div>
+        <div class="ss-desc">Stable platform capabilities. Disabling these affects all users immediately — use with caution.</div>
+        <div class="ss-divider"></div>
+      </div>
+      <div class="ss-body">
+        <div class="flag-list" id="flags-core"></div>
+      </div>
+    </div>
+
+    <!-- Section: Experimental -->
+    <div class="setting-section">
+      <div class="ss-head">
+        <div class="ss-title">Experimental</div>
+        <div class="ss-desc">Beta and preview features. May change or be removed without notice. Enable only in non-production environments or for opted-in users.</div>
+        <div class="ss-divider"></div>
+      </div>
+      <div class="ss-body">
+        <div class="flag-list" id="flags-experimental"></div>
+      </div>
+    </div>
+
+    <!-- Section: Integrations -->
+    <div class="setting-section">
+      <div class="ss-head">
+        <div class="ss-title">Integrations</div>
+        <div class="ss-desc">Third-party integration gates. Enabling these activates the corresponding service connection. Ensure credentials are configured before enabling.</div>
+        <div class="ss-divider"></div>
+      </div>
+      <div class="ss-body">
+        <div class="flag-list" id="flags-integrations"></div>
+      </div>
+    </div>
+
+    </div><!-- /sections-canvas -->
+  </main>
+</div>
+
+<!-- STATE BAR (dev-only) -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb"    onclick="setState('skeleton',this)">Skeleton</button>
+  <button class="stb"    onclick="setState('error',this)">Error</button>
+</div>
+
+<!-- SAVE BAR -->
+<div class="save-bar clean" id="save-bar">
+  <div class="save-bar-status">
+    <div class="save-dot"></div>
+    <span class="save-msg"><strong id="dirty-count">0</strong> unsaved changes</span>
+  </div>
+  <button class="btn-reset" onclick="resetForm()">Reset to saved</button>
+  <button class="btn-save" onclick="saveSettings()">Save Changes</button>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── MOCK DATA — shaped to TenantConfiguration.feature_flags dict[str,bool] (BG-138: no GET) ──
+   Keys follow effective_settings naming: "feature.<name>"
+   DEFAULT_EFFECTIVE_SETTINGS from service.py: { "feature.analytics": true }           */
+
+const FLAG_DEFINITIONS = [
+  /* Core features */
+  { key:'feature.analytics',      label:'Analytics & Reporting',  desc:'Enables reporting dashboards, data exports, and the analytics service.',             group:'core',         default:true  },
+  { key:'feature.certificates',   label:'Certificates',           desc:'Enables certificate issuance on course completion.',                                 group:'core',         default:true  },
+  { key:'feature.learning_paths', label:'Learning Paths',          desc:'Enables multi-course learning path creation and enrolment.',                         group:'core',         default:true  },
+  { key:'feature.assessments',    label:'Assessments',             desc:'Enables quiz and assessment creation, delivery, and auto-grading.',                  group:'core',         default:true  },
+  { key:'feature.badges',         label:'Badges & Gamification',   desc:'Enables achievement badges, leaderboards, and gamification features.',              group:'core',         default:false },
+  { key:'feature.recommendations',label:'Recommendations',         desc:'Enables AI-powered course recommendations via recommendation-service.',              group:'core',         default:true  },
+  /* Experimental */
+  { key:'feature.ai_tutor',       label:'AI Tutor',                desc:'Experimental conversational AI tutor. Requires ai-tutor-service (future).',         group:'experimental', default:false, beta:true },
+  { key:'feature.course_gen',     label:'AI Course Generation',    desc:'Experimental auto-generation of course outlines via course-generation-service.',    group:'experimental', default:false, beta:true },
+  { key:'feature.cohort_collab',  label:'Cohort Collaboration',    desc:'Preview: real-time collaboration features within cohort-service.',                   group:'experimental', default:false, beta:true },
+  /* Integrations */
+  { key:'feature.hris_sync',      label:'HRIS Sync',               desc:'Enables automated user provisioning from connected HRIS systems.',                  group:'integrations', default:true  },
+  { key:'feature.lti',            label:'LTI Integration',          desc:'Enables LTI 1.3 tool launch via lti-service for external content providers.',       group:'integrations', default:false },
+  { key:'feature.scorm',          label:'SCORM Content',           desc:'Enables SCORM package upload and delivery via scorm-service.',                       group:'integrations', default:true  },
+  { key:'feature.webhooks',       label:'Webhooks',                 desc:'Enables outbound webhooks for platform events via webhook-service.',                 group:'integrations', default:false },
+];
+
+/* BG-138: mocked — no GET /configuration endpoint */
+const SAVED_FLAGS = Object.fromEntries(FLAG_DEFINITIONS.map(f => [f.key, f.default]));
+let currentFlags = { ...SAVED_FLAGS };
+
+/* ── RENDER FLAGS ── */
+function renderFlags() {
+  const groups = { core:'flags-core', experimental:'flags-experimental', integrations:'flags-integrations' };
+  Object.entries(groups).forEach(([group, elId]) => {
+    const defs = FLAG_DEFINITIONS.filter(f => f.group === group);
+    document.getElementById(elId).innerHTML = defs.map(f => {
+      const on = currentFlags[f.key];
+      return `
+        <div class="flag-row">
+          <span class="flag-key">${f.key}</span>
+          <div class="flag-info">
+            <div class="flag-label">${f.label}</div>
+            <div class="flag-desc">${f.desc}</div>
+          </div>
+          <div class="flag-badges">
+            ${f.beta ? `<span class="chip beta">Beta</span>` : ''}
+            <span class="chip ${on ? 'on' : 'off'}" id="chip-${f.key}">${on ? 'On' : 'Off'}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleFlag('${f.key}',this.checked)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>`;
+    }).join('');
+  });
+  updateSummary();
+}
+
+function toggleFlag(key, val) {
+  currentFlags[key] = val;
+  const chip = document.getElementById(`chip-${key}`);
+  if (chip) { chip.className = `chip ${val ? 'on' : 'off'}`; chip.textContent = val ? 'On' : 'Off'; }
+  updateSummary();
+  markDirty();
+}
+
+function updateSummary() {
+  const all   = FLAG_DEFINITIONS.length;
+  const on    = FLAG_DEFINITIONS.filter(f => currentFlags[f.key]).length;
+  const beta  = FLAG_DEFINITIONS.filter(f => f.beta).length;
+  document.getElementById('count-total').textContent = all;
+  document.getElementById('count-on').textContent    = on;
+  document.getElementById('count-off').textContent   = all - on;
+  document.getElementById('count-beta').textContent  = beta;
+}
+
+/* ── DIRTY STATE ── */
+function markDirty() {
+  const changed = FLAG_DEFINITIONS.filter(f => currentFlags[f.key] !== SAVED_FLAGS[f.key]).length;
+  const bar = document.getElementById('save-bar');
+  if (changed > 0) {
+    bar.classList.remove('clean');
+    document.getElementById('dirty-count').textContent = changed;
+  } else {
+    bar.classList.add('clean');
+  }
+}
+
+function resetForm() {
+  Object.keys(currentFlags).forEach(k => { currentFlags[k] = SAVED_FLAGS[k]; });
+  renderFlags();
+  document.getElementById('save-bar').classList.add('clean');
+}
+
+function saveSettings() {
+  /* ManageFeatureFlagsRequest — PATCH /api/v1/tenants/ten-001/feature-flags */
+  const changed = FLAG_DEFINITIONS
+    .filter(f => currentFlags[f.key] !== SAVED_FLAGS[f.key])
+    .reduce((acc, f) => { acc[f.key] = currentFlags[f.key]; return acc; }, {});
+  const body = { feature_flag_changes: changed, actor_id: 'usr-super-001' };
+  const btn = document.querySelector('.btn-save');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  setTimeout(() => {
+    Object.assign(SAVED_FLAGS, currentFlags);
+    document.getElementById('save-bar').classList.add('clean');
+    btn.textContent = 'Save Changes';
+    btn.disabled = false;
+    showToast(`${Object.keys(changed).length} flag${Object.keys(changed).length !== 1 ? 's' : ''} updated`);
+  }, 900);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ── PAGE STATES ── */
+function renderSkeleton() {
+  document.getElementById('sections-canvas').innerHTML = `
+    <div class="flag-summary">
+      ${[1,2,3,4].map(()=>`<div class="flag-summary-item"><div class="sk" style="width:32px;height:24px;border-radius:4px;margin-bottom:4px;"></div><div class="sk sk-text" style="width:60px;"></div></div><div class="flag-summary-divider"></div>`).join('')}
+    </div>
+    ${['Core Features','Experimental','Integrations'].map(title=>`
+    <div class="setting-section">
+      <div class="ss-head"><div class="sk sk-text" style="width:${80+Math.random()*60|0}px;margin-bottom:8px;"></div><div class="sk sk-text" style="width:320px;"></div><div class="ss-divider"></div></div>
+      <div class="ss-body"><div class="flag-list">
+        ${[1,2,3].map(()=>`<div class="flag-row"><div class="sk" style="width:180px;height:22px;border-radius:4px;"></div><div style="flex:1"><div class="sk sk-text" style="width:140px;margin-bottom:6px;"></div><div class="sk sk-text" style="width:260px;height:10px;"></div></div><div class="sk" style="width:36px;height:20px;border-radius:var(--r-pill);"></div></div>`).join('')}
+      </div></div>
+    </div>`).join('')}`;
+  document.getElementById('save-bar').classList.add('clean');
+}
+
+function renderError() {
+  document.getElementById('sections-canvas').innerHTML = `
+    <div class="setting-section">
+      <div style="padding:56px 24px;text-align:center;">
+        <div style="font-size:36px;margin-bottom:16px;">✕</div>
+        <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Couldn't load feature flags</div>
+        <div style="font-size:13px;font-weight:500;color:var(--ink-3);margin-bottom:24px;line-height:1.6;">Could not reach tenant-service. Check your connection and try again.</div>
+        <button onclick="renderLoaded()" style="padding:8px 20px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;">Retry</button>
+      </div>
+    </div>`;
+  document.getElementById('save-bar').classList.add('clean');
+}
+
+function renderLoaded() {
+  document.getElementById('sections-canvas').innerHTML = LOADED_HTML;
+  currentFlags = { ...SAVED_FLAGS };
+  renderFlags();
+}
+
+function setState(s, btn) {
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  if (s === 'loaded')        renderLoaded();
+  else if (s === 'skeleton') renderSkeleton();
+  else if (s === 'error')    renderError();
+}
+
+/* ── INIT ── */
+const LOADED_HTML = document.getElementById('sections-canvas').innerHTML;
+renderFlags();
+</script>
+</body>
+</html>

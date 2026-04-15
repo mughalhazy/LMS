@@ -1,0 +1,1138 @@
+{
+  "service_registry": {
+    "provider": "consul",
+    "address_env": "SERVICE_REGISTRY_ADDRESS",
+    "datacenter_env": "SERVICE_REGISTRY_DATACENTER"
+  },
+  "lookup": {
+    "scheme": "discovery://",
+    "resolver": "service-registry",
+    "cache_ttl": "30s",
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "250ms"
+    }
+  },
+  "services": {
+    "ai-tutor-service": {
+      "service_name": "ai-tutor-service",
+      "service_id": "ai-tutor-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "ai-tutor-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "api-key-service": {
+      "service_name": "api-key-service",
+      "service_id": "api-key-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "api-key-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "assessment-service": {
+      "service_name": "assessment-service",
+      "service_id": "assessment-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "assessment-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "attempt-service": {
+      "service_name": "attempt-service",
+      "service_id": "attempt-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "attempt-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "auth-service": {
+      "service_name": "auth-service",
+      "service_id": "auth-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "auth-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "badge-service": {
+      "service_name": "badge-service",
+      "service_id": "badge-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "badge-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "capability-registry": {
+      "service_name": "capability-registry",
+      "service_id": "capability-registry-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "capability-registry"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "certificate-service": {
+      "service_name": "certificate-service",
+      "service_id": "certificate-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "certificate-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "cohort-service": {
+      "service_name": "cohort-service",
+      "service_id": "cohort-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "cohort-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "config-service": {
+      "service_name": "config-service",
+      "service_id": "config-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "config-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "content-service": {
+      "service_name": "content-service",
+      "service_id": "content-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "content-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "course-generation-service": {
+      "service_name": "course-generation-service",
+      "service_id": "course-generation-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "course-generation-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "course-service": {
+      "service_name": "course-service",
+      "service_id": "course-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "course-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "department-service": {
+      "service_name": "department-service",
+      "service_id": "department-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "department-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "email-service": {
+      "service_name": "email-service",
+      "service_id": "email-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "email-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "enrollment-service": {
+      "service_name": "enrollment-service",
+      "service_id": "enrollment-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "enrollment-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "entitlement-service": {
+      "service_name": "entitlement-service",
+      "service_id": "entitlement-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "entitlement-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "event-ingestion-service": {
+      "service_name": "event-ingestion-service",
+      "service_id": "event-ingestion-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "event-ingestion-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "group-service": {
+      "service_name": "group-service",
+      "service_id": "group-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "group-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "hris-sync-service": {
+      "service_name": "hris-sync-service",
+      "service_id": "hris-sync-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "hris-sync-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "institution-service": {
+      "service_name": "institution-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
+    },
+    "learning-analytics-service": {
+      "service_name": "learning-analytics-service",
+      "service_id": "learning-analytics-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "learning-analytics-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "learning-path-service": {
+      "service_name": "learning-path-service",
+      "service_id": "learning-path-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "learning-path-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "lesson-service": {
+      "service_name": "lesson-service",
+      "service_id": "lesson-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "lesson-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "lti-service": {
+      "service_name": "lti-service",
+      "service_id": "lti-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "lti-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "media-service": {
+      "service_name": "media-service",
+      "service_id": "media-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "media-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "notification-service": {
+      "service_name": "notification-service",
+      "service_id": "notification-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "notification-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "org-service": {
+      "service_name": "org-service",
+      "service_id": "org-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "org-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "prerequisite-engine-service": {
+      "service_name": "prerequisite-engine-service",
+      "service_id": "prerequisite-engine-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "prerequisite-engine-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "program-service": {
+      "service_name": "program-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
+    },
+    "progress-service": {
+      "service_name": "progress-service",
+      "service_id": "progress-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "progress-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "push-service": {
+      "service_name": "push-service",
+      "service_id": "push-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "push-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "quiz-engine": {
+      "service_name": "quiz-engine",
+      "service_id": "quiz-engine-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "quiz-engine"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "rbac-service": {
+      "service_name": "rbac-service",
+      "service_id": "rbac-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "rbac-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "recommendation-service": {
+      "service_name": "recommendation-service",
+      "service_id": "recommendation-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "recommendation-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "reporting-service": {
+      "service_name": "reporting-service",
+      "service_id": "reporting-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "reporting-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "scorm-service": {
+      "service_name": "scorm-service",
+      "service_id": "scorm-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "scorm-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "session-service": {
+      "service_name": "session-service",
+      "port_env": "SERVICE_PORT",
+      "health_check": {
+        "type": "http",
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s"
+      },
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      },
+      "dependencies": [
+        "auth-service",
+        "tenant-service"
+      ]
+    },
+    "skill-analytics-service": {
+      "service_name": "skill-analytics-service",
+      "service_id": "skill-analytics-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "skill-analytics-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "skill-inference-service": {
+      "service_name": "skill-inference-service",
+      "service_id": "skill-inference-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "skill-inference-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "sso-service": {
+      "service_name": "sso-service",
+      "service_id": "sso-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "sso-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "tenant-service": {
+      "service_name": "tenant-service",
+      "service_id": "tenant-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "tenant-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "user-service": {
+      "service_name": "user-service",
+      "service_id": "user-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "user-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    },
+    "webhook-service": {
+      "service_name": "webhook-service",
+      "service_id": "webhook-service-${HOSTNAME}",
+      "registration": {
+        "enabled": true,
+        "registry": "consul",
+        "address_env": "SERVICE_HOST",
+        "port_env": "SERVICE_PORT",
+        "tags": [
+          "lms",
+          "microservice",
+          "webhook-service"
+        ]
+      },
+      "health_check": {
+        "http_path": "/health",
+        "interval": "10s",
+        "timeout": "2s",
+        "deregister_after": "60s"
+      },
+      "runtime": "python",
+      "startup": {
+        "register_on_startup": true,
+        "deregister_on_shutdown": true
+      }
+    }
+  }
+}

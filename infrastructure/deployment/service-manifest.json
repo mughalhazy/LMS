@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "name": "ai-tutor-service",
+      "path": "backend/services/ai-tutor-service",
+      "runtime": "python",
+      "port": 8100,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "api-key-service",
+      "path": "backend/services/api-key-service",
+      "runtime": "python",
+      "port": 8101,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "assessment-service",
+      "path": "backend/services/assessment-service",
+      "runtime": "python",
+      "port": 8102,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "attempt-service",
+      "path": "backend/services/attempt-service",
+      "runtime": "python",
+      "port": 8103,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "auth-service",
+      "path": "backend/services/auth-service",
+      "runtime": "python",
+      "port": 8104,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "badge-service",
+      "path": "backend/services/badge-service",
+      "runtime": "python",
+      "port": 8105,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "capability-registry",
+      "path": "services/capability-registry",
+      "runtime": "python",
+      "port": 8140,
+      "app_module": "service:CapabilityRegistryService",
+      "start_command": ""
+    },
+    {
+      "name": "certificate-service",
+      "path": "backend/services/certificate-service",
+      "runtime": "python",
+      "port": 8106,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "cohort-service",
+      "path": "backend/services/cohort-service",
+      "runtime": "python",
+      "port": 8107,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "config-service",
+      "path": "services/config-service",
+      "runtime": "python",
+      "port": 8141,
+      "app_module": "service:ConfigService",
+      "start_command": ""
+    },
+    {
+      "name": "content-service",
+      "path": "backend/services/content-service",
+      "runtime": "python",
+      "port": 8108,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "course-generation-service",
+      "path": "backend/services/course-generation-service",
+      "runtime": "python",
+      "port": 8109,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "course-service",
+      "path": "backend/services/course-service",
+      "runtime": "python",
+      "port": 8110,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "department-service",
+      "path": "backend/services/department-service",
+      "runtime": "python",
+      "port": 8111,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "email-service",
+      "path": "backend/services/email-service",
+      "runtime": "python",
+      "port": 8112,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "enrollment-service",
+      "path": "backend/services/enrollment-service",
+      "runtime": "python",
+      "port": 8113,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "entitlement-service",
+      "path": "services/entitlement-service",
+      "runtime": "python",
+      "port": 8142,
+      "app_module": "service:EntitlementService",
+      "start_command": ""
+    },
+    {
+      "name": "event-ingestion-service",
+      "path": "backend/services/event-ingestion-service",
+      "runtime": "python",
+      "port": 8114,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "group-service",
+      "path": "backend/services/group-service",
+      "runtime": "python",
+      "port": 8115,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "hris-sync-service",
+      "path": "backend/services/hris-sync-service",
+      "runtime": "python",
+      "port": 8116,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "learning-analytics-service",
+      "path": "backend/services/learning-analytics-service",
+      "runtime": "python",
+      "port": 8117,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "learning-path-service",
+      "path": "backend/services/learning-path-service",
+      "runtime": "python",
+      "port": 8118,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "lesson-service",
+      "path": "backend/services/lesson-service",
+      "runtime": "python",
+      "port": 8119,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "lti-service",
+      "path": "backend/services/lti-service",
+      "runtime": "python",
+      "port": 8120,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "media-service",
+      "path": "backend/services/media-service",
+      "runtime": "python",
+      "port": 8121,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "notification-service",
+      "path": "backend/services/notification-service",
+      "runtime": "python",
+      "port": 8122,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "org-service",
+      "path": "backend/services/org-service",
+      "runtime": "python",
+      "port": 8123,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "prerequisite-engine-service",
+      "path": "backend/services/prerequisite-engine-service",
+      "runtime": "node",
+      "port": 8124,
+      "app_module": "",
+      "start_command": "npm run start"
+    },
+    {
+      "name": "program-service",
+      "path": "backend/services/program-service",
+      "runtime": "python",
+      "port": 8138,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "progress-service",
+      "path": "backend/services/progress-service",
+      "runtime": "python",
+      "port": 8125,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "push-service",
+      "path": "backend/services/push-service",
+      "runtime": "python",
+      "port": 8126,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "quiz-engine",
+      "path": "backend/services/quiz-engine",
+      "runtime": "python",
+      "port": 8127,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "rbac-service",
+      "path": "backend/services/rbac-service",
+      "runtime": "python",
+      "port": 8128,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "recommendation-service",
+      "path": "backend/services/recommendation-service",
+      "runtime": "python",
+      "port": 8129,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "reporting-service",
+      "path": "backend/services/reporting-service",
+      "runtime": "python",
+      "port": 8130,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "scorm-service",
+      "path": "backend/services/scorm-service",
+      "runtime": "node",
+      "port": 8131,
+      "app_module": "",
+      "start_command": "npm run start"
+    },
+    {
+      "name": "skill-analytics-service",
+      "path": "backend/services/skill-analytics-service",
+      "runtime": "python",
+      "port": 8132,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "skill-inference-service",
+      "path": "backend/services/skill-inference-service",
+      "runtime": "python",
+      "port": 8133,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "sso-service",
+      "path": "backend/services/sso-service",
+      "runtime": "python",
+      "port": 8134,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "tenant-service",
+      "path": "backend/services/tenant-service",
+      "runtime": "python",
+      "port": 8135,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "user-service",
+      "path": "backend/services/user-service",
+      "runtime": "python",
+      "port": 8136,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "webhook-service",
+      "path": "backend/services/webhook-service",
+      "runtime": "python",
+      "port": 8137,
+      "app_module": "app.main:app",
+      "start_command": ""
+    }
+  ]
+}

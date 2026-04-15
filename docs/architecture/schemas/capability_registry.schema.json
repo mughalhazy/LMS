@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lms.local/schemas/capability-registry.schema.json",
+  "title": "LMS Capability Registry",
+  "description": "Domain-agnostic registry of independently addressable product capabilities used by entitlement and activation systems.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this schema payload.",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Capability definitions indexed by capability key for direct lookup.",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_\\-\\.]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/capability"
+      }
+    }
+  },
+  "$defs": {
+    "key_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_\\-\\.]*$"
+    },
+    "country_code": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "capability": {
+      "type": "object",
+      "description": "Capability metadata only. No runtime logic, execution directives, or service wiring.",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "domain",
+        "description",
+        "dependencies",
+        "usage_meter",
+        "billing_type",
+        "supported_segments",
+        "activation",
+        "addon"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key_ref",
+          "description": "Stable identifier for entitlement and policy checks."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Business or platform domain that owns the capability contract.",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of what is unlocked when enabled.",
+          "minLength": 1
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Other capability keys that must be active first.",
+          "items": {
+            "$ref": "#/$defs/key_ref"
+          },
+          "uniqueItems": true
+        },
+        "usage_meter": {
+          "type": "object",
+          "description": "Metering contract used by billing and entitlement quota systems.",
+          "additionalProperties": false,
+          "required": [
+            "meter_key",
+            "unit",
+            "aggregation",
+            "reset_period"
+          ],
+          "properties": {
+            "meter_key": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_\\-\\.]*$"
+            },
+            "unit": {
+              "type": "string",
+              "minLength": 1
+            },
+            "aggregation": {
+              "type": "string",
+              "enum": [
+                "sum",
+                "count",
+                "max",
+                "latest"
+              ]
+            },
+            "reset_period": {
+              "type": "string",
+              "enum": [
+                "none",
+                "hourly",
+                "daily",
+                "monthly",
+                "yearly"
+              ]
+            }
+          }
+        },
+        "billing_type": {
+          "type": "string",
+          "enum": [
+            "free",
+            "included",
+            "usage-based",
+            "add-on"
+          ]
+        },
+        "supported_segments": {
+          "type": "array",
+          "description": "Eligible segment identifiers. Segment definitions remain external.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "supported_countries": {
+          "type": "array",
+          "description": "Optional ISO-3166-1 alpha-2 country allow-list.",
+          "items": {
+            "$ref": "#/$defs/country_code"
+          },
+          "uniqueItems": true
+        },
+        "required_adapters": {
+          "type": "array",
+          "description": "Optional adapter capability contracts required for this capability to function.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_\\-\\.]*$"
+          },
+          "uniqueItems": true
+        },
+        "activation": {
+          "type": "object",
+          "description": "Activation policy metadata to support dynamic enablement workflows.",
+          "additionalProperties": false,
+          "required": [
+            "default_state",
+            "allowed_states",
+            "strategy"
+          ],
+          "properties": {
+            "default_state": {
+              "type": "string",
+              "enum": [
+                "inactive",
+                "active"
+              ]
+            },
+            "allowed_states": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "inactive",
+                  "active",
+                  "paused"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 2
+            },
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "policy-driven",
+                "entitlement-driven"
+              ]
+            }
+          }
+        },
+        "addon": {
+          "type": "object",
+          "description": "Add-on packaging metadata without coupling to implementation details.",
+          "additionalProperties": false,
+          "required": [
+            "is_addon",
+            "compatible_base_capabilities"
+          ],
+          "properties": {
+            "is_addon": {
+              "type": "boolean"
+            },
+            "compatible_base_capabilities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/key_ref"
+              },
+              "uniqueItems": true
+            },
+            "addon_group": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "billing_type": {
+                "const": "add-on"
+              }
+            },
+            "required": [
+              "billing_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "addon": {
+                "properties": {
+                  "is_addon": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    }
+  }
+}

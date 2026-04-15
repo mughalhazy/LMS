@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Course Catalog
+  Archetype: A11 Library — Sidebar · FILTERS_PANEL · CONTENT_GRID
+  Created  : 2026-03-28
+  Surface  : Learner
+  Repo     :
+    course-service:
+      GET  /api/v1/courses                              (X-Tenant-Id required)
+           → list[CourseResponse]
+           CourseResponse: { course_id, title, description, course_code, status, publish_status,
+                             language_code, credit_value, grading_scheme,
+                             metadata: { category_id, delivery_mode, duration_minutes, tags },
+                             program_links, session_links, created_at, updated_at }
+    recommendation-service:
+      GET  /learners/{learner_id}/recommendations?tenant_id=
+           → LearnerRecommendationBundleResponse
+           bundle.personalized_courses: list[PersonalizedCourseRecommendation]
+           { course_id, score(0-1), difficulty_tier, estimated_minutes,
+             rationale: { explanation, tags } }
+    enrollment-service:
+      GET  /api/v1/enrollments                          (X-Tenant-Id, X-Actor-Id)
+           → EnrollmentListResponse { items: list[EnrollmentResponse] }
+           EnrollmentResponse: { id, learner_id, course_id,
+             status: assigned|active|completed|withdrawn|cancelled,
+             assignment_source, cohort_id, session_id, created_at, updated_at }
+      POST /api/v1/enrollments
+           → EnrollmentCreateRequest { learner_id, course_id, assignment_source }
+  Gaps     :
+    BG-026 — no filter/sort/pagination on GET /api/v1/courses — all loaded; client-side filter
+    BG-028 — no instructor/author field on CourseResponse — instructor credit omitted from cards
+    BG-043 — no search-service — search bar disabled; browse/filter mode only
+    BG-064 — no reviews/ratings service — star ratings absent from cards
+    BG-146 — no thumbnail_url on CourseResponse — gradient placeholder shown (NEW)
+    BG-147 — no category name resolution endpoint — category labels mocked (NEW)
+    BG-148 — PersonalizedCourseRecommendation has course_id only — pre-joined in mock (NEW)
+  Patterns :
+    A11 Library — first page of archetype; all CSS classes fresh, verified vs type scale v1.4
+    Learner surface: --pp:32px · body:14px · lh:1.7 · zoom:1.25
+    Filter panel: 260px left sidebar · client-side filter (BG-026)
+    P-75 Card status chip in meta row, not title row
+    P-77 word-spacing:0.08em on font-weight:700+ multi-word titles
+  Mock     :
+    12 published courses (course-service · list_by_tenant)
+    4 personalized recommendations (recommendation-service · pre-joined BG-148)
+    2 enrollments: crs-001 active · crs-007 completed (enrollment-service)
+  States   : Loaded · Skeleton · Error
+  CSS anchor: lms-a10-account-settings-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Course Catalog</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a10-account-settings-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --gold:#78350F;--gold-bg:#FFFBEB;--gold-bd:rgba(245,158,11,.2);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:32px;--body-size:14px;--lh:1.7;
+  --topbar-h:56px;
+  /* A11 Library specifics */
+  --filter-panel-w:260px;
+  --card-gap:20px;
+  --card-pad:18px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* ── TOPBAR ── */
+.topbar{height:var(--topbar-h);background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;position:sticky;top:0;z-index:30;}
+.tb-logo{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.tb-section{font-size:14px;font-weight:500;color:var(--ink-2);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.tb-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);}
+.tb-name{font-size:13px;font-weight:600;color:var(--ink-2);}
+
+/* ── A11 CATALOG SHELL ── */
+.catalog-shell{display:flex;min-height:calc(100vh - var(--topbar-h));}
+
+/* ── FILTER PANEL ── */
+.filter-panel{width:var(--filter-panel-w);flex-shrink:0;background:var(--white);border-right:1px solid var(--border);position:sticky;top:var(--topbar-h);height:calc(100vh - var(--topbar-h));overflow-y:auto;display:flex;flex-direction:column;}
+.fp-search-wrap{padding:16px 16px 0;}
+/* BG-043: search-service not available — search input disabled; browse mode only */
+.fp-search{width:100%;padding:8px 10px 8px 34px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--subtle);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink-4);outline:none;cursor:not-allowed;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23C0C0B8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:10px center;}
+.fp-search-note{font-size:10px;font-weight:500;color:var(--ink-4);margin-top:5px;padding:0 2px;line-height:1.5;}
+.fp-divider{height:1px;background:var(--border);margin:14px 0 2px;}
+.fp-section{padding:4px 16px 8px;}
+/* Label (UPPER): 10px 700 +0.06em uppercase — type scale verified */
+.fp-section-label{font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;padding:6px 0 2px;}
+.fp-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-2);cursor:pointer;transition:all 100ms;width:100%;border:none;background:transparent;text-align:left;font-family:var(--font);}
+.fp-item:hover{background:var(--subtle);}
+.fp-item.active{background:var(--accent-lt);color:var(--accent);font-weight:700;}
+.fp-dot{width:8px;height:8px;border-radius:50%;border:2px solid var(--border-s);flex-shrink:0;transition:all 100ms;}
+.fp-item.active .fp-dot{background:var(--accent);border-color:var(--accent);}
+.fp-count{margin-left:auto;font-size:10px;font-weight:600;color:var(--ink-4);}
+.fp-item.active .fp-count{color:rgba(91,91,214,.5);}
+.fp-footer{padding:12px 16px;margin-top:auto;border-top:1px solid var(--border);}
+.btn-fp-clear{width:100%;padding:8px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:12px;font-weight:700;color:var(--ink-3);cursor:pointer;transition:all 120ms;display:none;}
+.btn-fp-clear.visible{display:block;}
+.btn-fp-clear:hover{background:var(--subtle);color:var(--ink-2);}
+
+/* ── CATALOG CONTENT AREA ── */
+.catalog-content{flex:1;min-width:0;padding:var(--pp);overflow-y:auto;}
+
+/* Page Title: 24px 800 -0.03em — type scale verified */
+.page-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;}
+.page-title{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-0.03em;word-spacing:0.08em;}
+/* Meta chip: 12px 500 — type scale verified */
+.page-count{font-size:12px;font-weight:600;color:var(--ink-3);padding:3px 10px;border-radius:var(--r-pill);background:var(--subtle);border:1px solid var(--border);}
+.page-sub{font-size:14px;font-weight:500;color:var(--ink-3);margin-bottom:24px;line-height:1.6;}
+
+/* Active filter chips row */
+.filter-chips-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
+/* StatusChip: 10px 700 +0.06em — type scale verified */
+.filter-chip-active{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:var(--r-pill);background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);cursor:pointer;transition:all 100ms;}
+.filter-chip-active:hover{background:#e4e4ff;}
+.fca-x{font-size:11px;color:rgba(91,91,214,.5);line-height:1;}
+
+/* Section Title: 16px 700 -0.01em — type scale verified */
+.section-title{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;word-spacing:0.08em;}
+/* Meta: 12px 500 — type scale verified */
+.section-meta{font-size:12px;font-weight:500;color:var(--ink-3);}
+.section-head-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+
+/* ── RECOMMENDED ROW ── */
+.rec-section{margin-bottom:36px;}
+.rec-row{display:flex;gap:var(--card-gap);overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
+.rec-row::-webkit-scrollbar{height:4px;}
+.rec-row::-webkit-scrollbar-track{background:transparent;}
+.rec-row::-webkit-scrollbar-thumb{background:var(--border-s);border-radius:2px;}
+.rec-row::-webkit-scrollbar-thumb:hover{background:var(--ink-4);}
+
+/* ── COURSE CARD — shared ── */
+.course-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);overflow:hidden;display:flex;flex-direction:column;transition:box-shadow 150ms,border-color 150ms;}
+.course-card:hover{box-shadow:var(--sh-sm);border-color:var(--border-s);}
+/* Rec card: fixed width for horizontal row */
+.rec-card{flex-shrink:0;width:264px;}
+
+/* Card thumbnail — BG-146: no thumbnail_url on CourseResponse; gradient placeholder by category */
+.card-thumb{height:112px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;}
+/* Card title initials: Display-weight in thumb (P-77 via font-weight:800) */
+.card-initials{font-size:20px;font-weight:800;color:rgba(255,255,255,.9);letter-spacing:-0.02em;text-shadow:0 1px 4px rgba(0,0,0,.18);}
+/* Thumb colours keyed to category_id (BG-147: category_id has no name endpoint) */
+.thumb-design   {background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);}
+.thumb-dev      {background:linear-gradient(135deg,#0ea5e9 0%,#2563eb 100%);}
+.thumb-business {background:linear-gradient(135deg,#f59e0b 0%,#ea580c 100%);}
+.thumb-data     {background:linear-gradient(135deg,#10b981 0%,#0d9488 100%);}
+.thumb-leadership{background:linear-gradient(135deg,#ec4899 0%,#db2777 100%);}
+.thumb-default  {background:linear-gradient(135deg,#94a3b8 0%,#64748b 100%);}
+/* Recommendation score badge */
+.rec-match-badge{position:absolute;top:8px;right:8px;padding:3px 8px;border-radius:var(--r-pill);background:rgba(0,0,0,.42);backdrop-filter:blur(4px);font-size:10px;font-weight:700;color:#fff;letter-spacing:.02em;}
+
+/* Card body */
+.card-body{padding:var(--card-pad);flex:1;display:flex;flex-direction:column;}
+/* Meta row: category chip (P-75: chip in meta row, not title row) + duration + mode */
+.card-meta-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+/* StatusChip: 10px 700 +0.06em uppercase — type scale verified */
+.card-cat-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--subtle);border:1px solid var(--border);color:var(--ink-3);}
+.card-dot{width:3px;height:3px;border-radius:50%;background:var(--ink-4);flex-shrink:0;}
+/* Meta: 11px 500 — type scale verified */
+.card-dur{font-size:11px;font-weight:500;color:var(--ink-3);}
+.card-mode-lbl{font-size:11px;font-weight:500;color:var(--ink-3);}
+/* Card title: 14px 700 -0.01em — type scale verified (P-77 word-spacing) */
+.card-title{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;line-height:1.35;margin-bottom:6px;word-spacing:0.08em;}
+/* Body (Learner): 12px 500 for card-level detail — type scale: Meta/Body hybrid */
+.card-desc{font-size:12px;font-weight:500;color:var(--ink-3);line-height:1.55;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;margin-bottom:12px;}
+.card-rationale{font-size:11px;font-weight:500;color:var(--ink-2);line-height:1.55;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;margin-bottom:12px;font-style:italic;}
+/* Card footer */
+.card-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--border);padding-top:12px;}
+.card-tags{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0;overflow:hidden;}
+.card-tag{font-size:10px;font-weight:600;color:var(--ink-3);padding:2px 7px;border-radius:var(--r-pill);background:var(--subtle);border:1px solid var(--border);white-space:nowrap;}
+.btn-enroll{flex-shrink:0;padding:6px 14px;border-radius:var(--r-sm);border:none;background:var(--accent);font-family:var(--font);font-size:12px;font-weight:700;color:#fff;cursor:pointer;transition:background 120ms;white-space:nowrap;}
+.btn-enroll:hover{background:#4d4dbf;}
+/* Enrollment status chip — P-75: in footer (meta row equivalent), not title row */
+.enroll-status-chip{flex-shrink:0;display:inline-flex;align-items:center;padding:4px 10px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;}
+.enroll-status-chip.active{background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);color:var(--accent);}
+.enroll-status-chip.completed{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+
+/* ── ALL COURSES GRID ── */
+.all-section{margin-bottom:40px;}
+.course-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--card-gap);}
+
+/* ── SKELETON ── */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sk-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;}
+.sk-thumb{height:112px;border-radius:0;}
+.sk-body{padding:var(--card-pad);display:flex;flex-direction:column;gap:10px;}
+.sk-row{display:flex;gap:8px;}
+.sk-inline{height:10px;width:60px;}
+.sk-title{height:14px;width:85%;}
+.sk-desc1{height:11px;width:100%;}
+.sk-desc2{height:11px;width:70%;}
+.sk-rec-row{display:flex;gap:var(--card-gap);padding-bottom:8px;}
+
+/* ── ERROR ── */
+.error-block{display:flex;flex-direction:column;align-items:center;gap:8px;padding:60px 24px;text-align:center;}
+.error-icon{font-size:32px;color:var(--red);}
+/* Page Title weight at reduced size — 16px 700 */
+.error-msg{font-size:16px;font-weight:700;color:var(--ink);}
+/* Body (Learner): 13px 500 */
+.error-sub{font-size:13px;font-weight:500;color:var(--ink-3);}
+.btn-retry{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:4px;}
+.btn-retry:hover{background:var(--subtle);}
+
+/* ── EMPTY FILTERED STATE ── */
+.empty-block{display:flex;flex-direction:column;align-items:center;gap:8px;padding:60px 24px;text-align:center;background:var(--white);border-radius:var(--r);border:1px solid var(--border);}
+.empty-icon{font-size:32px;color:var(--ink-4);}
+.empty-msg{font-size:14px;font-weight:700;color:var(--ink);}
+.empty-sub{font-size:13px;font-weight:500;color:var(--ink-3);}
+.btn-clear-all{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--accent);background:transparent;font-family:var(--font);font-size:13px;font-weight:700;color:var(--accent);cursor:pointer;margin-top:4px;transition:all 120ms;}
+.btn-clear-all:hover{background:var(--accent-lt);}
+
+/* ── STATE BAR ── */
+.state-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:var(--r-pill);padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;color:#fff;padding:10px 20px;border-radius:var(--r-pill);font-size:13px;font-weight:600;opacity:0;transition:opacity 200ms;pointer-events:none;z-index:9998;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <span class="tb-logo">◆ LMS</span>
+  <div class="tb-divider"></div>
+  <span class="tb-section">Course Catalog</span>
+  <div class="tb-r">
+    <div class="tb-avatar">AJ</div>
+    <span class="tb-name">Alex Johnson</span>
+  </div>
+</div>
+
+<div class="catalog-shell">
+
+  <!-- ── FILTER PANEL ── -->
+  <aside class="filter-panel" id="filter-panel">
+
+    <!-- Search — BG-043: search-service not available; input disabled -->
+    <div class="fp-search-wrap">
+      <input class="fp-search" type="text" placeholder="Search courses…" disabled title="Full-text search requires search-service (BG-043 — not yet available)">
+      <div class="fp-search-note">Browse and filter available while full-text search is configured.</div>
+    </div>
+
+    <!-- Category -->
+    <div class="fp-divider"></div>
+    <div class="fp-section">
+      <!-- BG-147: category_id has no name resolution endpoint — labels mocked -->
+      <div class="fp-section-label">Category</div>
+      <button class="fp-item active" data-filter="cat" data-val="all">
+        <span class="fp-dot"></span>All Categories<span class="fp-count">12</span>
+      </button>
+      <button class="fp-item" data-filter="cat" data-val="cat-design">
+        <span class="fp-dot"></span>Design<span class="fp-count">3</span>
+      </button>
+      <button class="fp-item" data-filter="cat" data-val="cat-dev">
+        <span class="fp-dot"></span>Development<span class="fp-count">2</span>
+      </button>
+      <button class="fp-item" data-filter="cat" data-val="cat-business">
+        <span class="fp-dot"></span>Business<span class="fp-count">3</span>
+      </button>
+      <button class="fp-item" data-filter="cat" data-val="cat-data">
+        <span class="fp-dot"></span>Data Science<span class="fp-count">3</span>
+      </button>
+      <button class="fp-item" data-filter="cat" data-val="cat-leadership">
+        <span class="fp-dot"></span>Leadership<span class="fp-count">1</span>
+      </button>
+    </div>
+
+    <!-- Difficulty -->
+    <div class="fp-divider"></div>
+    <div class="fp-section">
+      <div class="fp-section-label">Difficulty</div>
+      <button class="fp-item active" data-filter="diff" data-val="all">
+        <span class="fp-dot"></span>All Levels
+      </button>
+      <button class="fp-item" data-filter="diff" data-val="beginner">
+        <span class="fp-dot"></span>Beginner
+      </button>
+      <button class="fp-item" data-filter="diff" data-val="intermediate">
+        <span class="fp-dot"></span>Intermediate
+      </button>
+      <button class="fp-item" data-filter="diff" data-val="advanced">
+        <span class="fp-dot"></span>Advanced
+      </button>
+    </div>
+
+    <!-- Delivery Mode -->
+    <div class="fp-divider"></div>
+    <div class="fp-section">
+      <div class="fp-section-label">Delivery Mode</div>
+      <button class="fp-item active" data-filter="mode" data-val="all">
+        <span class="fp-dot"></span>All Modes
+      </button>
+      <button class="fp-item" data-filter="mode" data-val="self_paced">
+        <span class="fp-dot"></span>Self-paced
+      </button>
+      <button class="fp-item" data-filter="mode" data-val="instructor_led">
+        <span class="fp-dot"></span>Instructor-led
+      </button>
+      <button class="fp-item" data-filter="mode" data-val="blended">
+        <span class="fp-dot"></span>Blended
+      </button>
+    </div>
+
+    <div class="fp-footer">
+      <button class="btn-fp-clear" id="btn-fp-clear">Clear All Filters</button>
+    </div>
+  </aside>
+
+  <!-- ── CATALOG CONTENT ── -->
+  <main class="catalog-content" id="catalog-content">
+
+    <!-- ── LOADED STATE ── -->
+    <div id="state-loaded">
+      <div class="page-head">
+        <div class="page-title">Course Catalog</div>
+        <span class="page-count" id="page-count">12 courses</span>
+      </div>
+      <div class="page-sub">Browse and enrol in courses available to your organisation.</div>
+
+      <!-- Active filter chips row (hidden when no filters active) -->
+      <div class="filter-chips-row" id="filter-chips-row" style="display:none;"></div>
+
+      <!-- Recommended for You -->
+      <div class="rec-section" id="rec-section">
+        <div class="section-head-row">
+          <div class="section-title">Recommended for You</div>
+          <div class="section-meta" id="rec-meta">4 matches · personalised by skill profile</div>
+        </div>
+        <div class="rec-row" id="rec-row">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- All Courses -->
+      <div class="all-section">
+        <div class="section-head-row">
+          <div class="section-title" id="all-section-title">All Courses</div>
+          <div class="section-meta" id="all-section-meta">12 courses</div>
+        </div>
+        <div class="course-grid" id="course-grid">
+          <!-- populated by JS -->
+        </div>
+        <div class="empty-block" id="empty-block" style="display:none;">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-msg">No courses match your filters</div>
+          <div class="empty-sub">Try removing a filter to see more results.</div>
+          <button class="btn-clear-all" onclick="clearAllFilters()">Clear All Filters</button>
+        </div>
+      </div>
+    </div><!-- /state-loaded -->
+
+    <!-- ── SKELETON STATE ── -->
+    <div id="state-skeleton" style="display:none;">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
+        <div class="sk" style="height:28px;width:200px;"></div>
+        <div class="sk" style="height:20px;width:80px;border-radius:var(--r-pill);"></div>
+      </div>
+      <div class="sk" style="height:14px;width:320px;margin-bottom:28px;"></div>
+      <div class="sk" style="height:16px;width:180px;margin-bottom:16px;"></div>
+      <div class="sk-rec-row">
+        <div class="sk-card" style="width:264px;flex-shrink:0;"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:50%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div></div></div>
+        <div class="sk-card" style="width:264px;flex-shrink:0;"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:50%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div></div></div>
+        <div class="sk-card" style="width:264px;flex-shrink:0;"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:50%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div></div></div>
+      </div>
+      <div class="sk" style="height:16px;width:120px;margin:28px 0 16px;"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--card-gap);">
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+        <div class="sk-card"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-row" style="height:10px;width:60%;"></div><div class="sk sk-title"></div><div class="sk sk-desc1"></div><div class="sk sk-desc2"></div></div></div>
+      </div>
+    </div><!-- /state-skeleton -->
+
+    <!-- ── ERROR STATE ── -->
+    <div id="state-error" style="display:none;">
+      <div class="error-block">
+        <div class="error-icon">⚠</div>
+        <div class="error-msg">Could not load courses</div>
+        <div class="error-sub">course-service did not respond. Check your connection and try again.</div>
+        <button class="btn-retry" onclick="showState('loaded')">Retry</button>
+      </div>
+    </div><!-- /state-error -->
+
+  </main><!-- /catalog-content -->
+
+</div><!-- /catalog-shell -->
+
+<!-- ── STATE BAR ── -->
+<div class="state-bar">
+  <button class="stb on" onclick="showState('loaded')">Loaded</button>
+  <button class="stb" onclick="showState('skeleton')">Skeleton</button>
+  <button class="stb" onclick="showState('error')">Error</button>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── MOCK DATA ── */
+
+/* course-service: GET /api/v1/courses (X-Tenant-Id: tenant-001)
+   BG-026: no filter/sort/pagination — all returned; client-side filter applied */
+const COURSES = [
+  { course_id:'crs-001', title:'UX Fundamentals', course_code:'UX-101',
+    description:'Core principles of user experience design including research methods, wireframing, and usability testing.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:3.0,
+    metadata:{ category_id:'cat-design', delivery_mode:'self_paced', duration_minutes:180, tags:['ux','design','research'] },
+    created_at:'2025-10-01T00:00:00Z', updated_at:'2025-11-01T00:00:00Z' },
+  { course_id:'crs-002', title:'Design Systems in Practice', course_code:'DS-201',
+    description:'Building scalable design systems with tokens, components and documentation for cross-functional product teams.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:2.0,
+    metadata:{ category_id:'cat-design', delivery_mode:'self_paced', duration_minutes:240, tags:['design','systems','tokens'] },
+    created_at:'2025-10-10T00:00:00Z', updated_at:'2025-11-10T00:00:00Z' },
+  { course_id:'crs-003', title:'Python for Data Analysis', course_code:'DA-102',
+    description:'Data manipulation and visualisation using pandas, NumPy, and matplotlib for real-world datasets.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:4.0,
+    metadata:{ category_id:'cat-data', delivery_mode:'self_paced', duration_minutes:360, tags:['python','pandas','data'] },
+    created_at:'2025-09-15T00:00:00Z', updated_at:'2025-11-05T00:00:00Z' },
+  { course_id:'crs-004', title:'Project Management Essentials', course_code:'PM-100',
+    description:'End-to-end project delivery: planning, scoping, stakeholder management, and retrospective reviews.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:3.0,
+    metadata:{ category_id:'cat-business', delivery_mode:'instructor_led', duration_minutes:480, tags:['pmp','planning','stakeholders'] },
+    created_at:'2025-08-01T00:00:00Z', updated_at:'2025-10-01T00:00:00Z' },
+  { course_id:'crs-005', title:'React and Modern Frontend', course_code:'FE-203',
+    description:'Component architecture, hooks, state management, and testing with React 18 and TypeScript.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:4.0,
+    metadata:{ category_id:'cat-dev', delivery_mode:'self_paced', duration_minutes:300, tags:['react','typescript','hooks'] },
+    created_at:'2025-09-01T00:00:00Z', updated_at:'2025-11-20T00:00:00Z' },
+  { course_id:'crs-006', title:'Leadership in Tech', course_code:'LD-101',
+    description:'Developing technical leadership skills: decision-making, team dynamics, and cross-functional communication.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:2.0,
+    metadata:{ category_id:'cat-leadership', delivery_mode:'instructor_led', duration_minutes:120, tags:['leadership','teams','strategy'] },
+    created_at:'2025-10-15T00:00:00Z', updated_at:'2025-11-15T00:00:00Z' },
+  { course_id:'crs-007', title:'Advanced SQL', course_code:'SQL-301',
+    description:'Window functions, CTEs, query optimisation, and database design patterns for production analytics workloads.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:3.0,
+    metadata:{ category_id:'cat-data', delivery_mode:'self_paced', duration_minutes:200, tags:['sql','analytics','postgres'] },
+    created_at:'2025-07-10T00:00:00Z', updated_at:'2025-09-10T00:00:00Z' },
+  { course_id:'crs-008', title:'Agile Foundations', course_code:'AG-101',
+    description:'Scrum, Kanban, and Lean practices for teams adopting iterative delivery and continuous improvement.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:2.0,
+    metadata:{ category_id:'cat-business', delivery_mode:'blended', duration_minutes:160, tags:['agile','scrum','kanban'] },
+    created_at:'2025-09-20T00:00:00Z', updated_at:'2025-10-20T00:00:00Z' },
+  { course_id:'crs-009', title:'Figma for Designers', course_code:'FG-102',
+    description:'Professional Figma workflows: auto-layout, components, variables, and design-to-handoff best practices.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:1.5,
+    metadata:{ category_id:'cat-design', delivery_mode:'self_paced', duration_minutes:140, tags:['figma','ui','prototyping'] },
+    created_at:'2025-11-01T00:00:00Z', updated_at:'2025-11-28T00:00:00Z' },
+  { course_id:'crs-010', title:'Cloud Architecture Basics', course_code:'CA-200',
+    description:'Core cloud services, infrastructure-as-code, and serverless patterns on AWS and GCP.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:4.0,
+    metadata:{ category_id:'cat-dev', delivery_mode:'self_paced', duration_minutes:420, tags:['aws','cloud','infrastructure'] },
+    created_at:'2025-08-15T00:00:00Z', updated_at:'2025-11-01T00:00:00Z' },
+  { course_id:'crs-011', title:'Communication for Engineers', course_code:'CM-101',
+    description:'Technical writing, presentation design, and stakeholder communication strategies for engineering teams.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:1.5,
+    metadata:{ category_id:'cat-business', delivery_mode:'instructor_led', duration_minutes:90, tags:['communication','writing','presenting'] },
+    created_at:'2025-10-25T00:00:00Z', updated_at:'2025-11-25T00:00:00Z' },
+  { course_id:'crs-012', title:'Machine Learning Fundamentals', course_code:'ML-201',
+    description:'Supervised and unsupervised learning, model evaluation, and practical ML with scikit-learn.',
+    status:'published', publish_status:'published', language_code:'en', credit_value:5.0,
+    metadata:{ category_id:'cat-data', delivery_mode:'self_paced', duration_minutes:480, tags:['ml','sklearn','classification'] },
+    created_at:'2025-09-05T00:00:00Z', updated_at:'2025-11-10T00:00:00Z' },
+];
+
+/* BG-147: category_id has no name resolution endpoint — display names mocked */
+const CAT_LABELS = {
+  'cat-design':'Design','cat-dev':'Development','cat-business':'Business',
+  'cat-data':'Data Science','cat-leadership':'Leadership'
+};
+/* BG-146: no thumbnail_url on CourseResponse — gradient classes by category_id */
+const THUMB_CLS = {
+  'cat-design':'thumb-design','cat-dev':'thumb-dev','cat-business':'thumb-business',
+  'cat-data':'thumb-data','cat-leadership':'thumb-leadership'
+};
+
+/* recommendation-service: GET /learners/usr-001/recommendations?tenant_id=tenant-001
+   BG-148: PersonalizedCourseRecommendation has course_id only — pre-joined with COURSES */
+const RECOMMENDATIONS = [
+  { recommendation_id:'rec-001', course_id:'crs-003', score:0.97, difficulty_tier:'Intermediate',
+    estimated_minutes:240, rationale:{ explanation:'Matches your target skills in data analysis and Python scripting', tags:['python','data'] } },
+  { recommendation_id:'rec-002', course_id:'crs-005', score:0.94, difficulty_tier:'Intermediate',
+    estimated_minutes:300, rationale:{ explanation:'Aligned with your frontend interests and TypeScript background', tags:['react','typescript'] } },
+  { recommendation_id:'rec-003', course_id:'crs-008', score:0.88, difficulty_tier:'Beginner',
+    estimated_minutes:160, rationale:{ explanation:'High completion rate for your role profile — builds delivery foundations', tags:['agile','scrum'] } },
+  { recommendation_id:'rec-004', course_id:'crs-010', score:0.85, difficulty_tier:'Intermediate',
+    estimated_minutes:420, rationale:{ explanation:'Complements your engineering path with cloud infrastructure skills', tags:['cloud','aws'] } },
+];
+
+/* enrollment-service: GET /api/v1/enrollments (X-Tenant-Id: tenant-001, X-Actor-Id: usr-001)
+   EnrollmentResponse: { id, learner_id, course_id, status, assignment_source, cohort_id, session_id, created_at, updated_at } */
+const ENROLLMENTS = [
+  { id:'enr-001', learner_id:'usr-001', course_id:'crs-001', status:'active',
+    assignment_source:'self', cohort_id:null, session_id:null,
+    created_at:'2025-12-01T00:00:00Z', updated_at:'2026-01-15T00:00:00Z' },
+  { id:'enr-002', learner_id:'usr-001', course_id:'crs-007', status:'completed',
+    assignment_source:'admin', cohort_id:null, session_id:null,
+    created_at:'2025-08-01T00:00:00Z', updated_at:'2025-10-01T00:00:00Z' },
+];
+
+/* ── FILTER STATE ── */
+let activeCat  = 'all';
+let activeDiff = 'all';
+let activeMode = 'all';
+
+/* difficulty_tier lives on recommendations only; non-recommended courses default to 'beginner' */
+const DIFF_MAP = {};
+RECOMMENDATIONS.forEach(r => { DIFF_MAP[r.course_id] = r.difficulty_tier.toLowerCase(); });
+
+function enrollmentStatus(courseId) {
+  const e = ENROLLMENTS.find(e => e.course_id === courseId);
+  return e ? e.status : null;
+}
+
+function formatDur(mins) {
+  if (!mins) return '';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function modeLabel(mode) {
+  return { self_paced:'Self-paced', instructor_led:'Instructor-led', blended:'Blended' }[mode] || mode;
+}
+
+function initials(title) {
+  return title.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+function filteredCourses() {
+  return COURSES.filter(c => {
+    const catOk  = activeCat  === 'all' || c.metadata.category_id === activeCat;
+    const modeOk = activeMode === 'all' || c.metadata.delivery_mode === activeMode;
+    const tier   = DIFF_MAP[c.course_id] || 'beginner';
+    const diffOk = activeDiff === 'all' || tier === activeDiff;
+    return catOk && modeOk && diffOk;
+  });
+}
+
+function hasActiveFilters() {
+  return activeCat !== 'all' || activeDiff !== 'all' || activeMode !== 'all';
+}
+
+/* ── RENDER FUNCTIONS ── */
+
+function renderRecCard(rec) {
+  const course = COURSES.find(c => c.course_id === rec.course_id);
+  if (!course) return '';
+  const thumbCls = THUMB_CLS[course.metadata.category_id] || 'thumb-default';
+  const catLabel = CAT_LABELS[course.metadata.category_id] || course.metadata.category_id;
+  const dur = formatDur(course.metadata.duration_minutes);
+  const enrStatus = enrollmentStatus(course.course_id);
+  const pct = Math.round(rec.score * 100);
+  const tagHtml = course.metadata.tags.slice(0,2).map(t=>`<span class="card-tag">${t}</span>`).join('');
+  const footerRight = enrStatus === 'completed'
+    ? `<span class="enroll-status-chip completed">✓ Completed</span>`
+    : enrStatus === 'active'
+    ? `<span class="enroll-status-chip active">● In Progress</span>`
+    : `<button class="btn-enroll" onclick="enroll('${course.course_id}','${course.title}')">Enrol</button>`;
+  return `
+<div class="course-card rec-card">
+  <div class="card-thumb ${thumbCls}">
+    <span class="card-initials">${initials(course.title)}</span>
+    <span class="rec-match-badge">${pct}% match</span>
+  </div>
+  <div class="card-body">
+    <div class="card-meta-row">
+      <span class="card-cat-chip">${catLabel}</span>
+      <span class="card-dot"></span>
+      <span class="card-dur">${dur}</span>
+      <span class="card-dot"></span>
+      <span class="card-mode-lbl">${rec.difficulty_tier}</span>
+    </div>
+    <div class="card-title">${course.title}</div>
+    <div class="card-rationale">${rec.rationale.explanation}</div>
+    <div class="card-footer">
+      <div class="card-tags">${tagHtml}</div>
+      ${footerRight}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderCourseCard(course) {
+  const thumbCls = THUMB_CLS[course.metadata.category_id] || 'thumb-default';
+  const catLabel = CAT_LABELS[course.metadata.category_id] || course.metadata.category_id;
+  const dur = formatDur(course.metadata.duration_minutes);
+  const mode = modeLabel(course.metadata.delivery_mode);
+  const enrStatus = enrollmentStatus(course.course_id);
+  const tagHtml = course.metadata.tags.slice(0,2).map(t=>`<span class="card-tag">${t}</span>`).join('');
+  const footerRight = enrStatus === 'completed'
+    ? `<span class="enroll-status-chip completed">✓ Completed</span>`
+    : enrStatus === 'active'
+    ? `<span class="enroll-status-chip active">● In Progress</span>`
+    : `<button class="btn-enroll" onclick="enroll('${course.course_id}','${course.title}')">Enrol</button>`;
+  return `
+<div class="course-card">
+  <div class="card-thumb ${thumbCls}">
+    <span class="card-initials">${initials(course.title)}</span>
+  </div>
+  <div class="card-body">
+    <div class="card-meta-row">
+      <span class="card-cat-chip">${catLabel}</span>
+      <span class="card-dot"></span>
+      <span class="card-dur">${dur || '—'}</span>
+      <span class="card-dot"></span>
+      <span class="card-mode-lbl">${mode}</span>
+    </div>
+    <div class="card-title">${course.title}</div>
+    <div class="card-desc">${course.description}</div>
+    <div class="card-footer">
+      <div class="card-tags">${tagHtml}</div>
+      ${footerRight}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderAll() {
+  /* Recommended row */
+  document.getElementById('rec-row').innerHTML = RECOMMENDATIONS.map(renderRecCard).join('');
+
+  /* All courses grid — BG-026: client-side filter only */
+  const filtered = filteredCourses();
+  const grid = document.getElementById('course-grid');
+  const empty = document.getElementById('empty-block');
+  if (filtered.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'flex';
+  } else {
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(renderCourseCard).join('');
+  }
+
+  /* Counts */
+  document.getElementById('page-count').textContent = `${filtered.length} course${filtered.length === 1 ? '' : 's'}`;
+  document.getElementById('all-section-meta').textContent = `${filtered.length} course${filtered.length === 1 ? '' : 's'}`;
+  document.getElementById('all-section-title').textContent = hasActiveFilters() ? 'Filtered Courses' : 'All Courses';
+
+  /* Active filter chips */
+  renderFilterChips();
+
+  /* Clear button visibility */
+  document.getElementById('btn-fp-clear').classList.toggle('visible', hasActiveFilters());
+}
+
+function renderFilterChips() {
+  const row = document.getElementById('filter-chips-row');
+  const chips = [];
+  if (activeCat  !== 'all') chips.push({ label: CAT_LABELS[activeCat]  || activeCat,  filter:'cat' });
+  if (activeDiff !== 'all') chips.push({ label: activeDiff.charAt(0).toUpperCase() + activeDiff.slice(1), filter:'diff' });
+  if (activeMode !== 'all') chips.push({ label: modeLabel(activeMode), filter:'mode' });
+  if (chips.length === 0) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  row.innerHTML = chips.map(c =>
+    `<span class="filter-chip-active" onclick="clearFilter('${c.filter}')">${c.label}<span class="fca-x">✕</span></span>`
+  ).join('');
+}
+
+/* ── FILTER INTERACTIONS ── */
+
+function setFilter(type, val) {
+  if (type === 'cat')  activeCat  = val;
+  if (type === 'diff') activeDiff = val;
+  if (type === 'mode') activeMode = val;
+  /* Update active state on panel buttons */
+  document.querySelectorAll(`[data-filter="${type}"]`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === val);
+  });
+  renderAll();
+}
+
+function clearFilter(type) {
+  setFilter(type, 'all');
+}
+
+function clearAllFilters() {
+  ['cat','diff','mode'].forEach(t => setFilter(t, 'all'));
+}
+
+/* Filter panel click delegation */
+document.getElementById('filter-panel').addEventListener('click', e => {
+  const btn = e.target.closest('[data-filter]');
+  if (btn) setFilter(btn.dataset.filter, btn.dataset.val);
+});
+
+document.getElementById('btn-fp-clear').addEventListener('click', clearAllFilters);
+
+/* ── ENROL ACTION ──
+   enrollment-service: POST /api/v1/enrollments
+   { learner_id:'usr-001', course_id, assignment_source:'self' }
+   Response: EnrollmentResponse { id, ... status:'assigned' } */
+function enroll(courseId, title) {
+  /* Simulate POST /api/v1/enrollments → EnrollmentResponse */
+  ENROLLMENTS.push({ id:'enr-new-' + courseId, learner_id:'usr-001', course_id:courseId,
+    status:'active', assignment_source:'self', cohort_id:null, session_id:null,
+    created_at:new Date().toISOString(), updated_at:new Date().toISOString() });
+  renderAll();
+  showToast(`Enrolled in "${title}"`);
+}
+
+/* ── STATE SWITCHER ── */
+function showState(s) {
+  ['loaded','skeleton','error'].forEach(id => {
+    document.getElementById('state-' + id).style.display = id === s ? (s === 'error' ? 'block' : 'block') : 'none';
+  });
+  document.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.textContent.toLowerCase() === s));
+}
+
+/* ── TOAST ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ── INIT ── */
+renderAll();
+</script>
+</body>
+</html>

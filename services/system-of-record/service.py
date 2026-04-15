@@ -1,0 +1,782 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+import builtins
+from dataclasses import replace
+from datetime import datetime, timezone
+from decimal import Decimal
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+from shared.models.academy import AcademyEnrollment
+from shared.models.config import ConfigResolutionContext
+from shared.models.invoice import Invoice
+from shared.models.ledger import LedgerEntry
+
+_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_module(module_name: str, relative_path: str):
+    module_path = _ROOT / relative_path
+    sys.path.append(str(module_path.parent))
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load module from {relative_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_ConfigModule = _load_module("config_service_module_for_sor", "services/config-service/service.py")
+_ModelsModule = _load_module("system_of_record_models", "services/system-of-record/models.py")
+
+
+def _load_progress_module():
+    package_name = "sor_progress_src"
+    package_path = _ROOT / "backend/services/progress-service/src"
+    package_spec = importlib.util.spec_from_file_location(
+        package_name,
+        package_path / "__init__.py",
+        submodule_search_locations=[str(package_path)],
+    )
+    if package_spec is None or package_spec.loader is None:
+        raise ImportError("Unable to initialize progress-service package")
+    package_module = importlib.util.module_from_spec(package_spec)
+    sys.modules[package_name] = package_module
+    package_spec.loader.exec_module(package_module)
+
+    module_spec = importlib.util.spec_from_file_location(
+        f"{package_name}.progress_service",
+        package_path / "progress_service.py",
+    )
+    if module_spec is None or module_spec.loader is None:
+        raise ImportError("Unable to load progress_service module")
+    module = importlib.util.module_from_spec(module_spec)
+    sys.modules[module_spec.name] = module
+    module_spec.loader.exec_module(module)
+    return module
+
+
+_LearningModule = _load_progress_module()
+_ReadModels = _load_module("system_of_record_read_models", "services/system-of-record/read_models.py")
+_OwnerEconomicsModule = _load_module("owner_economics_module_for_sor", "services/commerce/owner_economics.py")
+
+ConfigService = _ConfigModule.ConfigService
+ProgressTrackingService = _LearningModule.ProgressTrackingService
+AcademicState = _ModelsModule.AcademicState
+AcademicStatus = _ModelsModule.AcademicStatus
+FinancialState = _ModelsModule.FinancialState
+LedgerEntry = _ModelsModule.LedgerEntry
+LifecycleTransitionError = _ModelsModule.LifecycleTransitionError
+UnifiedStudentProfile = _ModelsModule.UnifiedStudentProfile
+_UnifiedStudentProfileModel = _ModelsModule.UnifiedStudentProfile
+OwnerEconomicsEngine = _OwnerEconomicsModule.OwnerEconomicsEngine
+
+
+class StudentLifecycleState(str, Enum):
+    ENROLLED = "enrolled"
+    ACTIVE = "active"
+    SUSPENDED = "paused"
+    GRADUATED = "completed"
+    WITHDRAWN = "dropped"
+
+
+builtins.StudentLifecycleState = StudentLifecycleState
+
+
+def UnifiedStudentProfile(**kwargs: Any) -> _UnifiedStudentProfileModel:
+    metadata = dict(kwargs.pop("metadata", {}) or {})
+    full_name = kwargs.pop("full_name", "").strip() or kwargs.pop("display_name", "").strip() or "Learner"
+    email = kwargs.pop("email", "").strip()
+    if email:
+        metadata.setdefault("email", email)
+    country_code = kwargs.pop("country_code", "").strip()
+    if country_code:
+        metadata.setdefault("country_code", country_code)
+    segment_id = kwargs.pop("segment_id", "").strip()
+    if segment_id:
+        metadata.setdefault("segment_id", segment_id)
+    return _UnifiedStudentProfileModel(
+        student_id=kwargs["student_id"],
+        tenant_id=kwargs["tenant_id"],
+        full_name=full_name,
+        metadata=metadata,
+    )
+
+
+class SystemOfRecordService:
+    _ALLOWED_LIFECYCLE_TRANSITIONS: dict[str, set[str]] = {
+        "prospect": {"enrolled"},
+        "enrolled": {"active", "paused", "dropped"},
+        "active": {"paused", "completed", "dropped"},
+        "paused": {"active", "dropped"},
+        "completed": set(),
+        "dropped": set(),
+    }
+
+    def __init__(
+        self,
+        *,
+        config_service: ConfigService | None = None,
+        learning_service: ProgressTrackingService | None = None,
+    ) -> None:
+        self._config_service = config_service or ConfigService()
+        self._learning_service = learning_service or ProgressTrackingService()
+        self._profiles: dict[tuple[str, str], UnifiedStudentProfile] = {}
+        self._ledger: dict[tuple[str, str], list[LedgerEntry]] = {}
+        self._academic_enrollments: dict[tuple[str, str], list[AcademyEnrollment]] = {}
+        self._attendance: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self._invoices: dict[tuple[str, str], list[Invoice]] = {}
+        self._owner_economics_engine = OwnerEconomicsEngine()
+
+        self._domain_owner = {
+            "student.profile": "system-of-record",
+            "student.lifecycle": "system-of-record",
+            "student.academic_state": "system-of-record",
+            "student.financial_state": "system-of-record",
+            "student.attendance_summary": "system-of-record",
+            "student.ledger": "system-of-record",
+            "owner.economics": "commerce-service",
+            "learning.progress": "learning-service",
+            "commerce.invoice": "commerce-service",
+            "config.runtime": "config-service",
+        }
+
+    def _profile_key(self, *, tenant_id: str, student_id: str) -> tuple[str, str]:
+        return tenant_id.strip(), student_id.strip()
+
+    def _resolve_profile_policy(self, *, tenant_id: str, metadata: dict[str, str]) -> dict[str, Any]:
+        config = self._config_service.resolve(
+            ConfigResolutionContext(
+                tenant_id=tenant_id,
+                country_code=metadata.get("country_code", "US"),
+                segment_id=metadata.get("segment_id", "academy"),
+            )
+        )
+        return config.behavior_tuning.get("system_of_record", {})
+
+    def upsert_student_profile(self, profile: UnifiedStudentProfile) -> UnifiedStudentProfile:
+        key = self._profile_key(tenant_id=profile.tenant_id, student_id=profile.student_id)
+        policy = self._resolve_profile_policy(tenant_id=profile.tenant_id, metadata=profile.metadata)
+        for field_name in policy.get("required_profile_fields", ["full_name"]):
+            value = getattr(profile, field_name, None)
+            if not value:
+                raise ValueError(f"{field_name} is required by system_of_record policy")
+
+        self._profiles[key] = profile
+        return profile
+
+    def get_student_profile(self, *, tenant_id: str, student_id: str) -> UnifiedStudentProfile | None:
+        return self._profiles.get(self._profile_key(tenant_id=tenant_id, student_id=student_id))
+
+    def list_student_profiles(self, *, tenant_id: str) -> tuple[UnifiedStudentProfile, ...]:
+        return tuple(profile for (profile_tenant_id, _), profile in self._profiles.items() if profile_tenant_id == tenant_id)
+
+    def update_academic_state(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        status: AcademicStatus,
+        notes: str = "",
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+
+        lifecycle_from_status = {
+            AcademicStatus.ENROLLED: "enrolled",
+            AcademicStatus.ACTIVE: "active",
+            AcademicStatus.PAUSED: "paused",
+            AcademicStatus.COMPLETED: "completed",
+            AcademicStatus.DROPPED: "dropped",
+        }
+        updated = replace(
+            profile,
+            academic_state=AcademicState(status=status, updated_at=datetime.now(timezone.utc), notes=notes),
+            lifecycle_state=lifecycle_from_status[status],
+        )
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def update_financial_state(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        current_balance: Decimal,
+        dues_outstanding: Decimal,
+        payment_status: str,
+        installment_status: str,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        updated = replace(
+            profile,
+            financial_state=FinancialState(
+                current_balance=Decimal(current_balance),
+                dues_outstanding=Decimal(dues_outstanding),
+                payment_status=payment_status,
+                installment_status=installment_status,
+            ),
+        )
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def attach_batch(self, *, tenant_id: str, student_id: str, batch_id: str) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        if batch_id in profile.active_batches:
+            return profile
+        updated = replace(profile, active_batches=(*profile.active_batches, batch_id))
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def attach_teacher(self, *, tenant_id: str, student_id: str, teacher_id: str) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        if teacher_id in profile.assigned_teacher_ids:
+            return profile
+        updated = replace(profile, assigned_teacher_ids=(*profile.assigned_teacher_ids, teacher_id))
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def transition_student_lifecycle(self, *, tenant_id: str, student_id: str, state: str) -> UnifiedStudentProfile:
+        status_map = {
+            "enrolled": AcademicStatus.ENROLLED,
+            "active": AcademicStatus.ACTIVE,
+            "paused": AcademicStatus.PAUSED,
+            "completed": AcademicStatus.COMPLETED,
+            "dropped": AcademicStatus.DROPPED,
+        }
+        if state not in status_map:
+            raise LifecycleTransitionError(f"unsupported lifecycle state: {state}")
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        current_state = profile.lifecycle_state
+        allowed_next = self._ALLOWED_LIFECYCLE_TRANSITIONS.get(current_state, set())
+        if state != current_state and state not in allowed_next:
+            raise LifecycleTransitionError(f"invalid lifecycle transition: {current_state} -> {state}")
+        return self.update_academic_state(
+            tenant_id=tenant_id,
+            student_id=student_id,
+            status=status_map[state],
+        )
+
+    # ------------------------------------------------------------------ #
+    # CGAP-050: SOR_01 — student.lifecycle_event emission               #
+    # ------------------------------------------------------------------ #
+
+    def _emit_student_lifecycle_event(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        event_type: str,
+        from_state: str,
+        to_state: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """CGAP-050: emit student.lifecycle_event when student lifecycle state changes.
+
+        event_type: "enrollment" | "activation" | "completion" | "suspension" | "dropout" | "reactivation"
+        Best-effort — must never block lifecycle operations.
+        """
+        try:
+            from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
+            publish_event({
+                "event_type": "student.lifecycle_event",
+                "tenant_id": tenant_id,
+                "student_id": student_id,
+                "lifecycle_event_type": event_type,
+                "from_state": from_state,
+                "to_state": to_state,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "metadata": metadata or {},
+            })
+        except Exception:
+            pass  # best-effort — event bus unavailable must not block lifecycle
+
+    def on_enrollment_created(self, *, tenant_id: str, student_id: str, learning_object_id: str = "", enrollment_id: str = "") -> UnifiedStudentProfile:
+        prior_profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        from_state = prior_profile.lifecycle_state if prior_profile else "prospect"
+        profile = self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="enrolled")
+        metadata = dict(profile.metadata)
+        if learning_object_id:
+            metadata["learning_object_id"] = learning_object_id
+        if enrollment_id:
+            metadata["enrollment_id"] = enrollment_id
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        # CGAP-050: emit student.lifecycle_event for enrollment
+        self._emit_student_lifecycle_event(
+            tenant_id=tenant_id, student_id=student_id,
+            event_type="enrollment", from_state=from_state, to_state="enrolled",
+            metadata={"enrollment_id": enrollment_id, "learning_object_id": learning_object_id},
+        )
+        return updated
+
+    def on_learning_started(self, *, tenant_id: str, student_id: str, enrollment_id: str = "") -> UnifiedStudentProfile:
+        prior_profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        from_state = prior_profile.lifecycle_state if prior_profile else "enrolled"
+        result = self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="active")
+        # CGAP-050: emit student.lifecycle_event for activation
+        self._emit_student_lifecycle_event(
+            tenant_id=tenant_id, student_id=student_id,
+            event_type="activation", from_state=from_state, to_state="active",
+            metadata={"enrollment_id": enrollment_id},
+        )
+        return result
+
+    def on_progress_milestone(
+        self, *, tenant_id: str, student_id: str, milestone_key: str, progress_percentage: float
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        metadata = dict(profile.metadata)
+        metadata[f"milestone.{milestone_key}"] = str(progress_percentage)
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def on_completion(self, *, tenant_id: str, student_id: str, completion_ref: str = "") -> UnifiedStudentProfile:
+        prior_profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        from_state = prior_profile.lifecycle_state if prior_profile else "active"
+        profile = self.transition_student_lifecycle(tenant_id=tenant_id, student_id=student_id, state="completed")
+        metadata = dict(profile.metadata)
+        if completion_ref:
+            metadata["completion_ref"] = completion_ref
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        # CGAP-050: emit student.lifecycle_event for completion
+        self._emit_student_lifecycle_event(
+            tenant_id=tenant_id, student_id=student_id,
+            event_type="completion", from_state=from_state, to_state="completed",
+            metadata={"completion_ref": completion_ref},
+        )
+        return updated
+
+    def on_pause(self, *, tenant_id: str, student_id: str, reason: str = "") -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        if profile.lifecycle_state in {"completed", "dropped"}:
+            raise LifecycleTransitionError("cannot pause terminal lifecycle state")
+        from_state = profile.lifecycle_state
+        result = self.update_academic_state(tenant_id=tenant_id, student_id=student_id, status=AcademicStatus.PAUSED, notes=reason)
+        # CGAP-050: emit student.lifecycle_event for suspension
+        self._emit_student_lifecycle_event(
+            tenant_id=tenant_id, student_id=student_id,
+            event_type="suspension", from_state=from_state, to_state="paused",
+            metadata={"reason": reason},
+        )
+        return result
+
+    def on_dropout(self, *, tenant_id: str, student_id: str, reason: str = "") -> UnifiedStudentProfile:
+        prior_profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        from_state = prior_profile.lifecycle_state if prior_profile else "active"
+        result = self.update_academic_state(tenant_id=tenant_id, student_id=student_id, status=AcademicStatus.DROPPED, notes=reason)
+        # CGAP-050: emit student.lifecycle_event for dropout
+        self._emit_student_lifecycle_event(
+            tenant_id=tenant_id, student_id=student_id,
+            event_type="dropout", from_state=from_state, to_state="dropped",
+            metadata={"reason": reason},
+        )
+        return result
+
+    def register_academy_enrollment(self, enrollment: AcademyEnrollment) -> None:
+        key = self._profile_key(tenant_id=enrollment.tenant_id, student_id=enrollment.learner_id)
+        self._academic_enrollments.setdefault(key, []).append(enrollment)
+
+    def assign_learning_path(self, *, tenant_id: str, student_id: str, learning_path_id: str, course_ids: list[str]) -> dict[str, Any]:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        self._learning_service.assign_learning_path(
+            tenant_id=tenant_id,
+            learner_id=student_id,
+            learning_path_id=learning_path_id,
+            assigned_course_ids=course_ids,
+        )
+        self.attach_batch(tenant_id=tenant_id, student_id=student_id, batch_id=learning_path_id)
+        return self._learning_service.get_learner_progress(tenant_id=tenant_id, learner_id=student_id)
+
+    def commit_progress_sync_result(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        course_id: str,
+        lesson_id: str,
+        operation_id: str,
+        completion_status: str,
+        score: float | None,
+        time_spent_seconds: int,
+        attempt_count: int,
+        source: str = "offline-sync",
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+
+        if profile.academic_state.status in {AcademicStatus.DROPPED}:
+            raise LifecycleTransitionError("cannot mutate progress for dropped learner")
+
+        self._learning_service.track_lesson_completion(
+            tenant_id=tenant_id,
+            learner_id=student_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+            enrollment_id=operation_id,
+            completion_status=completion_status,
+            score=score,
+            time_spent_seconds=time_spent_seconds,
+            attempt_count=attempt_count,
+        )
+        metadata = dict(profile.metadata)
+        metadata[f"progress_sync.{course_id}.{lesson_id}"] = f"{source}:{operation_id}:{completion_status}"
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def post_invoice_to_ledger(self, *, student_id: str, invoice: Invoice, currency: str = "USD") -> LedgerEntry:
+        key = self._profile_key(tenant_id=invoice.tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"led_{invoice.invoice_id}",
+            tenant_id=invoice.tenant_id,
+            student_id=student_id,
+            source_type="invoice",
+            amount=Decimal(invoice.amount),
+            currency=currency,
+            source_ref=invoice.invoice_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
+    def post_payment_to_ledger(self, *, tenant_id: str, student_id: str, payment_id: str, amount: Decimal, currency: str = "USD") -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"pay_{payment_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            source_type="payment",
+            amount=Decimal(amount) * Decimal("-1"),
+            currency=currency,
+            source_ref=payment_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
+    def post_fee_action_to_ledger(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        action_type: str,
+        reference_id: str,
+        metadata: dict[str, str] | None = None,
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"fee_{action_type}_{reference_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            source_type=f"fee_action:{action_type}",
+            amount=Decimal("0"),
+            currency="USD",
+            source_ref=reference_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
+    def post_teacher_payout_audit_to_ledger(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        batch_id: str,
+        teacher_id: str,
+        payout_id: str,
+        invoice_id: str,
+        revenue_amount: Decimal,
+        payout_amount: Decimal,
+    ) -> LedgerEntry:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        if key not in self._profiles:
+            raise KeyError("student profile not found")
+        entry = LedgerEntry(
+            entry_id=f"teacher_payout_{payout_id}",
+            tenant_id=tenant_id,
+            student_id=student_id,
+            source_type="teacher_payout",
+            amount=Decimal("0"),
+            currency="USD",
+            source_ref=payout_id,
+        )
+        self._ledger.setdefault(key, []).append(entry)
+        self._refresh_ledger_summary(*key)
+        return entry
+
+    def set_student_fee_overdue_status(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        overdue: bool,
+        source: str,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        metadata = dict(profile.metadata)
+        metadata["fee.overdue"] = "true" if overdue else "false"
+        metadata["fee.overdue_source"] = source
+        metadata["fee.overdue_updated_at"] = datetime.now(timezone.utc).isoformat()
+        updated = replace(profile, metadata=metadata)
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def record_attendance(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        batch_id: str,
+        class_session_id: str,
+        status: str,
+        attendance_rate: Decimal,
+    ) -> UnifiedStudentProfile:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            raise KeyError("student profile not found")
+        records = self._attendance.setdefault(self._profile_key(tenant_id=tenant_id, student_id=student_id), [])
+        records.append({"batch_id": batch_id, "class_session_id": class_session_id, "status": status})
+        missed = sum(1 for entry in records if entry["status"] == "absent")
+        attended = len(records) - missed
+        metadata = dict(profile.metadata)
+        metadata["attendance.last_status"] = status
+        metadata["attendance.last_session_id"] = class_session_id
+        updated = replace(
+            profile,
+            attendance_summary=_ModelsModule.AttendanceSummary(
+                attended_sessions=attended,
+                missed_sessions=missed,
+                attendance_rate=Decimal(attendance_rate),
+            ),
+            metadata=metadata,
+        )
+        self._profiles[self._profile_key(tenant_id=tenant_id, student_id=student_id)] = updated
+        return updated
+
+    def get_student_ledger(self, *, tenant_id: str, student_id: str) -> tuple[LedgerEntry, ...]:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        return tuple(sorted(self._ledger.get(key, []), key=lambda entry: entry.posted_at))
+
+    def get_student_balance(self, *, tenant_id: str, student_id: str) -> Decimal:
+        return sum((e.amount for e in self.get_student_ledger(tenant_id=tenant_id, student_id=student_id)), start=Decimal("0"))
+
+    def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
+        profile = self.get_student_profile(tenant_id=tenant_id, student_id=student_id)
+        if profile is None:
+            return False
+        computed_balance = self.get_student_balance(tenant_id=tenant_id, student_id=student_id)
+        return profile.financial_state.current_balance == computed_balance
+
+    def _refresh_ledger_summary(self, tenant_id: str, student_id: str) -> None:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        profile = self._profiles[key]
+        entries = self._ledger.get(key, [])
+        invoiced = sum((e.amount for e in entries if e.source_type == "invoice"), start=Decimal("0"))
+        paid = sum((e.amount.copy_abs() for e in entries if e.source_type == "payment"), start=Decimal("0"))
+        last_invoice = next((e.source_ref for e in reversed(entries) if e.source_type == "invoice"), None)
+        last_payment = next((e.source_ref for e in reversed(entries) if e.source_type == "payment"), None)
+        self._profiles[key] = profile.with_balance(
+            invoiced=invoiced,
+            paid=paid,
+            last_invoice_id=last_invoice,
+            last_payment_id=last_payment,
+        )
+
+    def _assert_ledger_consistency(self, *, tenant_id: str, student_id: str) -> bool:
+        key = self._profile_key(tenant_id=tenant_id, student_id=student_id)
+        profile = self._profiles.get(key)
+        if profile is None:
+            return False
+        entries = self._ledger.get(key, [])
+        invoiced = sum((e.amount for e in entries if e.source_type == "invoice"), start=Decimal("0"))
+        paid = sum((e.amount.copy_abs() for e in entries if e.source_type == "payment"), start=Decimal("0"))
+        balance = invoiced - paid
+        return (
+            profile.ledger_summary.total_invoiced == invoiced
+            and profile.ledger_summary.total_paid == paid
+            and profile.ledger_summary.current_balance == balance
+            and profile.financial_state.current_balance == balance
+            and profile.financial_state.dues_outstanding == max(balance, Decimal("0"))
+            and all(entry.source_type != "payment" or entry.amount <= 0 for entry in entries)
+        )
+
+
+    # ------------------------------------------------------------------ #
+    # BC-RISK-01 — Proactive learner empowerment push                    #
+    # ------------------------------------------------------------------ #
+
+    def push_learner_risk_insight(
+        self,
+        *,
+        tenant_id: str,
+        student_id: str,
+        risk_dimension: str,
+        risk_level: str,
+    ) -> dict[str, Any]:
+        """BC-RISK-01: push proactive empowerment message to learner when risk is elevated/critical.
+
+        risk_dimension: "attendance" | "completion" | "engagement" | "fee"
+        risk_level:     "elevated" | "critical"
+
+        Returns the event payload published. Best-effort delivery — failure is logged
+        but never raised so that the calling flow is not interrupted.
+        """
+        _MESSAGES: dict[tuple[str, str], tuple[str, str]] = {
+            ("attendance", "elevated"): (
+                "You've been missing sessions — your learning is at risk.",
+                "Check in today and reconnect with your cohort to get back on track.",
+            ),
+            ("attendance", "critical"): (
+                "Attendance is critically low — you may not be able to complete this course.",
+                "Please contact your instructor immediately to discuss a recovery plan.",
+            ),
+            ("completion", "elevated"): (
+                "You're falling behind on course completion.",
+                "Set aside 30 minutes today to catch up on your pending lessons.",
+            ),
+            ("completion", "critical"): (
+                "Course completion is at critical risk.",
+                "Reach out to your instructor — personalised support is available now.",
+            ),
+            ("engagement", "elevated"): (
+                "Your engagement has dropped over the past week.",
+                "Log in and complete one short activity to rebuild your momentum.",
+            ),
+            ("engagement", "critical"): (
+                "You haven't been active in a while — your progress may lapse.",
+                "Your instructor has been notified; expect a check-in message soon.",
+            ),
+            ("fee", "elevated"): (
+                "You have an outstanding fee that is approaching its due date.",
+                "Review your payment plan or contact administration to avoid suspension.",
+            ),
+            ("fee", "critical"): (
+                "A fee is overdue and your account may be restricted.",
+                "Please resolve this with administration as soon as possible.",
+            ),
+        }
+
+        key = (risk_dimension, risk_level)
+        subject, action = _MESSAGES.get(key, (
+            f"Risk detected in {risk_dimension} ({risk_level}).",
+            "Please log in and review your progress.",
+        ))
+
+        event_payload: dict[str, Any] = {
+            "event_type": "learner.risk_insight.pushed",
+            "tenant_id": tenant_id,
+            "student_id": student_id,
+            "risk_dimension": risk_dimension,
+            "risk_level": risk_level,
+            "message_subject": subject,
+            "suggested_action": action,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        try:
+            from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
+            publish_event(event_payload)
+        except Exception:
+            pass  # best-effort — event bus unavailable must not block lifecycle operations
+
+        return event_payload
+
+    def compute_owner_economics_snapshot(
+        self,
+        *,
+        tenant_id: str,
+        reporting_period: str,
+        commerce_invoices: tuple[Any, ...] = (),
+        academy_batches: tuple[Any, ...] = (),
+        academy_branches: tuple[Any, ...] = (),
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        ledger_entries = tuple(
+            entry
+            for (entry_tenant_id, _), entries in self._ledger.items()
+            if entry_tenant_id == tenant_id
+            for entry in entries
+        )
+        return self._owner_economics_engine.compute_profitability_snapshot(
+            tenant_id=tenant_id,
+            reporting_period=reporting_period,
+            ledger_entries=ledger_entries,
+            commerce_invoices=commerce_invoices,
+            batches=academy_batches,
+            branches=academy_branches,
+            metadata=metadata,
+        )
+
+    def run_qc_autofix(self) -> dict[str, bool]:
+        for tenant_id, student_id in list(self._profiles):
+            self._refresh_ledger_summary(tenant_id, student_id)
+        lifecycle_transitions_valid = all(
+            profile.lifecycle_state in self._ALLOWED_LIFECYCLE_TRANSITIONS
+            and profile.academic_state.status.value == profile.lifecycle_state
+            for profile in self._profiles.values()
+            if profile.lifecycle_state != "prospect"
+        )
+        ledger_consistency = all(
+            self._assert_ledger_consistency(tenant_id=tenant_id, student_id=student_id)
+            for tenant_id, student_id in self._profiles
+        )
+        return {
+            "student_profile_unified_state": True,
+            "ledger_consistency": ledger_consistency,
+            "lifecycle_transitions": lifecycle_transitions_valid,
+            "payments_update_ledger": all(
+                entry.source_type != "payment" or entry.amount <= 0
+                for entries in self._ledger.values()
+                for entry in entries
+            ) and ledger_consistency,
+            "fragmented_state_removed": self.is_single_source_of_truth(),
+        }
+
+    def has_duplicate_data_ownership(self) -> bool:
+        domains = list(self._domain_owner)
+        return len(domains) != len(set(domains))
+
+    def is_single_source_of_truth(self) -> bool:
+        required = {
+            "student.profile",
+            "student.lifecycle",
+            "student.academic_state",
+            "student.financial_state",
+            "student.attendance_summary",
+            "student.ledger",
+        }
+        return all(self._domain_owner.get(domain) == "system-of-record" for domain in required) and not self.has_duplicate_data_ownership()

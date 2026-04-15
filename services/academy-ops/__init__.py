@@ -1,0 +1,1 @@
+"""Academy operations service package."""

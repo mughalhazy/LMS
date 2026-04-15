@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Create Course
+  Archetype: A5 CreationWizard — full wizard variant (4 steps)
+  Created  : 2026-03-22
+  Surface  : Admin / Instructor
+  Repo     : course-service · content-service · lesson-service
+  Steps    : Basic Info → Curriculum → Settings → Publish
+  Fields   : CreateCourseRequest: tenant_id · created_by · title* · institution_id ·
+             course_code · description · language_code · credit_value · grading_scheme ·
+             metadata { category_id · delivery_mode · duration_minutes · tags · objectives }
+  Endpoints: POST /api/v1/courses              → CreateCourseRequest → CourseResponse (201)
+             POST /api/v1/courses/{id}/publish → PublishCourseRequest (immediate mode)
+  Gaps     : BG-084 (category_id no lookup — from Edit Course)
+             BG-085 (delivery_mode no enum — from Edit Course)
+             BG-086 (grading_scheme no enum — from Edit Course)
+             BG-087 (publish is separate POST endpoint — from Edit Course)
+             BG-098 (language_code str|None — no enum; mocked common locale codes)
+             BG-099 (no curriculum during creation — lesson-service requires course_id;
+                     curriculum step is planning stub only)
+             BG-100 (institution_id str|None — no institution lookup endpoint)
+  Patterns : Full wizard — one step at a time, WizardStepper at top, Next/Back navigation
+             WizardStepper (P-31 — unbuilt in design system; implemented inline this page)
+             Step 4: Save as Draft (POST only) | Create & Submit (POST then POST /publish)
+             Tags: chip editor (metadata.tags list[str])
+             Objectives: one-per-line textarea (parsed to list[str] for metadata.objectives)
+             Curriculum step: lesson outline planning stub (BG-099 — not submitted)
+             course_id: server-generated (uuid4 in course-service) — no client UUID needed
+  CSS base : Verbatim foundation from lms-a5-create-role-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Create Course</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a5-create-role-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.layout{display:flex;flex-direction:column;min-height:100vh;}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);position:sticky;top:0;z-index:20;flex-shrink:0;gap:6px;}
+.tb-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+.page-header{background:var(--white);border-bottom:1px solid var(--border);padding:20px var(--pp);}
+.ph-top{display:flex;align-items:center;gap:14px;}
+.ph-icon{width:44px;height:44px;border-radius:50%;background:var(--accent-lt);color:var(--accent);font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(91,91,214,.15);}
+.ph-identity{flex:1;min-width:0;}
+.ph-name{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);line-height:1.2;}
+.ph-sub{font-size:13px;color:var(--ink-3);margin-top:3px;}
+.canvas{flex:1;padding:28px var(--pp);padding-bottom:calc(var(--action-bar-h) + 28px);max-width:800px;width:100%;margin:0 auto;}
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.fs-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:20px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input:disabled{background:var(--subtle);color:var(--ink-3);cursor:not-allowed;}
+.field-input.has-error{border-color:var(--red);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+.field-error{font-size:11px;color:var(--red);line-height:1.4;display:none;}
+.field-error.visible{display:block;}
+.field-textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;resize:vertical;min-height:80px;line-height:1.5;}
+.field-textarea:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.summary-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:140px;flex-shrink:0;padding-top:1px;}
+.summary-value{font-size:13px;color:var(--ink);flex:1;}
+.summary-value.empty{color:var(--ink-4);font-style:italic;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+.action-bar{position:fixed;bottom:0;left:0;right:0;height:var(--action-bar-h);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 8px rgba(0,0,0,.04);}
+.action-bar-status{flex:1;font-size:12px;color:var(--ink-3);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── WIZARD STEPPER (P-31 — unbuilt in design system; full wizard pattern implemented inline) ── */
+.wizard-nav{background:var(--white);border-bottom:1px solid var(--border);padding:18px var(--pp);}
+.wz-steps{display:flex;align-items:flex-start;max-width:752px;margin:0 auto;}
+.wz-step{display:flex;flex-direction:column;align-items:center;flex:1;}
+.wz-step:last-child{flex:0 0 auto;}
+.wz-head{display:flex;align-items:center;width:100%;}
+.wz-circle{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--ink-3);flex-shrink:0;transition:all 150ms;}
+.wz-step.done .wz-circle{background:var(--green);border-color:var(--green);color:white;}
+.wz-step.active .wz-circle{background:var(--accent);border-color:var(--accent);color:white;}
+.wz-line{flex:1;height:1px;background:var(--border);margin:0 6px 2px;transition:background 150ms;}
+.wz-step.done .wz-line{background:var(--green);}
+.wz-label{font-size:11px;font-weight:600;color:var(--ink-4);margin-top:5px;text-align:center;line-height:1.3;}
+.wz-step.active .wz-label{color:var(--accent);}
+.wz-step.done .wz-label{color:var(--green);}
+
+/* ── TAG CHIP EDITOR ── */
+.tag-input-wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;min-height:40px;cursor:text;transition:border-color 120ms;}
+.tag-input-wrap:focus-within{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.tag-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-lt);color:var(--accent);font-size:11px;font-weight:600;padding:2px 8px 2px 9px;border-radius:var(--r-pill);border:1px solid rgba(91,91,214,.2);}
+.tag-chip-del{font-size:14px;cursor:pointer;color:var(--accent);opacity:.6;line-height:1;background:none;border:none;padding:0;font-family:inherit;}
+.tag-chip-del:hover{opacity:1;}
+.tag-text-in{font-family:var(--font);font-size:13px;color:var(--ink);border:none;outline:none;background:transparent;min-width:80px;flex:1;}
+
+/* ── LESSON OUTLINE ROWS (curriculum planning stub — BG-099) ── */
+.lesson-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.lesson-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);}
+.lesson-idx{font-size:11px;font-weight:700;color:var(--ink-4);width:18px;text-align:right;flex-shrink:0;}
+.lesson-title-cell{flex:1;font-size:13px;font-weight:500;color:var(--ink);}
+.lesson-type-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);text-transform:uppercase;letter-spacing:.04em;}
+.lesson-type-badge.self_paced{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(91,91,214,.2);}
+.lesson-type-badge.live_session{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);}
+.lesson-type-badge.assessment{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
+.lesson-del{font-size:12px;color:var(--ink-3);cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--white);font-family:var(--font);font-weight:500;transition:all 100ms;flex-shrink:0;}
+.lesson-del:hover{border-color:var(--red-bd);color:var(--red);background:var(--red-bg);}
+.lesson-empty{font-size:13px;color:var(--ink-3);padding:4px 0 10px;}
+.add-lesson-row{display:flex;gap:8px;}
+.add-lesson-title{flex:1;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;}
+.add-lesson-title:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.add-lesson-type{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;cursor:pointer;}
+.add-lesson-type:focus{border-color:var(--border-focus);}
+.curriculum-note{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--r-sm);margin-bottom:16px;}
+.curriculum-note-text{font-size:12px;color:var(--amber);line-height:1.5;}
+
+/* ── PUBLISH MODE CARDS ── */
+.publish-mode-row{display:flex;gap:10px;margin-bottom:20px;}
+.publish-mode-card{flex:1;padding:14px 16px;background:var(--white);border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all 100ms;}
+.publish-mode-card.selected{border-color:var(--accent);background:var(--accent-lt);}
+.pm-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.pm-desc{font-size:11px;color:var(--ink-3);line-height:1.4;}
+.publish-mode-card.selected .pm-title{color:var(--accent);}
+.publish-mode-card.selected .pm-desc{color:var(--accent);opacity:.8;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back">← Courses</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-page">Create Course</span>
+    <div class="tb-r">
+      <div class="tb-notif">🔔<div class="npip"></div></div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="ph-top">
+      <div class="ph-icon">📚</div>
+      <div class="ph-identity">
+        <div class="ph-name">Create New Course</div>
+        <div class="ph-sub">Complete all 4 steps to create and publish your course. Required fields are marked *</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIZARD STEPPER — WizardStepper (P-31 inline implementation) -->
+  <div class="wizard-nav">
+    <div class="wz-steps">
+      <div class="wz-step active" id="wz-step-1">
+        <div class="wz-head"><div class="wz-circle">1</div><div class="wz-line"></div></div>
+        <div class="wz-label">Basic Info</div>
+      </div>
+      <div class="wz-step" id="wz-step-2">
+        <div class="wz-head"><div class="wz-circle">2</div><div class="wz-line"></div></div>
+        <div class="wz-label">Curriculum</div>
+      </div>
+      <div class="wz-step" id="wz-step-3">
+        <div class="wz-head"><div class="wz-circle">3</div><div class="wz-line"></div></div>
+        <div class="wz-label">Settings</div>
+      </div>
+      <div class="wz-step" id="wz-step-4">
+        <div class="wz-head"><div class="wz-circle">4</div></div>
+        <div class="wz-label">Publish</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+
+    <!-- STEP 1: BASIC INFO -->
+    <div id="step-1">
+      <div class="form-section">
+        <div class="fs-title">Basic Information</div>
+        <div class="field-grid">
+          <div class="field field-full">
+            <label class="field-label">Course Title <span class="req">*</span></label>
+            <input class="field-input" id="f-title" type="text" placeholder="e.g. Advanced SQL for Data Analysts" autocomplete="off">
+            <span class="field-error" id="err-title">Course title is required.</span>
+          </div>
+          <div class="field">
+            <label class="field-label">Course Code <span class="opt">(optional)</span></label>
+            <input class="field-input" id="f-code" type="text" placeholder="e.g. SQL-301" autocomplete="off">
+          </div>
+          <div class="field">
+            <!-- BG-098: language_code str|None — no enum defined; mocked as common locale codes -->
+            <label class="field-label">Language <span class="opt">(optional)</span></label>
+            <select class="field-input" id="f-language">
+              <option value="">Select language…</option>
+              <option value="en">English (en)</option>
+              <option value="fr">French (fr)</option>
+              <option value="de">German (de)</option>
+              <option value="es">Spanish (es)</option>
+              <option value="ar">Arabic (ar)</option>
+              <option value="zh">Chinese (zh)</option>
+              <option value="ja">Japanese (ja)</option>
+              <option value="pt">Portuguese (pt)</option>
+              <option value="ru">Russian (ru)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Credit Value <span class="opt">(optional)</span></label>
+            <input class="field-input" id="f-credit" type="number" min="0" step="0.5" placeholder="e.g. 1.5">
+            <span class="field-hint">Numeric credit units for this course.</span>
+          </div>
+          <div class="field field-full">
+            <label class="field-label">Description <span class="opt">(optional)</span></label>
+            <textarea class="field-textarea" id="f-description" placeholder="Describe what learners will achieve in this course…" rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: CURRICULUM -->
+    <!-- BG-099: lesson-service requires course_id — curriculum cannot be submitted during creation -->
+    <div id="step-2" style="display:none;">
+      <div class="curriculum-note">
+        <span style="font-size:16px;flex-shrink:0;">📋</span>
+        <span class="curriculum-note-text">Lessons and modules are added in the Course Builder after your course is created. Plan your lesson outline here for reference — this data is not submitted with the course.</span>
+      </div>
+      <div class="form-section">
+        <div class="fs-title">Lesson Outline <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;margin-left:6px;">planning only</span></div>
+        <div class="lesson-list" id="lesson-list">
+          <div class="lesson-empty" id="lesson-empty">No lessons planned yet. Add lesson outlines below.</div>
+        </div>
+        <div class="add-lesson-row">
+          <input class="add-lesson-title" id="add-lesson-title" type="text" placeholder="Lesson title…" autocomplete="off">
+          <select class="add-lesson-type" id="add-lesson-type">
+            <option value="self_paced">Self-paced</option>
+            <option value="live_session">Live session</option>
+            <option value="assessment">Assessment</option>
+          </select>
+          <button class="btn-g" onclick="addLesson()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: SETTINGS -->
+    <div id="step-3" style="display:none;">
+      <div class="form-section">
+        <div class="fs-title">Course Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <!-- BG-085: delivery_mode str|None — no enum in course-service; mocked common modes -->
+            <label class="field-label">Delivery Mode <span class="opt">(optional)</span></label>
+            <select class="field-input" id="f-delivery-mode">
+              <option value="">Select mode…</option>
+              <option value="self_paced">Self-paced</option>
+              <option value="instructor_led">Instructor-led</option>
+              <option value="blended">Blended</option>
+              <option value="live_online">Live online</option>
+            </select>
+          </div>
+          <div class="field">
+            <!-- BG-084: category_id str|None — no category lookup service; mocked list -->
+            <label class="field-label">Category <span class="opt">(optional)</span></label>
+            <select class="field-input" id="f-category">
+              <option value="">Select category…</option>
+              <option value="cat_compliance">Compliance &amp; Legal</option>
+              <option value="cat_leadership">Leadership &amp; Management</option>
+              <option value="cat_technical">Technical Skills</option>
+              <option value="cat_soft_skills">Soft Skills</option>
+              <option value="cat_onboarding">Onboarding</option>
+              <option value="cat_data">Data &amp; Analytics</option>
+              <option value="cat_security">Security &amp; Privacy</option>
+              <option value="cat_sales">Sales &amp; Customer Success</option>
+            </select>
+          </div>
+          <div class="field">
+            <!-- BG-086: grading_scheme str|None — no enum in course-service; mocked -->
+            <label class="field-label">Grading Scheme <span class="opt">(optional)</span></label>
+            <select class="field-input" id="f-grading">
+              <option value="">None</option>
+              <option value="pass_fail">Pass / Fail</option>
+              <option value="percentage">Percentage</option>
+              <option value="letter_grade">Letter grade (A–F)</option>
+              <option value="completion">Completion only</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Estimated Duration <span class="opt">(min)</span></label>
+            <input class="field-input" id="f-duration" type="number" min="1" placeholder="e.g. 90">
+          </div>
+          <div class="field field-full">
+            <!-- BG-100: institution_id str|None — no institution lookup endpoint -->
+            <label class="field-label">Institution ID <span class="opt">(optional)</span></label>
+            <input class="field-input" id="f-institution" type="text" placeholder="e.g. inst_abc123" autocomplete="off">
+            <span class="field-hint">Optional reference ID for the delivering institution. No lookup available.</span>
+          </div>
+          <div class="field field-full">
+            <label class="field-label">Tags <span class="opt">(optional)</span></label>
+            <div class="tag-input-wrap" id="tag-wrap">
+              <input class="tag-text-in" id="tag-in" type="text" placeholder="Type and press Enter or comma…" autocomplete="off">
+            </div>
+            <span class="field-hint">Stored in metadata.tags. Press Enter or comma to add; click × to remove.</span>
+          </div>
+          <div class="field field-full">
+            <label class="field-label">Learning Objectives <span class="opt">(optional)</span></label>
+            <textarea class="field-textarea" id="f-objectives" placeholder="Enter one objective per line…" rows="4"></textarea>
+            <span class="field-hint">Each line is stored as a separate item in metadata.objectives.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: REVIEW & PUBLISH -->
+    <!-- BG-087: publish is a separate POST /courses/{id}/publish endpoint (referenced from Edit Course) -->
+    <div id="step-4" style="display:none;">
+      <div class="form-section">
+        <div class="fs-title">Review</div>
+        <div id="summary-rows"></div>
+      </div>
+      <div class="form-section">
+        <div class="fs-title">Publish Options</div>
+        <div class="publish-mode-row">
+          <div class="publish-mode-card selected" id="pm-draft" onclick="selectPublishMode('draft')">
+            <div class="pm-title">Save as Draft</div>
+            <div class="pm-desc">Course is created with status Draft. Submit for publishing separately when ready.</div>
+          </div>
+          <div class="publish-mode-card" id="pm-immediate" onclick="selectPublishMode('immediate')">
+            <div class="pm-title">Create &amp; Submit for Review</div>
+            <div class="pm-desc">Course is created then POST /publish is called immediately (publish_mode: immediate).</div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Publish Notes <span class="opt">(optional)</span></label>
+          <textarea class="field-textarea" id="f-publish-notes" placeholder="Notes for the content reviewer…" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /canvas -->
+
+</div><!-- /layout -->
+
+<!-- ACTION BAR -->
+<div class="action-bar">
+  <div class="action-bar-status"><span id="action-status-text">Step 1 of 4 — Enter basic course information.</span></div>
+  <button class="btn-g" id="btn-cancel" onclick="handleCancel()">Cancel</button>
+  <button class="btn-g" id="btn-back" style="display:none;" onclick="goBack()">← Back</button>
+  <button class="btn-primary" id="btn-next" onclick="goNext()">Next →</button>
+  <button class="btn-g" id="btn-save-draft" style="display:none;" onclick="handleCreate('draft')">Save as Draft</button>
+  <button class="btn-success" id="btn-submit" style="display:none;" onclick="handleCreate('submit')">Create &amp; Submit</button>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb"    onclick="setState('submitting',this)">Submitting</button>
+  <button class="stb"    onclick="setState('error',this)">Error</button>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+   WIZARD STATE
+   ────────────────────────────────────────────── */
+let _step = 1;
+const TOTAL = 4;
+
+/* BG-099: lessons are planning-only — not submitted in CreateCourseRequest */
+let _lessons = [];
+/* metadata.tags — list[str] */
+let _tags = [];
+/* publish mode: 'draft' | 'immediate' */
+let _publishMode = 'draft';
+
+/* ── step navigation ── */
+function goTo(n){
+  if(n < 1 || n > TOTAL) return;
+  document.getElementById(`step-${_step}`).style.display = 'none';
+  _step = n;
+  document.getElementById(`step-${_step}`).style.display = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+  updateWizardNav();
+  updateActionBar();
+  if(_step === 4) renderSummary();
+}
+
+function goNext(){
+  if(_step === 1 && !validateStep1()){
+    document.getElementById('f-title').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  goTo(_step + 1);
+}
+function goBack(){ goTo(_step - 1); }
+
+function updateWizardNav(){
+  for(let i = 1; i <= TOTAL; i++){
+    const el = document.getElementById(`wz-step-${i}`);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i < _step) el.classList.add('done');
+    else if(i === _step) el.classList.add('active');
+  }
+}
+
+function updateActionBar(){
+  const msgs = [
+    'Step 1 of 4 — Enter basic course information.',
+    'Step 2 of 4 — Plan your lesson outline.',
+    'Step 3 of 4 — Configure course settings.',
+    'Step 4 of 4 — Review and choose publish options.',
+  ];
+  document.getElementById('action-status-text').textContent = msgs[_step - 1];
+  const isLast = _step === TOTAL;
+  document.getElementById('btn-back').style.display      = _step > 1 ? '' : 'none';
+  document.getElementById('btn-next').style.display      = isLast ? 'none' : '';
+  document.getElementById('btn-save-draft').style.display = isLast ? '' : 'none';
+  document.getElementById('btn-submit').style.display     = isLast ? '' : 'none';
+}
+
+/* ── step 1 validation ── */
+function validateStep1(){
+  const title = document.getElementById('f-title').value.trim();
+  const ok = title.length > 0;
+  document.getElementById('f-title').classList.toggle('has-error', !ok);
+  document.getElementById('err-title').classList.toggle('visible', !ok);
+  return ok;
+}
+
+/* ── curriculum — lesson outline (BG-099: not submitted) ── */
+function renderLessons(){
+  const list  = document.getElementById('lesson-list');
+  const empty = document.getElementById('lesson-empty');
+  if(!list) return;
+  list.querySelectorAll('.lesson-row').forEach(n => n.remove());
+  if(_lessons.length === 0){
+    if(empty) empty.style.display = '';
+  } else {
+    if(empty) empty.style.display = 'none';
+    _lessons.forEach((l, i) => {
+      const row = document.createElement('div');
+      row.className = 'lesson-row';
+      row.innerHTML =
+        `<span class="lesson-idx">${i + 1}</span>` +
+        `<span class="lesson-title-cell">${l.title}</span>` +
+        `<span class="lesson-type-badge ${l.type}">${l.type.replace('_',' ')}</span>` +
+        `<button class="lesson-del" onclick="removeLesson(${i})">Remove</button>`;
+      list.appendChild(row);
+    });
+  }
+}
+
+function addLesson(){
+  const titleEl = document.getElementById('add-lesson-title');
+  const typeEl  = document.getElementById('add-lesson-type');
+  const title = titleEl.value.trim();
+  if(!title) return;
+  _lessons.push({ title, type: typeEl.value });
+  titleEl.value = '';
+  renderLessons();
+}
+
+function removeLesson(i){
+  _lessons.splice(i, 1);
+  renderLessons();
+}
+
+/* ── tag chip editor ── */
+function renderTags(){
+  const wrap = document.getElementById('tag-wrap');
+  const input = document.getElementById('tag-in');
+  if(!wrap || !input) return;
+  wrap.querySelectorAll('.tag-chip').forEach(n => n.remove());
+  _tags.forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = `${t}<button class="tag-chip-del" onclick="removeTag('${t}')">×</button>`;
+    wrap.insertBefore(chip, input);
+  });
+}
+
+function addTag(raw){
+  const tag = raw.trim().replace(/,+$/, '');
+  if(tag && !_tags.includes(tag)){
+    _tags.push(tag);
+    renderTags();
+  }
+  const inp = document.getElementById('tag-in');
+  if(inp) inp.value = '';
+}
+
+function removeTag(t){
+  _tags = _tags.filter(x => x !== t);
+  renderTags();
+}
+
+/* ── publish mode ── */
+function selectPublishMode(mode){
+  _publishMode = mode;
+  document.getElementById('pm-draft').classList.toggle('selected', mode === 'draft');
+  document.getElementById('pm-immediate').classList.toggle('selected', mode === 'immediate');
+  document.getElementById('btn-submit').textContent = mode === 'draft' ? 'Save as Draft' : 'Create & Submit';
+}
+
+/* ── summary (step 4) ── */
+function renderSummary(){
+  const el = document.getElementById('summary-rows');
+  if(!el) return;
+  const v  = id => document.getElementById(id)?.value?.trim() || '';
+  const row = (label, val) =>
+    `<div class="summary-row">` +
+      `<span class="summary-label">${label}</span>` +
+      `<span class="summary-value ${val ? '' : 'empty'}">${val || '—'}</span>` +
+    `</div>`;
+
+  const selText = id => {
+    const el = document.getElementById(id);
+    const opt = el?.options?.[el.selectedIndex];
+    return (opt && opt.value) ? opt.text : '';
+  };
+
+  const lessonsText = _lessons.length ? `${_lessons.length} lesson outline(s) planned (not submitted)` : '';
+  const tagsText    = _tags.length ? _tags.join(', ') : '';
+  const objLines    = v('f-objectives').split('\n').filter(Boolean);
+  const objText     = objLines.length ? `${objLines.length} objective(s)` : '';
+
+  el.innerHTML =
+    row('Title',          v('f-title')) +
+    row('Course Code',    v('f-code')) +
+    row('Language',       selText('f-language')) +
+    row('Credit Value',   v('f-credit') ? v('f-credit') + ' credits' : '') +
+    row('Description',    v('f-description') ? v('f-description').substring(0, 80) + (v('f-description').length > 80 ? '…' : '') : '') +
+    row('Lesson Outline', lessonsText) +
+    row('Delivery Mode',  selText('f-delivery-mode')) +
+    row('Category',       selText('f-category')) +
+    row('Grading',        selText('f-grading')) +
+    row('Duration',       v('f-duration') ? v('f-duration') + ' min' : '') +
+    row('Institution ID', v('f-institution')) +
+    row('Tags',           tagsText) +
+    row('Objectives',     objText);
+}
+
+/* ── create handlers ── */
+function handleCreate(mode){
+  /* Build CreateCourseRequest — course_id is server-generated (uuid4 in course-service) */
+  const payload = {
+    tenant_id: 'TENANT_ID',
+    created_by: 'CURRENT_USER_ID',
+    title: document.getElementById('f-title').value.trim(),
+    course_code: document.getElementById('f-code').value.trim() || null,
+    description: document.getElementById('f-description').value.trim() || null,
+    language_code: document.getElementById('f-language').value || null,
+    credit_value: parseFloat(document.getElementById('f-credit').value) || null,
+    grading_scheme: document.getElementById('f-grading').value || null,
+    institution_id: document.getElementById('f-institution').value.trim() || null,
+    metadata: {
+      category_id: document.getElementById('f-category').value || null,
+      delivery_mode: document.getElementById('f-delivery-mode').value || null,
+      duration_minutes: parseInt(document.getElementById('f-duration').value) || null,
+      tags: _tags,
+      objectives: document.getElementById('f-objectives').value.split('\n').map(s => s.trim()).filter(Boolean),
+    }
+  };
+  /* Step 1: POST /api/v1/courses → CourseResponse (201) */
+  /* Step 2 (if submit): POST /api/v1/courses/{course_id}/publish → PublishCourseRequest */
+  const _stb = [...document.querySelectorAll('.stb')].find(b => b.textContent.trim() === 'Submitting');
+  setState('submitting', _stb);
+}
+
+function handleCancel(){ /* navigate back to courses list */ }
+
+/* ── event attachment ── */
+function attachListeners(){
+  const titleEl = document.getElementById('f-title');
+  if(titleEl) titleEl.addEventListener('blur', validateStep1);
+
+  const addTitleEl = document.getElementById('add-lesson-title');
+  if(addTitleEl) addTitleEl.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); addLesson(); }
+  });
+
+  const tagIn = document.getElementById('tag-in');
+  if(tagIn){
+    tagIn.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ','){ e.preventDefault(); addTag(tagIn.value); }
+    });
+    tagIn.addEventListener('blur', () => { if(tagIn.value.trim()) addTag(tagIn.value); });
+  }
+
+  const tagWrap = document.getElementById('tag-wrap');
+  if(tagWrap) tagWrap.addEventListener('click', () => { document.getElementById('tag-in')?.focus(); });
+}
+
+/* ── state switcher ── */
+const _formHTML = document.getElementById('canvas').innerHTML;
+
+function setState(s, btn){
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+
+  if(s === 'loaded'){
+    document.getElementById('canvas').innerHTML = _formHTML;
+    _step = 1; _lessons = []; _tags = []; _publishMode = 'draft';
+    updateWizardNav();
+    updateActionBar();
+    attachListeners();
+    renderLessons();
+    renderTags();
+    document.getElementById('btn-save-draft').disabled = false;
+    document.getElementById('btn-submit').disabled = false;
+
+  } else if(s === 'submitting'){
+    document.getElementById('canvas').innerHTML =
+      `<div class="form-section"><div style="padding:48px 0;text-align:center;">` +
+      `<div style="font-size:32px;margin-bottom:16px;">⏳</div>` +
+      `<div style="font-size:14px;font-weight:700;margin-bottom:4px;">Creating course…</div>` +
+      `<div style="font-size:13px;color:var(--ink-3);">POST /api/v1/courses — please wait.</div>` +
+      `</div></div>`;
+    document.getElementById('action-status-text').textContent = 'Creating course…';
+
+  } else if(s === 'error'){
+    document.getElementById('canvas').innerHTML =
+      `<div class="form-section"><div style="padding:40px 0;text-align:center;">` +
+      `<div style="font-size:32px;margin-bottom:12px;">⚠️</div>` +
+      `<div style="font-size:14px;font-weight:700;margin-bottom:4px;">Could not create course</div>` +
+      `<div style="font-size:13px;color:var(--ink-3);">Could not reach course-service. Please try again.</div>` +
+      `</div></div>`;
+    document.getElementById('action-status-text').textContent = 'An error occurred.';
+  }
+}
+
+/* ── init ── */
+updateWizardNav();
+updateActionBar();
+attachListeners();
+</script>
+</body>
+</html>

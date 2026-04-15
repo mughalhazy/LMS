@@ -1,0 +1,92 @@
+{
+  "event_type": "lesson_created",
+  "event_version": "v1",
+  "topic": "lms.lesson.created.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when a new lesson is created in draft state.",
+  "payload_schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "timestamp",
+      "tenant_id",
+      "correlation_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": {
+        "type": "string"
+      },
+      "event_type": {
+        "const": "lesson_created"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
+      "data": {
+        "type": "object",
+        "required": [
+          "lesson_id",
+          "course_id",
+          "title",
+          "description",
+          "lesson_type",
+          "learning_objectives",
+          "content_ref",
+          "status",
+          "order_index",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "lesson_id": {
+            "type": "string"
+          },
+          "course_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "learning_objectives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "content_ref": {
+            "type": "string"
+          },
+          "status": {
+            "const": "draft"
+          },
+          "order_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

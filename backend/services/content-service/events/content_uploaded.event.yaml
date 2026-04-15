@@ -1,0 +1,40 @@
+event_type: content_uploaded
+event_topic: lms.content.uploaded.v1
+producer_service: content-service
+consumer_services:
+  - course-service
+  - lesson-service
+  - media-pipeline-service
+  - search-index-service
+  - analytics-service
+  - audit-service
+purpose: >-
+  Published when a new content asset is stored and validated so downstream systems can
+  index, transcode, reference, and audit it asynchronously.
+envelope_schema:
+  event_id: uuid
+  event_type: content_uploaded
+  source_system: content-service
+  tenant_id: uuid
+  actor_id: uuid
+  timestamp: datetime
+  schema_version: v1
+payload_schema:
+  content_id: uuid
+  version_id: uuid
+  version_number: integer
+  content_type: enum[video,audio,document,scorm_package,assessment_asset]
+  storage_uri: string
+  checksum_sha256: string
+  file_size_bytes: integer
+  mime_type: string
+  metadata:
+    title: string
+    description: string
+    tags: string[]
+    language: string
+    duration_seconds: integer
+    accessibility:
+      captions_available: boolean
+      transcript_available: boolean
+  validation_status: enum[passed,failed]

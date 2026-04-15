@@ -1,0 +1,27 @@
+{
+  "next_lesson_navigation": {
+    "description": "Advance to the nearest published lesson with higher order_index.",
+    "behavior": [
+      "Skip draft lessons.",
+      "Return null at course end.",
+      "If target lesson is locked, response reason is target_locked."
+    ]
+  },
+  "previous_lesson_navigation": {
+    "description": "Move to the nearest published lesson with lower order_index.",
+    "behavior": [
+      "Skip draft lessons.",
+      "Return null at first published lesson."
+    ]
+  },
+  "lesson_completion_triggers": {
+    "view": "Event includes viewed=true.",
+    "quiz_pass": "Event score >= minimum_passing_score.",
+    "manual": "Event includes manually_completed=true."
+  },
+  "lesson_locking_rules": {
+    "none": "All published lessons unlocked.",
+    "sequential": "All prior published lessons must be completed.",
+    "prerequisite": "All prerequisite_lesson_ids must be completed."
+  }
+}

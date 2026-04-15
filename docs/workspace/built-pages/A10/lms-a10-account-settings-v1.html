@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Account Settings
+  Archetype: A10 Profile — Sidebar layout
+  Created  : 2026-03-24
+  Surface  : Learner
+  Repo     :
+    user-service:
+      GET  /api/v1/users/{user_id}?tenant_id=     → UserResponse { user: UserAggregate }
+           UserAggregate: { tenant_id, user_id, status, identity: { email, username },
+                            profile: { first_name, last_name, display_name, locale, timezone,
+                                       title, department, phone_number, avatar_url },
+                            role_links, created_at, updated_at }
+      PUT  /api/v1/users/{user_id}?tenant_id=     → UpdateUserRequest
+           { email, username, first_name, last_name, display_name, locale, timezone,
+             title, department, phone_number, avatar_url, tenant_id, actor_id }
+           Header: X-Tenant-Id: {tenant_id}
+    auth-service (raw http.server, port 8081):
+      POST /api/v1/auth/password/forgot           → ForgotPasswordRequest { tenant_id, email }
+      NOTE: No change-password endpoint — BG-145
+  Gaps     : BG-145 — auth-service has no in-session change-password endpoint;
+             Change Password section uses "Send Reset Link" CTA → POST /auth/password/forgot
+  Patterns : A10 Profile Sidebar · Account Settings active
+             CSS base: lms-a10-profile-overview-v1.html (:root verbatim)
+             Learner surface: --pp:32px · body:14px · lh:1.7 · no zoom adjustment
+             P-77 word-spacing on multi-word section titles
+             Save bar: dirty state tracking — greyed when clean · shows changes dot when dirty
+  Mock     : USER (UserAggregate) — usr-001 Alex Johnson
+  Sections : Personal Information · Contact · Preferences · Password & Security
+  States   : Loaded · Skeleton · Error · Saving
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Account Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a10-profile-overview-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --gold:#78350F;--gold-bg:#FFFBEB;--gold-bd:rgba(245,158,11,.2);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:32px;--body-size:14px;--lh:1.7;
+  --profile-nav-w:260px;--topbar-h:56px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* ── TOPBAR ── */
+.topbar{height:var(--topbar-h);background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;position:sticky;top:0;z-index:30;}
+.tb-logo{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.tb-section{font-size:14px;font-weight:500;color:var(--ink-2);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.tb-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);}
+.tb-name{font-size:13px;font-weight:600;color:var(--ink-2);}
+
+/* ── A10 PROFILE LAYOUT ── */
+.profile-shell{display:flex;min-height:calc(100vh - var(--topbar-h));}
+
+/* ── PROFILE SIDEBAR ── */
+.profile-nav{width:var(--profile-nav-w);flex-shrink:0;background:var(--white);border-right:1px solid var(--border);position:sticky;top:var(--topbar-h);height:calc(100vh - var(--topbar-h));overflow-y:auto;display:flex;flex-direction:column;}
+.pnav-card{padding:28px 20px 20px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;align-items:center;text-align:center;}
+.pnav-avatar{width:72px;height:72px;border-radius:50%;background:var(--accent-lt);border:2px solid rgba(91,91,214,.2);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:var(--accent);margin-bottom:12px;}
+.pnav-name{font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+.pnav-title{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:3px;}
+.pnav-email{font-size:11px;font-weight:500;color:var(--ink-3);margin-top:4px;}
+.pnav-status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);margin-top:10px;}
+.pnav-body{padding:12px 12px;flex:1;}
+.pnav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;width:100%;border:none;background:transparent;text-align:left;font-family:var(--font);}
+.pnav-item:hover{background:var(--subtle);color:var(--ink-2);}
+.pnav-item.active{background:var(--accent-lt);color:var(--accent);font-weight:700;}
+.pnav-item-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.pnav-foot{padding:12px 16px;border-top:1px solid var(--border);font-size:11px;font-weight:500;color:var(--ink-4);}
+
+/* ── PROFILE CONTENT ── */
+.profile-content{flex:1;padding:var(--pp);padding-bottom:100px;overflow-y:auto;}
+.content-head{margin-bottom:28px;}
+.content-title{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-0.03em;}
+.content-sub{font-size:14px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.6;}
+
+/* ── SECTION ── */
+.section{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);margin-bottom:20px;overflow:hidden;}
+.sec-head{padding:20px 24px 0;}
+.sec-title{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;word-spacing:0.08em;}
+.sec-desc{font-size:13px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.6;}
+.sec-divider{height:1px;background:var(--border);margin:16px 0;}
+.sec-body{padding:0 24px 24px;}
+
+/* ── FORM FIELDS ── */
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+.field-row.full{grid-template-columns:1fr;}
+.field-group{display:flex;flex-direction:column;gap:6px;margin-top:16px;}
+.field-label{font-size:12px;font-weight:700;color:var(--ink-2);letter-spacing:.01em;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-hint{font-size:11px;font-weight:500;color:var(--ink-3);margin-top:3px;}
+.field-input{width:100%;padding:9px 12px;border-radius:var(--r-sm);border:1px solid var(--border-s);background:var(--white);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink);outline:none;transition:border-color 150ms;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input:disabled{background:var(--subtle);color:var(--ink-3);cursor:not-allowed;}
+.field-input::placeholder{color:var(--ink-4);}
+.field-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238C8C84' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;}
+
+/* ── READ-ONLY BADGE ── */
+.ro-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--subtle);border:1px solid var(--border);color:var(--ink-3);margin-left:8px;vertical-align:middle;}
+
+/* ── PASSWORD SECTION ── */
+/* BG-145: no change-password endpoint — section deferred */
+.pw-deferred{display:flex;align-items:flex-start;gap:14px;padding:16px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);margin-top:16px;}
+.pw-def-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.pw-def-body{flex:1;}
+.pw-def-title{font-size:13px;font-weight:700;color:var(--ink);}
+.pw-def-text{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:3px;line-height:1.6;}
+.btn-reset-link{margin-top:12px;padding:8px 16px;border-radius:var(--r-sm);border:1px solid var(--border-s);background:var(--white);font-family:var(--font);font-size:12px;font-weight:700;color:var(--ink-2);cursor:pointer;transition:all 120ms;}
+.btn-reset-link:hover{background:var(--subtle);}
+.btn-reset-link:disabled{opacity:.5;cursor:not-allowed;}
+
+/* ── SECURITY INFO ── */
+.sec-info-row{display:flex;gap:24px;margin-top:16px;}
+.sec-info-item{flex:1;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);padding:12px 14px;}
+.sec-info-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;}
+.sec-info-val{font-size:13px;font-weight:600;color:var(--ink);margin-top:4px;}
+
+/* ── SAVE BAR ── */
+.save-bar{position:fixed;bottom:0;left:var(--profile-nav-w);right:0;height:64px;background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 12px rgba(0,0,0,.04);}
+.save-bar-msg{font-size:13px;font-weight:600;color:var(--ink-3);}
+.save-bar-msg.dirty{color:var(--amber);}
+.save-bar-l{margin-left:auto;display:flex;gap:10px;}
+.btn-discard{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:all 120ms;}
+.btn-discard:hover:not(:disabled){background:var(--subtle);}
+.btn-discard:disabled{opacity:.4;cursor:not-allowed;}
+.btn-save{padding:8px 20px;border-radius:var(--r-sm);border:none;background:var(--accent);font-family:var(--font);font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:background 120ms;}
+.btn-save:hover:not(:disabled){background:#4d4dbf;}
+.btn-save:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── SKELETON ── */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* ── STATE BAR ── */
+.state-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:var(--r-pill);padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── ERROR ── */
+.error-block{display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px 24px;text-align:center;}
+.error-icon{font-size:28px;color:var(--red);}
+.error-msg{font-size:14px;font-weight:700;color:var(--ink);}
+.error-sub{font-size:13px;font-weight:500;color:var(--ink-3);}
+.btn-retry{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:4px;}
+.btn-retry:hover{background:var(--subtle);}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;color:#fff;padding:10px 20px;border-radius:var(--r-pill);font-size:13px;font-weight:600;opacity:0;transition:opacity 200ms;pointer-events:none;z-index:9998;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <span class="tb-logo">◆ LMS</span>
+  <div class="tb-divider"></div>
+  <span class="tb-section">Account Settings</span>
+  <div class="tb-r">
+    <div class="tb-avatar">AJ</div>
+    <span class="tb-name">Alex Johnson</span>
+  </div>
+</div>
+
+<div class="profile-shell">
+
+  <!-- ── PROFILE SIDEBAR ── -->
+  <nav class="profile-nav">
+    <div class="pnav-card">
+      <div class="pnav-avatar">AJ</div>
+      <div class="pnav-name">Alex Johnson</div>
+      <div class="pnav-title">Senior Product Manager &nbsp;·&nbsp; Product</div>
+      <div class="pnav-email">alex.johnson@company.com</div>
+      <span class="pnav-status">● Active</span>
+    </div>
+    <div class="pnav-body">
+      <button class="pnav-item"><span class="pnav-item-icon">👤</span>Overview</button>
+      <button class="pnav-item"><span class="pnav-item-icon">📅</span>Activity History</button>
+      <button class="pnav-item"><span class="pnav-item-icon">🏅</span>Badges</button>
+      <button class="pnav-item"><span class="pnav-item-icon">🎓</span>Certificates</button>
+      <button class="pnav-item active"><span class="pnav-item-icon">⚙️</span>Account Settings</button>
+    </div>
+    <div class="pnav-foot">Member since Jan 2025</div>
+  </nav>
+
+  <!-- ── PROFILE CONTENT ── -->
+  <main class="profile-content" id="sections-canvas">
+
+    <div class="content-head">
+      <div class="content-title">Account Settings</div>
+      <div class="content-sub">Manage your personal information, preferences and security.</div>
+    </div>
+
+    <!-- ── LOADED STATE ── -->
+    <div id="state-loaded">
+
+      <!-- PERSONAL INFORMATION -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Personal Information</div>
+          <div class="sec-desc">Your name and role details. Changes are visible across the platform.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="field-row">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-first">First Name <span class="req">*</span></label>
+              <input id="f-first" class="field-input" type="text" value="Alex" oninput="markDirty()">
+            </div>
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-last">Last Name <span class="req">*</span></label>
+              <input id="f-last" class="field-input" type="text" value="Johnson" oninput="markDirty()">
+            </div>
+          </div>
+          <div class="field-row full">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-display">Display Name</label>
+              <input id="f-display" class="field-input" type="text" value="Alex J." placeholder="How you appear to others" oninput="markDirty()">
+              <div class="field-hint">Shown instead of your full name in comments and activity feeds.</div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-title">Job Title</label>
+              <input id="f-title" class="field-input" type="text" value="Senior Product Manager" oninput="markDirty()">
+            </div>
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-dept">Department</label>
+              <input id="f-dept" class="field-input" type="text" value="Product" oninput="markDirty()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTACT -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Contact</div>
+          <div class="sec-desc">Your email address and contact details.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="field-row full">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-email">Email Address <span class="req">*</span></label>
+              <input id="f-email" class="field-input" type="email" value="alex.johnson@company.com" oninput="markDirty()">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-phone">Phone Number</label>
+              <input id="f-phone" class="field-input" type="tel" value="+1 (555) 012-3456" placeholder="+1 (555) 000-0000" oninput="markDirty()">
+            </div>
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label">Username <span class="ro-badge">Read-only</span></label>
+              <input class="field-input" type="text" value="alex.johnson" disabled>
+              <div class="field-hint">Contact your administrator to change your username.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PREFERENCES -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Preferences</div>
+          <div class="sec-desc">Language and regional settings for your learner portal.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="field-row">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-locale">Language</label>
+              <select id="f-locale" class="field-input field-select" onchange="markDirty()">
+                <option value="en-US" selected>English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="fr-FR">Français (France)</option>
+                <option value="de-DE">Deutsch (Deutschland)</option>
+                <option value="es-ES">Español (España)</option>
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="ja-JP">日本語</option>
+                <option value="zh-CN">中文（简体）</option>
+                <option value="ar-SA">العربية</option>
+              </select>
+            </div>
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-tz">Timezone</label>
+              <select id="f-tz" class="field-input field-select" onchange="markDirty()">
+                <option value="America/New_York" selected>Eastern Time (ET)</option>
+                <option value="America/Chicago">Central Time (CT)</option>
+                <option value="America/Denver">Mountain Time (MT)</option>
+                <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                <option value="Europe/London">London (GMT)</option>
+                <option value="Europe/Paris">Paris (CET)</option>
+                <option value="Asia/Tokyo">Tokyo (JST)</option>
+                <option value="Asia/Dubai">Dubai (GST)</option>
+                <option value="Australia/Sydney">Sydney (AEDT)</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-row full">
+            <div class="field-group" style="margin-top:0;">
+              <label class="field-label" for="f-avatar">Avatar URL</label>
+              <input id="f-avatar" class="field-input" type="url" value="" placeholder="https://example.com/avatar.jpg" oninput="markDirty()">
+              <div class="field-hint">Direct link to your profile image. Leave blank to use your initials.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSWORD & SECURITY -->
+      <!-- BG-145: auth-service has no in-session change-password endpoint -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Password &amp; Security</div>
+          <div class="sec-desc">Manage your password and review recent account activity.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="pw-deferred">
+            <div class="pw-def-icon">🔒</div>
+            <div class="pw-def-body">
+              <div class="pw-def-title">Change Password</div>
+              <div class="pw-def-text">Password changes are handled via a secure reset link sent to your registered email address. Click below and follow the instructions in the email.</div>
+              <button class="btn-reset-link" id="btn-reset" onclick="sendResetLink()">Send Reset Link</button>
+            </div>
+          </div>
+          <div class="sec-info-row">
+            <div class="sec-info-item">
+              <div class="sec-info-label">Last Login</div>
+              <div class="sec-info-val">Today, 09:14 AM</div>
+            </div>
+            <div class="sec-info-item">
+              <div class="sec-info-label">Account Status</div>
+              <div class="sec-info-val" style="color:var(--green);">Active</div>
+            </div>
+            <div class="sec-info-item">
+              <div class="sec-info-label">Member Since</div>
+              <div class="sec-info-val">January 10, 2025</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /state-loaded -->
+
+    <!-- ── SKELETON STATE ── -->
+    <div id="state-skeleton" style="display:none;">
+      <div class="section">
+        <div class="sec-head">
+          <div class="sk" style="height:18px;width:200px;margin-bottom:8px;"></div>
+          <div class="sk" style="height:14px;width:340px;margin-bottom:16px;"></div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="field-row">
+            <div><div class="sk" style="height:12px;width:80px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+            <div><div class="sk" style="height:12px;width:80px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+          </div>
+          <div class="field-row full" style="margin-top:16px;">
+            <div><div class="sk" style="height:12px;width:120px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+          </div>
+          <div class="field-row" style="margin-top:16px;">
+            <div><div class="sk" style="height:12px;width:80px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+            <div><div class="sk" style="height:12px;width:80px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sec-head">
+          <div class="sk" style="height:18px;width:100px;margin-bottom:8px;"></div>
+          <div class="sk" style="height:14px;width:280px;margin-bottom:16px;"></div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="field-row full">
+            <div><div class="sk" style="height:12px;width:120px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+          </div>
+          <div class="field-row" style="margin-top:16px;">
+            <div><div class="sk" style="height:12px;width:100px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+            <div><div class="sk" style="height:12px;width:80px;margin-bottom:6px;"></div><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /state-skeleton -->
+
+    <!-- ── ERROR STATE ── -->
+    <div id="state-error" style="display:none;">
+      <div class="section">
+        <div class="error-block">
+          <div class="error-icon">⚠</div>
+          <div class="error-msg">Could not load account settings</div>
+          <div class="error-sub">Failed to fetch your profile from user-service. Please try again.</div>
+          <button class="btn-retry" onclick="setView('loaded')">Retry</button>
+        </div>
+      </div>
+    </div><!-- /state-error -->
+
+  </main><!-- /profile-content -->
+
+</div><!-- /profile-shell -->
+
+<!-- ── SAVE BAR ── -->
+<div class="save-bar" id="save-bar">
+  <span class="save-bar-msg" id="save-bar-msg">No unsaved changes</span>
+  <div class="save-bar-l">
+    <button class="btn-discard" id="btn-discard" disabled onclick="discardChanges()">Discard</button>
+    <button class="btn-save" id="btn-save" disabled onclick="saveSettings()">Save Changes</button>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── STATE BAR ── -->
+<div class="state-bar">
+  <button class="stb on" onclick="setView('loaded')">Loaded</button>
+  <button class="stb" onclick="setView('skeleton')">Skeleton</button>
+  <button class="stb" onclick="setView('error')">Error</button>
+</div>
+
+<script>
+// ── MOCK DATA ──
+// GET /api/v1/users/usr-001?tenant_id=ten-001
+const USER = {
+  user_id: 'usr-001',
+  tenant_id: 'ten-001',
+  status: 'active',
+  identity: { email: 'alex.johnson@company.com', username: 'alex.johnson' },
+  profile: {
+    first_name: 'Alex', last_name: 'Johnson', display_name: 'Alex J.',
+    locale: 'en-US', timezone: 'America/New_York',
+    title: 'Senior Product Manager', department: 'Product',
+    phone_number: '+1 (555) 012-3456', avatar_url: null
+  },
+  created_at: '2025-01-10T09:00:00Z'
+};
+
+// ── DIRTY STATE ──
+let dirty = false;
+
+function markDirty() {
+  if (dirty) return;
+  dirty = true;
+  document.getElementById('save-bar-msg').textContent = '● Unsaved changes';
+  document.getElementById('save-bar-msg').classList.add('dirty');
+  document.getElementById('btn-discard').disabled = false;
+  document.getElementById('btn-save').disabled = false;
+}
+
+function resetDirty() {
+  dirty = false;
+  document.getElementById('save-bar-msg').textContent = 'No unsaved changes';
+  document.getElementById('save-bar-msg').classList.remove('dirty');
+  document.getElementById('btn-discard').disabled = true;
+  document.getElementById('btn-save').disabled = true;
+}
+
+// ── DISCARD ──
+function discardChanges() {
+  document.getElementById('f-first').value   = USER.profile.first_name;
+  document.getElementById('f-last').value    = USER.profile.last_name;
+  document.getElementById('f-display').value = USER.profile.display_name || '';
+  document.getElementById('f-title').value   = USER.profile.title || '';
+  document.getElementById('f-dept').value    = USER.profile.department || '';
+  document.getElementById('f-email').value   = USER.identity.email;
+  document.getElementById('f-phone').value   = USER.profile.phone_number || '';
+  document.getElementById('f-locale').value  = USER.profile.locale || 'en-US';
+  document.getElementById('f-tz').value      = USER.profile.timezone || 'America/New_York';
+  document.getElementById('f-avatar').value  = USER.profile.avatar_url || '';
+  resetDirty();
+}
+
+// ── SAVE ──
+// PUT /api/v1/users/usr-001?tenant_id=ten-001  (UpdateUserRequest)
+// Header: X-Tenant-Id: ten-001
+function saveSettings() {
+  if (!dirty) return;
+
+  // Build UpdateUserRequest
+  const payload = {
+    tenant_id: USER.tenant_id,
+    actor_id:  USER.user_id,
+    first_name:   document.getElementById('f-first').value.trim(),
+    last_name:    document.getElementById('f-last').value.trim(),
+    display_name: document.getElementById('f-display').value.trim() || null,
+    title:        document.getElementById('f-title').value.trim() || null,
+    department:   document.getElementById('f-dept').value.trim() || null,
+    email:        document.getElementById('f-email').value.trim(),
+    phone_number: document.getElementById('f-phone').value.trim() || null,
+    locale:       document.getElementById('f-locale').value,
+    timezone:     document.getElementById('f-tz').value,
+    avatar_url:   document.getElementById('f-avatar').value.trim() || null
+  };
+
+  // Validate required fields
+  if (!payload.first_name || !payload.last_name || !payload.email) {
+    showToast('First name, last name and email are required.');
+    return;
+  }
+
+  // Simulate PUT /api/v1/users/usr-001
+  const saveBtn = document.getElementById('btn-save');
+  const discardBtn = document.getElementById('btn-discard');
+  saveBtn.disabled = true;
+  discardBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+  document.getElementById('save-bar-msg').textContent = 'Saving…';
+  document.getElementById('save-bar-msg').classList.remove('dirty');
+
+  setTimeout(() => {
+    // Update mock
+    USER.profile.first_name   = payload.first_name;
+    USER.profile.last_name    = payload.last_name;
+    USER.profile.display_name = payload.display_name;
+    USER.profile.title        = payload.title;
+    USER.profile.department   = payload.department;
+    USER.identity.email       = payload.email;
+    USER.profile.phone_number = payload.phone_number;
+    USER.profile.locale       = payload.locale;
+    USER.profile.timezone     = payload.timezone;
+    USER.profile.avatar_url   = payload.avatar_url;
+
+    saveBtn.textContent = 'Save Changes';
+    resetDirty();
+    showToast('Settings saved successfully.');
+  }, 900);
+}
+
+// ── RESET LINK ──
+// POST /api/v1/auth/password/forgot  { tenant_id, email }  (BG-145)
+function sendResetLink() {
+  const btn = document.getElementById('btn-reset');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  setTimeout(() => {
+    btn.textContent = 'Link sent';
+    showToast('Password reset link sent to ' + USER.identity.email);
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = 'Send Reset Link';
+    }, 4000);
+  }, 800);
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── STATE SWITCHER ──
+function setView(state) {
+  document.getElementById('state-loaded').style.display   = state === 'loaded'   ? '' : 'none';
+  document.getElementById('state-skeleton').style.display = state === 'skeleton' ? '' : 'none';
+  document.getElementById('state-error').style.display    = state === 'error'    ? '' : 'none';
+  document.getElementById('save-bar').style.display       = state === 'loaded'   ? '' : 'none';
+  document.querySelectorAll('.stb').forEach((b,i) =>
+    b.classList.toggle('on', ['loaded','skeleton','error'][i] === state));
+}
+</script>
+
+</body>
+</html>

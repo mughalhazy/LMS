@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Course Builder
+  Archetype: A6 Builder — A6a Structured variant (3-zone)
+  Created  : 2026-03-22
+  Surface  : Instructor
+  Repo     : course-service · lesson-service · content-service · media-service · scorm-service
+  Zones    : Outline Panel (240px fixed) · Canvas (flex-1) · Properties Panel (280px fixed)
+  Endpoints: GET  /api/v1/lessons?course_id=           → list lessons
+             POST /api/v1/lessons                      → LessonCreateRequest → LessonResponse
+             PATCH /api/v1/lessons/{id}                → update lesson
+             POST /api/v1/lessons/{id}:publish         → publish lesson
+             POST /api/v1/lessons/{id}:unpublish       → unpublish lesson
+             DELETE /api/v1/lessons/{id}               → delete lesson
+             POST /api/v1/courses/{course_id}/publish  → publish course (BG-087)
+             POST /api/v1/content/uploads              → ContentUploadRequest → ContentUploadResponse
+  Gaps     : BG-117 (lesson_type untyped str — UI working set: self_paced|live_session|assessment)
+             BG-118 (no Module model or endpoints — sections are client-side string IDs only)
+             BG-119 (content-service no GET endpoint — upload-only; content_ref write-only)
+             BG-120 (availability_rules dict[str,Any] — no schema; field omitted from builder)
+             BG-121 (delivery_state dict[str,Any] — runtime player state; not relevant to builder)
+             BG-087 (course publish endpoint — path assumed: POST /api/v1/courses/{id}/publish)
+  Patterns : A6a Structured — 3-zone flex layout, min-width:1200px, height:100vh overflow:hidden
+             Auto-save indicator: amber dot = unsaved · green dot = saved (every 30s)
+             Type dots: teal=self_paced · indigo=live_session · amber=assessment
+             Status dots: green=published · grey=draft
+             P-55 inline error block in canvas zone
+             P-56 partial skeleton in all 3 zones
+             BG-119 gap notice in content upload zone
+  CSS base : Verbatim foundation from lms-a5-invite-user-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Course Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a5-invite-user-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── BUILDER LAYOUT ── */
+.layout{display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:960px;}
+
+/* Topbar */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);flex-shrink:0;gap:8px;z-index:20;}
+.tb-back{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-title{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);}
+.tb-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);background:var(--accent-lt);border:1px solid rgba(91,91,214,.18);border-radius:4px;padding:2px 6px;margin-left:4px;}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.autosave{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);}
+.autosave-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;transition:background 300ms;}
+.autosave-dot.unsaved{background:#D97706;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+.btn-danger{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--red-bg);color:var(--red);transition:all 100ms;white-space:nowrap;}
+.btn-danger:hover{background:rgba(196,43,28,.12);}
+.btn-full{width:100%;}
+
+/* Builder body */
+.builder-body{display:flex;flex:1;overflow:hidden;}
+
+/* ── OUTLINE PANEL (Zone 1 — 240px) ── */
+.outline-panel{width:220px;flex-shrink:0;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.op-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.op-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);}
+.op-scroll{flex:1;overflow-y:auto;padding:6px 0;}
+.op-footer{padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.op-add-section-btn{width:100%;padding:7px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-lt);border:1px dashed rgba(91,91,214,.3);cursor:pointer;transition:all 100ms;}
+.op-add-section-btn:hover{background:rgba(91,91,214,.12);}
+/* Section accordion */
+.section-item{margin-bottom:1px;}
+.section-head{display:flex;align-items:center;gap:6px;padding:7px 12px 7px 10px;cursor:pointer;user-select:none;transition:background 100ms;}
+.section-head:hover{background:var(--subtle);}
+.section-caret{font-size:9px;color:var(--ink-4);transition:transform 150ms;flex-shrink:0;}
+.section-item.open .section-caret{transform:rotate(90deg);}
+.section-name{font-size:12px;font-weight:700;color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.section-count{font-size:10px;font-weight:500;color:var(--ink-4);flex-shrink:0;}
+.section-lessons{display:none;padding:0 8px 4px;}
+.section-item.open .section-lessons{display:block;}
+/* Lesson rows */
+.lesson-row{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background 100ms;}
+.lesson-row:hover{background:var(--subtle);}
+.lesson-row.selected{background:var(--accent-lt);}
+.lesson-row.selected .lr-title{color:var(--accent);font-weight:600;}
+.lr-type-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.lr-type-dot.sp{background:var(--teal);}
+.lr-type-dot.live{background:var(--accent);}
+.lr-type-dot.as{background:#D97706;}
+.lr-title{font-size:12px;color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lr-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.lr-status-dot.published{background:var(--green);}
+.lr-status-dot.draft{background:var(--ink-4);}
+.op-add-lesson-btn{display:flex;align-items:center;gap:4px;width:100%;padding:5px 8px;font-family:var(--font);font-size:11px;font-weight:600;color:var(--ink-4);background:none;border:none;cursor:pointer;border-radius:4px;transition:all 100ms;}
+.op-add-lesson-btn:hover{color:var(--accent);background:var(--accent-lt);}
+
+/* ── CANVAS ZONE (Zone 2 — flex-1) ── */
+.canvas-zone{flex:1;overflow-y:auto;background:var(--canvas);}
+.canvas-inner{padding:20px;min-height:100%;}
+
+/* Lesson editor */
+.lesson-editor{width:100%;}
+.le-header{display:flex;align-items:center;gap:8px;margin-bottom:20px;}
+.le-type-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:4px;}
+.le-type-badge.sp{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);}
+.le-type-badge.live{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(91,91,214,.18);}
+.le-type-badge.as{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
+.le-status-chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:var(--r-pill);}
+.le-status-chip.draft{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.le-status-chip.published{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+/* Form cards */
+.form-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:14px;box-shadow:var(--sh-xs);}
+.fc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:16px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-select{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;cursor:pointer;width:100%;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C8C84' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+.field-select:focus{border-color:var(--border-focus);}
+.field-textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;resize:vertical;min-height:80px;line-height:1.5;}
+.field-textarea:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+/* Objectives */
+.obj-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.obj-item{display:flex;align-items:center;gap:8px;}
+.obj-item input{flex:1;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;outline:none;}
+.obj-item input:focus{border-color:var(--border-focus);}
+.obj-remove{width:24px;height:24px;border-radius:4px;border:none;background:none;cursor:pointer;color:var(--ink-4);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 100ms;}
+.obj-remove:hover{background:var(--red-bg);color:var(--red);}
+.obj-add-btn{font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;background:none;border:none;font-family:var(--font);padding:3px 0;display:flex;align-items:center;gap:4px;}
+.obj-add-btn:hover{opacity:.75;}
+/* Content upload */
+.upload-zone{border:2px dashed var(--border-s);border-radius:var(--r);padding:24px;text-align:center;background:var(--subtle);transition:all 150ms;}
+.upload-zone.has-content{border-color:var(--green-bd);background:var(--green-bg);border-style:solid;}
+.uz-icon{font-size:28px;margin-bottom:8px;}
+.uz-title{font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:4px;}
+.uz-sub{font-size:12px;color:var(--ink-3);}
+.uz-types{display:flex;gap:8px;justify-content:center;margin-top:14px;}
+.uz-type-btn{padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;display:flex;align-items:center;gap:5px;}
+.uz-type-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt);}
+/* BG-119 gap notice */
+.gap-notice{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--r-sm);margin-top:12px;}
+.gn-icon{font-size:13px;flex-shrink:0;margin-top:1px;}
+.gn-text{font-size:11px;color:var(--amber);line-height:1.5;}
+.gn-code{font-family:monospace;font-size:10px;background:rgba(146,64,14,.08);padding:1px 4px;border-radius:3px;}
+/* Canvas actions */
+.canvas-actions{display:flex;gap:10px;margin-top:6px;padding-top:16px;border-top:1px solid var(--border);}
+/* Empty canvas */
+.canvas-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:60px 28px;}
+.ce-icon{font-size:40px;margin-bottom:14px;opacity:.35;}
+.ce-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.ce-sub{font-size:13px;color:var(--ink-3);max-width:300px;line-height:1.6;}
+/* No selection prompt */
+.canvas-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:60px 28px;}
+.cp-icon{font-size:36px;margin-bottom:12px;opacity:.25;}
+.cp-text{font-size:13px;color:var(--ink-3);}
+/* Error block (P-55) */
+.err-block{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:20px;display:flex;gap:14px;align-items:flex-start;}
+.err-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.err-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:4px;}
+.err-msg{font-size:13px;color:var(--red);opacity:.85;line-height:1.5;}
+.err-retry{margin-top:12px;padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--white);color:var(--red);transition:all 100ms;}
+.err-retry:hover{background:var(--red-bg);}
+
+/* ── PROPERTIES PANEL (Zone 3 — 280px) ── */
+.props-panel{width:220px;flex-shrink:0;background:var(--white);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.pp-scroll{flex:1;overflow-y:auto;}
+.pp-section{padding:16px;border-bottom:1px solid var(--border);}
+.pp-section:last-child{border-bottom:none;}
+.pp-s-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);margin-bottom:12px;}
+.pp-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.pp-row:last-child{margin-bottom:0;}
+.pp-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;padding-top:1px;}
+.pp-val{font-size:12px;color:var(--ink-2);text-align:right;word-break:break-word;line-height:1.4;}
+.pp-val.mono{font-family:monospace;font-weight:400;font-size:11px;background:var(--subtle);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+.status-chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:var(--r-pill);}
+.status-chip.draft{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.status-chip.published{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.stat-box{background:var(--subtle);border-radius:var(--r-sm);padding:10px;text-align:center;}
+.stat-val{font-size:20px;font-weight:800;letter-spacing:-0.03em;color:var(--ink);line-height:1;}
+.stat-lbl{font-size:10px;font-weight:600;color:var(--ink-3);margin-top:3px;text-transform:uppercase;letter-spacing:.05em;}
+.stat-box.green .stat-val{color:var(--green);}
+.stat-box.amber .stat-val{color:#D97706;}
+/* Lesson actions in panel */
+.lesson-actions-empty{font-size:12px;color:var(--ink-4);text-align:center;padding:6px 0;font-style:italic;}
+.sel-lesson-name{font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lesson-act-btns{display:flex;flex-direction:column;gap:8px;}
+/* Publish controls */
+.publish-btns{display:flex;flex-direction:column;gap:8px;}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back" onclick="history.back()">← Courses</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-title" id="tb-course-title">Security Fundamentals</span>
+    <span class="tb-badge">Builder</span>
+    <div class="tb-r">
+      <div class="autosave" id="autosave-wrap">
+        <div class="autosave-dot" id="autosave-dot"></div>
+        <span id="autosave-text">Saved</span>
+      </div>
+      <button class="btn-g" onclick="handlePreview()">Preview</button>
+      <button class="btn-success" id="tb-publish-btn" onclick="handlePublishCourse()">Publish Course</button>
+    </div>
+  </div>
+
+  <!-- BUILDER BODY -->
+  <div class="builder-body">
+
+    <!-- ZONE 1 — OUTLINE PANEL -->
+    <div class="outline-panel">
+      <div class="op-header">
+        <span class="op-title">Course Outline</span>
+      </div>
+      <div class="op-scroll" id="outline-scroll"></div>
+      <div class="op-footer">
+        <button class="op-add-section-btn" onclick="handleAddSection()">+ Add Section</button>
+      </div>
+    </div>
+
+    <!-- ZONE 2 — CANVAS -->
+    <div class="canvas-zone">
+      <div class="canvas-inner" id="canvas-inner"></div>
+    </div>
+
+    <!-- ZONE 3 — PROPERTIES PANEL -->
+    <div class="props-panel">
+      <div class="pp-scroll">
+        <div class="pp-section" id="pp-course-info"></div>
+        <div class="pp-section" id="pp-stats"></div>
+        <div class="pp-section" id="pp-lesson-actions"></div>
+        <div class="pp-section" id="pp-publish">
+          <div class="pp-s-title">Publish</div>
+          <div class="publish-btns">
+            <button class="btn-g btn-full" onclick="handleSaveDraft()">Save Draft</button>
+            <button class="btn-success btn-full" onclick="handlePublishCourse()">Publish Course</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- STATE BAR -->
+  <div class="state-bar">
+    <button class="stb on"  onclick="setState('loaded',this)">Loaded</button>
+    <button class="stb"     onclick="setState('skeleton',this)">Skeleton</button>
+    <button class="stb"     onclick="setState('empty',this)">Empty</button>
+    <button class="stb"     onclick="setState('error',this)">Error</button>
+  </div>
+</div>
+
+<script>
+/* ── MOCK DATA ── */
+const COURSE = {
+  course_id:'c002', title:'Security Fundamentals', course_code:'SEC-101',
+  status:'draft', language_code:'en', delivery_mode:'self_paced'
+};
+
+/* BG-118: no Module model — sections simulated client-side via module_id strings */
+const SECTIONS_DEF = [
+  { module_id:'mod-intro',  title:'Introduction'  },
+  { module_id:'mod-core',   title:'Core Concepts' },
+  { module_id:'mod-assess', title:'Assessment'    }
+];
+
+/* BG-117: lesson_type is untyped str; working set: self_paced | live_session | assessment */
+const LESSONS_SOURCE = [
+  { lesson_id:'ls-001', course_id:'c002', module_id:'mod-intro',  title:'What is Security?',            lesson_type:'self_paced',  status:'published', order_index:0, estimated_duration_minutes:15, learning_objectives:['Define information security','Identify key security principles'], content_ref:'cnt-001' },
+  { lesson_id:'ls-002', course_id:'c002', module_id:'mod-intro',  title:'Threat Landscape Overview',    lesson_type:'self_paced',  status:'draft',     order_index:1, estimated_duration_minutes:20, learning_objectives:['Identify common threat categories','Understand attack vectors'],  content_ref:null },
+  { lesson_id:'ls-003', course_id:'c002', module_id:'mod-core',   title:'Authentication Methods',       lesson_type:'self_paced',  status:'draft',     order_index:0, estimated_duration_minutes:25, learning_objectives:['Compare authentication factors','Evaluate MFA approaches'],       content_ref:null },
+  { lesson_id:'ls-004', course_id:'c002', module_id:'mod-core',   title:'Live Q&A: Security Basics',    lesson_type:'live_session',status:'draft',     order_index:1, estimated_duration_minutes:60, learning_objectives:[],                                                               content_ref:null },
+  { lesson_id:'ls-005', course_id:'c002', module_id:'mod-assess', title:'Security Fundamentals Quiz',   lesson_type:'assessment',  status:'draft',     order_index:0, estimated_duration_minutes:30, learning_objectives:['Demonstrate knowledge of security concepts'],                  content_ref:null }
+];
+
+/* ── STATE ── */
+let currentState    = 'loaded';
+let selectedId      = 'ls-003';
+let openSections    = new Set(['mod-intro','mod-core','mod-assess']);
+let autosaved       = true;
+let sections        = SECTIONS_DEF.map(s=>({...s}));
+let lessons         = LESSONS_SOURCE.map(l=>({...l, learning_objectives:[...l.learning_objectives]}));
+
+/* ── HELPERS ── */
+const TYPE_DOT   = { self_paced:'sp', live_session:'live', assessment:'as' };
+const TYPE_LABEL = { self_paced:'Self-Paced', live_session:'Live Session', assessment:'Assessment' };
+
+function tdClass(t){ return TYPE_DOT[t]||'sp'; }
+function tLabel(t){  return TYPE_LABEL[t]||t;  }
+
+function markUnsaved(){
+  autosaved = false;
+  document.getElementById('autosave-dot').classList.add('unsaved');
+  document.getElementById('autosave-text').textContent = 'Unsaved changes';
+}
+function markSaved(){
+  autosaved = true;
+  document.getElementById('autosave-dot').classList.remove('unsaved');
+  document.getElementById('autosave-text').textContent = 'Saved';
+}
+
+/* ── STATE SWITCHER ── */
+function setState(s, btn){
+  currentState = s;
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  render();
+}
+
+/* ── MAIN RENDER ── */
+function render(){
+  switch(currentState){
+    case 'loaded':   renderLoaded();   break;
+    case 'skeleton': renderSkeleton(); break;
+    case 'empty':    renderEmpty();    break;
+    case 'error':    renderError();    break;
+  }
+}
+
+/* ══ LOADED ══ */
+function renderLoaded(){
+  renderOutline(lessons);
+  renderCanvas(lessons);
+  renderProps(lessons);
+}
+
+/* OUTLINE */
+function renderOutline(ls){
+  const el = document.getElementById('outline-scroll');
+  const bySection = mid => ls.filter(l=>l.module_id===mid).sort((a,b)=>a.order_index-b.order_index);
+  el.innerHTML = sections.map(sec=>{
+    const sls = bySection(sec.module_id);
+    const open = openSections.has(sec.module_id);
+    return `<div class="section-item ${open?'open':''}" data-mid="${sec.module_id}">
+  <div class="section-head" onclick="toggleSection('${sec.module_id}')">
+    <span class="section-caret">▶</span>
+    <span class="section-name">${esc(sec.title)}</span>
+    <span class="section-count">${sls.length}</span>
+  </div>
+  <div class="section-lessons">
+    ${sls.map(l=>`<div class="lesson-row${l.lesson_id===selectedId?' selected':''}" onclick="selectLesson('${l.lesson_id}')">
+      <div class="lr-type-dot ${tdClass(l.lesson_type)}"></div>
+      <span class="lr-title">${esc(l.title)}</span>
+      <div class="lr-status-dot ${l.status}"></div>
+    </div>`).join('')}
+    <button class="op-add-lesson-btn" onclick="handleAddLesson('${sec.module_id}')">+ Add lesson</button>
+  </div>
+</div>`;
+  }).join('');
+}
+
+/* CANVAS */
+function renderCanvas(ls){
+  const el = document.getElementById('canvas-inner');
+  const lesson = selectedId ? ls.find(l=>l.lesson_id===selectedId) : null;
+  if(!lesson){ el.innerHTML = renderPrompt(); return; }
+
+  const tc = tdClass(lesson.lesson_type);
+  const objs = lesson.learning_objectives||[];
+
+  el.innerHTML = `<div class="lesson-editor">
+  <div class="le-header">
+    <span class="le-type-badge ${tc}">${tLabel(lesson.lesson_type)}</span>
+    <span class="le-status-chip ${lesson.status}">${lesson.status==='published'?'Published':'Draft'}</span>
+  </div>
+
+  <div class="form-card">
+    <div class="fc-title">Lesson Details</div>
+    <div class="field-grid">
+      <div class="field field-full">
+        <label class="field-label">Title<span class="req">*</span></label>
+        <input class="field-input" id="le-title" value="${esc(lesson.title)}" oninput="markUnsaved()">
+      </div>
+      <div class="field">
+        <label class="field-label">Type<span class="req">*</span><span class="opt">BG-117</span></label>
+        <select class="field-select" id="le-type" onchange="markUnsaved()">
+          <option value="self_paced"  ${lesson.lesson_type==='self_paced' ?'selected':''}>Self-Paced</option>
+          <option value="live_session"${lesson.lesson_type==='live_session'?'selected':''}>Live Session</option>
+          <option value="assessment"  ${lesson.lesson_type==='assessment' ?'selected':''}>Assessment</option>
+        </select>
+        <span class="field-hint">lesson_type is untyped str in lesson-service — no enum (BG-117)</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Duration<span class="opt">minutes</span></label>
+        <input type="number" class="field-input" id="le-duration" min="1" value="${lesson.estimated_duration_minutes||''}" oninput="markUnsaved()">
+      </div>
+      <div class="field field-full">
+        <label class="field-label">Description<span class="opt">optional</span></label>
+        <textarea class="field-textarea" id="le-desc" oninput="markUnsaved()">${esc(lesson.description||'')}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="fc-title">Learning Objectives</div>
+    <div class="obj-list" id="obj-list">
+      ${objs.map((o,i)=>`<div class="obj-item">
+        <input value="${esc(o)}" placeholder="Objective ${i+1}" oninput="markUnsaved()" data-oi="${i}">
+        <button class="obj-remove" onclick="removeObjective(${i})">✕</button>
+      </div>`).join('')}
+    </div>
+    <button class="obj-add-btn" onclick="addObjective()">+ Add objective</button>
+  </div>
+
+  <div class="form-card">
+    <div class="fc-title">Content</div>
+    ${lesson.content_ref
+      ? `<div class="upload-zone has-content">
+           <div class="uz-icon">✅</div>
+           <div class="uz-title">Content uploaded</div>
+           <div class="uz-sub" style="font-family:monospace;font-size:11px;">${esc(lesson.content_ref)}</div>
+         </div>`
+      : `<div class="upload-zone">
+           <div class="uz-icon">📎</div>
+           <div class="uz-title">Upload lesson content</div>
+           <div class="uz-sub">Choose a content type</div>
+           <div class="uz-types">
+             <button class="uz-type-btn" onclick="handleUpload('video')">📹 Video</button>
+             <button class="uz-type-btn" onclick="handleUpload('document')">📄 Document</button>
+             <button class="uz-type-btn" onclick="handleUpload('assessment_asset')">📋 Assessment</button>
+           </div>
+         </div>`}
+  </div>
+
+  <div class="canvas-actions">
+    <button class="btn-primary" onclick="handleSaveLesson()">Save Changes</button>
+    <button class="btn-g" onclick="selectedId=null;renderLoaded()">Deselect</button>
+  </div>
+</div>`;
+}
+
+function renderPrompt(){
+  return `<div class="canvas-prompt">
+  <div class="cp-icon">👈</div>
+  <div class="cp-text">Select a lesson from the outline to edit it</div>
+</div>`;
+}
+
+/* PROPERTIES PANEL */
+function renderProps(ls){
+  /* Course info */
+  document.getElementById('pp-course-info').innerHTML =
+`<div class="pp-s-title">Course</div>
+<div class="pp-row"><span class="pp-label">Title</span><span class="pp-val">${esc(COURSE.title)}</span></div>
+<div class="pp-row"><span class="pp-label">Code</span><span class="pp-val mono">${esc(COURSE.course_code)}</span></div>
+<div class="pp-row"><span class="pp-label">Status</span><span class="status-chip ${COURSE.status}">${COURSE.status}</span></div>
+<div class="pp-row"><span class="pp-label">Language</span><span class="pp-val">${esc(COURSE.language_code)}</span></div>
+<div class="pp-row"><span class="pp-label">Mode</span><span class="pp-val">${esc(COURSE.delivery_mode)}</span></div>`;
+
+  /* Stats */
+  const total       = ls.length;
+  const published   = ls.filter(l=>l.status==='published').length;
+  const draft       = ls.filter(l=>l.status==='draft').length;
+  const withContent = ls.filter(l=>l.content_ref).length;
+  document.getElementById('pp-stats').innerHTML =
+`<div class="pp-s-title">Progress</div>
+<div class="stats-grid">
+  <div class="stat-box"><div class="stat-val">${total}</div><div class="stat-lbl">Total</div></div>
+  <div class="stat-box green"><div class="stat-val">${published}</div><div class="stat-lbl">Published</div></div>
+  <div class="stat-box"><div class="stat-val">${draft}</div><div class="stat-lbl">Draft</div></div>
+  <div class="stat-box amber"><div class="stat-val">${withContent}</div><div class="stat-lbl">w/ Content</div></div>
+</div>`;
+
+  /* Selected lesson actions */
+  const sel = selectedId ? ls.find(l=>l.lesson_id===selectedId) : null;
+  const la = document.getElementById('pp-lesson-actions');
+  if(sel){
+    la.innerHTML =
+`<div class="pp-s-title">Lesson Actions</div>
+<div class="sel-lesson-name" title="${esc(sel.title)}">${esc(sel.title)}</div>
+<div class="lesson-act-btns">
+  ${sel.status==='draft'
+    ? `<button class="btn-g btn-full" onclick="handlePublishLesson('${sel.lesson_id}')">Publish Lesson</button>`
+    : `<button class="btn-g btn-full" style="color:var(--amber);" onclick="handleUnpublishLesson('${sel.lesson_id}')">Unpublish</button>`}
+  <button class="btn-danger btn-full" onclick="handleDeleteLesson('${sel.lesson_id}')">Delete Lesson</button>
+</div>`;
+  } else {
+    la.innerHTML =
+`<div class="pp-s-title">Lesson Actions</div>
+<div class="lesson-actions-empty">Select a lesson to see actions</div>`;
+  }
+}
+
+/* ══ SKELETON ══ */
+function renderSkeleton(){
+  /* Outline skeleton */
+  document.getElementById('outline-scroll').innerHTML =
+[0,1,2].map(()=>`
+<div style="padding:10px 12px 6px;">
+  <div class="sk" style="width:65%;height:11px;border-radius:3px;"></div>
+</div>
+${[0,1].map(()=>`<div style="display:flex;align-items:center;gap:7px;padding:6px 10px;">
+  <div class="sk" style="width:7px;height:7px;border-radius:50%;flex-shrink:0;"></div>
+  <div class="sk" style="flex:1;height:10px;border-radius:3px;"></div>
+</div>`).join('')}`).join('');
+
+  /* Canvas skeleton (P-56 partial) */
+  document.getElementById('canvas-inner').innerHTML =
+`<div style="width:100%;">
+  <div class="form-card">
+    <div class="sk" style="width:160px;height:10px;border-radius:3px;margin-bottom:20px;"></div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="sk" style="width:100%;height:36px;border-radius:var(--r-sm);"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="sk" style="height:36px;border-radius:var(--r-sm);"></div>
+        <div class="sk" style="height:36px;border-radius:var(--r-sm);"></div>
+      </div>
+      <div class="sk" style="width:100%;height:80px;border-radius:var(--r-sm);"></div>
+    </div>
+  </div>
+  <div class="form-card">
+    <div class="sk" style="width:140px;height:10px;border-radius:3px;margin-bottom:16px;"></div>
+    <div class="sk" style="width:100%;height:110px;border-radius:var(--r);"></div>
+  </div>
+</div>`;
+
+  /* Props skeleton */
+  document.getElementById('pp-course-info').innerHTML =
+`<div class="pp-s-title">Course</div>
+${[85,55,65,45,60].map(w=>`<div style="margin-bottom:10px;"><div class="sk" style="width:${w}%;height:11px;border-radius:3px;"></div></div>`).join('')}`;
+
+  document.getElementById('pp-stats').innerHTML =
+`<div class="pp-s-title">Progress</div>
+<div class="stats-grid">
+  ${[0,1,2,3].map(()=>`<div class="sk" style="height:58px;border-radius:var(--r-sm);"></div>`).join('')}
+</div>`;
+
+  document.getElementById('pp-lesson-actions').innerHTML =
+`<div class="pp-s-title">Lesson Actions</div>
+<div class="sk" style="width:100%;height:68px;border-radius:var(--r-sm);"></div>`;
+}
+
+/* ══ EMPTY ══ */
+function renderEmpty(){
+  document.getElementById('outline-scroll').innerHTML =
+`<div style="padding:24px 16px;text-align:center;">
+  <div style="font-size:24px;margin-bottom:8px;opacity:.25;">📋</div>
+  <div style="font-size:12px;font-weight:600;color:var(--ink-3);">No lessons yet</div>
+  <div style="font-size:11px;color:var(--ink-4);margin-top:4px;line-height:1.5;">Add a section to get started</div>
+</div>`;
+
+  document.getElementById('canvas-inner').innerHTML =
+`<div class="canvas-empty">
+  <div class="ce-icon">📋</div>
+  <div class="ce-title">No lessons yet</div>
+  <div class="ce-sub">Add a section to the course outline, then create your first lesson.</div>
+</div>`;
+
+  document.getElementById('pp-course-info').innerHTML =
+`<div class="pp-s-title">Course</div>
+<div class="pp-row"><span class="pp-label">Title</span><span class="pp-val">${esc(COURSE.title)}</span></div>
+<div class="pp-row"><span class="pp-label">Code</span><span class="pp-val mono">${esc(COURSE.course_code)}</span></div>
+<div class="pp-row"><span class="pp-label">Status</span><span class="status-chip ${COURSE.status}">${COURSE.status}</span></div>`;
+
+  document.getElementById('pp-stats').innerHTML =
+`<div class="pp-s-title">Progress</div>
+<div class="stats-grid">
+  ${['Total','Published','Draft','w/ Content'].map(l=>`<div class="stat-box"><div class="stat-val">0</div><div class="stat-lbl">${l}</div></div>`).join('')}
+</div>`;
+
+  document.getElementById('pp-lesson-actions').innerHTML =
+`<div class="pp-s-title">Lesson Actions</div>
+<div class="lesson-actions-empty">No lessons yet</div>`;
+}
+
+/* ══ ERROR ══ */
+function renderError(){
+  document.getElementById('outline-scroll').innerHTML =
+`<div style="padding:16px;font-size:12px;color:var(--ink-4);text-align:center;line-height:1.5;">Could not load<br>course outline</div>`;
+
+  document.getElementById('canvas-inner').innerHTML =
+`<div class="err-block">
+  <span class="err-icon">⚠</span>
+  <div>
+    <div class="err-title">Failed to load lessons</div>
+    <div class="err-msg">GET /api/v1/lessons?course_id=c002 returned 503. The lesson service may be temporarily unavailable.</div>
+    <button class="err-retry" onclick="setState('loaded',null)">Retry</button>
+  </div>
+</div>`;
+
+  document.getElementById('pp-course-info').innerHTML =
+`<div class="pp-s-title">Course</div>
+<div class="pp-row"><span class="pp-label">Title</span><span class="pp-val">${esc(COURSE.title)}</span></div>
+<div class="pp-row"><span class="pp-label">Code</span><span class="pp-val mono">${esc(COURSE.course_code)}</span></div>`;
+
+  document.getElementById('pp-stats').innerHTML = '';
+  document.getElementById('pp-lesson-actions').innerHTML = '';
+}
+
+/* ── INTERACTIONS ── */
+function toggleSection(mid){
+  if(openSections.has(mid)) openSections.delete(mid);
+  else openSections.add(mid);
+  renderOutline(lessons);
+}
+
+function selectLesson(id){
+  selectedId = id;
+  renderLoaded();
+}
+
+function handleSaveLesson(){
+  const lesson = lessons.find(l=>l.lesson_id===selectedId);
+  if(!lesson) return;
+  const t = document.getElementById('le-title');
+  const ty = document.getElementById('le-type');
+  const d = document.getElementById('le-duration');
+  const desc = document.getElementById('le-desc');
+  const objInputs = document.querySelectorAll('#obj-list input');
+  if(t)   lesson.title = t.value;
+  if(ty)  lesson.lesson_type = ty.value;
+  if(d)   lesson.estimated_duration_minutes = parseInt(d.value)||null;
+  if(desc)lesson.description = desc.value;
+  lesson.learning_objectives = Array.from(objInputs).map(i=>i.value).filter(v=>v.trim());
+  markSaved();
+  renderLoaded();
+}
+
+function handlePublishLesson(id){
+  /* POST /api/v1/lessons/{id}:publish */
+  const l = lessons.find(l=>l.lesson_id===id);
+  if(l) l.status='published';
+  markSaved();
+  renderLoaded();
+}
+
+function handleUnpublishLesson(id){
+  /* POST /api/v1/lessons/{id}:unpublish */
+  const l = lessons.find(l=>l.lesson_id===id);
+  if(l) l.status='draft';
+  markSaved();
+  renderLoaded();
+}
+
+function handleDeleteLesson(id){
+  /* DELETE /api/v1/lessons/{id} */
+  if(!confirm('Delete this lesson? This cannot be undone.')) return;
+  lessons = lessons.filter(l=>l.lesson_id!==id);
+  if(selectedId===id) selectedId=null;
+  markSaved();
+  renderLoaded();
+}
+
+function handleAddSection(){
+  const name = prompt('Section title:','New Section');
+  if(!name||!name.trim()) return;
+  /* BG-118: no POST /modules — section is a client-side string ID */
+  const mid = 'mod-'+Date.now();
+  sections.push({module_id:mid, title:name.trim()});
+  openSections.add(mid);
+  renderLoaded();
+}
+
+function handleAddLesson(mid){
+  const title = prompt('Lesson title:','New Lesson');
+  if(!title||!title.trim()) return;
+  /* POST /api/v1/lessons — LessonCreateRequest */
+  const sectionLessons = lessons.filter(l=>l.module_id===mid);
+  const id = 'ls-'+Date.now();
+  lessons.push({
+    lesson_id:id, course_id:'c002', module_id:mid,
+    title:title.trim(), lesson_type:'self_paced', status:'draft',
+    order_index:sectionLessons.length, estimated_duration_minutes:null,
+    learning_objectives:[], content_ref:null,
+    created_at:new Date().toISOString()
+  });
+  selectedId = id;
+  renderLoaded();
+}
+
+function handleUpload(contentType){
+  /* POST /api/v1/content/uploads — ContentUploadRequest
+     BG-119: no GET endpoint; content_ref is write-only */
+  const lesson = lessons.find(l=>l.lesson_id===selectedId);
+  if(!lesson) return;
+  const ref = 'cnt-'+Date.now();
+  lesson.content_ref = ref;
+  markUnsaved();
+  alert(`POST /api/v1/content/uploads\n{ "content_type": "${contentType}", "course_id": "c002", "title": "${lesson.title}" }\n\nResponse: { "content_id": "${ref}", "status": "uploaded" }\n\n⚠ BG-119: No GET endpoint exists — this content_ref cannot be retrieved or listed.`);
+  renderCanvas(lessons);
+}
+
+function handlePublishCourse(){
+  /* POST /api/v1/courses/{course_id}/publish — BG-087 */
+  const pubCount = lessons.filter(l=>l.status==='published').length;
+  if(pubCount===0){
+    alert('No published lessons.\n\nPublish at least one lesson before publishing the course.');
+    return;
+  }
+  COURSE.status = 'published';
+  markSaved();
+  alert(`POST /api/v1/courses/${COURSE.course_id}/publish\n\nCourse published. ${pubCount} published lesson(s) included.`);
+  renderLoaded();
+}
+
+function handleSaveDraft(){
+  /* PATCH /api/v1/courses/{course_id} */
+  markSaved();
+  alert(`PATCH /api/v1/courses/${COURSE.course_id}\n\nDraft saved.`);
+}
+
+function handlePreview(){
+  alert('Preview — opens the published learner view of this course.\n\nNot yet built (A7 Course Player).');
+}
+
+function addObjective(){
+  const lesson = lessons.find(l=>l.lesson_id===selectedId);
+  if(!lesson) return;
+  lesson.learning_objectives.push('');
+  renderCanvas(lessons);
+}
+
+function removeObjective(i){
+  const lesson = lessons.find(l=>l.lesson_id===selectedId);
+  if(!lesson) return;
+  lesson.learning_objectives.splice(i,1);
+  markUnsaved();
+  renderCanvas(lessons);
+}
+
+/* XSS-safe escape for innerHTML */
+function esc(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── INIT ── */
+render();
+/* Auto-save every 30s per A6 design system spec */
+setInterval(()=>{ if(!autosaved){ markSaved(); } }, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "event_type": "lesson_published",
+  "event_version": "v1",
+  "topic": "lms.lesson.published.v1",
+  "producer_service": "lesson-service",
+  "description": "Published when a lesson transitions from draft to published status.",
+  "payload_schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "timestamp",
+      "tenant_id",
+      "correlation_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": {
+        "type": "string"
+      },
+      "event_type": {
+        "const": "lesson_published"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "tenant_id": {
+        "type": "string"
+      },
+      "correlation_id": {
+        "type": "string"
+      },
+      "data": {
+        "type": "object",
+        "required": [
+          "lesson_id",
+          "status",
+          "published_at",
+          "published_by",
+          "version"
+        ],
+        "properties": {
+          "lesson_id": {
+            "type": "string"
+          },
+          "status": {
+            "const": "published"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "published_by": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "publish_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Optional scheduled publish timestamp from command input."
+          },
+          "visibility_rules": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

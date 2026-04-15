@@ -1,0 +1,24 @@
+{
+  "event_type": "progress.completed",
+  "event_version": "v1",
+  "topic": "lms.progress.completed.v1",
+  "producer_service": "progress-service",
+  "description": "Canonical event emitted when course progress reaches completed.",
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "progress_id": "string",
+    "enrollment_id": "uuid",
+    "user_id": "uuid",
+    "course_id": "uuid",
+    "completed_at": "date-time"
+  },
+  "required_fields": [
+    "correlation_id",
+    "tenant_id",
+    "progress_id",
+    "enrollment_id",
+    "user_id",
+    "course_id",
+    "completed_at"
+  ]
+}

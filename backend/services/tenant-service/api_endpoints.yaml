@@ -1,0 +1,42 @@
+service: tenant-service
+version: v1
+endpoints:
+  - path: /health
+    method: GET
+    operation: health
+  - path: /metrics
+    method: GET
+    operation: metrics
+  - path: /api/v1/tenants/validate
+    method: POST
+    operation: validate_tenant_creation
+  - path: /api/v1/tenants
+    method: POST
+    operation: create_tenant
+  - path: /api/v1/tenants/{tenant_id}/configuration
+    method: PUT
+    operation: initialize_tenant_configuration
+  - path: /api/v1/tenants/{tenant_id}/configuration
+    method: PATCH
+    operation: update_tenant_configuration
+  - path: /api/v1/tenants/{tenant_id}/feature-flags
+    method: PATCH
+    operation: manage_tenant_feature_flags
+  - path: /api/v1/tenants/{tenant_id}/lifecycle/suspend
+    method: POST
+    operation: suspend_tenant
+  - path: /api/v1/tenants/{tenant_id}/lifecycle/reactivate
+    method: POST
+    operation: reactivate_tenant
+  - path: /api/v1/tenants/{tenant_id}/lifecycle/archive
+    method: POST
+    operation: archive_tenant
+  - path: /api/v1/tenants/{tenant_id}/lifecycle/decommission
+    method: POST
+    operation: decommission_tenant
+  - path: /api/v1/tenants/{tenant_id}/lifecycle
+    method: GET
+    operation: get_tenant_lifecycle_status
+  - path: /api/v1/isolation/evaluate
+    method: POST
+    operation: evaluate_isolation

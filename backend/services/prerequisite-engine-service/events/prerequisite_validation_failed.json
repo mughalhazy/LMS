@@ -1,0 +1,45 @@
+{
+  "event_type": "prerequisite_validation_failed",
+  "domain": "prerequisite_engine",
+  "version": "1.0.0",
+  "producer_service": "prerequisite-engine-service",
+  "consumer_services": [
+    "enrollment-service",
+    "learning-path-service",
+    "notification-service",
+    "advising-service",
+    "audit-service",
+    "analytics-service"
+  ],
+  "description": "Published when prerequisite evaluation fails and progression or enrollment is blocked or flagged.",
+  "trigger": "A learner enrollment or progression attempt has one or more unmet strict prerequisite nodes.",
+  "payload": {
+    "evaluation_id": "string(uuid)",
+    "tenant_id": "string",
+    "learner_id": "string",
+    "context_type": "string(enum: course_enrollment | learning_path_progression)",
+    "target_id": "string",
+    "rule_id": "string(uuid)",
+    "rule_type": "string(enum: course_prerequisite | learning_path_dependency)",
+    "enrollment_decision": "string(enum: blocked)",
+    "unmet_prerequisites": [
+      {
+        "node_id": "string",
+        "failure_reason": "string(enum: not_completed | below_minimum_grade | expired_validity_window | missing_equivalency)",
+        "required_minimum_grade": "number|null",
+        "observed_grade": "number|null"
+      }
+    ],
+    "bridge_recommendations": [
+      {
+        "resource_type": "string(enum: bridge_course | remedial_path | advisor_intervention)",
+        "resource_id": "string",
+        "priority": "string(enum: high | medium | low)"
+      }
+    ],
+    "override_allowed": "boolean",
+    "policy_version": "string",
+    "evaluated_at": "string(date-time)",
+    "trace_id": "string"
+  }
+}

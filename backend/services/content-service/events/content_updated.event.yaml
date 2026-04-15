@@ -1,0 +1,34 @@
+event_type: content_updated
+event_topic: lms.content.updated.v1
+producer_service: content-service
+consumer_services:
+  - course-service
+  - lesson-service
+  - search-index-service
+  - analytics-service
+  - notification-service
+  - audit-service
+purpose: >-
+  Published when content metadata or binary payload changes and a new draft version is
+  recorded, allowing dependent domains to refresh references and derived views.
+envelope_schema:
+  event_id: uuid
+  event_type: content_updated
+  source_system: content-service
+  tenant_id: uuid
+  actor_id: uuid
+  timestamp: datetime
+  schema_version: v1
+payload_schema:
+  content_id: uuid
+  version_id: uuid
+  version_number: integer
+  previous_version_number: integer
+  update_type: enum[metadata_only,binary_replace,mixed]
+  change_summary: string
+  metadata_diff:
+    added: object
+    changed: object
+    removed: string[]
+  draft_status: enum[draft,review]
+  updated_at: datetime

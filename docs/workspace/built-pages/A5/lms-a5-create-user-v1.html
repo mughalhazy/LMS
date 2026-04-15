@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Create User
+  Archetype: A5 CreationWizard — full wizard (4 steps, WizardStepper P-31 inline)
+  Created  : 2026-03-21
+  Surface  : Admin
+  Repo     : user-service · rbac-service
+  Sections : Identity → Role → Department & Profile → System (per archetype system spec)
+  Fields   : CreateUserRequest: user_id (BG-090) · email · username · first_name · last_name
+               display_name · locale · timezone · title · department · external_subject_id (BG-092)
+             NOT in CreateUserRequest: phone_number · avatar_url (BG-091 — UpdateUserRequest only)
+  Endpoints: POST /api/v1/users                    → CreateUserRequest → UserResponse (201)
+             POST /api/v1/users/{id}/role-links    → RoleLinkRequest (fired per role, after creation)
+             GET  /api/v1/rbac/roles               → available roles for Role section
+  Gaps     : BG-090 (user_id must be client-generated — no auto-generation in user-service)
+             BG-091 (phone_number and avatar_url absent from CreateUserRequest)
+             BG-092 (external_subject_id is untyped str|None — no documented format)
+             BG-093 (no invite/welcome email endpoint — user notified separately)
+             DG-002 (A5 simple variant not yet formally documented in design system v1.4)
+  Patterns : Simple variant — all 4 sections on one page, no step navigation
+             Validate required fields on blur (design system form behavior rule)
+             Role links fired as separate POST calls after user creation (BG-062)
+             user_id auto-generated as UUID on page load (BG-090 workaround)
+  CSS base : Copied verbatim from lms-a4-edit-user-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Create User</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* LAYOUT — stack, no sidebar */
+.layout{display:flex;flex-direction:column;min-height:100vh;}
+
+/* TOPBAR */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);position:sticky;top:0;z-index:20;flex-shrink:0;gap:6px;}
+.tb-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+
+/* PAGE HEADER — creation variant */
+.page-header{background:var(--white);border-bottom:1px solid var(--border);padding:20px var(--pp);}
+.ph-top{display:flex;align-items:center;gap:14px;}
+.ph-icon{width:44px;height:44px;border-radius:50%;background:var(--accent-lt);color:var(--accent);font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(91,91,214,.15);}
+.ph-identity{flex:1;min-width:0;}
+.ph-name{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);line-height:1.2;}
+.ph-sub{font-size:13px;color:var(--ink-3);margin-top:3px;}
+
+/* CANVAS */
+.canvas{flex:1;padding:28px var(--pp);padding-bottom:calc(var(--action-bar-h) + 28px);max-width:800px;width:100%;margin:0 auto;}
+
+/* FORM SECTION CARDS */
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.fs-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:20px;}
+
+/* FIELD GRID */
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+
+/* FORM FIELDS */
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input:disabled{background:var(--subtle);color:var(--ink-3);cursor:not-allowed;}
+.field-input.readonly{background:var(--subtle);color:var(--ink-2);cursor:default;}
+.field-input.has-error{border-color:var(--red);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+.field-error{font-size:11px;color:var(--red);line-height:1.4;display:none;}
+.field-error.visible{display:block;}
+
+/* ROLE LIST */
+.role-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+.role-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);}
+.role-name{flex:1;font-size:13px;font-weight:600;color:var(--ink);}
+.role-key{font-family:monospace;font-size:11px;color:var(--ink-3);background:var(--white);border:1px solid var(--border);border-radius:3px;padding:1px 5px;}
+.role-remove{font-size:12px;color:var(--ink-3);cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--white);font-family:var(--font);font-weight:500;transition:all 100ms;}
+.role-remove:hover{border-color:var(--red-bd);color:var(--red);background:var(--red-bg);}
+.role-empty{font-size:13px;color:var(--ink-3);padding:4px 0 10px;}
+.add-role-row{display:flex;gap:8px;}
+.add-role-select{flex:1;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;cursor:pointer;}
+.add-role-select:focus{border-color:var(--border-focus);}
+
+/* SUMMARY ROW */
+.summary-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:140px;flex-shrink:0;padding-top:1px;}
+.summary-value{font-size:13px;color:var(--ink);flex:1;}
+.summary-value.empty{color:var(--ink-4);font-style:italic;}
+.invite-note{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--r-sm);margin-top:16px;}
+.invite-note-text{font-size:12px;color:var(--amber);line-height:1.5;}
+
+/* ACTION BUTTONS */
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ACTION BAR — fixed bottom */
+.action-bar{position:fixed;bottom:0;left:0;right:0;height:var(--action-bar-h);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 8px rgba(0,0,0,.04);}
+.action-bar-status{flex:1;font-size:12px;color:var(--ink-3);}
+
+/* SKELETON */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* WIZARD STEPPER (P-31 inline) */
+.wizard-nav{background:var(--white);border-bottom:1px solid var(--border);padding:18px var(--pp);}
+.wz-steps{display:flex;align-items:flex-start;max-width:752px;margin:0 auto;}
+.wz-step{display:flex;flex-direction:column;align-items:center;flex:1;}.wz-step:last-child{flex:0 0 auto;}
+.wz-head{display:flex;align-items:center;width:100%;}
+.wz-circle{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--ink-3);flex-shrink:0;transition:all 150ms;}
+.wz-step.done .wz-circle{background:var(--green);border-color:var(--green);color:white;}
+.wz-step.active .wz-circle{background:var(--accent);border-color:var(--accent);color:white;}
+.wz-line{flex:1;height:1px;background:var(--border);margin:0 6px 2px;transition:background 150ms;}
+.wz-step.done .wz-line{background:var(--green);}
+.wz-label{font-size:11px;font-weight:600;color:var(--ink-4);margin-top:5px;text-align:center;}
+.wz-step.active .wz-label{color:var(--accent);}.wz-step.done .wz-label{color:var(--green);}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back">← Users</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-page">Create User</span>
+    <div class="tb-r">
+      <div class="tb-notif">🔔<div class="npip"></div></div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="ph-top">
+      <div class="ph-icon">＋</div>
+      <div class="ph-identity">
+        <div class="ph-name">Create New User</div>
+        <div class="ph-sub">Add a new user to the organisation. Required fields are marked *</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIZARD STEPPER -->
+  <div class="wizard-nav">
+    <div class="wz-steps">
+      <div class="wz-step active" id="wz-step-1">
+        <div class="wz-head"><div class="wz-circle">1</div><div class="wz-line"></div></div>
+        <div class="wz-label">Identity</div>
+      </div>
+      <div class="wz-step" id="wz-step-2">
+        <div class="wz-head"><div class="wz-circle">2</div><div class="wz-line"></div></div>
+        <div class="wz-label">Role</div>
+      </div>
+      <div class="wz-step" id="wz-step-3">
+        <div class="wz-head"><div class="wz-circle">3</div><div class="wz-line"></div></div>
+        <div class="wz-label">Dept &amp; Profile</div>
+      </div>
+      <div class="wz-step" id="wz-step-4">
+        <div class="wz-head"><div class="wz-circle">4</div></div>
+        <div class="wz-label">Review &amp; Create</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+
+    <!-- SECTION 1: IDENTITY -->
+    <div class="form-section" id="section-identity">
+      <div class="fs-title">1 — Identity</div>
+      <div class="field-grid">
+        <div class="field">
+          <label class="field-label">First Name <span class="req">*</span></label>
+          <input class="field-input" id="f-first-name" type="text" placeholder="e.g. Maya" autocomplete="given-name">
+          <span class="field-error" id="err-first-name">First name is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Last Name <span class="req">*</span></label>
+          <input class="field-input" id="f-last-name" type="text" placeholder="e.g. Singh" autocomplete="family-name">
+          <span class="field-error" id="err-last-name">Last name is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Email <span class="req">*</span></label>
+          <input class="field-input" id="f-email" type="email" placeholder="e.g. maya.singh@acme.com" autocomplete="email">
+          <span class="field-error" id="err-email">A valid email address is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Username <span class="req">*</span></label>
+          <input class="field-input" id="f-username" type="text" placeholder="e.g. maya.singh" autocomplete="username">
+          <span class="field-error" id="err-username">Username is required.</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label">Display Name <span class="opt">(optional — defaults to first + last name)</span></label>
+          <input class="field-input" id="f-display-name" type="text" placeholder="e.g. Maya Singh">
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: ROLE -->
+    <!-- BG-062: role display names pre-joined — no display name on role_links -->
+    <!-- Role links fired as separate POST /users/{id}/role-links after user creation -->
+    <div class="form-section" id="section-role">
+      <div class="fs-title">2 — Role</div>
+      <div class="role-list" id="role-list">
+        <div class="role-empty">No roles assigned yet. Select a role below.</div>
+      </div>
+      <div class="add-role-row">
+        <select class="add-role-select" id="add-role-select">
+          <option value="">Select a role to assign…</option>
+          <option value="role_instructor_001|Instructor|instructor">Instructor</option>
+          <option value="role_content_editor_001|Content Editor|content_editor">Content Editor</option>
+          <option value="role_reporting_viewer_001|Reporting Viewer|reporting_viewer">Reporting Viewer</option>
+        </select>
+        <button class="btn-g" onclick="addRole()" style="flex-shrink:0;">Add Role</button>
+      </div>
+    </div>
+
+    <!-- SECTION 3: DEPARTMENT & PROFILE -->
+    <!-- BG-080: department is str|None — no FK to org-service -->
+    <!-- BG-091: phone_number absent from CreateUserRequest — only on UpdateUserRequest -->
+    <div class="form-section" id="section-dept">
+      <div class="fs-title">3 — Department &amp; Profile</div>
+      <div class="field-grid">
+        <div class="field field-full">
+          <label class="field-label">Department <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-department" type="text" placeholder="e.g. Engineering">
+          <span class="field-hint">Free text — no department lookup available.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Job Title <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-title" type="text" placeholder="e.g. Senior Instructor">
+        </div>
+        <div class="field">
+          <!-- BG-081: locale is free string — no enum from API -->
+          <label class="field-label">Locale <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-locale" type="text" placeholder="e.g. en-GB">
+        </div>
+        <div class="field">
+          <!-- BG-081: timezone is free string — no enum from API -->
+          <label class="field-label">Timezone <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-timezone" type="text" placeholder="e.g. Europe/London">
+        </div>
+        <div class="field field-full">
+          <label class="field-label">External Subject ID <span class="opt">(optional)</span></label>
+          <!-- BG-092: external_subject_id untyped str|None — no documented format -->
+          <input class="field-input" id="f-external-subject" type="text" placeholder="SSO or external IdP subject reference">
+          <span class="field-hint">Link to an external identity provider subject. Leave blank if not applicable.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: REVIEW & CREATE -->
+    <!-- BG-090: user_id auto-generated — no ID generation endpoint in user-service -->
+    <!-- BG-093: no invite/welcome email endpoint — user notified separately -->
+    <div class="form-section" id="section-review">
+      <div class="fs-title">4 — Review &amp; Create</div>
+      <div id="summary-rows"></div>
+      <div class="invite-note">
+        <span class="invite-note-text">No automated welcome email will be sent — user-service has no invite endpoint. Notify the user manually after account creation.</span>
+      </div>
+    </div>
+
+  </div><!-- /canvas -->
+
+</div><!-- /layout -->
+
+<!-- ACTION BAR -->
+<div class="action-bar">
+  <div class="action-bar-status">
+    <span id="action-status-text">Fill in identity details to continue.</span>
+  </div>
+  <button class="btn-g" onclick="handleCancel()">Cancel</button>
+  <button class="btn-g" id="btn-back" style="display:none;" onclick="goBack()">← Back</button>
+  <button class="btn-primary" id="btn-next" onclick="goNext()">Next →</button>
+  <button class="btn-primary" id="btn-create" style="display:none;" onclick="handleCreate()">Create User</button>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb"    onclick="setState('submitting',this)">Submitting</button>
+  <button class="stb"    onclick="setState('error',this)">Error</button>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+   MOCK DATA
+   rbac-service — available roles
+   GET /api/v1/rbac/roles
+   ────────────────────────────────────────────── */
+const AVAILABLE_ROLES = [
+  { role_id:'role_instructor_001',       display_name:'Instructor',       role_key:'instructor'       },
+  { role_id:'role_content_editor_001',   display_name:'Content Editor',   role_key:'content_editor'   },
+  { role_id:'role_reporting_viewer_001', display_name:'Reporting Viewer', role_key:'reporting_viewer' },
+];
+
+/* working role list — fired as separate POST /role-links after user creation */
+let _roles = [];
+
+/* ── wizard navigation ── */
+const SECTIONS = ['section-identity','section-role','section-dept','section-review'];
+const TOTAL = SECTIONS.length;
+let _step = 1;
+const MSGS = [
+  'Fill in identity details to continue.',
+  'Assign roles to this user.',
+  'Add department and profile details.',
+  'Review and confirm the account details.',
+];
+
+function goTo(n){
+  if(n < 1 || n > TOTAL) return;
+  SECTIONS.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = i === n-1 ? '' : 'none';
+  });
+  _step = n;
+  window.scrollTo({top:0, behavior:'smooth'});
+  updateWizardNav();
+  updateActionBar();
+  if(_step === TOTAL) renderSummary();
+}
+
+function goNext(){
+  if(_step === 1 && !validateStep1()){
+    document.getElementById(SECTIONS[0]).scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  goTo(_step + 1);
+}
+
+function goBack(){ goTo(_step - 1); }
+
+function updateWizardNav(){
+  for(let i = 1; i <= TOTAL; i++){
+    const el = document.getElementById('wz-step-' + i);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i < _step) el.classList.add('done');
+    else if(i === _step) el.classList.add('active');
+  }
+}
+
+function updateActionBar(){
+  document.getElementById('action-status-text').textContent = MSGS[_step-1];
+  const isLast = _step === TOTAL;
+  document.getElementById('btn-back').style.display   = _step > 1 ? '' : 'none';
+  document.getElementById('btn-next').style.display   = isLast ? 'none' : '';
+  document.getElementById('btn-create').style.display = isLast ? '' : 'none';
+}
+
+function validateStep1(){
+  return ['f-first-name','f-last-name','f-email','f-username'].map(validateField).every(Boolean);
+}
+
+/* ──────────────────────────────────────────────
+   BG-090: user_id auto-generated UUID
+   user-service expects "Canonical User id from Rails User model"
+   UI workaround: generate UUID v4 client-side
+   ────────────────────────────────────────────── */
+function uuidv4(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0;
+    return (c==='x'?r:(r&0x3|0x8)).toString(16);
+  });
+}
+const _generatedId = uuidv4();
+
+/* ── role add/remove ── */
+function renderRoles(){
+  const list = document.getElementById('role-list');
+  if(!list) return;
+  list.innerHTML = _roles.length === 0
+    ? `<div class="role-empty">No roles assigned yet. Select a role below.</div>`
+    : _roles.map(r=>`
+        <div class="role-row">
+          <span class="role-name">${r.display_name}</span>
+          <span class="role-key">${r.role_key}</span>
+          <button class="role-remove" onclick="removeRole('${r.role_id}')">Remove</button>
+        </div>`).join('');
+  renderSummary();
+}
+
+function addRole(){
+  const sel = document.getElementById('add-role-select');
+  const val = sel.value;
+  if(!val) return;
+  const [role_id, display_name, role_key] = val.split('|');
+  if(_roles.find(r=>r.role_id===role_id)) return;
+  _roles.push({ role_id, display_name, role_key });
+  sel.value = '';
+  renderRoles();
+}
+
+function removeRole(id){
+  _roles = _roles.filter(r=>r.role_id!==id);
+  renderRoles();
+}
+
+/* ── summary (section 4) ── */
+function renderSummary(){
+  const el = document.getElementById('summary-rows');
+  if(!el) return;
+  const v = id => document.getElementById(id)?.value?.trim() || '';
+  const row = (label, value) =>
+    `<div class="summary-row">
+      <span class="summary-label">${label}</span>
+      <span class="summary-value ${value?'':'empty'}">${value || '—'}</span>
+    </div>`;
+
+  el.innerHTML =
+    row('Name',        [v('f-first-name'), v('f-last-name')].filter(Boolean).join(' ')) +
+    row('Display Name', v('f-display-name')) +
+    row('Email',       v('f-email')) +
+    row('Username',    v('f-username')) +
+    row('Roles',       _roles.map(r=>r.display_name).join(', ')) +
+    row('Department',  v('f-department')) +
+    row('Job Title',   v('f-title')) +
+    row('Locale',      v('f-locale')) +
+    row('Timezone',    v('f-timezone')) +
+    row('User ID',     _generatedId);
+}
+
+/* update summary on any input change */
+document.addEventListener('input', e=>{
+  if(e.target.classList.contains('field-input')) renderSummary();
+});
+
+/* ── validation ── */
+const VALIDATORS = {
+  'f-first-name': { errId:'err-first-name', test: v => v.trim().length > 0 },
+  'f-last-name':  { errId:'err-last-name',  test: v => v.trim().length > 0 },
+  'f-email':      { errId:'err-email',      test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) },
+  'f-username':   { errId:'err-username',   test: v => v.trim().length > 0 },
+};
+
+function validateField(inputId){
+  const rule = VALIDATORS[inputId];
+  if(!rule) return true;
+  const val = document.getElementById(inputId)?.value || '';
+  const valid = rule.test(val);
+  document.getElementById(inputId)?.classList.toggle('has-error', !valid);
+  const errEl = document.getElementById(rule.errId);
+  if(errEl) errEl.classList.toggle('visible', !valid);
+  return valid;
+}
+
+function validateAll(){
+  return Object.keys(VALIDATORS).map(validateField).every(Boolean);
+}
+
+function attachValidators(){
+  Object.keys(VALIDATORS).forEach(id=>{
+    document.getElementById(id)?.addEventListener('blur', ()=>{ validateField(id); renderSummary(); });
+  });
+}
+
+/* ── create / cancel ── */
+function handleCreate(){
+  if(!validateAll()){
+    document.getElementById('action-status-text').textContent = 'Please fix the errors above before continuing.';
+    document.getElementById('section-identity').scrollIntoView({behavior:'smooth'});
+    return;
+  }
+  const _stb = [...document.querySelectorAll('.stb')].find(b => b.textContent.trim() === 'Submitting');
+  setState('submitting', _stb);
+}
+
+function handleCancel(){
+  /* navigate back to users list */
+}
+
+/* ── state switcher ── */
+const _formHTML = document.getElementById('canvas').innerHTML;
+
+function setState(s, btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+
+  if(s === 'loaded'){
+    document.getElementById('canvas').innerHTML = _formHTML;
+    _roles = [];
+    document.getElementById('f-user-id-display') && (document.getElementById('f-user-id-display').value = _generatedId);
+    attachValidators();
+    renderRoles();
+    renderSummary();
+    document.addEventListener('input', e=>{ if(e.target.classList.contains('field-input')) renderSummary(); });
+    goTo(1);
+
+  } else if(s === 'submitting'){
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:48px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:16px;">⏳</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Creating account…</div>
+          <div style="font-size:13px;color:var(--ink-3);">POST /api/v1/users — please wait.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'Creating user…';
+    document.getElementById('btn-create').disabled = true;
+
+  } else if(s === 'error'){
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:40px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Could not create user</div>
+          <div style="font-size:13px;color:var(--ink-3);">Could not reach user-service. Please try again.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'An error occurred.';
+    document.getElementById('btn-create').disabled = false;
+  }
+}
+
+/* init */
+attachValidators();
+renderRoles();
+renderSummary();
+goTo(1);
+</script>
+</body>
+</html>

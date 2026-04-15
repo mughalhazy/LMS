@@ -1,0 +1,38 @@
+{
+  "event_type": "learning_path_progress_updated",
+  "event_version": "v1",
+  "topic": "lms.progress.learning_path_progress_updated.v1",
+  "producer_service": "progress-service",
+  "description": "Published when learner progress changes for an assigned learning path.",
+  "consumers": [
+    "analytics-service",
+    "recommendation-service",
+    "learner-profile-service",
+    "manager-dashboard-service",
+    "notification-service"
+  ],
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "correlation_id": "uuid",
+    "learner_id": "uuid",
+    "learning_path_id": "uuid",
+    "assigned_course_ids": "uuid[]",
+    "completed_course_ids": "uuid[]",
+    "progress_percentage": "number",
+    "current_course_id": "uuid|null",
+    "status": "string",
+    "last_activity_at": "date-time",
+    "expected_completion_date": "date"
+  },
+  "required_fields": [
+    "tenant_id",
+    "correlation_id",
+    "learner_id",
+    "learning_path_id",
+    "assigned_course_ids",
+    "completed_course_ids",
+    "progress_percentage",
+    "status",
+    "last_activity_at"
+  ]
+}

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Profile Overview
+  Archetype: A10 Profile — Sidebar layout
+  Created  : 2026-03-24
+  Surface  : Learner
+  Repo     :
+    user-service:
+      GET  /api/v1/users/{user_id}?tenant_id=     → UserResponse { user: UserAggregate }
+           UserAggregate: { tenant_id, user_id, status, identity: { email, username },
+                            profile: { first_name, last_name, display_name, locale, timezone,
+                                       title, department, phone_number, avatar_url },
+                            role_links, created_at, updated_at }
+      PUT  /api/v1/users/{user_id}                → UpdateUserRequest (used by Account Settings, not this page)
+    progress-service:
+      GET  /api/v1/progress/learners/{learner_id}?tenant_id= → LearnerProgressSummaryResponse
+           { courses: [CourseProgressResponse], lessons: [...], learning_paths: [...] }
+           CourseProgressResponse: { course_id, enrollment_id, completion_status,
+                                     progress_percentage, final_score, started_at, completed_at,
+                                     total_time_spent_seconds, certificate_id }
+    badge-service:
+      GET  /learners/{learner_id}/badges?tenant_id= → BadgeIssuanceOut[]
+           BadgeIssuanceOut: { issuance_id, badge_id, learner_id, issued_at, status, evidence }
+      GET  /badges?tenant_id=                       → BadgeDefinitionOut[]
+           BadgeDefinitionOut: { badge_id, code, title, description, image_url, status }
+    certificate-service:
+      GET  /api/v1/certificates/{certificate_id}  → CertificateResponse (by known ID only)
+           No list endpoint — BG-133
+  Gaps     : BG-133 — certificate-service no list endpoint; certificates derived from
+             CourseProgressResponse.certificate_id, detail cards mocked
+  Patterns : A10 Profile Sidebar · Overview active
+             CSS base: lms-a9-localization-v1.html (:root verbatim)
+             Learner surface: --pp:32px · body:14px · lh:1.7 · no zoom adjustment
+             P-77 word-spacing on multi-word section titles
+  Mock     : USER (UserAggregate) · PROGRESS (LearnerProgressSummaryResponse) · BADGES (BadgeIssuanceOut[])
+  Sections : Profile Sidebar (avatar + nav) · KPI row · In Progress · Recent Achievements · Certificates
+  Tabs     : Overview (active) · Activity History
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — My Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a9-localization-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --gold:#78350F;--gold-bg:#FFFBEB;--gold-bd:rgba(245,158,11,.2);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:32px;--body-size:14px;--lh:1.7;
+  --profile-nav-w:260px;--topbar-h:56px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* ── TOPBAR ── */
+.topbar{height:var(--topbar-h);background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;position:sticky;top:0;z-index:30;}
+.tb-logo{font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.tb-section{font-size:14px;font-weight:500;color:var(--ink-2);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.tb-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);}
+.tb-name{font-size:13px;font-weight:600;color:var(--ink-2);}
+
+/* ── A10 PROFILE LAYOUT ── */
+.profile-shell{display:flex;min-height:calc(100vh - var(--topbar-h));}
+
+/* ── PROFILE SIDEBAR ── */
+.profile-nav{width:var(--profile-nav-w);flex-shrink:0;background:var(--white);border-right:1px solid var(--border);position:sticky;top:var(--topbar-h);height:calc(100vh - var(--topbar-h));overflow-y:auto;display:flex;flex-direction:column;}
+.pnav-card{padding:28px 20px 20px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;align-items:center;text-align:center;}
+.pnav-avatar{width:72px;height:72px;border-radius:50%;background:var(--accent-lt);border:2px solid rgba(91,91,214,.2);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:var(--accent);margin-bottom:12px;}
+.pnav-name{font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+.pnav-title{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:3px;}
+.pnav-email{font-size:11px;font-weight:500;color:var(--ink-3);margin-top:4px;}
+.pnav-status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);margin-top:10px;}
+.pnav-body{padding:12px 12px;flex:1;}
+.pnav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;width:100%;border:none;background:transparent;text-align:left;font-family:var(--font);}
+.pnav-item:hover{background:var(--subtle);color:var(--ink-2);}
+.pnav-item.active{background:var(--accent-lt);color:var(--accent);font-weight:700;}
+.pnav-item-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+.pnav-foot{padding:12px 16px;border-top:1px solid var(--border);font-size:11px;font-weight:500;color:var(--ink-4);}
+
+/* ── PROFILE CONTENT ── */
+.profile-content{flex:1;padding:var(--pp);overflow-y:auto;}
+.content-head{margin-bottom:28px;}
+.content-title{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-0.03em;}
+.content-sub{font-size:14px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.6;}
+
+/* ── TABS ── */
+.tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;}
+.tab{padding:10px 16px;font-size:13px;font-weight:600;color:var(--ink-3);border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 120ms;font-family:var(--font);}
+.tab:hover{color:var(--ink-2);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* ── KPI ROW ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+.kpi-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);padding:20px 20px 18px;}
+.kpi-val{font-size:32px;font-weight:800;color:var(--ink);letter-spacing:-0.04em;line-height:1;}
+.kpi-label{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:8px;}
+.kpi-delta{font-size:11px;font-weight:600;color:var(--green);margin-top:4px;}
+
+/* ── SECTION ── */
+.section{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);margin-bottom:20px;overflow:hidden;}
+.sec-head{padding:20px 24px 0;}
+.sec-title{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;word-spacing:0.08em;}
+.sec-desc{font-size:13px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.6;}
+.sec-divider{height:1px;background:var(--border);margin:16px 0;}
+.sec-body{padding:0 24px 24px;}
+
+/* ── COURSE PROGRESS CARDS ── */
+.course-list{display:flex;flex-direction:column;gap:14px;}
+.course-card{display:flex;align-items:center;gap:16px;padding:16px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);}
+.course-icon{width:40px;height:40px;border-radius:var(--r-sm);background:var(--accent-lt);border:1px solid rgba(91,91,214,.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.course-info{flex:1;min-width:0;}
+.course-name{font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.course-meta{font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;}
+.progress-bar-wrap{margin-top:8px;background:var(--border);border-radius:var(--r-pill);height:5px;overflow:hidden;}
+.progress-bar-fill{height:100%;border-radius:var(--r-pill);background:var(--accent);transition:width 400ms ease-out;}
+.course-pct{font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;}
+.btn-resume{padding:8px 16px;border-radius:var(--r-sm);border:none;font-family:var(--font);font-size:12px;font-weight:700;background:var(--accent);color:white;cursor:pointer;flex-shrink:0;transition:background 120ms;}
+.btn-resume:hover{background:#4d4dbf;}
+
+/* ── BADGE GRID ── */
+.badge-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.badge-card{display:flex;flex-direction:column;align-items:center;text-align:center;padding:20px 16px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);}
+.badge-icon{width:52px;height:52px;border-radius:50%;background:var(--gold-bg);border:2px solid var(--gold-bd);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:10px;}
+.badge-name{font-size:13px;font-weight:700;color:var(--ink);}
+.badge-desc{font-size:11px;font-weight:500;color:var(--ink-3);margin-top:4px;line-height:1.5;}
+.badge-date{font-size:10px;font-weight:500;color:var(--ink-4);margin-top:8px;}
+
+/* ── CERTIFICATE LIST ── */
+.cert-list{display:flex;flex-direction:column;gap:12px;}
+.cert-row{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);}
+.cert-icon{width:36px;height:36px;border-radius:var(--r-sm);background:var(--gold-bg);border:1px solid var(--gold-bd);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.cert-info{flex:1;}
+.cert-name{font-size:13px;font-weight:700;color:var(--ink);}
+.cert-meta{font-size:11px;font-weight:500;color:var(--ink-3);margin-top:2px;}
+.cert-code{font-family:'SF Mono','Fira Code',monospace;font-size:10px;font-weight:400;color:var(--ink-4);}
+.btn-view{padding:6px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;flex-shrink:0;transition:all 120ms;}
+.btn-view:hover{background:var(--subtle);}
+
+/* ── SKELETON ── */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* ── STATE BAR ── */
+.state-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:var(--r-pill);padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── ERROR ── */
+.error-block{display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px 24px;text-align:center;}
+.error-icon{font-size:28px;color:var(--red);}
+.error-msg{font-size:14px;font-weight:700;color:var(--ink);}
+.error-sub{font-size:13px;font-weight:500;color:var(--ink-3);}
+.btn-retry{padding:8px 18px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;margin-top:4px;}
+.btn-retry:hover{background:var(--subtle);}
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <span class="tb-logo">◆ LMS</span>
+  <div class="tb-divider"></div>
+  <span class="tb-section">My Profile</span>
+  <div class="tb-r">
+    <div class="tb-avatar">AJ</div>
+    <span class="tb-name">Alex Johnson</span>
+  </div>
+</div>
+
+<div class="profile-shell">
+
+  <!-- ── PROFILE SIDEBAR ── -->
+  <nav class="profile-nav">
+    <div class="pnav-card">
+      <div class="pnav-avatar">AJ</div>
+      <div class="pnav-name">Alex Johnson</div>
+      <div class="pnav-title">Senior Product Manager &nbsp;·&nbsp; Product</div>
+      <div class="pnav-email">alex.johnson@company.com</div>
+      <span class="pnav-status">● Active</span>
+    </div>
+    <div class="pnav-body">
+      <button class="pnav-item active"><span class="pnav-item-icon">👤</span>Overview</button>
+      <button class="pnav-item"><span class="pnav-item-icon">📅</span>Activity History</button>
+      <button class="pnav-item"><span class="pnav-item-icon">🏅</span>Badges</button>
+      <button class="pnav-item"><span class="pnav-item-icon">🎓</span>Certificates</button>
+      <button class="pnav-item"><span class="pnav-item-icon">⚙️</span>Account Settings</button>
+    </div>
+    <div class="pnav-foot">Member since Jan 2025</div>
+  </nav>
+
+  <!-- ── PROFILE CONTENT ── -->
+  <main class="profile-content" id="sections-canvas">
+
+    <div class="content-head">
+      <div class="content-title">Alex Johnson</div>
+      <div class="content-sub">Senior Product Manager &nbsp;·&nbsp; Product Department</div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar">
+      <button class="tab active" onclick="switchTab('overview', this)">Overview</button>
+      <button class="tab" onclick="switchTab('activity', this)">Activity History</button>
+    </div>
+
+    <!-- OVERVIEW TAB CONTENT -->
+    <div id="tab-overview">
+
+      <!-- KPI ROW: from LearnerProgressSummaryResponse -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-val">2</div>
+          <div class="kpi-label">Courses Completed</div>
+          <div class="kpi-delta">↑ 1 this month</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">2</div>
+          <div class="kpi-label">Courses In Progress</div>
+          <div class="kpi-delta" style="color:var(--ink-3);">62% avg progress</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">14.8</div>
+          <div class="kpi-label">Learning Hours</div>
+          <div class="kpi-delta">↑ 2.4h this week</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">2</div>
+          <div class="kpi-label">Certificates Earned</div>
+          <div class="kpi-delta" style="color:var(--ink-3);">Avg score 91%</div>
+        </div>
+      </div>
+
+      <!-- IN PROGRESS: from progress-service CourseProgressResponse -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">In Progress</div>
+          <div class="sec-desc">Pick up where you left off.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="course-list">
+            <div class="course-card">
+              <div class="course-icon">📊</div>
+              <div class="course-info">
+                <div class="course-name">Data-Driven Product Management</div>
+                <div class="course-meta">62% complete · 1h 30m remaining · Started Feb 20</div>
+                <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:62%;"></div></div>
+              </div>
+              <div class="course-pct">62%</div>
+              <button class="btn-resume">Resume →</button>
+            </div>
+            <div class="course-card">
+              <div class="course-icon">🗣</div>
+              <div class="course-info">
+                <div class="course-name">Effective Stakeholder Communication</div>
+                <div class="course-meta">35% complete · 2h 45m remaining · Started Mar 1</div>
+                <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:35%;"></div></div>
+              </div>
+              <div class="course-pct">35%</div>
+              <button class="btn-resume">Resume →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT ACHIEVEMENTS: from badge-service GET /learners/{id}/badges -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Recent Achievements</div>
+          <div class="sec-desc">Badges earned through your learning activity.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="badge-grid">
+            <div class="badge-card">
+              <div class="badge-icon">⚡</div>
+              <div class="badge-name">Fast Learner</div>
+              <div class="badge-desc">Completed a course within 2 days of enrollment</div>
+              <div class="badge-date">Earned Jan 28, 2026</div>
+            </div>
+            <div class="badge-card">
+              <div class="badge-icon">🏆</div>
+              <div class="badge-name">High Achiever</div>
+              <div class="badge-desc">Scored 90% or above on a graded course</div>
+              <div class="badge-date">Earned Jan 28, 2026</div>
+            </div>
+            <div class="badge-card">
+              <div class="badge-icon">🔥</div>
+              <div class="badge-name">Consistent Learner</div>
+              <div class="badge-desc">Learning activity on 7 consecutive days</div>
+              <div class="badge-date">Earned Feb 15, 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CERTIFICATES: certificate_ids from CourseProgressResponse — BG-133: no list endpoint -->
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Certificates</div>
+          <div class="sec-desc">Credentials earned on completed courses.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div class="cert-list">
+            <div class="cert-row">
+              <div class="cert-icon">🎓</div>
+              <div class="cert-info">
+                <div class="cert-name">Agile for Product Managers</div>
+                <div class="cert-meta">Completed Jan 28, 2026 · Score: 94%</div>
+                <div class="cert-code">cert-001 · Verification: VRF-2026-00841</div>
+              </div>
+              <button class="btn-view">View →</button>
+            </div>
+            <div class="cert-row">
+              <div class="cert-icon">🎓</div>
+              <div class="cert-info">
+                <div class="cert-name">OKR Framework Fundamentals</div>
+                <div class="cert-meta">Completed Feb 15, 2026 · Score: 88%</div>
+                <div class="cert-code">cert-002 · Verification: VRF-2026-01127</div>
+              </div>
+              <button class="btn-view">View →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end #tab-overview -->
+
+    <!-- ACTIVITY HISTORY TAB (hidden by default) -->
+    <div id="tab-activity" style="display:none;">
+      <div class="section">
+        <div class="sec-head">
+          <div class="sec-title">Activity History</div>
+          <div class="sec-desc">Your learning events in chronological order.</div>
+          <div class="sec-divider"></div>
+        </div>
+        <div class="sec-body">
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <!-- Activity items from UserLifecycleEvent + LearnerProgressSummaryResponse -->
+            <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Completed course: OKR Framework Fundamentals</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">Score: 88% · 3h learning · Feb 15, 2026</div></div>
+            </div>
+            <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--green);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Earned badge: Consistent Learner</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">7-day learning streak · Feb 15, 2026</div></div>
+            </div>
+            <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--border-s);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Started course: Effective Stakeholder Communication</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">Enrolled · Mar 1, 2026</div></div>
+            </div>
+            <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--border-s);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Completed course: Agile for Product Managers</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">Score: 94% · 4h learning · Jan 28, 2026</div></div>
+            </div>
+            <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--border-s);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Earned badge: Fast Learner + High Achiever</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">Course completion · Jan 28, 2026</div></div>
+            </div>
+            <div style="display:flex;gap:14px;padding:14px 0;">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--border-s);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:13px;font-weight:600;color:var(--ink);">Started course: Agile for Product Managers</div><div style="font-size:12px;font-weight:500;color:var(--ink-3);margin-top:2px;">Enrolled · Jan 10, 2026</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── STATE BAR (dev tool) ── -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb" onclick="setState('skeleton',this)">Skeleton</button>
+  <button class="stb" onclick="setState('error',this)">Error</button>
+</div>
+
+<script>
+const LOADED_HTML = document.getElementById('sections-canvas').innerHTML;
+
+/* ── TABS ── */
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-overview').style.display  = tab === 'overview'  ? '' : 'none';
+  document.getElementById('tab-activity').style.display  = tab === 'activity'  ? '' : 'none';
+}
+
+/* ── PAGE STATES ── */
+function renderSkeleton() {
+  const c = document.getElementById('sections-canvas');
+  c.innerHTML = `
+    <div class="content-head">
+      <div class="sk" style="height:28px;width:32%;border-radius:4px;"></div>
+      <div class="sk" style="height:14px;width:48%;border-radius:4px;margin-top:8px;"></div>
+    </div>
+    <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;padding-bottom:10px;">
+      <div class="sk" style="height:14px;width:80px;border-radius:4px;"></div>
+      <div class="sk" style="height:14px;width:112px;border-radius:4px;"></div>
+    </div>
+    <div class="kpi-row">
+      ${[1,2,3,4].map(() => `
+        <div style="background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:20px;">
+          <div class="sk" style="height:32px;width:52px;border-radius:4px;margin-bottom:10px;"></div>
+          <div class="sk" style="height:12px;width:80%;border-radius:4px;"></div>
+        </div>`).join('')}
+    </div>
+    ${[1,2].map(() => `
+    <div class="section" style="padding:20px 24px 24px;">
+      <div class="sk" style="height:16px;width:28%;margin-bottom:8px;border-radius:4px;"></div>
+      <div class="sk" style="height:13px;width:50%;margin-bottom:16px;border-radius:4px;"></div>
+      <div style="height:1px;background:var(--border);margin-bottom:16px;"></div>
+      ${[1,2].map(() => `
+      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--subtle);border-radius:var(--r-sm);border:1px solid var(--border);margin-bottom:10px;">
+        <div class="sk" style="width:40px;height:40px;border-radius:var(--r-sm);flex-shrink:0;"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div class="sk" style="height:14px;width:60%;"></div>
+          <div class="sk" style="height:11px;width:45%;"></div>
+          <div class="sk" style="height:5px;width:100%;border-radius:var(--r-pill);"></div>
+        </div>
+        <div class="sk" style="height:32px;width:84px;border-radius:var(--r-sm);"></div>
+      </div>`).join('')}
+    </div>`).join('')}`;
+}
+
+function renderError() {
+  const c = document.getElementById('sections-canvas');
+  c.innerHTML = `
+    <div class="content-head">
+      <div class="content-title">My Profile</div>
+      <div class="content-sub">Couldn't load your profile data.</div>
+    </div>
+    <div class="section">
+      <div class="error-block">
+        <div class="error-icon">✕</div>
+        <div class="error-msg">Couldn't load profile</div>
+        <div class="error-sub">Check your connection and try again.</div>
+        <button class="btn-retry" onclick="setState('loaded',document.querySelector('.stb'))">Retry</button>
+      </div>
+    </div>`;
+}
+
+function renderLoaded() {
+  document.getElementById('sections-canvas').innerHTML = LOADED_HTML;
+}
+
+function setState(s, btn) {
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  if (s === 'loaded')   renderLoaded();
+  if (s === 'skeleton') renderSkeleton();
+  if (s === 'error')    renderError();
+}
+</script>
+</body>
+</html>

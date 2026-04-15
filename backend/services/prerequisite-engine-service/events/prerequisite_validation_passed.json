@@ -1,0 +1,36 @@
+{
+  "event_type": "prerequisite_validation_passed",
+  "domain": "prerequisite_engine",
+  "version": "1.0.0",
+  "producer_service": "prerequisite-engine-service",
+  "consumer_services": [
+    "enrollment-service",
+    "learning-path-service",
+    "notification-service",
+    "audit-service",
+    "analytics-service"
+  ],
+  "description": "Published when prerequisite evaluation succeeds and learner progression or enrollment is approved.",
+  "trigger": "A learner enrollment or progression attempt satisfies all required prerequisite nodes.",
+  "payload": {
+    "evaluation_id": "string(uuid)",
+    "tenant_id": "string",
+    "learner_id": "string",
+    "context_type": "string(enum: course_enrollment | learning_path_progression)",
+    "target_id": "string",
+    "rule_id": "string(uuid)",
+    "rule_type": "string(enum: course_prerequisite | learning_path_dependency)",
+    "enrollment_decision": "string(enum: approved)",
+    "evaluated_nodes": [
+      {
+        "node_id": "string",
+        "result": "string(enum: passed)",
+        "completion_source": "string(enum: transcript | equivalency)",
+        "completed_at": "string(date-time)|null"
+      }
+    ],
+    "policy_version": "string",
+    "evaluated_at": "string(date-time)",
+    "trace_id": "string"
+  }
+}

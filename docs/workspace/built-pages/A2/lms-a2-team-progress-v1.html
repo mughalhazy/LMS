@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<!-- LMS A2 — Team Progress (Manager)
+     Version  : v1.0
+     Surface  : Manager
+     Archetype: A2 ResourceList — table variant
+     Created  : 2026-03-21
+     Template : lms-a2-users-list.html (copy + adjust for Manager surface)
+     Repo     : user-service · progress-service · enrollment-service
+     Fields   : UserAggregate: user_id · status (UserStatus: provisioned|active|suspended|deactivated|terminated)
+                  identity.email · identity.username
+                  profile.first_name · profile.last_name · profile.display_name
+                  profile.title · profile.department · profile.avatar_url
+                LearnerProgressSummaryResponse: courses (list[CourseProgressResponse])
+                  CourseProgressResponse: completion_status · progress_percentage
+                    total_time_spent_seconds · completed_at
+                EnrollmentResponse: status (EnrollmentStatus: assigned|active|completed|withdrawn|cancelled)
+     Endpoints: GET /api/v1/users?tenant_id= → UserListResponse (BG-057: no manager_id filter)
+                GET /api/v1/progress/learners/{id}?tenant_id= × N (BG-058: no batch endpoint)
+                GET /api/v1/enrollments?learner_id= per user
+     Gaps     : BG-057 (no team-scoped user filter — mock pre-scoped to 8 direct reports)
+                BG-058 (no batch progress endpoint — mock pre-computes completion data)
+     Patterns : P-54 · P-56 · P-71 · P-72 · P-73 · P-74 · P-75
+     Design   : Manager surface — row-height 48px · no bulk · no checkboxes · no selectable
+                Admin two-level chrome (topbar + sidebar) · per-page [10,25,50,100]
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Team Progress</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  /* Manager surface */
+  --row-h:48px;--pp:28px;--body-size:14px;--lh:1.5;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* MANAGER TWO-LEVEL CHROME */
+.layout{display:flex;min-height:100vh;}
+
+/* SIDEBAR — same token set as admin, same 220px */
+.sidebar{width:220px;background:var(--white);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;flex-shrink:0;}
+.sb-logo{display:flex;align-items:center;gap:8px;padding:20px 20px 16px;}
+.sb-mark{width:28px;height:28px;background:var(--ink);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.sb-name{font-size:14px;font-weight:700;letter-spacing:-0.02em;}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:8px;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--teal);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-uname{font-size:13px;font-weight:600;color:var(--ink);}
+.sb-role{font-size:11px;color:var(--ink-4);}
+.sb-nav{flex:1;padding:4px 12px;overflow-y:auto;}
+.sb-section{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-4);padding:12px 8px 4px;}
+.sn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;margin-bottom:1px;}
+.sn:hover{background:var(--subtle);color:var(--ink-2);}
+.sn.on{background:var(--accent-lt);color:var(--accent);font-weight:600;}
+.sn-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.sb-footer{padding:16px 20px;border-top:1px solid var(--border);}
+.sb-switch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;border:1px solid var(--border);}
+.sb-switch:hover{background:var(--subtle);}
+
+/* MAIN */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;position:sticky;top:0;z-index:10;flex-shrink:0;}
+.tb-crumb{font-size:14px;color:var(--ink-3);font-weight:500;}
+.tb-sep{margin:0 6px;color:var(--ink-4);}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+
+.canvas{padding:32px;flex:1;}
+
+/* PAGE HEADER */
+.ph{margin-bottom:24px;}
+.ph-t{font-size:24px;font-weight:800;letter-spacing:-0.03em;margin-bottom:4px;}
+.ph-s{font-size:14px;color:var(--ink-3);}
+
+/* FILTER BAR — P-71 */
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:20px;box-shadow:var(--sh-xs);}
+.sw{position:relative;flex:1;}
+.si{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ink-4);pointer-events:none;}
+.si-inp{width:100%;padding:8px 10px 8px 32px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:14px;color:var(--ink);background:var(--canvas);outline:none;transition:border-color 120ms;}
+.si-inp:focus{border-color:var(--accent);background:white;}
+.si-inp::placeholder{color:var(--ink-4);}
+.fdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+.fs{padding:8px 28px 8px 12px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink-2);background:var(--canvas);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color 120ms;}
+.fs:focus{border-color:var(--accent);}
+.fs.act{border-color:var(--accent);background-color:var(--accent-lt);color:var(--accent);font-weight:600;}
+.fc{font-size:13px;font-weight:600;color:var(--ink-3);white-space:nowrap;}
+.fclear{font-size:13px;font-weight:600;color:var(--ink-4);cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;display:none;}
+.fclear.show{display:block;}
+.fclear:hover{color:var(--ink-2);background:var(--subtle);}
+
+/* TABLE WRAPPER — P-73: overflow-x:auto mandatory */
+.tbl-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-xs);overflow-x:auto;}
+
+/* table — no min-width; fits single viewport without horizontal scroll */
+table{width:100%;border-collapse:collapse;table-layout:auto;}
+thead tr{border-bottom:1px solid var(--border);}
+/* P-74: td border-right:none · tr border-bottom only */
+th{padding:0 10px;height:40px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);white-space:nowrap;border-right:none;}
+th:first-child{padding-left:20px;}
+th:last-child{padding-right:20px;}
+
+/* Manager row-height: 48px — differs from Admin 40px */
+tbody tr{height:var(--row-h);border-bottom:1px solid var(--border);transition:background 80ms;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--subtle);}
+td{padding:0 10px;vertical-align:middle;border-right:none;}
+td:first-child{padding-left:20px;}
+td:last-child{padding-right:20px;}
+
+/* IDENTITY CELL — 2-line (name + email, no code for manager view) */
+.id-cell{display:flex;align-items:center;gap:10px;}
+.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+.id-name{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;}
+.id-email{font-size:11px;color:var(--ink-3);margin-top:1px;}
+
+/* COMPLETION RATE CELL */
+.rate-cell{display:flex;align-items:center;gap:8px;}
+.rate-bar-wrap{width:56px;height:6px;background:var(--border);border-radius:3px;flex-shrink:0;overflow:hidden;}
+.rate-bar{height:6px;border-radius:3px;}
+.rate-bar.done{background:var(--green);}
+.rate-bar.prog{background:var(--accent);}
+.rate-bar.idle{background:var(--border-s);}
+.rate-pct{font-size:12px;font-weight:700;white-space:nowrap;}
+.rate-pct.done{color:var(--green);}
+.rate-pct.prog{color:var(--accent);}
+.rate-pct.idle{color:var(--ink-4);}
+
+/* COUNT CELL */
+.count-pair{display:flex;align-items:baseline;gap:3px;}
+.count-num{font-size:14px;font-weight:700;color:var(--ink);}
+.count-den{font-size:12px;color:var(--ink-4);}
+
+/* STATUS CHIP — P-75: chip in its own cell, not competing with name */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r-pill);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;}
+.chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+.chip.active{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+.chip.suspended{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
+.chip.provisioned{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.chip.deactivated,.chip.terminated{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd);}
+
+/* LAST ACTIVE */
+.last-act{font-size:12px;color:var(--ink-3);}
+
+/* EMPTY */
+.tbl-empty{padding:64px 24px;text-align:center;}
+.tbl-empty-ico{font-size:40px;margin-bottom:12px;}
+.tbl-empty-ttl{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.tbl-empty-sub{font-size:13px;color:var(--ink-3);}
+
+/* ERROR */
+.err-blk{padding:48px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;}
+.err-ico{width:48px;height:48px;border-radius:50%;background:var(--red-bg);border:1px solid var(--red-bd);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--red);}
+
+/* PAGINATION */
+.pag-wrap{margin-top:20px;display:flex;align-items:center;justify-content:space-between;}
+.pag-inf{font-size:14px;color:var(--ink-3);}
+.pag-ctrl{display:flex;align-items:center;gap:4px;}
+.pg{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:white;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.pg:hover{border-color:var(--border-s);background:var(--subtle);}
+.pg.on{background:var(--accent);color:white;border-color:var(--accent);}
+.pg:disabled{opacity:.3;cursor:default;}
+.pgd{font-size:13px;color:var(--ink-4);padding:0 4px;}
+.pag-pp{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);}
+.ppsel{padding:6px 24px 6px 10px;border-radius:8px;border:1px solid var(--border);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink-2);background:white;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* Skeleton — P-56 */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR — Manager chrome -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-mark">🎓</div>
+      <div class="sb-name">LMS</div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-av">SR</div>
+      <div>
+        <div class="sb-uname">Sarah Rahman</div>
+        <div class="sb-role">Manager</div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">Overview</div>
+      <div class="sn"><span class="sn-ico">🏠</span>Dashboard</div>
+      <div class="sb-section">Team</div>
+      <div class="sn on"><span class="sn-ico">📊</span>Team Progress</div>
+      <div class="sn"><span class="sn-ico">👥</span>Team Members</div>
+      <div class="sn"><span class="sn-ico">📋</span>Assignments</div>
+      <div class="sb-section">Reports</div>
+      <div class="sn"><span class="sn-ico">📈</span>Completion Report</div>
+      <div class="sn"><span class="sn-ico">⏱️</span>Time Spent</div>
+      <div class="sb-section">Account</div>
+      <div class="sn"><span class="sn-ico">👤</span>Profile</div>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-switch">
+        <span>🔄</span><span>Switch to Learner</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <span class="tb-crumb">Team</span>
+      <span class="tb-sep">›</span>
+      <span class="tb-page">Team Progress</span>
+      <div class="tb-r">
+        <div class="tb-notif">🔔<div class="npip"></div></div>
+      </div>
+    </div>
+
+    <div class="canvas">
+
+      <!-- PAGE HEADER
+           P-72: subtitle = total team members from DB (never changes with filter) -->
+      <div class="ph">
+        <div class="ph-t">Team Progress</div>
+        <div class="ph-s" id="ph-meta">Loading…</div>
+      </div>
+
+      <!-- FILTER BAR
+           GET /api/v1/users?tenant_id= (BG-057: no manager_id filter — mock pre-scoped)
+           GET /api/v1/progress/learners/{id}?tenant_id= × N (BG-058: no batch endpoint)
+           All filtering client-side · P-71: ≤2 filter chips → count inline -->
+      <div class="filter-bar">
+        <div class="sw">
+          <span class="si">🔍</span>
+          <input class="si-inp" type="text" id="q" placeholder="Search team members…" oninput="applyF()">
+        </div>
+        <div class="fdiv"></div>
+        <select class="fs" id="fdept" onchange="applyF()">
+          <option value="">All departments</option>
+          <option value="Engineering">Engineering</option>
+          <option value="Product">Product</option>
+          <option value="Design">Design</option>
+          <option value="Operations">Operations</option>
+          <option value="Sales">Sales</option>
+        </select>
+        <div class="fdiv"></div>
+        <select class="fs" id="fprog" onchange="applyF()">
+          <option value="">All progress</option>
+          <option value="not_started">Not started</option>
+          <option value="in_progress">In progress</option>
+          <option value="completed">All completed</option>
+        </select>
+        <div class="fdiv"></div>
+        <span class="fc" id="fc">8 members</span>
+        <span class="fclear" id="fclear" onclick="clearF()">Clear</span>
+      </div>
+
+      <!-- TABLE WRAPPER — P-73: overflow-x:auto · P-74: no column dividers
+           Manager surface: row-height 48px · no bulk · no checkboxes · no selectable -->
+      <div class="tbl-wrap" id="tbl-wrap">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th style="text-align:center;">Team Member</th>
+              <th>Department</th>
+              <th>Enrolled</th>
+              <th>Completed</th>
+              <th>Completion Rate</th>
+              <th>Last Active</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+
+        <!-- EMPTY -->
+        <div id="s-empty" style="display:none;">
+          <div class="tbl-empty">
+            <div class="tbl-empty-ico">👥</div>
+            <div class="tbl-empty-ttl">No members found.</div>
+            <div class="tbl-empty-sub">Try adjusting your search or filters.</div>
+          </div>
+        </div>
+
+        <!-- ERROR — P-55 -->
+        <div id="s-error" style="display:none;">
+          <div class="err-blk">
+            <div class="err-ico">✕</div>
+            <div style="font-size:16px;font-weight:700;color:var(--ink);">Couldn't load team progress.</div>
+            <div style="font-size:14px;color:var(--ink-3);">user-service or progress-service may be unavailable.</div>
+            <button onclick="setS('loaded',document.querySelector('.stb'))" style="margin-top:8px;padding:10px 24px;background:var(--ink);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;">Try Again</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGINATION -->
+      <div class="pag-wrap" id="pag-wrap">
+        <div class="pag-pp">Per page:
+          <select class="ppsel" onchange="setPP(+this.value)">
+            <option>10</option><option selected>25</option><option>50</option><option>100</option>
+          </select>
+        </div>
+        <div class="pag-inf" id="paginf">—</div>
+        <div class="pag-ctrl" id="pagctrl"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setS('loaded',this)">Loaded</button>
+  <button class="stb" onclick="setS('skeleton',this)">Skeleton</button>
+  <button class="stb" onclick="setS('empty',this)">Empty</button>
+  <button class="stb" onclick="setS('error',this)">Error</button>
+</div>
+
+<script>
+/* Mock data — shaped to real API response schemas (pre-joined, BG-057 + BG-058)
+   user-service UserAggregate:
+     user_id, status (UserStatus: provisioned|active|suspended|deactivated|terminated)
+     identity.email, identity.username
+     profile.first_name, profile.last_name, profile.display_name, profile.department, profile.title
+   progress-service (per-learner — BG-058: no batch):
+     enrolled (count of active enrollments), completed (count of completed courses)
+     avg_completion_pct (derived from CourseProgressResponse.progress_percentage)
+   enrollment-service EnrollmentResponse:
+     status: EnrollmentStatus (assigned|active|completed|withdrawn|cancelled)
+   Endpoint: GET /api/v1/users?tenant_id=t_001 (BG-057: returns all, mock pre-scoped to team) */
+const TEAM = [
+  {
+    user_id:'u_001', status:'active',
+    first_name:'James', last_name:'Okafor', email:'j.okafor@acme.com',
+    department:'Engineering', title:'Senior Engineer',
+    enrolled:6, completed:4, avg_completion_pct:82,
+    last_active_at:'2026-03-20T16:30:00Z',
+    av_color:'#5B5BD6'
+  },
+  {
+    user_id:'u_002', status:'active',
+    first_name:'Priya', last_name:'Sharma', email:'p.sharma@acme.com',
+    department:'Product', title:'Product Manager',
+    enrolled:5, completed:5, avg_completion_pct:100,
+    last_active_at:'2026-03-19T09:15:00Z',
+    av_color:'#18794E'
+  },
+  {
+    user_id:'u_003', status:'active',
+    first_name:'Tom', last_name:'Brennan', email:'t.brennan@acme.com',
+    department:'Engineering', title:'Junior Engineer',
+    enrolled:4, completed:1, avg_completion_pct:38,
+    last_active_at:'2026-03-18T14:00:00Z',
+    av_color:'#0D9488'
+  },
+  {
+    user_id:'u_004', status:'active',
+    first_name:'Aisha', last_name:'Nwosu', email:'a.nwosu@acme.com',
+    department:'Design', title:'UX Designer',
+    enrolled:3, completed:2, avg_completion_pct:74,
+    last_active_at:'2026-03-21T08:45:00Z',
+    av_color:'#7C3AED'
+  },
+  {
+    user_id:'u_005', status:'active',
+    first_name:'Marco', last_name:'De Luca', email:'m.deluca@acme.com',
+    department:'Operations', title:'Ops Analyst',
+    enrolled:5, completed:0, avg_completion_pct:12,
+    last_active_at:'2026-03-15T11:00:00Z',
+    av_color:'#B45309'
+  },
+  {
+    user_id:'u_006', status:'suspended',
+    first_name:'Claire', last_name:'Fontaine', email:'c.fontaine@acme.com',
+    department:'Sales', title:'Account Executive',
+    enrolled:4, completed:2, avg_completion_pct:55,
+    last_active_at:'2026-03-01T10:30:00Z',
+    av_color:'#64748B'
+  },
+  {
+    user_id:'u_007', status:'active',
+    first_name:'Dev', last_name:'Patel', email:'d.patel@acme.com',
+    department:'Engineering', title:'DevOps Engineer',
+    enrolled:6, completed:6, avg_completion_pct:100,
+    last_active_at:'2026-03-20T17:00:00Z',
+    av_color:'#0369A1'
+  },
+  {
+    user_id:'u_008', status:'active',
+    first_name:'Yuki', last_name:'Tanaka', email:'y.tanaka@acme.com',
+    department:'Product', title:'Business Analyst',
+    enrolled:3, completed:0, avg_completion_pct:0,
+    last_active_at:null,
+    av_color:'#C42B1C'
+  }
+];
+
+/* ── helpers ── */
+function initials(first, last){return ((first||'')[0]||('')).toUpperCase()+((last||'')[0]||('')).toUpperCase();}
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d=new Date(iso), now=new Date();
+  const diff=Math.floor((now-d)/86400000);
+  if(diff===0) return 'Today';
+  if(diff===1) return 'Yesterday';
+  if(diff<7) return `${diff}d ago`;
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+
+function rateClass(pct){
+  if(pct===100) return 'done';
+  if(pct>0) return 'prog';
+  return 'idle';
+}
+
+function progressBucket(m){
+  if(m.avg_completion_pct===0) return 'not_started';
+  if(m.avg_completion_pct===100) return 'completed';
+  return 'in_progress';
+}
+
+/* ── state ── */
+let filtered=[], page=1, perPage=25;
+
+/* ── filter ── */
+function applyF(){
+  const q=(document.getElementById('q').value||'').toLowerCase().trim();
+  const dept=document.getElementById('fdept').value;
+  const prog=document.getElementById('fprog').value;
+  const active=!!(q||dept||prog);
+
+  filtered=TEAM.filter(m=>{
+    const name=`${m.first_name} ${m.last_name}`.toLowerCase();
+    const matchQ=!q||(name.includes(q)||m.email.toLowerCase().includes(q));
+    const matchDept=!dept||(m.department===dept);
+    const matchProg=!prog||(progressBucket(m)===prog);
+    return matchQ&&matchDept&&matchProg;
+  });
+
+  /* P-71: ≤2 filter chips → count inline */
+  document.getElementById('fc').textContent=active?`${filtered.length} member${filtered.length!==1?'s':''}`:
+    `${TEAM.length} members`;
+  document.getElementById('fclear').classList.toggle('show',active);
+  document.getElementById('fdept').classList.toggle('act',!!dept);
+  document.getElementById('fprog').classList.toggle('act',!!prog);
+
+  page=1;
+  render();
+}
+
+function clearF(){
+  document.getElementById('q').value='';
+  document.getElementById('fdept').value='';
+  document.getElementById('fprog').value='';
+  applyF();
+}
+
+/* ── pagination ── */
+function setPP(n){perPage=n;page=1;render();}
+
+/* ── row builder ── */
+function buildRow(m){
+  const rc=rateClass(m.avg_completion_pct);
+  const pct=m.avg_completion_pct;
+  const chipClass={active:'active',suspended:'suspended',provisioned:'provisioned',deactivated:'deactivated',terminated:'terminated'}[m.status]||'provisioned';
+  const chipLabel={active:'Active',suspended:'Suspended',provisioned:'Provisioned',deactivated:'Deactivated',terminated:'Terminated'}[m.status]||m.status;
+  return `<tr>
+    <td>
+      <div class="id-cell">
+        <div class="av" style="background:${m.av_color};">${initials(m.first_name,m.last_name)}</div>
+        <div>
+          <div class="id-name">${m.first_name} ${m.last_name}</div>
+          <div class="id-email">${m.email}</div>
+        </div>
+      </div>
+    </td>
+    <td style="font-size:13px;color:var(--ink-2);">${m.department||'—'}</td>
+    <td style="font-size:14px;font-weight:700;color:var(--ink);">${m.enrolled}</td>
+    <td style="font-size:14px;font-weight:700;color:var(--ink);">${m.completed}</td>
+    <td>
+      <div class="rate-cell">
+        <div class="rate-bar-wrap">
+          <div class="rate-bar ${rc}" style="width:${pct}%"></div>
+        </div>
+        <span class="rate-pct ${rc}">${pct}%</span>
+      </div>
+    </td>
+    <td><span class="last-act">${fmtDate(m.last_active_at)}</span></td>
+    <td>
+      <!-- P-75: status chip in dedicated cell, not competing with identity -->
+      <span class="chip ${chipClass}">
+        <span class="chip-dot"></span>${chipLabel}
+      </span>
+    </td>
+  </tr>`;
+}
+
+/* ── skeleton — P-56: 5 rows, column headers real, column count matches (7) ── */
+function buildSkeleton(){
+  /* P-56: 5 rows · column headers real · column count matches exactly (6) */
+  return Array.from({length:5},()=>`<tr style="height:var(--row-h);">
+    <td>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="sk" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;"></div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div class="sk" style="width:110px;height:13px;"></div>
+          <div class="sk" style="width:140px;height:11px;"></div>
+        </div>
+      </div>
+    </td>
+    <td><div class="sk" style="width:80px;height:13px;"></div></td>
+    <td><div class="sk" style="width:32px;height:13px;"></div></td>
+    <td><div class="sk" style="width:32px;height:13px;"></div></td>
+    <td>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="sk" style="width:56px;height:6px;border-radius:3px;"></div>
+        <div class="sk" style="width:32px;height:13px;"></div>
+      </div>
+    </td>
+    <td><div class="sk" style="width:60px;height:13px;"></div></td>
+    <td><div class="sk" style="width:64px;height:20px;border-radius:999px;"></div></td>
+  </tr>`).join('');
+}
+
+/* ── render ── */
+function render(){
+  const tbody=document.getElementById('tbody');
+  const empty=document.getElementById('s-empty');
+  const pagWrap=document.getElementById('pag-wrap');
+  const total=filtered.length;
+  const pages=Math.max(1,Math.ceil(total/perPage));
+  page=Math.min(page,pages);
+  const start=(page-1)*perPage, end=Math.min(start+perPage,total);
+  const slice=filtered.slice(start,end);
+
+  tbody.innerHTML=slice.map(buildRow).join('');
+  document.getElementById('tbl').style.display=slice.length?'':'none';
+  empty.style.display=slice.length?'none':'block';
+  pagWrap.style.display=total>0?'flex':'none';
+
+  document.getElementById('paginf').textContent=
+    `${start+1}–${end} of ${total} member${total!==1?'s':''}`;
+
+  const ctrl=document.getElementById('pagctrl');
+  ctrl.innerHTML='';
+  const prevBtn=document.createElement('button');
+  prevBtn.className='pg';prevBtn.textContent='←';prevBtn.disabled=page===1;
+  prevBtn.onclick=()=>{page--;render();};
+  ctrl.appendChild(prevBtn);
+  const maxShow=5,half=Math.floor(maxShow/2);
+  let lo=Math.max(1,page-half),hi=Math.min(pages,lo+maxShow-1);
+  if(hi-lo<maxShow-1) lo=Math.max(1,hi-maxShow+1);
+  if(lo>1){const b=Object.assign(document.createElement('button'),{className:'pg',textContent:'1'});b.onclick=()=>{page=1;render();};ctrl.appendChild(b);}
+  if(lo>2){const d=document.createElement('span');d.className='pgd';d.textContent='…';ctrl.appendChild(d);}
+  for(let i=lo;i<=hi;i++){
+    const b=Object.assign(document.createElement('button'),{className:'pg'+(i===page?' on':''),textContent:i});
+    const p=i;b.onclick=()=>{page=p;render();};ctrl.appendChild(b);
+  }
+  if(hi<pages-1){const d=document.createElement('span');d.className='pgd';d.textContent='…';ctrl.appendChild(d);}
+  if(hi<pages){const b=Object.assign(document.createElement('button'),{className:'pg',textContent:pages});b.onclick=()=>{page=pages;render();};ctrl.appendChild(b);}
+  const nextBtn=document.createElement('button');
+  nextBtn.className='pg';nextBtn.textContent='→';nextBtn.disabled=page===pages;
+  nextBtn.onclick=()=>{page++;render();};
+  ctrl.appendChild(nextBtn);
+}
+
+/* ── state switcher ── */
+function setS(s,btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const tbody=document.getElementById('tbody');
+  const tbl=document.getElementById('tbl');
+  const empty=document.getElementById('s-empty');
+  const err=document.getElementById('s-error');
+  const pagWrap=document.getElementById('pag-wrap');
+  tbody.innerHTML='';
+  tbl.style.display='';
+  empty.style.display='none';
+  err.style.display='none';
+  pagWrap.style.display='none';
+
+  if(s==='loaded'){
+    filtered=TEAM.slice();
+    page=1;
+    /* P-72: header subtitle = total team members in DB, never changes with filter */
+    const active=TEAM.filter(m=>m.status==='active').length;
+    const allDone=TEAM.filter(m=>m.avg_completion_pct===100).length;
+    document.getElementById('ph-meta').textContent=
+      `${TEAM.length} direct reports · ${active} active · ${allDone} fully completed all courses`;
+    document.getElementById('fc').textContent=`${TEAM.length} members`;
+    render();
+  } else if(s==='skeleton'){
+    /* P-56: 5 rows, column headers real, column count matches exactly (7) */
+    tbody.innerHTML=buildSkeleton();
+    document.getElementById('ph-meta').textContent='Loading team data…';
+  } else if(s==='empty'){
+    tbl.style.display='none';
+    empty.style.display='block';
+    document.getElementById('ph-meta').textContent='No team members found.';
+  } else if(s==='error'){
+    tbl.style.display='none';
+    err.style.display='block';
+    document.getElementById('ph-meta').textContent='—';
+  }
+}
+
+/* ── init ── */
+filtered=TEAM.slice();
+setS('loaded',document.querySelector('.stb'));
+</script>
+</body>
+</html>

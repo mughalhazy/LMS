@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<!-- LMS A2 — My Courses (Learner)
+     Version  : v1.0
+     Surface  : Learner
+     Archetype: A2 ResourceList — card grid variant
+     Created  : 2026-03-20
+     Template : lms-learner-paths-v1.html (copy + adjust)
+     Repo     : enrollment-service · progress-service · course-service
+     Fields   : EnrollmentResponse: id · course_id · status (EnrollmentStatus)
+                CourseProgressResponse: progress_percentage · completion_status
+                  total_time_spent_seconds · completed_at · certificate_id
+                CourseResponse: title · course_code · metadata.duration_minutes
+                  metadata.delivery_mode · metadata.category_id
+                ProgressRecordResponse: lesson_id · last_activity_at
+     Gaps     : BG-050 (no lesson_title — last activity date shown instead)
+                BG-051 (duration_minutes nullable — time remaining not always computable)
+     Patterns : P-55 · P-56 · P-71 · P-73
+     Design   : Learner surface — sidebar 220px · card pad 24px · grid gap 24px
+                body 14px · line-height 1.7 · default 12 cards · no bulk · no selectable
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — My Courses</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  /* Learner surface — design system Part 7 */
+  --card-pad:24px;--grid-gap:24px;--body-size:14px;--lh:1.7;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* LEARNER LAYOUT */
+.layout{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:220px;background:var(--white);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;flex-shrink:0;}
+.sb-logo{display:flex;align-items:center;gap:8px;padding:20px 20px 16px;}
+.sb-mark{width:28px;height:28px;background:var(--ink);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.sb-name{font-size:14px;font-weight:700;letter-spacing:-0.02em;}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:8px;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-uname{font-size:13px;font-weight:600;color:var(--ink);}
+.sb-role{font-size:11px;color:var(--ink-4);}
+.sb-nav{flex:1;padding:4px 12px;overflow-y:auto;}
+.sb-section{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-4);padding:12px 8px 4px;}
+.sn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;margin-bottom:1px;}
+.sn:hover{background:var(--subtle);color:var(--ink-2);}
+.sn.on{background:var(--accent-lt);color:var(--accent);font-weight:600;}
+.sn-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.sn-badge{margin-left:auto;background:var(--accent);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--r-pill);}
+.sb-footer{padding:16px 20px;border-top:1px solid var(--border);}
+.sb-switch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;border:1px solid var(--border);}
+.sb-switch:hover{background:var(--subtle);}
+
+/* MAIN CONTENT */
+.main{flex:1;overflow-y:auto;}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;position:sticky;top:0;z-index:10;}
+.tb-title{font-size:14px;font-weight:600;color:var(--ink-3);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+
+.canvas{padding:32px;}
+
+/* PAGE HEADER */
+.ph{margin-bottom:24px;animation:up .3s ease both;}
+.ph-t{font-size:28px;font-weight:800;letter-spacing:-0.03em;margin-bottom:4px;}
+.ph-s{font-size:14px;color:var(--ink-3);line-height:var(--lh);}
+
+/* FILTER BAR — P-71 */
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:24px;box-shadow:var(--sh-xs);animation:up .3s ease both .04s;}
+.sw{position:relative;flex:1;}
+.si{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ink-4);pointer-events:none;}
+.si-inp{width:100%;padding:8px 10px 8px 32px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:14px;color:var(--ink);background:var(--canvas);outline:none;transition:border-color 120ms;}
+.si-inp:focus{border-color:var(--accent);background:white;}
+.si-inp::placeholder{color:var(--ink-4);}
+.fdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+.fs{padding:8px 28px 8px 12px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink-2);background:var(--canvas);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color 120ms;}
+.fs:focus{border-color:var(--accent);}
+.fs.act{border-color:var(--accent);background-color:var(--accent-lt);color:var(--accent);font-weight:600;}
+.fc{font-size:13px;font-weight:600;color:var(--ink-3);white-space:nowrap;}
+.fclear{font-size:13px;font-weight:600;color:var(--ink-4);cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;display:none;}
+.fclear.show{display:block;}
+.fclear:hover{color:var(--ink-2);background:var(--subtle);}
+
+/* COURSE CARD GRID — 3 cols, gap 24px */
+.course-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--grid-gap);animation:up .3s ease both .08s;}
+
+/* COURSE CARD */
+.course-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-xs);transition:box-shadow 150ms,transform 150ms;display:flex;flex-direction:column;cursor:pointer;}
+.course-card:hover{box-shadow:var(--sh-sm);transform:translateY(-2px);}
+
+/* Status strip — enrollment status colour */
+.card-strip{height:4px;}
+.card-strip.in_progress{background:var(--accent);}
+.card-strip.completed,.card-strip.passed{background:var(--green);}
+.card-strip.not_started,.card-strip.assigned{background:var(--border-s);}
+.card-strip.withdrawn,.card-strip.cancelled{background:var(--red);}
+
+/* Card body */
+.card-body{padding:var(--card-pad);flex:1;display:flex;flex-direction:column;gap:12px;}
+
+/* Course icon — delivery mode colour */
+.course-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.course-icon.self_paced{background:var(--accent-lt);border:1px solid rgba(91,91,214,.15);}
+.course-icon.instructor_led{background:var(--teal-bg);border:1px solid var(--teal-bd);}
+.course-icon.blended{background:var(--green-bg);border:1px solid var(--green-bd);}
+.course-icon.default{background:var(--subtle);border:1px solid var(--border);}
+
+.card-title{font-size:15px;font-weight:700;color:var(--ink);line-height:1.4;letter-spacing:-0.01em;}
+.card-code{font-size:11px;font-family:monospace;color:var(--ink-4);letter-spacing:.02em;}
+
+/* Progress bar */
+.prog-wrap{display:flex;flex-direction:column;gap:4px;}
+.prog-label{display:flex;justify-content:space-between;align-items:center;}
+.prog-lbl-txt{font-size:12px;font-weight:500;color:var(--ink-3);}
+.prog-pct{font-size:12px;font-weight:700;}
+.prog-pct.done{color:var(--green);}
+.prog-pct.active{color:var(--accent);}
+.prog-pct.idle{color:var(--ink-4);}
+.prog-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.prog-fill{height:6px;border-radius:3px;transition:width 400ms ease;}
+.prog-fill.done{background:var(--green);}
+.prog-fill.active{background:var(--accent);}
+.prog-fill.idle{background:var(--border-s);}
+
+/* Course meta row — last activity + time */
+.card-meta{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);margin-top:auto;}
+.meta-item{display:flex;flex-direction:column;gap:1px;}
+.meta-val{font-size:12px;font-weight:600;color:var(--ink-2);}
+.meta-lbl{font-size:10px;color:var(--ink-4);font-weight:500;}
+
+/* Card footer CTA */
+.card-footer{padding:0 var(--card-pad) var(--card-pad);}
+.card-cta{display:block;width:100%;padding:10px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;text-align:center;cursor:pointer;transition:all 120ms;border:none;}
+.card-cta.active{background:var(--accent);color:white;}
+.card-cta.active:hover{opacity:.85;}
+.card-cta.start{background:var(--accent-lt);color:var(--accent);border:1.5px solid rgba(91,91,214,.2);}
+.card-cta.start:hover{background:var(--accent);color:white;}
+.card-cta.done{background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-bd);}
+.card-cta.done:hover{opacity:.85;}
+
+/* PAGINATION */
+.pag-wrap{margin-top:32px;display:flex;align-items:center;justify-content:space-between;}
+.pag-inf{font-size:14px;color:var(--ink-3);}
+.pag-ctrl{display:flex;align-items:center;gap:4px;}
+.pg{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:white;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.pg:hover{border-color:var(--border-s);background:var(--subtle);}
+.pg.on{background:var(--accent);color:white;border-color:var(--accent);}
+.pg:disabled{opacity:.3;cursor:default;}
+.pgd{font-size:13px;color:var(--ink-4);padding:0 4px;}
+.pag-pp{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);}
+.ppsel{padding:6px 24px 6px 10px;border-radius:8px;border:1px solid var(--border);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink-2);background:white;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* Skeleton — P-56 */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:6px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* Error block — P-55 */
+.err-blk{padding:48px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;}
+.err-ico{width:48px;height:48px;border-radius:50%;background:var(--red-bg);border:1px solid var(--red-bd);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--red);}
+
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR — 220px white bg per design system learner spec -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-mark">🎓</div>
+      <div class="sb-name">LMS</div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-av">AK</div>
+      <div>
+        <div class="sb-uname">Ali Khan</div>
+        <div class="sb-role">Learner</div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">Learning</div>
+      <div class="sn"><span class="sn-ico">🏠</span>Dashboard</div>
+      <div class="sn on"><span class="sn-ico">📚</span>My Courses<span class="sn-badge">3</span></div>
+      <div class="sn"><span class="sn-ico">🗺️</span>Learning Paths</div>
+      <div class="sn"><span class="sn-ico">🔍</span>Recommended</div>
+      <div class="sb-section">Achievements</div>
+      <div class="sn"><span class="sn-ico">🏅</span>Certificates</div>
+      <div class="sn"><span class="sn-ico">🏆</span>Badges</div>
+      <div class="sb-section">Account</div>
+      <div class="sn"><span class="sn-ico">👤</span>Profile</div>
+      <div class="sn"><span class="sn-ico">⚙️</span>Settings</div>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-switch">
+        <span>🔄</span><span>Switch to Admin</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <span class="tb-title">My Courses</span>
+      <div class="tb-r">
+        <div class="notif">🔔<div class="npip"></div></div>
+      </div>
+    </div>
+
+    <div class="canvas">
+
+      <!-- PAGE HEADER
+           P-72: header subtitle = DB total (enrollment count for this learner)
+           Learner motivational subtitle -->
+      <div class="ph">
+        <div class="ph-t">My Courses</div>
+        <div class="ph-s" id="ph-meta">Loading…</div>
+      </div>
+
+      <!-- FILTER BAR
+           enrollment-service GET /api/v1/enrollments supports learner_id + status filters
+           BG-050: no lesson_title — last_activity_at date shown instead
+           BG-051: duration_minutes nullable — time display degrades gracefully
+           P-71: ≤2 filter chips → count inline -->
+      <div class="filter-bar" id="fb">
+        <div class="sw">
+          <span class="si">🔍</span>
+          <input class="si-inp" type="text" id="q" placeholder="Search courses…" oninput="applyF()">
+        </div>
+        <div class="fdiv"></div>
+        <select class="fs" id="fst" onchange="applyF()">
+          <option value="">All courses</option>
+          <option value="in_progress">In Progress</option>
+          <option value="not_started">Not Started</option>
+          <option value="completed">Completed</option>
+        </select>
+        <div class="fdiv"></div>
+        <span class="fc" id="fc">9 courses</span>
+        <span class="fclear" id="fclear" onclick="clearF()">Clear</span>
+      </div>
+
+      <!-- CARD GRID
+           A2 Learner — 3 cols, gap 24px, default 12 cards, no bulk, no selectable
+           Mock data shaped to: EnrollmentResponse + CourseProgressResponse + CourseResponse
+           progress_state derived from enrollment.status + progress.completion_status -->
+      <div class="course-grid" id="grid"></div>
+
+      <!-- EMPTY STATE -->
+      <div id="s-empty" style="display:none;padding:80px 24px;text-align:center;">
+        <div style="font-size:56px;margin-bottom:16px;">📚</div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);margin-bottom:8px;">No courses yet.</div>
+        <div style="font-size:14px;color:var(--ink-3);max-width:360px;margin:0 auto;line-height:var(--lh);">You haven't been enrolled in any courses. Browse the catalog to get started.</div>
+      </div>
+
+      <!-- ERROR STATE — P-55 -->
+      <div id="s-error" style="display:none;">
+        <div class="err-blk">
+          <div class="err-ico">✕</div>
+          <div style="font-size:16px;font-weight:700;color:var(--ink);">Couldn't load your courses.</div>
+          <div style="font-size:14px;color:var(--ink-3);">enrollment-service may be unavailable.</div>
+          <button onclick="setS('loaded',document.querySelector('.stb'))" style="margin-top:8px;padding:10px 24px;background:var(--ink);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;">Try Again</button>
+        </div>
+      </div>
+
+      <!-- PAGINATION -->
+      <div class="pag-wrap" id="pag-wrap">
+        <div class="pag-pp">Per page:
+          <select class="ppsel" onchange="setPP(+this.value)">
+            <option>6</option><option selected>12</option><option>24</option>
+          </select>
+        </div>
+        <div class="pag-inf" id="paginf">—</div>
+        <div class="pag-ctrl" id="pagctrl"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setS('loaded',this)">Loaded</button>
+  <button class="stb" onclick="setS('skeleton',this)">Skeleton</button>
+  <button class="stb" onclick="setS('empty',this)">Empty</button>
+  <button class="stb" onclick="setS('error',this)">Error</button>
+</div>
+
+<script>
+/* Mock data — shaped to real API response schemas
+   enrollment-service EnrollmentResponse:
+     id, course_id, status (EnrollmentStatus: assigned|active|completed|withdrawn|cancelled)
+   progress-service CourseProgressResponse:
+     progress_percentage, completion_status (ProgressStatus: not_started|in_progress|completed|passed|failed)
+     total_time_spent_seconds, completed_at, certificate_id
+   progress-service ProgressRecordResponse:
+     last_activity_at (BG-050 workaround: display date, not lesson title)
+   course-service CourseResponse:
+     title, course_code, metadata.duration_minutes (nullable — BG-051)
+     metadata.delivery_mode, metadata.category_id */
+const COURSES = [
+  {
+    enrollment_id:'enr_001', course_id:'crs_001',
+    enrollment_status:'active',
+    title:'Python for Data Analysis', course_code:'PDA-101',
+    delivery_mode:'self_paced', category_id:'data-science',
+    completion_status:'in_progress', progress_percentage:65,
+    total_time_spent_seconds:9360, duration_minutes:240,
+    last_activity_at:'2026-03-19T14:30:00Z', certificate_id:null
+  },
+  {
+    enrollment_id:'enr_002', course_id:'crs_002',
+    enrollment_status:'active',
+    title:'Effective Communication in the Workplace', course_code:'COM-201',
+    delivery_mode:'self_paced', category_id:'soft-skills',
+    completion_status:'in_progress', progress_percentage:32,
+    total_time_spent_seconds:3240, duration_minutes:180,
+    last_activity_at:'2026-03-18T09:15:00Z', certificate_id:null
+  },
+  {
+    enrollment_id:'enr_003', course_id:'crs_003',
+    enrollment_status:'active',
+    title:'Introduction to Cloud Architecture', course_code:'CLD-101',
+    delivery_mode:'instructor_led', category_id:'technology',
+    completion_status:'in_progress', progress_percentage:12,
+    total_time_spent_seconds:1800, duration_minutes:360,
+    last_activity_at:'2026-03-17T16:00:00Z', certificate_id:null
+  },
+  {
+    enrollment_id:'enr_004', course_id:'crs_004',
+    enrollment_status:'completed',
+    title:'GDPR & Data Privacy Fundamentals', course_code:'SEC-101',
+    delivery_mode:'self_paced', category_id:'compliance',
+    completion_status:'passed', progress_percentage:100,
+    total_time_spent_seconds:5400, duration_minutes:90,
+    last_activity_at:'2026-03-10T11:00:00Z', certificate_id:'cert_101'
+  },
+  {
+    enrollment_id:'enr_005', course_id:'crs_005',
+    enrollment_status:'completed',
+    title:'Agile & Scrum Fundamentals', course_code:'AGI-101',
+    delivery_mode:'blended', category_id:'project-management',
+    completion_status:'completed', progress_percentage:100,
+    total_time_spent_seconds:7200, duration_minutes:120,
+    last_activity_at:'2026-02-28T10:30:00Z', certificate_id:'cert_102'
+  },
+  {
+    enrollment_id:'enr_006', course_id:'crs_006',
+    enrollment_status:'assigned',
+    title:'Leadership Essentials for New Managers', course_code:'LDR-301',
+    delivery_mode:'instructor_led', category_id:'leadership',
+    completion_status:'not_started', progress_percentage:0,
+    total_time_spent_seconds:0, duration_minutes:300,
+    last_activity_at:null, certificate_id:null
+  },
+  {
+    enrollment_id:'enr_007', course_id:'crs_007',
+    enrollment_status:'assigned',
+    title:'Cybersecurity Awareness Training', course_code:'SEC-201',
+    delivery_mode:'self_paced', category_id:'compliance',
+    completion_status:'not_started', progress_percentage:0,
+    total_time_spent_seconds:0, duration_minutes:60,
+    last_activity_at:null, certificate_id:null
+  },
+  {
+    enrollment_id:'enr_008', course_id:'crs_008',
+    enrollment_status:'assigned',
+    title:'Excel for Business Analysis', course_code:'DAT-102',
+    delivery_mode:'self_paced', category_id:'data-science',
+    completion_status:'not_started', progress_percentage:0,
+    total_time_spent_seconds:0, duration_minutes:null,
+    last_activity_at:null, certificate_id:null
+  },
+  {
+    enrollment_id:'enr_009', course_id:'crs_009',
+    enrollment_status:'completed',
+    title:'Onboarding: Company Culture & Values', course_code:'ONB-001',
+    delivery_mode:'self_paced', category_id:'onboarding',
+    completion_status:'completed', progress_percentage:100,
+    total_time_spent_seconds:3600, duration_minutes:60,
+    last_activity_at:'2026-01-15T09:00:00Z', certificate_id:'cert_103'
+  },
+];
+
+/* Derive progress state for display + filtering */
+function progressState(c){
+  if(c.completion_status==='completed'||c.completion_status==='passed') return 'completed';
+  if(c.completion_status==='in_progress') return 'in_progress';
+  return 'not_started';
+}
+
+/* Delivery mode → icon + CSS class */
+const MODE_ICON = {self_paced:'📖', instructor_led:'👥', blended:'🔀'};
+const MODE_CLS  = {self_paced:'self_paced', instructor_led:'instructor_led', blended:'blended'};
+
+function modeIcon(m){ return MODE_ICON[m] || '📚'; }
+function modeCls(m){  return MODE_CLS[m]  || 'default'; }
+
+/* Progress class */
+function progCls(state){ return state==='completed'?'done':state==='in_progress'?'active':'idle'; }
+
+/* Progress label */
+function progLabel(state){
+  return state==='completed'?'Completed':state==='in_progress'?'In Progress':'Not Started';
+}
+
+/* CTA label + class */
+function ctaLabel(c){
+  const st = progressState(c);
+  if(st==='completed') return c.certificate_id ? 'View Certificate' : 'Completed ✓';
+  if(st==='in_progress') return 'Continue Lesson →';
+  return 'Start Course →';
+}
+function ctaCls(c){
+  const st = progressState(c);
+  if(st==='completed') return 'done';
+  if(st==='in_progress') return 'active';
+  return 'start';
+}
+
+/* Time display
+   BG-051: duration_minutes nullable — when null show time_spent, when available show remaining */
+function fmtSeconds(s){
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  if(h>0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+function timeDisplay(c){
+  const spent = c.total_time_spent_seconds;
+  if(spent===0) return {val:'—', lbl:'Time spent'};
+  if(c.duration_minutes !== null && c.duration_minutes > 0){
+    const remaining = c.duration_minutes*60 - spent;
+    if(remaining<=0) return {val:'Done', lbl:'Time'};
+    return {val:fmtSeconds(Math.max(0,remaining)), lbl:'Remaining'};
+  }
+  return {val:fmtSeconds(spent), lbl:'Spent'};
+}
+
+/* Last activity display
+   BG-050: no lesson_title — display date only */
+function fmtActivity(iso){
+  if(!iso) return {val:'—', lbl:'Last activity'};
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 86400000);
+  if(diff===0) return {val:'Today', lbl:'Last activity'};
+  if(diff===1) return {val:'Yesterday', lbl:'Last activity'};
+  if(diff<7)   return {val:`${diff}d ago`, lbl:'Last activity'};
+  return {val:d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}), lbl:'Last activity'};
+}
+
+function renderCard(c){
+  const state = progressState(c);
+  const stripCls = state;
+  const cls = progCls(state);
+  const time = timeDisplay(c);
+  const act  = fmtActivity(c.last_activity_at);
+  return `
+  <div class="course-card">
+    <div class="card-strip ${stripCls}"></div>
+    <div class="card-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="course-icon ${modeCls(c.delivery_mode)}">${modeIcon(c.delivery_mode)}</div>
+        ${c.course_code ? `<span class="card-code">${c.course_code}</span>` : ''}
+      </div>
+      <div class="card-title">${c.title}</div>
+      <div class="prog-wrap">
+        <div class="prog-label">
+          <span class="prog-lbl-txt">${progLabel(state)}</span>
+          <span class="prog-pct ${cls}">${c.progress_percentage > 0 ? c.progress_percentage + '%' : ''}</span>
+        </div>
+        <div class="prog-bar">
+          <div class="prog-fill ${cls}" style="width:${c.progress_percentage}%"></div>
+        </div>
+      </div>
+      <div class="card-meta">
+        <div class="meta-item">
+          <span class="meta-val">${act.val}</span>
+          <span class="meta-lbl">${act.lbl}</span>
+        </div>
+        <div class="meta-item" style="text-align:right;">
+          <span class="meta-val">${time.val}</span>
+          <span class="meta-lbl">${time.lbl}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="card-cta ${ctaCls(c)}">${ctaLabel(c)}</button>
+    </div>
+  </div>`;
+}
+
+let filtered=[...COURSES], page=1, pp=12;
+
+function renderGrid(courses){
+  const start=(page-1)*pp, slice=courses.slice(start,start+pp);
+  const grid=document.getElementById('grid');
+  grid.style.display = slice.length ? 'grid' : 'none';
+  grid.innerHTML = slice.map(renderCard).join('');
+  renderPag(courses.length);
+  document.getElementById('fc').textContent=`${courses.length} course${courses.length!==1?'s':''}`;
+}
+
+function renderPag(total){
+  const pages=Math.max(1,Math.ceil(total/pp)),s=(page-1)*pp+1,e=Math.min(page*pp,total);
+  document.getElementById('paginf').innerHTML=`${total?total+' result'+(total!==1?'s':''):'No results'} · page ${page} of ${pages}`;
+  let h=`<button class="pg" onclick="goP(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=pages;i++){
+    if(i===1||i===pages||Math.abs(i-page)<=1) h+=`<button class="pg${i===page?' on':''}" onclick="goP(${i})">${i}</button>`;
+    else if(Math.abs(i-page)===2) h+=`<span class="pgd">…</span>`;
+  }
+  h+=`<button class="pg" onclick="goP(${page+1})" ${page>=pages?'disabled':''}>›</button>`;
+  document.getElementById('pagctrl').innerHTML=h;
+}
+
+function applyF(){
+  const q=document.getElementById('q').value.toLowerCase();
+  const st=document.getElementById('fst').value;
+  const hasF=q||st;
+  document.getElementById('fclear').classList.toggle('show',!!hasF);
+  document.getElementById('fst').classList.toggle('act',!!st);
+  filtered=COURSES.filter(c=>
+    (!q||c.title.toLowerCase().includes(q)||( c.course_code&&c.course_code.toLowerCase().includes(q)))
+    &&(!st||progressState(c)===st)
+  );
+  page=1; renderGrid(filtered);
+}
+
+function clearF(){
+  document.getElementById('q').value='';
+  document.getElementById('fst').value='';
+  document.getElementById('fst').classList.remove('act');
+  document.getElementById('fclear').classList.remove('show');
+  filtered=[...COURSES]; page=1; renderGrid(filtered);
+}
+
+function goP(n){page=n;renderGrid(filtered);}
+function setPP(n){pp=n;page=1;renderGrid(filtered);}
+
+/* P-56: skeleton — 6 card placeholders */
+function renderSkel(){
+  const card=()=>`
+  <div class="course-card" style="min-height:300px;">
+    <div class="sk" style="height:4px;border-radius:0;"></div>
+    <div class="card-body" style="gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="sk" style="width:44px;height:44px;border-radius:10px;"></div>
+        <div class="sk" style="width:64px;height:14px;border-radius:4px;"></div>
+      </div>
+      <div class="sk" style="height:20px;width:90%;"></div>
+      <div class="sk" style="height:16px;width:65%;"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;">
+          <div class="sk" style="height:12px;width:80px;border-radius:4px;"></div>
+          <div class="sk" style="height:12px;width:32px;border-radius:4px;"></div>
+        </div>
+        <div class="sk" style="height:6px;width:100%;border-radius:3px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid var(--border);margin-top:auto;">
+        <div><div class="sk" style="height:16px;width:40px;margin-bottom:3px;border-radius:4px;"></div><div class="sk" style="height:10px;width:64px;border-radius:4px;"></div></div>
+        <div style="text-align:right;"><div class="sk" style="height:16px;width:48px;margin-bottom:3px;border-radius:4px;"></div><div class="sk" style="height:10px;width:48px;border-radius:4px;"></div></div>
+      </div>
+    </div>
+    <div style="padding:0 24px 24px;"><div class="sk" style="height:38px;border-radius:8px;"></div></div>
+  </div>`;
+  document.getElementById('grid').style.display='grid';
+  document.getElementById('grid').innerHTML=Array.from({length:6},card).join('');
+  document.getElementById('paginf').innerHTML='<div class="sk" style="height:14px;width:140px;border-radius:4px;"></div>';
+  document.getElementById('pagctrl').innerHTML='';
+}
+
+function setS(s,btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  ['s-empty','s-error'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('grid').style.display='grid';
+  document.getElementById('pag-wrap').style.display='flex';
+  if(s==='skeleton') renderSkel();
+  else if(s==='empty'){
+    document.getElementById('s-empty').style.display='block';
+    document.getElementById('grid').style.display='none';
+    document.getElementById('pag-wrap').style.display='none';
+  }
+  else if(s==='error'){
+    document.getElementById('s-error').style.display='block';
+    document.getElementById('grid').style.display='none';
+    document.getElementById('pag-wrap').style.display='none';
+  }
+  else{filtered=[...COURSES];page=1;renderGrid(filtered);}
+}
+
+/* P-72: header subtitle = DB total (all enrollments for this learner)
+   not the filtered count */
+const inProgress = COURSES.filter(c=>progressState(c)==='in_progress').length;
+const completed  = COURSES.filter(c=>progressState(c)==='completed').length;
+document.getElementById('ph-meta').textContent=
+  `${COURSES.length} courses enrolled · ${inProgress} in progress · ${completed} completed`;
+
+renderGrid(COURSES);
+</script>
+</body>
+</html>

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Invite User
+  Archetype: A5 CreationWizard — full wizard variant (3 steps)
+  Created  : 2026-03-22
+  Surface  : Admin
+  Repo     : user-service · email-service
+  Steps    : Identity → Access & Message → Review & Send
+  Fields   : CreateUserRequest: user_id* (client UUID) · email* · username* (auto-gen) ·
+             first_name* · last_name* · display_name (auto-gen) · title · department (BG-080)
+             InviteEmail (email-service): template_key='user_invitation' (BG-115) ·
+             recipient_email · recipient_name · payload.message · payload.role_name
+  Endpoints: POST /api/v1/users                              → CreateUserRequest → UserResponse (201)
+             POST /api/v1/rbac/roles/{roleId}/assignments    → role link (if role selected)
+             POST /api/v1/email/emails/transactional         → TransactionalEmailRequest (BG-115)
+  Gaps     : BG-093 (no /invite or /send-welcome endpoint — create user + send email separately)
+             BG-114 (no dedicated invite endpoint — two-call flow: POST /users then POST /emails/transactional)
+             BG-115 (template_key 'user_invitation' assumed — no template management UI)
+             BG-116 (no "invited" UserStatus — new user enters "provisioned" state)
+             BG-080 (department is free-text string, no FK)
+  Patterns : Full wizard — one step at a time, WizardStepper at top, Next/Back navigation
+             WizardStepper (P-31 — unbuilt in design system; implemented inline this page)
+             Username auto-generated from email local part on blur (editable)
+             user_id client-generated UUID (crypto.randomUUID)
+             Single submit: "Send Invitation" (.btn-success) on last step
+  CSS base : Verbatim foundation from lms-a5-create-assessment-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Invite User</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a5-create-assessment-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.layout{display:flex;flex-direction:column;min-height:100vh;}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);position:sticky;top:0;z-index:20;flex-shrink:0;gap:6px;}
+.tb-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+.page-header{background:var(--white);border-bottom:1px solid var(--border);padding:20px var(--pp);}
+.ph-top{display:flex;align-items:center;gap:14px;}
+.ph-icon{width:44px;height:44px;border-radius:50%;background:var(--accent-lt);color:var(--accent);font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(91,91,214,.15);}
+.ph-identity{flex:1;min-width:0;}
+.ph-name{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);line-height:1.2;}
+.ph-sub{font-size:13px;color:var(--ink-3);margin-top:3px;}
+.canvas{flex:1;padding:28px var(--pp);padding-bottom:calc(var(--action-bar-h) + 28px);max-width:800px;width:100%;margin:0 auto;}
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.fs-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:20px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input:disabled{background:var(--subtle);color:var(--ink-3);cursor:not-allowed;}
+.field-input.has-error{border-color:var(--red);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+.field-error{font-size:11px;color:var(--red);line-height:1.4;display:none;}
+.field-error.visible{display:block;}
+.field-textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;resize:vertical;min-height:80px;line-height:1.5;}
+.field-textarea:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.summary-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:150px;flex-shrink:0;padding-top:1px;}
+.summary-value{font-size:13px;color:var(--ink);flex:1;}
+.summary-value.empty{color:var(--ink-4);font-style:italic;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+.action-bar{position:fixed;bottom:0;left:0;right:0;height:var(--action-bar-h);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 8px rgba(0,0,0,.04);}
+.action-bar-status{flex:1;font-size:12px;color:var(--ink-3);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── WIZARD STEPPER (P-31 — unbuilt in design system; implemented inline) ── */
+.wizard-nav{background:var(--white);border-bottom:1px solid var(--border);padding:18px var(--pp);}
+.wz-steps{display:flex;align-items:flex-start;max-width:752px;margin:0 auto;}
+.wz-step{display:flex;flex-direction:column;align-items:center;flex:1;}
+.wz-step:last-child{flex:0 0 auto;}
+.wz-head{display:flex;align-items:center;width:100%;}
+.wz-circle{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--ink-3);flex-shrink:0;transition:all 150ms;}
+.wz-step.done .wz-circle{background:var(--green);border-color:var(--green);color:white;}
+.wz-step.active .wz-circle{background:var(--accent);border-color:var(--accent);color:white;}
+.wz-line{flex:1;height:1px;background:var(--border);margin:0 6px 2px;transition:background 150ms;}
+.wz-step.done .wz-line{background:var(--green);}
+.wz-label{font-size:11px;font-weight:600;color:var(--ink-4);margin-top:5px;text-align:center;line-height:1.3;}
+.wz-step.active .wz-label{color:var(--accent);}
+.wz-step.done .wz-label{color:var(--green);}
+
+/* ── UUID BADGE ── */
+.uuid-badge{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);}
+.uuid-val{font-family:'Courier New',monospace;font-size:11px;color:var(--ink-3);flex:1;word-break:break-all;}
+.uuid-copy{font-size:11px;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap;padding:2px 6px;border-radius:4px;}
+.uuid-copy:hover{background:var(--accent-lt);}
+
+/* ── ROLE CHIPS ── */
+.role-chip-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.role-chip{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--white);border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all 100ms;}
+.role-chip:hover{border-color:var(--border-s);}
+.role-chip.selected{border-color:var(--accent);background:var(--accent-lt);}
+.rc-radio{width:15px;height:15px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.role-chip.selected .rc-radio{border-color:var(--accent);background:var(--accent);}
+.rc-dot{width:5px;height:5px;border-radius:50%;background:white;display:none;}
+.role-chip.selected .rc-dot{display:block;}
+.rc-info{}
+.rc-name{font-size:13px;font-weight:700;color:var(--ink);}
+.rc-desc{font-size:11px;color:var(--ink-3);}
+.role-chip.selected .rc-name{color:var(--accent);}
+
+/* ── EMAIL PREVIEW CARD ── */
+.email-preview{background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px 20px;margin-top:16px;}
+.ep-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);margin-bottom:10px;}
+.ep-header{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.ep-body{font-size:12px;color:var(--ink-2);line-height:1.6;}
+.ep-link{display:inline-block;margin-top:10px;padding:7px 16px;background:var(--accent);color:white;border-radius:var(--r-sm);font-size:12px;font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back">← Users</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-page">Invite User</span>
+    <div class="tb-r">
+      <div class="tb-notif">🔔<div class="npip"></div></div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="ph-top">
+      <div class="ph-icon">✉️</div>
+      <div class="ph-identity">
+        <div class="ph-name">Invite New User</div>
+        <div class="ph-sub">Complete all 3 steps to create the account and send an invitation email. Required fields are marked *</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIZARD STEPPER -->
+  <div class="wizard-nav">
+    <div class="wz-steps">
+      <div class="wz-step active" id="wz-step-1">
+        <div class="wz-head"><div class="wz-circle">1</div><div class="wz-line"></div></div>
+        <div class="wz-label">Identity</div>
+      </div>
+      <div class="wz-step" id="wz-step-2">
+        <div class="wz-head"><div class="wz-circle">2</div><div class="wz-line"></div></div>
+        <div class="wz-label">Access &amp; Message</div>
+      </div>
+      <div class="wz-step" id="wz-step-3">
+        <div class="wz-head"><div class="wz-circle">3</div></div>
+        <div class="wz-label">Review &amp; Send</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+
+    <!-- SECTION 1: IDENTITY -->
+    <div class="form-section" id="section-identity">
+      <div class="fs-title">1 — Identity</div>
+      <div class="field-grid">
+        <div class="field">
+          <label class="field-label">First Name <span class="req">*</span></label>
+          <input class="field-input" id="f-first-name" type="text" placeholder="e.g. Sarah" autocomplete="off" onblur="onNameBlur()">
+          <span class="field-error" id="err-first-name">First name is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Last Name <span class="req">*</span></label>
+          <input class="field-input" id="f-last-name" type="text" placeholder="e.g. Thompson" autocomplete="off" onblur="onNameBlur()">
+          <span class="field-error" id="err-last-name">Last name is required.</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label">Email Address <span class="req">*</span></label>
+          <input class="field-input" id="f-email" type="email" placeholder="e.g. sarah.thompson@company.com" autocomplete="off" onblur="onEmailBlur()">
+          <span class="field-hint">Invitation will be sent to this address. Maps to email in CreateUserRequest.</span>
+          <span class="field-error" id="err-email">A valid email address is required.</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label">Username <span class="req">*</span></label>
+          <input class="field-input" id="f-username" type="text" placeholder="Auto-generated from email" autocomplete="off">
+          <span class="field-hint">Auto-generated from email. Edit if needed — must be unique within the tenant.</span>
+          <span class="field-error" id="err-username">Username is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Job Title <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-title" type="text" placeholder="e.g. Senior Engineer" autocomplete="off">
+        </div>
+        <div class="field">
+          <!-- BG-080: department is free-text string, no FK to org-service -->
+          <label class="field-label">Department <span class="opt">(optional)</span></label>
+          <input class="field-input" id="f-department" type="text" placeholder="e.g. Engineering" autocomplete="off">
+          <span class="field-hint">Free text — no org-service FK (BG-080).</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label">User ID <span class="opt">(auto-generated)</span></label>
+          <!-- BG-090: user_id must be client-generated UUID -->
+          <div class="uuid-badge">
+            <span class="uuid-val" id="f-user-id-display">—</span>
+            <span class="uuid-copy" onclick="copyUserId()">Copy</span>
+          </div>
+          <span class="field-hint">Client-generated UUID. Sent as user_id in CreateUserRequest (BG-090).</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: ACCESS & MESSAGE -->
+    <div class="form-section" id="section-access">
+      <div class="fs-title">2 — Access &amp; Message</div>
+      <div class="field-grid">
+        <div class="field field-full">
+          <label class="field-label" style="margin-bottom:10px;">Initial Role <span class="opt">(optional — assign a role on invite)</span></label>
+          <div class="role-chip-grid" id="role-chip-grid">
+            <div class="role-chip" data-role-id="" data-role-name="No Role" onclick="selectRole(this)">
+              <div class="rc-radio"><div class="rc-dot"></div></div>
+              <div class="rc-info">
+                <div class="rc-name">No Role</div>
+                <div class="rc-desc">User will log in with no permissions until a role is assigned.</div>
+              </div>
+            </div>
+            <div class="role-chip" data-role-id="role_learner" data-role-name="Learner" onclick="selectRole(this)">
+              <div class="rc-radio"><div class="rc-dot"></div></div>
+              <div class="rc-info">
+                <div class="rc-name">Learner</div>
+                <div class="rc-desc">Can browse courses, enrol, and track personal progress.</div>
+              </div>
+            </div>
+            <div class="role-chip" data-role-id="role_instructor" data-role-name="Instructor" onclick="selectRole(this)">
+              <div class="rc-radio"><div class="rc-dot"></div></div>
+              <div class="rc-info">
+                <div class="rc-name">Instructor</div>
+                <div class="rc-desc">Can create and manage courses and assessments.</div>
+              </div>
+            </div>
+            <div class="role-chip" data-role-id="role_manager" data-role-name="Manager" onclick="selectRole(this)">
+              <div class="rc-radio"><div class="rc-dot"></div></div>
+              <div class="rc-info">
+                <div class="rc-name">Manager</div>
+                <div class="rc-desc">Can view team progress reports and assign training.</div>
+              </div>
+            </div>
+            <div class="role-chip" data-role-id="role_admin" data-role-name="Admin" onclick="selectRole(this)">
+              <div class="rc-radio"><div class="rc-dot"></div></div>
+              <div class="rc-info">
+                <div class="rc-name">Admin</div>
+                <div class="rc-desc">Full access to all tenant resources and user management.</div>
+              </div>
+            </div>
+          </div>
+          <span class="field-hint" style="margin-top:6px;">Role assigned via POST /api/v1/rbac/roles/{roleId}/assignments after user creation.</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label">Personal Message <span class="opt">(optional — included in invitation email)</span></label>
+          <!-- BG-115: message sent as payload.message in TransactionalEmailRequest -->
+          <textarea class="field-textarea" id="f-message" rows="3" placeholder="e.g. Welcome to the team! Click the link below to set up your account…" onblur="renderEmailPreview()"></textarea>
+          <span class="field-hint">Included as payload.message in the invitation email (template_key: 'user_invitation', BG-115).</span>
+        </div>
+        <div class="field field-full">
+          <label class="field-label" style="margin-bottom:6px;">Email Preview</label>
+          <!-- BG-115: template assumed — preview is illustrative only -->
+          <div class="email-preview" id="email-preview">
+            <div class="ep-label">Preview — template: user_invitation</div>
+            <div class="ep-header" id="ep-subject">You've been invited to join the LMS</div>
+            <div class="ep-body" id="ep-body">Hi there,<br><br>You've been invited to join your organisation's learning platform. Click the button below to accept your invitation and create your password.<br><br><em id="ep-message-line" style="display:none;"></em></div>
+            <div class="ep-link">Accept Invitation →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: REVIEW & SEND -->
+    <div class="form-section" id="section-review">
+      <div class="fs-title">3 — Review &amp; Send</div>
+      <div id="summary-rows"></div>
+    </div>
+
+  </div><!-- /canvas -->
+
+</div><!-- /layout -->
+
+<!-- ACTION BAR -->
+<div class="action-bar">
+  <div class="action-bar-status">
+    <span id="action-status-text">Fill in identity details to continue.</span>
+  </div>
+  <button class="btn-g" onclick="handleCancel()">Cancel</button>
+  <button class="btn-g" id="btn-back" style="display:none;" onclick="goBack()">← Back</button>
+  <button class="btn-primary" id="btn-next" onclick="goNext()">Next →</button>
+  <button class="btn-success" id="btn-submit" style="display:none;" onclick="handleInvite()">Send Invitation ✉️</button>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb"    onclick="setState('submitting',this)">Submitting</button>
+  <button class="stb"    onclick="setState('error',this)">Error</button>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+   MOCK DATA
+   BG-116: UserStatus.INVITED does not exist — new users created as "provisioned"
+   ────────────────────────────────────────────── */
+
+/* working state */
+let _userId      = '';
+let _selectedRoleId   = '';
+let _selectedRoleName = '';
+let _prevAutoUsername = ''; /* track last auto-gen to avoid overwriting manual edits */
+
+/* ── wizard navigation ── */
+const SECTIONS = ['section-identity','section-access','section-review'];
+const TOTAL = SECTIONS.length;
+let _step = 1;
+const MSGS = [
+  'Fill in identity details to continue.',
+  'Assign a role and add a personal message.',
+  'Review and send the invitation.',
+];
+
+function goTo(n){
+  if(n < 1 || n > TOTAL) return;
+  SECTIONS.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = i === n-1 ? '' : 'none';
+  });
+  _step = n;
+  window.scrollTo({top:0, behavior:'smooth'});
+  updateWizardNav();
+  updateActionBar();
+  if(_step === TOTAL) renderSummary();
+}
+
+function goNext(){
+  if(_step === 1 && !validateStep1()){
+    document.getElementById(SECTIONS[0]).scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  goTo(_step + 1);
+}
+
+function goBack(){ goTo(_step - 1); }
+
+function updateWizardNav(){
+  for(let i = 1; i <= TOTAL; i++){
+    const el = document.getElementById('wz-step-' + i);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i < _step) el.classList.add('done');
+    else if(i === _step) el.classList.add('active');
+  }
+}
+
+function updateActionBar(){
+  document.getElementById('action-status-text').textContent = MSGS[_step-1];
+  const isLast = _step === TOTAL;
+  document.getElementById('btn-back').style.display   = _step > 1 ? '' : 'none';
+  document.getElementById('btn-next').style.display   = isLast ? 'none' : '';
+  document.getElementById('btn-submit').style.display = isLast ? '' : 'none';
+}
+
+/* ── email → username auto-gen ── */
+function onEmailBlur(){
+  validateField('f-email');
+  renderSummary();
+  const email = document.getElementById('f-email')?.value?.trim() || '';
+  const usernameEl = document.getElementById('f-username');
+  if(!usernameEl) return;
+  const currentUsername = usernameEl.value.trim();
+  /* only auto-gen if username is empty or matches last auto-generated value */
+  if(!currentUsername || currentUsername === _prevAutoUsername){
+    const localPart = email.split('@')[0] || '';
+    const generated = localPart.replace(/[^a-z0-9._-]/gi,'').toLowerCase();
+    if(generated){
+      usernameEl.value = generated;
+      _prevAutoUsername = generated;
+      validateField('f-username');
+    }
+  }
+  renderEmailPreview();
+}
+
+/* ── name blur → update email preview ── */
+function onNameBlur(){
+  validateField('f-first-name');
+  validateField('f-last-name');
+  renderEmailPreview();
+  renderSummary();
+}
+
+/* ── role selection ── */
+function selectRole(chip){
+  document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('selected'));
+  chip.classList.add('selected');
+  _selectedRoleId   = chip.dataset.roleId;
+  _selectedRoleName = chip.dataset.roleName;
+  renderEmailPreview();
+  renderSummary();
+}
+
+/* ── email preview (BG-115: illustrative — template assumed) ── */
+function renderEmailPreview(){
+  const firstName = document.getElementById('f-first-name')?.value?.trim() || '';
+  const lastName  = document.getElementById('f-last-name')?.value?.trim()  || '';
+  const name = firstName ? `${firstName}${lastName ? ' ' + lastName : ''}` : 'there';
+  const message = document.getElementById('f-message')?.value?.trim() || '';
+
+  const subjectEl = document.getElementById('ep-subject');
+  const bodyEl    = document.getElementById('ep-body');
+  const msgLine   = document.getElementById('ep-message-line');
+
+  if(subjectEl) subjectEl.textContent = `You've been invited to join the LMS`;
+  if(bodyEl){
+    bodyEl.innerHTML =
+      `Hi ${name},<br><br>` +
+      `You've been invited to join your organisation's learning platform. Click the button below to accept your invitation and create your password.` +
+      (message ? `<br><br><em style="color:var(--ink-2);">"${message}"</em>` : '');
+  }
+}
+
+/* ── copy user ID ── */
+function copyUserId(){
+  if(navigator.clipboard && _userId){
+    navigator.clipboard.writeText(_userId).catch(()=>{});
+  }
+}
+
+/* ── validation ── */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const VALIDATORS = {
+  'f-first-name': { errId:'err-first-name', test: v => v.trim().length > 0 },
+  'f-last-name':  { errId:'err-last-name',  test: v => v.trim().length > 0 },
+  'f-email':      { errId:'err-email',      test: v => EMAIL_RE.test(v.trim()) },
+  'f-username':   { errId:'err-username',   test: v => v.trim().length > 0 },
+};
+
+function validateField(inputId){
+  const rule = VALIDATORS[inputId];
+  if(!rule) return true;
+  const val = document.getElementById(inputId)?.value || '';
+  const valid = rule.test(val);
+  document.getElementById(inputId)?.classList.toggle('has-error', !valid);
+  const errEl = document.getElementById(rule.errId);
+  if(errEl) errEl.classList.toggle('visible', !valid);
+  return valid;
+}
+
+function validateStep1(){
+  const fOk  = validateField('f-first-name');
+  const lOk  = validateField('f-last-name');
+  const eOk  = validateField('f-email');
+  const uOk  = validateField('f-username');
+  return fOk && lOk && eOk && uOk;
+}
+
+function attachValidators(){
+  Object.keys(VALIDATORS).forEach(id=>{
+    document.getElementById(id)?.addEventListener('blur', ()=>{ validateField(id); renderSummary(); });
+  });
+}
+
+/* ── summary (section 3) ── */
+function renderSummary(){
+  const el = document.getElementById('summary-rows');
+  if(!el) return;
+  const v = id => document.getElementById(id)?.value?.trim() || '';
+  const row = (label, value) =>
+    `<div class="summary-row">
+      <span class="summary-label">${label}</span>
+      <span class="summary-value ${value?'':'empty'}">${value || '—'}</span>
+    </div>`;
+
+  const firstName = v('f-first-name');
+  const lastName  = v('f-last-name');
+  const fullName  = [firstName, lastName].filter(Boolean).join(' ');
+
+  el.innerHTML =
+    row('Full Name',       fullName) +
+    row('Email',           v('f-email')) +
+    row('Username',        v('f-username')) +
+    row('Job Title',       v('f-title')) +
+    row('Department',      v('f-department')) +
+    row('Initial Role',    _selectedRoleName || 'None') +
+    row('Personal Message',v('f-message')) +
+    row('User ID',         _userId) +
+    row('Initial Status',  'Provisioned (BG-116 — no invited state)') +
+    row('Invitation Email','Sent via email-service (template: user_invitation, BG-115)');
+}
+
+/* update summary on any input change */
+document.addEventListener('input', e=>{
+  if(e.target.classList.contains('field-input') || e.target.classList.contains('field-textarea')){
+    renderSummary();
+    if(e.target.id === 'f-message') renderEmailPreview();
+  }
+});
+
+/* ── invite / cancel ── */
+function handleInvite(){
+  const _stb = [...document.querySelectorAll('.stb')].find(b => b.textContent.trim() === 'Submitting');
+  setState('submitting', _stb);
+}
+
+function handleCancel(){
+  /* navigate back to users list */
+}
+
+/* ── state switcher ── */
+const _formHTML = document.getElementById('canvas').innerHTML;
+
+function setState(s, btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+
+  if(s === 'loaded'){
+    document.getElementById('canvas').innerHTML = _formHTML;
+    _selectedRoleId   = '';
+    _selectedRoleName = '';
+    _prevAutoUsername = '';
+    _userId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+          const r = Math.random()*16|0;
+          return (c==='x'?r:(r&0x3|0x8)).toString(16);
+        });
+    const display = document.getElementById('f-user-id-display');
+    if(display) display.textContent = _userId;
+    attachValidators();
+    renderEmailPreview();
+    renderSummary();
+    document.addEventListener('input', e=>{
+      if(e.target.classList.contains('field-input') || e.target.classList.contains('field-textarea')){
+        renderSummary();
+        if(e.target.id === 'f-message') renderEmailPreview();
+      }
+    });
+    goTo(1);
+
+  } else if(s === 'submitting'){
+    const email = document.getElementById('f-email')?.value?.trim() || 'user@company.com';
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:48px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:16px;">📨</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Sending invitation…</div>
+          <div style="font-size:13px;color:var(--ink-3);">Creating account and dispatching invitation to ${email}.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'Sending invitation…';
+    document.getElementById('btn-submit').disabled = true;
+
+  } else if(s === 'error'){
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:40px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Could not send invitation</div>
+          <div style="font-size:13px;color:var(--ink-3);">Could not reach user-service or email-service. Please try again.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'An error occurred.';
+    document.getElementById('btn-submit').disabled = false;
+  }
+}
+
+/* init */
+_userId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+  ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+      const r = Math.random()*16|0;
+      return (c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+const _initDisplay = document.getElementById('f-user-id-display');
+if(_initDisplay) _initDisplay.textContent = _userId;
+attachValidators();
+renderEmailPreview();
+renderSummary();
+goTo(1);
+</script>
+</body>
+</html>

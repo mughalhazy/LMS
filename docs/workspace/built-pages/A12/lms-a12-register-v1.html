@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Register
+  Archetype: A12 Single Focus Form — Center · no nav · no sidebar · minimal footer
+  Created  : 2026-03-28
+  Surface  : Public (pre-authentication)
+  Repo     :
+    user-service (FastAPI · X-Tenant-Id header required):
+      POST /api/v1/users
+           → CreateUserRequest {
+               tenant_id, actor_id,
+               user_id   (Rails-canonical — BG-156),
+               email, username,
+               first_name, last_name,
+               display_name?, locale?, timezone?, title?, department?,
+               external_subject_id?
+             }
+           → UserResponse { user: UserAggregate }
+           UserAggregate: { tenant_id, user_id, status: UserStatus,
+             identity: IdentityAttributes { email, username, external_subject_id? },
+             profile: UserProfile { first_name, last_name, display_name?, locale?,
+               timezone?, title?, department?, phone_number?, avatar_url? },
+             role_links: list[RoleLink], version, created_at, updated_at, deleted_at? }
+           UserStatus enum: provisioned | active | suspended | deactivated | terminated
+           NOTE: user_id must be pre-assigned by Rails layer — no generation endpoint (BG-156)
+           NOTE: actor_id required — bootstrapped as same user_id for self-reg (BG-157)
+    auth-service (no credential creation endpoint — BG-158):
+      No POST /api/v1/auth/register or /auth/credentials endpoint.
+      Registered user cannot log in until credentials are provisioned separately.
+      Closest: POST /api/v1/auth/password/forgot (ForgotPasswordRequest: tenant_id, email)
+               could trigger email-based credential setup as a workaround.
+  Gaps     :
+    BG-156 — user_id is Rails-canonical, no generation endpoint — client-side UUID v4
+    BG-157 — actor_id on self-registration bootstrapped as the registrant's own user_id
+    BG-158 — auth-service no credential creation endpoint — password not persisted; post-reg
+              email verification flow assumed (consistent with A5 invite-user pattern)
+  Patterns :
+    A12 Single Focus Form · CSS base: lms-a12-login-v1.html (:root verbatim)
+    Public surface: no zoom · body:14px · lh:1.6
+    Layout: full-viewport flex center · register card max-width:420px
+    2-col grid for first/last name · username auto-populated from email (editable)
+    Password + confirm in 2-col grid · client-side match validation
+    Sign-in link below card
+    Dev state bar: Idle · Loading · Error · Success
+  Mock     :
+    POST /api/v1/users simulated → UserResponse (BG-156/157/158)
+  States   : Idle · Loading · Error · Success
+  CSS anchor: lms-a12-login-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Create Account</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a12-login-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --gold:#78350F;--gold-bg:#FFFBEB;--gold-bd:rgba(245,158,11,.2);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:13px;--lh:1.5;
+  --topbar-h:56px;
+  --filter-panel-w:240px;
+  --card-gap:16px;
+  --card-w:420px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.6;min-height:100vh;display:flex;flex-direction:column;}
+
+/* ── A12 SHELL ── */
+.a12-shell{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;}
+
+/* ── REGISTER CARD ── */
+.reg-card{width:100%;max-width:var(--card-w);background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-sm);padding:40px;}
+
+/* Logo: 20px 800 */
+.lc-logo{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;text-align:center;margin-bottom:20px;}
+
+/* Card title: 22px 700 -0.02em */
+.lc-title{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.02em;text-align:center;margin-bottom:4px;}
+
+/* Subtitle: 13px 500 */
+.lc-sub{font-size:13px;font-weight:500;color:var(--ink-3);text-align:center;margin-bottom:28px;}
+
+/* ── FORM MESSAGES ── */
+.form-msg{border-radius:var(--r-sm);padding:10px 14px;font-size:12px;font-weight:600;margin-bottom:16px;display:none;}
+.form-msg.show{display:block;}
+.form-msg.error{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+.form-msg.success{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);text-align:center;}
+
+/* ── FIELDS ── */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+/* Label: 11px 700 */
+.field-label{font-size:11px;font-weight:700;color:var(--ink-2);letter-spacing:.01em;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-input{width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid var(--border-s);background:var(--white);font-family:var(--font);font-size:13px;font-weight:500;color:var(--ink);outline:none;transition:border-color 150ms,background 150ms;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input::placeholder{color:var(--ink-4);}
+.field-input.err{border-color:var(--red);background:var(--red-bg);}
+/* Field hint: 10px 500 */
+.field-hint{font-size:10px;font-weight:500;color:var(--ink-4);margin-top:2px;}
+
+/* Password strength bar */
+.pw-strength{height:3px;border-radius:2px;background:var(--border);margin-top:6px;overflow:hidden;}
+.pw-strength-fill{height:100%;border-radius:2px;width:0%;transition:width 200ms,background 200ms;}
+
+/* ── PRIMARY BUTTON ── */
+.btn-primary{width:100%;padding:11px 16px;border-radius:var(--r-sm);border:none;background:var(--accent);font-family:var(--font);font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:background 120ms;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-primary:hover:not(:disabled){background:#4d4dbf;}
+.btn-primary:disabled{opacity:.65;cursor:not-allowed;}
+
+/* Spinner */
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 600ms linear infinite;display:none;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SIGN-IN LINK ── */
+.signin-row{text-align:center;margin-top:20px;font-size:12px;font-weight:500;color:var(--ink-3);}
+.signin-row a{color:var(--accent);font-weight:700;text-decoration:none;}
+.signin-row a:hover{text-decoration:underline;}
+
+/* ── FOOTER ── */
+.a12-footer{text-align:center;font-size:11px;font-weight:500;color:var(--ink-4);padding:20px 0 12px;}
+.a12-footer a{color:var(--ink-3);text-decoration:none;}
+.a12-footer a:hover{color:var(--ink-2);}
+
+/* ── STATE BAR ── */
+.state-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:var(--r-pill);padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;color:#fff;padding:10px 20px;border-radius:var(--r-pill);font-size:12px;font-weight:600;opacity:0;transition:opacity 200ms;pointer-events:none;z-index:9998;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="a12-shell">
+
+  <!-- ── REGISTER CARD ── -->
+  <div class="reg-card">
+
+    <!-- Logo mark -->
+    <div class="lc-logo">◆ LMS</div>
+
+    <!-- Heading -->
+    <div class="lc-title">Create your account</div>
+    <div class="lc-sub">Join your organisation's learning platform</div>
+
+    <!-- Form messages -->
+    <div class="form-msg error" id="form-error"></div>
+    <div class="form-msg success" id="form-success"></div>
+
+    <!-- Registration form
+         POST /api/v1/users (X-Tenant-Id header) → CreateUserRequest
+         BG-156: user_id client-generated UUID · BG-157: actor_id = user_id
+         BG-158: password collected but auth credentials not persisted -->
+    <form id="reg-form" onsubmit="handleRegister(event)" novalidate>
+
+      <!-- First + Last name row -->
+      <div class="field-row">
+        <div class="field" style="margin-bottom:0;">
+          <label class="field-label" for="f-first">First name<span class="req">*</span></label>
+          <input class="field-input" id="f-first" type="text"
+                 placeholder="Alex" autocomplete="given-name" required>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="field-label" for="f-last">Last name<span class="req">*</span></label>
+          <input class="field-input" id="f-last" type="text"
+                 placeholder="Morgan" autocomplete="family-name" required>
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="field">
+        <label class="field-label" for="f-email">Work email<span class="req">*</span></label>
+        <input class="field-input" id="f-email" type="email"
+               placeholder="you@company.com" autocomplete="email" required
+               oninput="autoUsername()">
+      </div>
+
+      <!-- Username -->
+      <div class="field">
+        <label class="field-label" for="f-username">Username<span class="req">*</span></label>
+        <input class="field-input" id="f-username" type="text"
+               placeholder="alex.morgan" autocomplete="username" required>
+        <div class="field-hint">Auto-populated from email — you can change it</div>
+      </div>
+
+      <!-- Password + confirm row -->
+      <div class="field-row">
+        <div class="field" style="margin-bottom:0;">
+          <label class="field-label" for="f-password">Password<span class="req">*</span></label>
+          <input class="field-input" id="f-password" type="password"
+                 placeholder="Min. 8 characters" autocomplete="new-password" required
+                 oninput="updateStrength()">
+          <div class="pw-strength"><div class="pw-strength-fill" id="pw-fill"></div></div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="field-label" for="f-confirm">Confirm password<span class="req">*</span></label>
+          <input class="field-input" id="f-confirm" type="password"
+                 placeholder="Re-enter password" autocomplete="new-password" required>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-register" type="submit" style="margin-top:20px;">
+        <span class="spinner" id="btn-spinner"></span>
+        <span id="btn-label">Create account</span>
+      </button>
+
+    </form>
+
+    <!-- Sign in link -->
+    <div class="signin-row">
+      Already have an account? <a href="lms-a12-login-v1.html">Sign in</a>
+    </div>
+
+  </div><!-- /reg-card -->
+
+  <div class="a12-footer">
+    &copy; 2026 LMS Enterprise &nbsp;&middot;&nbsp;
+    <a href="#">Privacy</a> &nbsp;&middot;&nbsp; <a href="#">Terms</a>
+  </div>
+
+</div><!-- /a12-shell -->
+
+<!-- ── STATE BAR ── -->
+<div class="state-bar">
+  <button class="stb on" onclick="showState('idle')">Idle</button>
+  <button class="stb" onclick="showState('loading')">Loading</button>
+  <button class="stb" onclick="showState('error')">Error</button>
+  <button class="stb" onclick="showState('success')">Success</button>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── TENANT CONSTANT ── */
+/* BG-154 (existing): no tenant discovery — pre-populated */
+const TENANT_ID = 'tenant-001';
+
+/* ── UUID GENERATOR ── */
+/* BG-156: user_id must be Rails-canonical — client-side UUID used as workaround */
+function uuid4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+/* ── USERNAME AUTO-POPULATE ── */
+function autoUsername() {
+  const email    = document.getElementById('f-email').value;
+  const username = document.getElementById('f-username');
+  const prefix   = email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '');
+  if (prefix) username.value = prefix;
+}
+
+/* ── PASSWORD STRENGTH ── */
+function updateStrength() {
+  const pw   = document.getElementById('f-password').value;
+  const fill = document.getElementById('pw-fill');
+  const score = [pw.length >= 8, /[A-Z]/.test(pw), /[0-9]/.test(pw), /[^A-Za-z0-9]/.test(pw)]
+    .filter(Boolean).length;
+  const widths = ['0%', '25%', '50%', '75%', '100%'];
+  const colors = ['transparent', '#C42B1C', '#F59E0B', '#5B5BD6', '#18794E'];
+  fill.style.width      = widths[score];
+  fill.style.background = colors[score];
+}
+
+/* ── REGISTER HANDLER ── */
+function handleRegister(e) {
+  e.preventDefault();
+  clearMessages();
+
+  const first    = document.getElementById('f-first').value.trim();
+  const last     = document.getElementById('f-last').value.trim();
+  const email    = document.getElementById('f-email').value.trim();
+  const username = document.getElementById('f-username').value.trim();
+  const password = document.getElementById('f-password').value;
+  const confirm  = document.getElementById('f-confirm').value;
+
+  /* Client-side validation */
+  if (!first || !last || !email || !username || !password || !confirm) {
+    showError('Please fill in all required fields.');
+    return;
+  }
+  if (password.length < 8) {
+    markErr('f-password');
+    showError('Password must be at least 8 characters.');
+    return;
+  }
+  if (password !== confirm) {
+    markErr('f-confirm');
+    showError('Passwords do not match.');
+    return;
+  }
+
+  setLoading(true);
+
+  /* Simulate POST /api/v1/users (X-Tenant-Id: tenant-001)
+     BG-156: user_id client-generated · BG-157: actor_id = user_id · BG-158: password not sent */
+  const newUserId = uuid4();
+  const _payload = {
+    tenant_id:  TENANT_ID,
+    actor_id:   newUserId,   /* BG-157: self-referential bootstrap */
+    user_id:    newUserId,   /* BG-156: Rails-canonical — client UUID used */
+    email,
+    username,
+    first_name: first,
+    last_name:  last,
+    /* password intentionally omitted — BG-158: no auth credential endpoint */
+  };
+
+  setTimeout(() => {
+    setLoading(false);
+    /* Simulated UserAggregate from UserResponse */
+    const _resp = {
+      user: {
+        tenant_id: TENANT_ID,
+        user_id:   newUserId,
+        status:    'provisioned',
+        identity:  { email, username, external_subject_id: null },
+        profile:   { first_name: first, last_name: last, display_name: null,
+                     locale: null, timezone: null, title: null, department: null,
+                     phone_number: null, avatar_url: null },
+        role_links: [],
+        version:    1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      }
+    };
+    /* BG-158: credentials not provisioned — email verification assumed */
+    showSuccess('\u2713 Account created \u2014 check your email to verify and set up login access');
+  }, 1000);
+}
+
+/* ── LOADING STATE ── */
+function setLoading(on) {
+  const btn = document.getElementById('btn-register');
+  const sp  = document.getElementById('btn-spinner');
+  const lbl = document.getElementById('btn-label');
+  btn.disabled     = on;
+  sp.style.display = on ? 'block' : 'none';
+  lbl.textContent  = on ? 'Creating account\u2026' : 'Create account';
+}
+
+/* ── MESSAGE HELPERS ── */
+function markErr(id) { document.getElementById(id).classList.add('err'); }
+function clearMessages() {
+  document.getElementById('form-error').classList.remove('show');
+  document.getElementById('form-success').classList.remove('show');
+  ['f-first','f-last','f-email','f-username','f-password','f-confirm']
+    .forEach(id => document.getElementById(id).classList.remove('err'));
+}
+function showError(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg; el.classList.add('show');
+}
+function showSuccess(msg) {
+  const el = document.getElementById('form-success');
+  el.textContent = msg; el.classList.add('show');
+}
+
+/* ── STATE SWITCHER ── */
+function showState(s) {
+  clearMessages();
+  setLoading(false);
+  if (s === 'loading') { setLoading(true); }
+  if (s === 'error')   { showError('Email address is already registered. Try signing in.'); }
+  if (s === 'success') { showSuccess('\u2713 Account created \u2014 check your email to verify and set up login access'); }
+  document.querySelectorAll('.stb').forEach(b =>
+    b.classList.toggle('on', b.textContent.toLowerCase() === s)
+  );
+}
+
+/* ── TOAST ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>

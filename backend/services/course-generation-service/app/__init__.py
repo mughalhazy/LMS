@@ -1,0 +1,1 @@
+"""Course generation service package."""

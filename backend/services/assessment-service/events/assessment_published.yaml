@@ -1,0 +1,14 @@
+event_type: assessment_published
+producer_service: assessment-service
+topic: lms.assessment.assessment_published.v1
+consumer_services:
+  - event-ingestion-service
+  - progress-service
+  - learning-analytics-service
+  - notification-service
+description: Routed through event-ingestion-service for integration routing. Fired when an assessment transitions from draft to published.
+payload:
+  tenant_id: string
+  assessment_id: uuid
+  published_by: string
+  published_at: datetime

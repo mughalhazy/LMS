@@ -1,0 +1,73 @@
+{
+  "event_type": "media_processing_completed",
+  "topic": "lms.media.processing.completed.v1",
+  "producer_service": "media-pipeline-service",
+  "consumer_services": [
+    "content-management-service",
+    "analytics-reporting-service",
+    "audit-compliance-service"
+  ],
+  "purpose": "Emitted when transcoding and thumbnail generation complete and rendition outputs are available.",
+  "schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "timestamp",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "media_processing_completed" },
+      "timestamp": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "media_asset_id",
+          "processing_job_id",
+          "transcoding_job_status",
+          "adaptive_streaming_assets",
+          "rendition_metadata",
+          "thumbnail_set_uris",
+          "poster_image_uri"
+        ],
+        "properties": {
+          "media_asset_id": { "type": "string" },
+          "processing_job_id": { "type": "string" },
+          "transcoding_job_status": { "type": "string", "enum": ["completed"] },
+          "adaptive_streaming_assets": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "rendition_metadata": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["profile", "bitrate_kbps", "resolution", "duration_seconds"],
+              "properties": {
+                "profile": { "type": "string" },
+                "bitrate_kbps": { "type": "integer", "minimum": 1 },
+                "resolution": { "type": "string" },
+                "duration_seconds": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "thumbnail_set_uris": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "poster_image_uri": { "type": "string" },
+          "sprite_sheet_uri": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

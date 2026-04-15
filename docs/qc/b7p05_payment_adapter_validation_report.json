@@ -1,0 +1,263 @@
+{
+  "batch": "B7P05",
+  "title": "Payment Flow Validation (Success/Failure/Retry/Reconciliation)",
+  "scope": {
+    "payment_interface": "docs/architecture/payment_provider_adapter_interface_contract.md",
+    "checkout_integration": "docs/architecture/B3P03_checkout_service_design.md",
+    "commerce_boundary": "docs/architecture/B3P01_commerce_domain_architecture.md"
+  },
+  "flow_checks": {
+    "success": true,
+    "failure": true,
+    "retry": true,
+    "reconciliation": true,
+    "ledger_correct": true,
+    "no_orphan_transactions": true,
+    "adapter_isolation": true,
+    "config_based_selection": true
+  },
+  "adapter_validation": {
+    "interface_issues": [],
+    "adapter_count": 2,
+    "selection_mode": "config_based"
+  },
+  "scenario_results": [
+    {
+      "scenario": "success",
+      "tenant_id": "tenant_academy_pk",
+      "adapter": "jazzcash",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "jazzcash"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_jc_001_ok",
+              "status": "authorized",
+              "context": {
+                "provider": "jazzcash",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        },
+        {
+          "step": "payment.verified",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_jc_001_ok",
+              "status": "captured",
+              "verified_at": "2026-04-01T00:00:00Z",
+              "context": {
+                "provider": "jazzcash",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        }
+      ],
+      "trace_hash": "d4d579669baf6a8ab4271e7cf2df4d37a859c057ad795d95982f9c0e3262adba"
+    },
+    {
+      "scenario": "failure",
+      "tenant_id": "tenant_academy_pk",
+      "adapter": "jazzcash",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "jazzcash"
+        },
+        {
+          "step": "payment.initiated",
+          "result": {
+            "ok": false,
+            "error": {
+              "code": "provider_rejected",
+              "message": "wallet blocked",
+              "retryable": false,
+              "provider": "jazzcash"
+            }
+          }
+        }
+      ],
+      "trace_hash": "6a685453d1aef09cae58ea7b24fd930a6589595751754b2b1595ad33a4751a2d"
+    },
+    {
+      "scenario": "retry",
+      "tenant_id": "tenant_enterprise_pk",
+      "adapter": "easypaisa",
+      "trace": [
+        {
+          "step": "adapter.selected",
+          "provider": "easypaisa"
+        },
+        {
+          "step": "payment.initiated.first",
+          "result": {
+            "ok": false,
+            "error": {
+              "code": "timeout",
+              "message": "provider timeout",
+              "retryable": true,
+              "provider": "easypaisa"
+            }
+          }
+        },
+        {
+          "step": "payment.initiated.retry",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_ep_003_ok",
+              "status": "requires_action",
+              "next_action_url": "https://sandbox.easypaisa.example/redirect",
+              "context": {
+                "provider": "easypaisa",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        },
+        {
+          "step": "payment.verified",
+          "result": {
+            "ok": true,
+            "value": {
+              "commerce_payment_id": "pay_ep_003_ok",
+              "status": "captured",
+              "verified_at": "2026-04-01T00:00:00Z",
+              "context": {
+                "provider": "easypaisa",
+                "country_code": "PK",
+                "method_type": "wallet"
+              }
+            }
+          }
+        }
+      ],
+      "trace_hash": "540c65b5bcc7b627e4c80b8a84d3b42513d2a15891f292cd17622438c4dae4ce"
+    }
+  ],
+  "reconciliation": {
+    "settlement_file_payment_ids": [
+      "pay_jc_001_ok",
+      "pay_ep_003_ok",
+      "pay_orphan_001"
+    ],
+    "orphans_before_autofix": [
+      "pay_orphan_001"
+    ],
+    "orphans_after_autofix": [],
+    "autofix_applied": true
+  },
+  "ledger": {
+    "entry_count": 3,
+    "balanced": true,
+    "entries": [
+      {
+        "entry_id": "le_jc_001_ok",
+        "commerce_payment_id": "pay_jc_001_ok",
+        "reason": "capture",
+        "lines": [
+          {
+            "account": "cash_clearing",
+            "debit_minor": 50000,
+            "credit_minor": 0
+          },
+          {
+            "account": "ar_control",
+            "debit_minor": 0,
+            "credit_minor": 50000
+          }
+        ]
+      },
+      {
+        "entry_id": "le_ep_003_ok",
+        "commerce_payment_id": "pay_ep_003_ok",
+        "reason": "retry_capture",
+        "lines": [
+          {
+            "account": "cash_clearing",
+            "debit_minor": 25000,
+            "credit_minor": 0
+          },
+          {
+            "account": "ar_control",
+            "debit_minor": 0,
+            "credit_minor": 25000
+          }
+        ]
+      },
+      {
+        "entry_id": "le_fix_pay_orphan_001",
+        "commerce_payment_id": "pay_orphan_001",
+        "reason": "reconciliation_autofix",
+        "lines": [
+          {
+            "account": "cash_clearing",
+            "debit_minor": 0,
+            "credit_minor": 0
+          },
+          {
+            "account": "ar_control",
+            "debit_minor": 0,
+            "credit_minor": 0
+          }
+        ]
+      }
+    ]
+  },
+  "transactions": {
+    "count": 3,
+    "records": [
+      {
+        "commerce_payment_id": "pay_jc_001_ok",
+        "status": "captured",
+        "amount_minor": 50000,
+        "attempts": [
+          "jc_001_ok"
+        ],
+        "reconciled": false
+      },
+      {
+        "commerce_payment_id": "pay_ep_003_ok",
+        "status": "captured",
+        "amount_minor": 25000,
+        "attempts": [
+          "ep_003_timeout",
+          "ep_003_ok"
+        ],
+        "reconciled": false
+      },
+      {
+        "commerce_payment_id": "pay_orphan_001",
+        "status": "reconciled_orphan",
+        "amount_minor": 0,
+        "attempts": [],
+        "reconciled": true
+      }
+    ]
+  },
+  "issue_report": {
+    "issues": [],
+    "issue_count": 0,
+    "status": "no_issues"
+  },
+  "qc_fix_re_qc_10_10": {
+    "success_validated": true,
+    "failure_validated": true,
+    "retry_validated": true,
+    "reconciliation_validated": true,
+    "ledger_always_correct": true,
+    "no_orphan_transactions": true
+  },
+  "validation_score": 10
+}

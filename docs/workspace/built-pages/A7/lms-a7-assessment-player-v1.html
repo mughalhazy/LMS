@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Assessment Player
+  Archetype: A7 Player — Split variant (4-zone)
+  Created  : 2026-03-22
+  Surface  : Learner
+  Repo     : assessment-service (full) · attempt-service (full) · quiz-engine (stub — BG-128)
+  Zones    : Question Navigator (260px fixed) · Question Content (flex-1) · Info Panel (280px fixed) · Rail (56px bottom)
+  Endpoints: GET  /api/v1/assessments/{id}                        → AssessmentResponse
+             POST /api/v1/assessments/{id}/attempts               → AttemptResponse (assessment-service)
+             POST /api/v1/attempts/{id}/submissions               → SubmissionResponse
+             POST /api/v1/attempts/{id}/grade                     → AttemptResponse
+             GET  /api/v1/attempts/{id}                           → AttemptResponse
+             GET  /api/v1/attempts/history?learner_id=&assessment_id= → AttemptHistoryResponse (attempt-service)
+  Gaps     : BG-128 (no question retrieval endpoint — quiz-engine full stub; questions client-side mocked)
+             BG-129 (AnswerSubmission.response untyped union — response format hardcoded per mock question type)
+             BG-130 (two AttemptStatus enums — assessment-service started|submitted|graded vs attempt-service in_progress|submitted|scored)
+             BG-122 (quiz-engine full stub — extends; no question content API exists)
+  Patterns : A7 Split — 4-zone layout: Navigator (260px) + Content (flex-1) + Info (280px) + Rail (56px)
+             zoom:1.25 · Learner surface
+             Question types: mc (radio) · tf (radio) · sa (textarea)
+             Question states: unanswered (grey) · answered (green) · flagged (amber) · current (accent)
+             P-55 inline error block · P-56 partial skeleton
+  CSS base : Verbatim :root + shared components from lms-a7-course-player-v1.html (last sealed A7)
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Assessment Player</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a7-course-player-v1.html (last sealed A7) ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ── A7 ASSESSMENT PLAYER LAYOUT ── */
+.layout{display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:960px;}
+
+/* Topbar */
+.topbar{height:52px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;flex-shrink:0;gap:10px;z-index:20;}
+.tb-back{font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-course{font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.tb-assess{font-size:13px;font-weight:500;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.tb-timer{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r-pill);background:var(--subtle);border:1px solid var(--border);}
+.tb-timer.warning{background:var(--amber-bg);border-color:var(--amber-bd);}
+.tb-timer-icon{font-size:14px;}
+.tb-timer.warning .tb-timer-icon{color:var(--amber);}
+.tb-timer-val{font-size:13px;font-weight:700;font-family:monospace;color:var(--ink);letter-spacing:.02em;}
+.tb-timer.warning .tb-timer-val{color:var(--amber);}
+.tb-submit-btn{padding:7px 18px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.tb-submit-btn:hover{opacity:.9;}
+.tb-submit-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* Player body */
+.player-body{display:flex;flex:1;overflow:hidden;}
+
+/* ── ZONE 1 — QUESTION NAVIGATOR (260px) ── */
+.nav-panel{width:260px;flex-shrink:0;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.np-header{padding:14px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.np-assess-title{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;}
+.np-type-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--accent-lt);color:var(--accent);margin-bottom:8px;}
+.np-progress-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.np-prog-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);}
+.np-prog-count{font-size:11px;font-weight:700;color:var(--accent);}
+.np-prog-bar{height:4px;background:var(--border);border-radius:999px;overflow:hidden;}
+.np-prog-fill{height:100%;background:var(--accent);border-radius:999px;transition:width 300ms;}
+.np-scroll{flex:1;overflow-y:auto;padding:8px;}
+
+/* Question nav item */
+.qn-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;transition:background 100ms;margin-bottom:2px;}
+.qn-item:hover{background:var(--subtle);}
+.qn-item.current{background:var(--accent-lt);}
+.qn-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;transition:all 150ms;}
+.qn-num.unanswered{background:var(--subtle);border:1px solid var(--border);color:var(--ink-3);}
+.qn-num.answered{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.qn-num.flagged{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber);}
+.qn-num.current-active{background:var(--accent);border:none;color:white;}
+.qn-body{flex:1;min-width:0;}
+.qn-label{font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qn-item.current .qn-label{color:var(--accent);}
+.qn-type{font-size:10px;color:var(--ink-4);margin-top:1px;}
+.qn-flag-icon{font-size:12px;color:var(--amber);opacity:.8;flex-shrink:0;}
+
+/* Nav footer summary */
+.np-footer{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;}
+.np-summary-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.np-summary-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.np-summary-dot.answered{background:var(--green);}
+.np-summary-dot.unanswered{background:var(--border-s);}
+.np-summary-dot.flagged{background:var(--amber);}
+.np-summary-label{font-size:11px;color:var(--ink-3);}
+.np-summary-count{font-size:11px;font-weight:700;color:var(--ink);margin-left:auto;}
+
+/* ── ZONE 2 — QUESTION CONTENT (flex-1) ── */
+.content-zone{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--canvas);}
+.cz-header{background:var(--white);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.cz-q-number{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);}
+.cz-type-badge{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.cz-type-badge.mc{background:var(--accent-lt);color:var(--accent);}
+.cz-type-badge.tf{background:var(--teal-bg);color:var(--teal);}
+.cz-type-badge.sa{background:var(--green-bg);color:var(--green);}
+.cz-pts{font-size:12px;color:var(--ink-3);margin-left:auto;}
+.cz-flag-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;transition:all 100ms;white-space:nowrap;}
+.cz-flag-btn:hover{border-color:var(--amber-bd);color:var(--amber);background:var(--amber-bg);}
+.cz-flag-btn.flagged{border-color:var(--amber-bd);color:var(--amber);background:var(--amber-bg);}
+.cz-scroll{flex:1;overflow-y:auto;padding:28px 32px;}
+.q-prompt{font-size:16px;font-weight:700;color:var(--ink);line-height:1.55;margin-bottom:24px;}
+.q-instruction{font-size:12px;color:var(--ink-3);margin-bottom:16px;font-style:italic;}
+
+/* MC / TF options */
+.q-options{display:flex;flex-direction:column;gap:10px;}
+.q-option{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:var(--white);cursor:pointer;transition:all 120ms;}
+.q-option:hover{border-color:var(--border-s);background:var(--subtle);}
+.q-option.selected{border-color:var(--accent);background:var(--accent-lt);}
+.q-option input[type="radio"]{margin-top:2px;accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;cursor:pointer;}
+.q-option-label{font-size:14px;color:var(--ink);line-height:1.5;cursor:pointer;}
+.q-option.selected .q-option-label{color:var(--accent);font-weight:600;}
+
+/* SA textarea */
+.q-sa-wrap{display:flex;flex-direction:column;gap:8px;}
+.q-sa-textarea{font-family:var(--font);font-size:14px;color:var(--ink);background:var(--white);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:14px;outline:none;width:100%;resize:vertical;min-height:160px;line-height:1.6;transition:border-color 120ms;}
+.q-sa-textarea:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.q-sa-hint{font-size:11px;color:var(--ink-4);}
+
+/* Empty / error states in content zone */
+.content-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;}
+.ce-icon{font-size:40px;opacity:.3;margin-bottom:14px;}
+.ce-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.ce-sub{font-size:13px;color:var(--ink-3);max-width:340px;line-height:1.6;}
+.err-block{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:20px 24px;display:flex;gap:14px;align-items:flex-start;margin:24px;}
+.err-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.err-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:4px;}
+.err-msg{font-size:13px;color:var(--red);opacity:.85;line-height:1.5;}
+.err-retry{margin-top:12px;padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--white);color:var(--red);transition:all 100ms;}
+.err-retry:hover{background:var(--red-bg);}
+
+/* ── ZONE 3 — INFO PANEL (280px) ── */
+.info-panel{width:280px;flex-shrink:0;background:var(--white);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.ip-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ip-tab{flex:1;padding:10px 0;font-size:12px;font-weight:600;color:var(--ink-3);text-align:center;cursor:pointer;border-bottom:2px solid transparent;transition:all 100ms;}
+.ip-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.ip-body{flex:1;overflow-y:auto;}
+
+/* Info tab */
+.ip-section{padding:16px;}
+.ip-section+.ip-section{border-top:1px solid var(--border);}
+.ip-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);margin-bottom:10px;}
+.ip-field{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px;}
+.ip-field:last-child{margin-bottom:0;}
+.ip-field-label{font-size:12px;color:var(--ink-3);}
+.ip-field-val{font-size:12px;font-weight:600;color:var(--ink);}
+.ip-field-val.green{color:var(--green);}
+.ip-field-val.amber{color:var(--amber);}
+.ip-status-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:11px;font-weight:700;}
+.ip-status-chip.started{background:var(--amber-bg);color:var(--amber);}
+.ip-status-chip.submitted{background:var(--green-bg);color:var(--green);}
+.ip-status-chip.graded{background:var(--teal-bg);color:var(--teal);}
+
+/* History item */
+.hist-item{padding:10px 0;border-bottom:1px solid var(--border);}
+.hist-item:last-child{border-bottom:none;}
+.hist-item-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;}
+.hist-attempt-num{font-size:12px;font-weight:700;color:var(--ink);}
+.hist-score{font-size:12px;font-weight:700;color:var(--green);}
+.hist-date{font-size:11px;color:var(--ink-4);}
+.hist-status{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-pill);background:var(--green-bg);color:var(--green);}
+
+/* Review tab */
+.rv-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 100ms;}
+.rv-item:hover{background:var(--subtle);}
+.rv-item:last-child{border-bottom:none;}
+.rv-num{font-size:11px;font-weight:700;color:var(--ink-3);width:24px;flex-shrink:0;}
+.rv-status-icon{font-size:12px;width:18px;text-align:center;flex-shrink:0;}
+.rv-question-snip{font-size:12px;color:var(--ink-2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rv-flag{font-size:11px;color:var(--amber);}
+
+/* ── ZONE 4 — RAIL (56px) ── */
+.rail{height:56px;background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;z-index:10;}
+.rail-prev,.rail-next{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:all 100ms;white-space:nowrap;}
+.rail-prev:hover,.rail-next:hover{border-color:var(--border-s);color:var(--ink);}
+.rail-prev:disabled,.rail-next:disabled{opacity:.4;cursor:not-allowed;}
+.rail-center{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;}
+.rail-q-indicator{font-size:13px;font-weight:600;color:var(--ink-2);}
+.rail-progress-bar{width:120px;height:4px;background:var(--border);border-radius:999px;overflow:hidden;}
+.rail-progress-fill{height:100%;background:var(--accent);border-radius:999px;transition:width 300ms;}
+.rail-flag-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;transition:all 100ms;}
+.rail-flag-btn:hover{border-color:var(--amber-bd);color:var(--amber);background:var(--amber-bg);}
+.rail-flag-btn.flagged{border-color:var(--amber-bd);color:var(--amber);background:var(--amber-bg);}
+.rail-submit{padding:7px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.rail-submit:hover{opacity:.9;}
+.rail-submit:disabled{opacity:.45;cursor:not-allowed;}
+
+/* Confirmation modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(2px);}
+.modal-overlay.hidden{display:none;}
+.modal{background:var(--white);border-radius:var(--r);padding:28px;width:420px;box-shadow:0 16px 48px rgba(0,0,0,.15);}
+.modal-title{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:8px;}
+.modal-body{font-size:13px;color:var(--ink-3);line-height:1.6;margin-bottom:8px;}
+.modal-warn{font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:20px;line-height:1.5;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+
+/* Submitted result panel */
+.result-panel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;}
+.result-icon{font-size:56px;margin-bottom:16px;}
+.result-title{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.result-sub{font-size:14px;color:var(--ink-3);margin-bottom:28px;}
+.result-score-row{display:flex;align-items:baseline;gap:8px;justify-content:center;margin-bottom:6px;}
+.result-score{font-size:48px;font-weight:800;color:var(--accent);}
+.result-max{font-size:18px;color:var(--ink-3);}
+.result-pass-chip{display:inline-flex;align-items:center;padding:4px 14px;border-radius:var(--r-pill);font-size:13px;font-weight:700;margin-bottom:24px;}
+.result-pass-chip.pass{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.result-pass-chip.fail{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+.result-actions{display:flex;gap:12px;justify-content:center;}
+</style>
+</head>
+<body>
+
+<div class="layout" id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="tb-back" onclick="goBack()">← Back</span>
+    <span class="tb-sep">/</span>
+    <span class="tb-course">Security Fundamentals</span>
+    <span class="tb-sep">/</span>
+    <span class="tb-assess" id="tb-assess-title">Security Fundamentals Quiz</span>
+    <div class="tb-r">
+      <div class="tb-timer" id="tb-timer">
+        <span class="tb-timer-icon">⏱</span>
+        <span class="tb-timer-val" id="timer-display">22:14</span>
+      </div>
+      <button class="tb-submit-btn" id="tb-submit-btn" onclick="openSubmitModal()">Submit Assessment</button>
+    </div>
+  </div>
+
+  <!-- PLAYER BODY -->
+  <div class="player-body">
+
+    <!-- ZONE 1 — QUESTION NAVIGATOR -->
+    <div class="nav-panel" id="nav-panel">
+      <div class="np-header">
+        <div class="np-assess-title" id="np-title">Security Fundamentals Quiz</div>
+        <div class="np-type-badge" id="np-type">Quiz</div>
+        <div class="np-progress-row">
+          <span class="np-prog-label">Answered</span>
+          <span class="np-prog-count" id="np-prog-count">2 / 5</span>
+        </div>
+        <div class="np-prog-bar">
+          <div class="np-prog-fill" id="np-prog-fill" style="width:40%"></div>
+        </div>
+      </div>
+      <div class="np-scroll" id="qn-list">
+        <!-- question nav items injected by JS -->
+      </div>
+      <div class="np-footer">
+        <div class="np-summary-row">
+          <span class="np-summary-dot answered"></span>
+          <span class="np-summary-label">Answered</span>
+          <span class="np-summary-count" id="sum-answered">2</span>
+        </div>
+        <div class="np-summary-row">
+          <span class="np-summary-dot unanswered"></span>
+          <span class="np-summary-label">Unanswered</span>
+          <span class="np-summary-count" id="sum-unanswered">2</span>
+        </div>
+        <div class="np-summary-row">
+          <span class="np-summary-dot flagged"></span>
+          <span class="np-summary-label">Flagged</span>
+          <span class="np-summary-count" id="sum-flagged">1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONE 2 — QUESTION CONTENT -->
+    <div class="content-zone" id="content-zone">
+      <!-- Content injected by render() -->
+    </div>
+
+    <!-- ZONE 3 — INFO PANEL -->
+    <div class="info-panel" id="info-panel">
+      <div class="ip-tabs">
+        <div class="ip-tab active" onclick="switchTab('info')" id="tab-info">Info</div>
+        <div class="ip-tab" onclick="switchTab('review')" id="tab-review">Review</div>
+      </div>
+      <div class="ip-body" id="ip-body">
+        <!-- tab content injected by JS -->
+      </div>
+    </div>
+
+  </div><!-- /.player-body -->
+
+  <!-- ZONE 4 — RAIL -->
+  <div class="rail" id="rail">
+    <button class="rail-prev" id="rail-prev" onclick="navigate(-1)">← Previous</button>
+    <div class="rail-center">
+      <span class="rail-q-indicator" id="rail-q-ind">Q 5 of 5</span>
+      <div class="rail-progress-bar">
+        <div class="rail-progress-fill" id="rail-prog-fill" style="width:40%"></div>
+      </div>
+      <button class="rail-flag-btn" id="rail-flag-btn" onclick="toggleFlag()">⚑ Flag</button>
+    </div>
+    <button class="rail-next" id="rail-next" onclick="navigate(1)">Next →</button>
+    <button class="rail-submit" onclick="openSubmitModal()">Submit</button>
+  </div>
+
+</div><!-- /.layout -->
+
+<!-- SUBMIT CONFIRMATION MODAL -->
+<div class="modal-overlay hidden" id="submit-modal">
+  <div class="modal">
+    <div class="modal-title">Submit Assessment?</div>
+    <div class="modal-body" id="modal-body">You have answered 2 of 5 questions.</div>
+    <div class="modal-warn" id="modal-warn">⚠ 2 unanswered and 1 flagged question remain. Are you sure you want to submit?</div>
+    <div class="modal-actions">
+      <button class="btn-g" onclick="closeSubmitModal()">Go Back</button>
+      <button class="btn-primary" onclick="submitAttempt()">Submit Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded')">Loaded</button>
+  <button class="stb" onclick="setState('skeleton')">Skeleton</button>
+  <button class="stb" onclick="setState('empty')">Empty</button>
+  <button class="stb" onclick="setState('error')">Error</button>
+</div>
+
+<script>
+/* ── MOCK DATA ──────────────────────────────────────────────────────────────
+   Assessment shaped to AssessmentResponse (assessment-service schemas.py)
+   Attempt shaped to AttemptResponse (assessment-service — status: started|submitted|graded)
+   Questions client-side only (BG-128 — quiz-engine stub, no question API)
+   Answers shaped to AnswerSubmission (attempt-service schemas.py)
+   BG-130: using assessment-service AttemptStatus as primary (started|submitted|graded)
+   ─────────────────────────────────────────────────────────────────────── */
+
+const ASSESSMENT = {
+  assessment_id: 'asmt-001',
+  tenant_id: 'tenant-acme',
+  course_id: 'c002',
+  lesson_id: 'ls-004',
+  title: 'Security Fundamentals Quiz',
+  description: 'Test your understanding of core security concepts covered in this course.',
+  assessment_type: 'quiz',          /* AssessmentType.QUIZ */
+  status: 'active',                 /* AssessmentStatus.ACTIVE */
+  max_score: 100,
+  passing_score: 70,
+  time_limit_minutes: 30,
+  question_count: 5,
+  metadata: { difficulty: 'intermediate', category: 'security' },
+  created_by: 'u_ins_001',
+  created_at: '2026-03-10T09:00:00Z',
+  updated_at: '2026-03-15T11:30:00Z',
+};
+
+/* BG-128: questions mocked client-side — no GET /assessments/{id}/questions endpoint */
+const QUESTIONS = [
+  {
+    question_id: 'q-001', order_index: 1, points: 20, question_type: 'mc',
+    prompt: 'What is the primary purpose of a firewall in a network security architecture?',
+    options: [
+      'To encrypt data transmissions between nodes',
+      'To monitor and control incoming and outgoing network traffic based on security rules',
+      'To store backup copies of critical system files',
+      'To assign IP addresses to devices on a network',
+    ],
+  },
+  {
+    question_id: 'q-002', order_index: 2, points: 20, question_type: 'tf',
+    prompt: 'SSL/TLS protocols are used to encrypt data in transit between a client and a server, ensuring confidentiality and integrity.',
+    options: ['True', 'False'],
+  },
+  {
+    question_id: 'q-003', order_index: 3, points: 20, question_type: 'mc',
+    prompt: 'Which of the following is a common technique used in phishing attacks?',
+    options: [
+      'Sending legitimate software updates directly to users',
+      'Using spoofed emails that impersonate trusted organisations to obtain credentials',
+      'Encrypting all outbound email communications',
+      'Applying multi-factor authentication to user accounts',
+    ],
+  },
+  {
+    question_id: 'q-004', order_index: 4, points: 20, question_type: 'sa',
+    prompt: 'In your own words, describe the principle of least privilege and explain why it is important in a security-conscious organisation.',
+    options: null,
+  },
+  {
+    question_id: 'q-005', order_index: 5, points: 20, question_type: 'mc',
+    prompt: 'What does the acronym MFA stand for in the context of identity and access management?',
+    options: [
+      'Managed Firewall Access',
+      'Multi-Factor Authentication',
+      'Monitored File Authorisation',
+      'Modular Framework Architecture',
+    ],
+  },
+];
+
+/* BG-129: response typed as str|list[str]|dict — using str for MC/TF, str for SA */
+const STATE = {
+  attemptId: 'atp-001',
+  status: 'started',    /* assessment-service AttemptStatus */
+  startedAt: new Date(Date.now() - 7 * 60 * 1000),  /* 7 min ago */
+  currentIdx: 4,        /* Q5 is current (0-indexed) */
+  answers: {
+    'q-001': { response: 'To monitor and control incoming and outgoing network traffic based on security rules', is_final: false },
+    'q-002': { response: 'True', is_final: false },
+  },
+  flags: new Set(['q-004']),
+  timeRemaining: 22 * 60 + 14,  /* seconds */
+  submitted: false,
+  awarded_score: null,
+  passed: null,
+};
+
+const PREV_ATTEMPTS = [
+  { attempt_num: 1, awarded_score: 60, max_score: 100, passed: false, submitted_at: '2026-03-18T14:22:00Z', status: 'graded' },
+];
+
+let currentTab = 'info';
+let timerInterval = null;
+
+/* ── HELPERS ─────────────────────────────────────────────────────────────── */
+function answeredCount() { return Object.keys(STATE.answers).length; }
+function unansweredCount() { return QUESTIONS.length - answeredCount(); }
+function flaggedCount() { return STATE.flags.size; }
+function progressPct() { return Math.round((answeredCount() / QUESTIONS.length) * 100); }
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function qStatusClass(q) {
+  const idx = QUESTIONS.indexOf(q);
+  if (idx === STATE.currentIdx) return 'current-active';
+  if (STATE.flags.has(q.question_id)) return 'flagged';
+  if (STATE.answers[q.question_id]) return 'answered';
+  return 'unanswered';
+}
+function typeLabel(t) { return { mc:'Multiple Choice', tf:'True / False', sa:'Short Answer' }[t] || t; }
+function typeBadge(t) { return { mc:'MC', tf:'T/F', sa:'SA' }[t] || t; }
+
+/* ── NAVIGATION ──────────────────────────────────────────────────────────── */
+function navigate(dir) {
+  const next = STATE.currentIdx + dir;
+  if (next < 0 || next >= QUESTIONS.length) return;
+  STATE.currentIdx = next;
+  render();
+}
+function goToQuestion(idx) { STATE.currentIdx = idx; render(); }
+function goBack() { /* navigates to course player / course detail */ }
+
+/* ── ANSWER RECORDING ────────────────────────────────────────────────────── */
+function selectOption(questionId, response) {
+  /* shaped to AnswerSubmission.response — BG-129: str type for MC/TF */
+  STATE.answers[questionId] = { question_id: questionId, response, is_final: false };
+  render();
+}
+function recordSA(questionId, text) {
+  if (text.trim()) {
+    STATE.answers[questionId] = { question_id: questionId, response: text.trim(), is_final: false };
+  } else {
+    delete STATE.answers[questionId];
+  }
+  /* debounce render on SA — only update nav/footer counts */
+  updateNavPanel();
+  updateFooterCounts();
+  updateRail();
+}
+
+/* ── FLAG TOGGLE ─────────────────────────────────────────────────────────── */
+function toggleFlag() {
+  const qid = QUESTIONS[STATE.currentIdx].question_id;
+  if (STATE.flags.has(qid)) STATE.flags.delete(qid);
+  else STATE.flags.add(qid);
+  render();
+}
+
+/* ── SUBMIT FLOW ─────────────────────────────────────────────────────────── */
+function openSubmitModal() {
+  const ans = answeredCount(), unans = unansweredCount(), flag = flaggedCount();
+  document.getElementById('modal-body').textContent =
+    `You have answered ${ans} of ${QUESTIONS.length} questions.`;
+  const warn = document.getElementById('modal-warn');
+  const warnParts = [];
+  if (unans > 0) warnParts.push(`${unans} unanswered`);
+  if (flag > 0) warnParts.push(`${flag} flagged`);
+  if (warnParts.length) {
+    warn.style.display = 'block';
+    warn.textContent = `⚠ ${warnParts.join(' and ')} question${warnParts.length > 1 ? 's' : ''} remain. Are you sure you want to submit?`;
+  } else {
+    warn.style.display = 'none';
+  }
+  document.getElementById('submit-modal').classList.remove('hidden');
+}
+function closeSubmitModal() {
+  document.getElementById('submit-modal').classList.add('hidden');
+}
+function submitAttempt() {
+  /* POST /api/v1/attempts/{id}/submissions (assessment-service)
+     payload: { payload: { answers: [...STATE.answers values] }, submitted_by: learner_id }
+     Then GET result — mocked: awarded_score = 80 (passed) */
+  closeSubmitModal();
+  STATE.submitted = true;
+  STATE.status = 'submitted';
+  STATE.awarded_score = 80;
+  STATE.passed = STATE.awarded_score >= ASSESSMENT.passing_score;
+  clearInterval(timerInterval);
+  renderSubmitted();
+}
+
+/* ── TIMER ───────────────────────────────────────────────────────────────── */
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (STATE.submitted) { clearInterval(timerInterval); return; }
+    STATE.timeRemaining = Math.max(0, STATE.timeRemaining - 1);
+    const disp = document.getElementById('timer-display');
+    const wrap = document.getElementById('tb-timer');
+    if (disp) disp.textContent = fmtTime(STATE.timeRemaining);
+    if (wrap) {
+      if (STATE.timeRemaining <= 5 * 60) wrap.classList.add('warning');
+      else wrap.classList.remove('warning');
+    }
+    if (STATE.timeRemaining === 0) submitAttempt();
+  }, 1000);
+}
+
+/* ── RENDER ──────────────────────────────────────────────────────────────── */
+function render() {
+  updateNavPanel();
+  updateFooterCounts();
+  renderQuestion();
+  renderInfoPanel();
+  updateRail();
+}
+
+function updateNavPanel() {
+  const list = document.getElementById('qn-list');
+  if (!list) return;
+  list.innerHTML = QUESTIONS.map((q, i) => {
+    const sc = qStatusClass(q);
+    const isCurrent = i === STATE.currentIdx;
+    return `<div class="qn-item${isCurrent ? ' current' : ''}" onclick="goToQuestion(${i})">
+      <div class="qn-num ${sc}">${q.order_index}</div>
+      <div class="qn-body">
+        <div class="qn-label">Question ${q.order_index}</div>
+        <div class="qn-type">${typeLabel(q.question_type)} · ${q.points} pts</div>
+      </div>
+      ${STATE.flags.has(q.question_id) ? '<span class="qn-flag-icon">⚑</span>' : ''}
+    </div>`;
+  }).join('');
+  const pct = progressPct();
+  const fill = document.getElementById('np-prog-fill');
+  if (fill) fill.style.width = pct + '%';
+  const cnt = document.getElementById('np-prog-count');
+  if (cnt) cnt.textContent = `${answeredCount()} / ${QUESTIONS.length}`;
+}
+
+function updateFooterCounts() {
+  const sa = document.getElementById('sum-answered');
+  const su = document.getElementById('sum-unanswered');
+  const sf = document.getElementById('sum-flagged');
+  if (sa) sa.textContent = answeredCount();
+  if (su) su.textContent = unansweredCount();
+  if (sf) sf.textContent = flaggedCount();
+}
+
+function renderQuestion() {
+  const cz = document.getElementById('content-zone');
+  if (!cz) return;
+  const q = QUESTIONS[STATE.currentIdx];
+  const ans = STATE.answers[q.question_id];
+  const isFlagged = STATE.flags.has(q.question_id);
+
+  let answerHtml = '';
+  if (q.question_type === 'mc' || q.question_type === 'tf') {
+    answerHtml = `<div class="q-options">` +
+      q.options.map(opt => {
+        const sel = ans && ans.response === opt;
+        return `<label class="q-option${sel ? ' selected' : ''}">
+          <input type="radio" name="q_${q.question_id}" value="${escHtml(opt)}"
+            ${sel ? 'checked' : ''}
+            onchange="selectOption('${q.question_id}', '${escHtml(opt).replace(/'/g,"\\'")}')">
+          <span class="q-option-label">${escHtml(opt)}</span>
+        </label>`;
+      }).join('') + `</div>`;
+  } else if (q.question_type === 'sa') {
+    answerHtml = `<div class="q-sa-wrap">
+      <textarea class="q-sa-textarea" placeholder="Type your answer here…"
+        oninput="recordSA('${q.question_id}', this.value)">${ans ? escHtml(ans.response) : ''}</textarea>
+      <span class="q-sa-hint">Your response will be saved automatically as you type.</span>
+    </div>`;
+  }
+
+  cz.innerHTML = `
+    <div class="cz-header">
+      <span class="cz-q-number">Question ${q.order_index} of ${QUESTIONS.length}</span>
+      <span class="cz-type-badge ${q.question_type}">${typeBadge(q.question_type)}</span>
+      <span class="cz-pts">${q.points} pts</span>
+      <button class="cz-flag-btn${isFlagged ? ' flagged' : ''}" onclick="toggleFlag()">
+        ⚑ ${isFlagged ? 'Flagged' : 'Flag'}
+      </button>
+    </div>
+    <div class="cz-scroll">
+      <div class="q-prompt">${escHtml(q.prompt)}</div>
+      ${q.question_type === 'mc' ? '<div class="q-instruction">Select one answer.</div>' : ''}
+      ${q.question_type === 'tf' ? '<div class="q-instruction">Select True or False.</div>' : ''}
+      ${answerHtml}
+    </div>`;
+}
+
+function renderInfoPanel() {
+  const body = document.getElementById('ip-body');
+  if (!body) return;
+  if (currentTab === 'info') {
+    const elapsed = Math.floor((Date.now() - STATE.startedAt) / 1000);
+    body.innerHTML = `
+      <div class="ip-section">
+        <div class="ip-section-title">Attempt</div>
+        <div class="ip-field">
+          <span class="ip-field-label">Status</span>
+          <span class="ip-status-chip ${STATE.status}">${STATE.status.charAt(0).toUpperCase()+STATE.status.slice(1)}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Attempt #</span>
+          <span class="ip-field-val">${PREV_ATTEMPTS.length + 1}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Time elapsed</span>
+          <span class="ip-field-val">${fmtTime(elapsed)}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Time remaining</span>
+          <span class="ip-field-val ${STATE.timeRemaining <= 300 ? 'amber' : ''}">${fmtTime(STATE.timeRemaining)}</span>
+        </div>
+      </div>
+      <div class="ip-section">
+        <div class="ip-section-title">Assessment</div>
+        <div class="ip-field">
+          <span class="ip-field-label">Max score</span>
+          <span class="ip-field-val">${ASSESSMENT.max_score}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Passing score</span>
+          <span class="ip-field-val">${ASSESSMENT.passing_score}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Questions</span>
+          <span class="ip-field-val">${ASSESSMENT.question_count}</span>
+        </div>
+        <div class="ip-field">
+          <span class="ip-field-label">Time limit</span>
+          <span class="ip-field-val">${ASSESSMENT.time_limit_minutes} min</span>
+        </div>
+      </div>
+      <div class="ip-section">
+        <div class="ip-section-title">Previous Attempts</div>
+        ${PREV_ATTEMPTS.length === 0 ? '<div style="font-size:12px;color:var(--ink-4)">No previous attempts</div>' :
+          PREV_ATTEMPTS.map(a => `
+          <div class="hist-item">
+            <div class="hist-item-row">
+              <span class="hist-attempt-num">Attempt ${a.attempt_num}</span>
+              <span class="hist-score">${a.awarded_score}/${a.max_score}</span>
+            </div>
+            <div class="hist-item-row">
+              <span class="hist-date">${new Date(a.submitted_at).toLocaleDateString()}</span>
+              <span class="hist-status">${a.passed ? 'Passed' : 'Failed'}</span>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    body.innerHTML = QUESTIONS.map(q => {
+      const ans = STATE.answers[q.question_id];
+      const isFlagged = STATE.flags.has(q.question_id);
+      let icon = '○';
+      if (isFlagged) icon = '⚑';
+      else if (ans) icon = '✓';
+      return `<div class="rv-item" onclick="goToQuestion(${q.order_index - 1})">
+        <span class="rv-num">Q${q.order_index}</span>
+        <span class="rv-status-icon" style="color:${isFlagged ? 'var(--amber)' : ans ? 'var(--green)' : 'var(--ink-4)'}">${icon}</span>
+        <span class="rv-question-snip">${escHtml(q.prompt)}</span>
+        ${isFlagged ? '<span class="rv-flag">⚑</span>' : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
+function updateRail() {
+  const prev = document.getElementById('rail-prev');
+  const next = document.getElementById('rail-next');
+  const ind = document.getElementById('rail-q-ind');
+  const fill = document.getElementById('rail-prog-fill');
+  const flagBtn = document.getElementById('rail-flag-btn');
+  if (prev) prev.disabled = STATE.currentIdx === 0;
+  if (next) next.disabled = STATE.currentIdx === QUESTIONS.length - 1;
+  if (ind) ind.textContent = `Q ${STATE.currentIdx + 1} of ${QUESTIONS.length}`;
+  if (fill) fill.style.width = progressPct() + '%';
+  const q = QUESTIONS[STATE.currentIdx];
+  const isFlagged = STATE.flags.has(q.question_id);
+  if (flagBtn) {
+    flagBtn.className = 'rail-flag-btn' + (isFlagged ? ' flagged' : '');
+    flagBtn.textContent = isFlagged ? '⚑ Flagged' : '⚑ Flag';
+  }
+}
+
+function renderSubmitted() {
+  /* Show result panel in content zone */
+  const cz = document.getElementById('content-zone');
+  if (!cz) return;
+  const passed = STATE.passed;
+  cz.innerHTML = `
+    <div class="result-panel">
+      <div class="result-icon">${passed ? '🎉' : '📋'}</div>
+      <div class="result-title">${passed ? 'Assessment Complete!' : 'Assessment Submitted'}</div>
+      <div class="result-sub">${passed ? 'Congratulations — you have passed this assessment.' : 'Your submission has been recorded.'}</div>
+      <div class="result-score-row">
+        <span class="result-score">${STATE.awarded_score}</span>
+        <span class="result-max">/ ${ASSESSMENT.max_score}</span>
+      </div>
+      <div class="result-pass-chip ${passed ? 'pass' : 'fail'}">${passed ? '✓ Passed' : '✗ Did not pass'}</div>
+      <div class="result-actions">
+        <button class="btn-g" onclick="goBack()">← Back to Course</button>
+        ${!passed ? `<button class="btn-primary" onclick="retryAttempt()">Try Again</button>` : ''}
+      </div>
+    </div>`;
+  /* Disable rail and timer UI */
+  const rail = document.getElementById('rail');
+  if (rail) rail.style.opacity = '0.4';
+  const tbTimer = document.getElementById('tb-timer');
+  if (tbTimer) tbTimer.style.display = 'none';
+  const tbSubmit = document.getElementById('tb-submit-btn');
+  if (tbSubmit) tbSubmit.disabled = true;
+}
+
+function retryAttempt() { /* POST /api/v1/assessments/{id}/attempts — new attempt */ }
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-info').classList.toggle('active', tab === 'info');
+  document.getElementById('tab-review').classList.toggle('active', tab === 'review');
+  renderInfoPanel();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── STATE SWITCHER ──────────────────────────────────────────────────────── */
+function setState(s) {
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  event.target.classList.add('on');
+  const cz = document.getElementById('content-zone');
+  const np = document.getElementById('nav-panel');
+  const ip = document.getElementById('info-panel');
+  const rail = document.getElementById('rail');
+  clearInterval(timerInterval);
+
+  if (s === 'loaded') {
+    np.style.display = '';
+    ip.style.display = '';
+    rail.style.opacity = '';
+    STATE.submitted = false;
+    STATE.currentIdx = 4;
+    render();
+    startTimer();
+  } else if (s === 'skeleton') {
+    np.innerHTML = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+      <div class="sk" style="height:16px;width:80%;margin-bottom:4px"></div>
+      <div class="sk" style="height:10px;width:40%"></div>
+      <div class="sk" style="height:4px;width:100%;margin:4px 0"></div>
+      ${Array(5).fill(0).map(()=>`<div style="display:flex;gap:8px;padding:8px 0;">
+        <div class="sk" style="width:26px;height:26px;border-radius:50%;flex-shrink:0"></div>
+        <div style="flex:1"><div class="sk" style="height:12px;width:60%;margin-bottom:6px"></div>
+        <div class="sk" style="height:10px;width:40%"></div></div></div>`).join('')}
+    </div>`;
+    cz.innerHTML = `<div style="padding:28px 32px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+        <div class="sk" style="height:12px;width:80px"></div>
+        <div class="sk" style="height:18px;width:30px"></div>
+      </div>
+      <div class="sk" style="height:20px;width:90%;margin-bottom:8px"></div>
+      <div class="sk" style="height:20px;width:70%"></div>
+      ${Array(4).fill(0).map(()=>`<div class="sk" style="height:52px;width:100%;border-radius:8px"></div>`).join('')}
+    </div>`;
+    ip.innerHTML = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+      ${Array(6).fill(0).map(()=>`<div class="sk" style="height:14px;width:${60+Math.random()*30|0}%"></div>`).join('')}
+    </div>`;
+  } else if (s === 'empty') {
+    np.style.display = 'none';
+    ip.style.display = 'none';
+    cz.innerHTML = `<div class="content-empty">
+      <div class="ce-icon">📝</div>
+      <div class="ce-title">Assessment Not Available</div>
+      <div class="ce-sub">This assessment has not been published yet. Check back later or contact your instructor.</div>
+    </div>`;
+  } else if (s === 'error') {
+    np.style.display = 'none';
+    ip.style.display = 'none';
+    cz.innerHTML = `<div class="err-block">
+      <span class="err-icon">⚠</span>
+      <div>
+        <div class="err-title">Unable to load assessment</div>
+        <div class="err-msg">There was a problem loading this assessment. Your progress has been saved. Please try again.</div>
+        <button class="err-retry" onclick="setState('loaded')">Retry</button>
+      </div>
+    </div>`;
+  }
+}
+
+/* ── INIT ─────────────────────────────────────────────────────────────────── */
+render();
+startTimer();
+</script>
+</body>
+</html>

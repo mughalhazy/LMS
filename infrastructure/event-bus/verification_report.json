@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "checks": {
+    "services_publish_domain_events": "passed",
+    "event_subscriptions_configured": "passed"
+  },
+  "warnings": []
+}

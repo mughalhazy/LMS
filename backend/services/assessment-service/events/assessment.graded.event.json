@@ -1,0 +1,10 @@
+{
+  "event_type": "assessment.graded",
+  "description": "Published when an attempt is linked to grading output.",
+  "payload": {
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "entity_id": "attempt_id",
+    "grading_result_id": "string"
+  }
+}

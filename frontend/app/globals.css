@@ -1,0 +1,171 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   LMS DESIGN SYSTEM — TOKEN LAYER v2.1
+   Maps design-system.md tokens → shadcn CSS vars + extended set
+   Source: C:/LMS/UI/design-system.md §1
+   ============================================================ */
+
+@theme inline {
+  /* shadcn required mappings */
+  --color-background:            var(--background);
+  --color-foreground:            var(--foreground);
+  --color-card:                  var(--card);
+  --color-card-foreground:       var(--card-foreground);
+  --color-popover:               var(--popover);
+  --color-popover-foreground:    var(--popover-foreground);
+  --color-primary:               var(--primary);
+  --color-primary-foreground:    var(--primary-foreground);
+  --color-secondary:             var(--secondary);
+  --color-secondary-foreground:  var(--secondary-foreground);
+  --color-muted:                 var(--muted);
+  --color-muted-foreground:      var(--muted-foreground);
+  --color-accent:                var(--accent);
+  --color-accent-foreground:     var(--accent-foreground);
+  --color-destructive:           var(--destructive);
+  --color-border:                var(--border);
+  --color-input:                 var(--input);
+  --color-ring:                  var(--ring);
+  --font-sans:                   var(--font-sans);
+  --font-mono:                   var(--font-mono);
+  --radius-sm:                   calc(var(--radius) * 0.5);   /* 7px */
+  --radius-md:                   calc(var(--radius) * 0.75);
+  --radius-lg:                   var(--radius);               /* 14px */
+  --radius-xl:                   calc(var(--radius) * 1.5);
+  --radius-2xl:                  calc(var(--radius) * 2);
+  --radius-pill:                 999px;
+
+  /* LMS extended colour tokens for Tailwind utility access */
+  --color-canvas:                var(--canvas);
+  --color-subtle:                var(--subtle);
+  --color-border-s:              var(--border-s);
+  --color-ink:                   var(--ink);
+  --color-ink-2:                 var(--ink-2);
+  --color-ink-3:                 var(--ink-3);
+  --color-ink-4:                 var(--ink-4);
+  --color-lms-accent:            var(--lms-accent);
+  --color-accent-lt:             var(--accent-lt);
+  --color-green:                 var(--green);
+  --color-green-md:              var(--green-md);
+  --color-amber:                 var(--amber);
+  --color-amber-md:              var(--amber-md);
+  --color-red:                   var(--red);
+  --color-red-md:                var(--red-md);
+  --color-teal:                  var(--teal);
+}
+
+:root {
+  /* ── Shadcn semantic vars (mapped to LMS tokens) ── */
+  --background:             #F7F7F5;   /* canvas */
+  --foreground:             #1A1A18;   /* ink */
+  --card:                   #FFFFFF;
+  --card-foreground:        #1A1A18;
+  --popover:                #FFFFFF;
+  --popover-foreground:     #1A1A18;
+  --primary:                #1A1A18;   /* ink fill — primary button IS ink, not accent */
+  --primary-foreground:     #FFFFFF;
+  --secondary:              #F2F2F0;   /* subtle */
+  --secondary-foreground:   #3D3D3A;   /* ink-2 */
+  --muted:                  #F2F2F0;
+  --muted-foreground:       #6B6B63;   /* ink-3 */
+  --accent:                 #F0F0FF;   /* accent-lt — ghost/hover bg */
+  --accent-foreground:      #5B5BD6;   /* accent indigo */
+  --destructive:            #DC2626;   /* red-md */
+  --border:                 #E8E8E4;
+  --input:                  #E8E8E4;
+  --ring:                   #5B5BD6;   /* accent — focus rings */
+  --radius:                 0.875rem;  /* 14px = --r */
+
+  /* ── LMS extended tokens ── */
+  --canvas:      #F7F7F5;
+  --white:       #FFFFFF;
+  --subtle:      #F2F2F0;
+  --border-s:    #D8D8D2;
+  --ink:         #1A1A18;
+  --ink-2:       #3D3D3A;
+  --ink-3:       #6B6B63;
+  --ink-4:       #C0C0B8;
+  --lms-accent:  #5B5BD6;
+  --accent-lt:   #F0F0FF;
+
+  /* Semantic colours — 4-state system (dk / md / bg / bd) */
+  --green:       #18794E;
+  --green-md:    #16A34A;
+  --green-bg:    rgba(24, 121, 78, 0.08);
+  --green-bd:    rgba(24, 121, 78, 0.15);
+
+  --amber:       #92400E;
+  --amber-md:    #D97706;
+  --amber-bg:    #FEF9EE;
+  --amber-bd:    rgba(146, 64, 14, 0.15);
+
+  --red:         #C42B1C;
+  --red-md:      #DC2626;
+  --red-bg:      rgba(196, 43, 28, 0.07);
+  --red-bd:      rgba(196, 43, 28, 0.14);
+
+  --teal:        #0D9488;
+  --teal-bg:     rgba(13, 148, 136, 0.07);
+  --teal-bd:     rgba(13, 148, 136, 0.15);
+
+  /* Shadows — 5+1 levels */
+  --sh-xs:      0 1px 2px rgba(0, 0, 0, 0.04);
+  --sh-sm:      0 1px 4px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --sh-md:      0 4px 14px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --sh-lg:      0 8px 24px rgba(0, 0, 0, 0.09), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --sh-xl:      0 16px 40px rgba(0, 0, 0, 0.11), 0 4px 10px rgba(0, 0, 0, 0.06);
+  --sh-indigo:  0 4px 16px rgba(91, 91, 214, 0.28);  /* primary CTA only */
+
+  /* Motion — 8 timing values */
+  --t-instant:  0ms;
+  --t-micro:    120ms;
+  --t-fast:     150ms;
+  --t-base:     200ms;
+  --t-smooth:   220ms;
+  --t-ease:     240ms;
+  --t-reveal:   600ms;
+  --t-skeleton: 1400ms;
+  --ease:       cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Surface density — Admin surface */
+  --pp:         28px;   /* page padding */
+  --sg:         20px;   /* section gap */
+  --row-h:      40px;   /* table row height */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ── Shimmer animation for Skeleton ── */
+@keyframes shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #F2F2F0 25%, #E8E8E4 50%, #F2F2F0 75%);
+  background-size: 400% 100%;
+  animation: shimmer var(--t-skeleton) ease-in-out infinite;
+}
+
+/* ── Fade-up entrance ── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-fade-up {
+  animation: fade-up var(--t-base) var(--ease) both;
+}

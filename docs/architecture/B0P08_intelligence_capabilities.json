@@ -1,0 +1,222 @@
+{
+  "schema": "lms.capability.definition.v1",
+  "domain": "intelligence_assist",
+  "version": "1.0.0",
+  "capabilities": [
+    {
+      "capability_id": "intelligence.ai_tutor_assist",
+      "capability_name": "AI Tutor Assist",
+      "capability_type": "ai_assistive",
+      "role_scope": "learner_support",
+      "description": "Provides context-aware learner support inside enrolled courses/lessons for question answering, concept explanation, revision help, and contextual study guidance while preserving teacher authority.",
+      "assistive_guardrail": "AI suggests and explains; teachers control instructional decisions, grading, and interventions.",
+      "integration_mode": "embedded_learning_workflow",
+      "integration_points": [
+        "course-service",
+        "lesson-service",
+        "progress-service",
+        "learning-analytics-service",
+        "ai-tutor-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "ai-tutor-service",
+          "course-service",
+          "lesson-service",
+          "progress-service",
+          "learning-analytics-service",
+          "event-ingestion-service"
+        ],
+        "required_data_contracts": [
+          "course.updated",
+          "lesson_updated",
+          "learning.activity.completed",
+          "lesson_completed"
+        ]
+      },
+      "exclusions": [
+        "autonomous_grading",
+        "teacher_replacement",
+        "standalone_ai_without_lms_context",
+        "curriculum_source_of_truth_override"
+      ],
+      "supported_languages": [
+        "en",
+        "ur"
+      ],
+      "context_requirements": [
+        "tenant_scoped_course_context",
+        "lesson_context_required_for_lesson_support",
+        "learner_progress_context",
+        "no_model_invocation_without_context"
+      ],
+      "teacher_boundary": {
+        "teacher_owns": [
+          "grading",
+          "interventions",
+          "instructional_decisions",
+          "content_publication"
+        ],
+        "ai_assist_owns": [
+          "query_answering",
+          "concept_explanation",
+          "revision_guidance",
+          "next_step_suggestions"
+        ]
+      }
+    },
+    {
+      "capability_id": "intelligence.teacher_content_assist",
+      "capability_name": "Teacher Content Assist",
+      "capability_type": "ai_assistive",
+      "role_scope": "teacher_authoring_support",
+      "description": "Generates draft lesson content, examples, and remediation variants for teacher review and approval.",
+      "assistive_guardrail": "AI drafts only; teachers approve, edit, and publish final content.",
+      "integration_mode": "embedded_teacher_authoring_workflow",
+      "integration_points": [
+        "content-service",
+        "lesson-service",
+        "course-generation-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "course-generation-service",
+          "content-service",
+          "lesson-service",
+          "rbac-service"
+        ],
+        "required_data_contracts": [
+          "content_published.event",
+          "lesson_updated"
+        ]
+      },
+      "exclusions": [
+        "auto_publish_without_teacher",
+        "autonomous_curriculum_control"
+      ]
+    },
+    {
+      "capability_id": "intelligence.assessment_generation_assist",
+      "capability_name": "Assessment Generation Assist",
+      "capability_type": "ai_assistive",
+      "role_scope": "teacher_assessment_support",
+      "description": "Produces draft question sets, rubrics, and difficulty-balanced variants aligned to course objectives for teacher validation.",
+      "assistive_guardrail": "AI proposes items; teachers validate alignment, quality, and release decisions.",
+      "integration_mode": "embedded_assessment_authoring_workflow",
+      "integration_points": [
+        "assessment-service",
+        "content-service",
+        "course-generation-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "course-generation-service",
+          "assessment-service",
+          "content-service",
+          "rbac-service"
+        ],
+        "required_data_contracts": [
+          "assessment_created",
+          "question_bank_item_added"
+        ]
+      },
+      "exclusions": [
+        "autonomous_exam_release",
+        "score_authority_override"
+      ]
+    },
+    {
+      "capability_id": "intelligence.recommendations",
+      "capability_name": "Recommendations",
+      "capability_type": "ai_assistive",
+      "role_scope": "learner_path_guidance",
+      "description": "Recommends next-best courses, lessons, or practice activities using learner progress and skill signals.",
+      "assistive_guardrail": "AI recommends options; teachers and learners retain final path decisions.",
+      "integration_mode": "embedded_learning_navigation_workflow",
+      "integration_points": [
+        "recommendation-service",
+        "learning-path-service",
+        "progress-service",
+        "skill-inference-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "recommendation-service",
+          "learning-path-service",
+          "progress-service",
+          "skill-inference-service",
+          "event-ingestion-service"
+        ],
+        "required_data_contracts": [
+          "learning_path_updated.event",
+          "learning.activity.completed",
+          "ai.skill_inference.updated"
+        ]
+      },
+      "exclusions": [
+        "mandatory_auto_enrollment",
+        "autonomous_learning_path_rewrite"
+      ]
+    },
+    {
+      "capability_id": "intelligence.learner_risk_scoring",
+      "capability_name": "Learner Risk Scoring",
+      "capability_type": "ai_assistive",
+      "role_scope": "teacher_intervention_support",
+      "description": "Estimates learner risk levels (e.g., disengagement or completion delay) to support timely teacher intervention planning.",
+      "assistive_guardrail": "AI provides risk indicators and rationale; teachers decide interventions and outcomes.",
+      "integration_mode": "embedded_teacher_dashboard_workflow",
+      "integration_points": [
+        "recommendation-service",
+        "progress-service",
+        "reporting-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "recommendation-service",
+          "progress-service",
+          "reporting-service",
+          "event-ingestion-service"
+        ],
+        "required_data_contracts": [
+          "learning.session.started",
+          "learning.activity.completed",
+          "enrollment_status_updated.event"
+        ]
+      },
+      "exclusions": [
+        "disciplinary_automation",
+        "teacher_decision_replacement"
+      ]
+    },
+    {
+      "capability_id": "intelligence.analytics_insights_assist",
+      "capability_name": "Analytics Insights Assist",
+      "capability_type": "ai_assistive",
+      "role_scope": "teacher_manager_insight_support",
+      "description": "Transforms existing analytics outputs into narrative insights, anomaly explanations, and suggested follow-up questions.",
+      "assistive_guardrail": "AI interprets analytics results but does not own core metric computation or reporting truth.",
+      "integration_mode": "embedded_reporting_workflow",
+      "integration_points": [
+        "reporting-service",
+        "skill-analytics-service",
+        "event-ingestion-service"
+      ],
+      "dependencies": {
+        "required_services": [
+          "reporting-service",
+          "skill-analytics-service",
+          "event-ingestion-service"
+        ],
+        "required_data_contracts": [
+          "event_validated.event",
+          "ai.skill_inference.updated"
+        ]
+      },
+      "exclusions": [
+        "analytics_pipeline_ownership",
+        "metric_source_of_truth_override"
+      ]
+    }
+  ]
+}

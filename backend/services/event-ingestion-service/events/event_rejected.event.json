@@ -1,0 +1,24 @@
+{
+  "event_type": "event_rejected",
+  "producer_service": "event-ingestion-service",
+  "topic": "lms.analytics_ingestion.event_rejected.v1",
+  "consumer_services": [
+    "operations-service",
+    "audit-service",
+    "learning-analytics-service"
+  ],
+  "payload": {
+    "rejection_id": "string",
+    "event_id": "string",
+    "event_type": "string",
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "received_at": "datetime",
+    "rejection_reason_code": "string",
+    "rejection_reason_detail": "string",
+    "failed_field": "string",
+    "validator_version": "string",
+    "original_payload": "object",
+    "retry_eligible_flag": "boolean"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lms/event-envelope.schema.json",
+  "title": "LMS Domain Event Envelope",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "topic",
+    "producer_service",
+    "tenant_id",
+    "timestamp",
+    "schema_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "type": "string", "minLength": 1 },
+    "topic": { "type": "string", "pattern": "^lms\\.[a-z0-9_]+(?:\\.[a-z0-9_]+)+\\.v[0-9]+$" },
+    "producer_service": { "type": "string", "pattern": "^[a-z0-9-]+-service$" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "schema_version": { "type": "string", "pattern": "^v[0-9]+$" },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": true
+}

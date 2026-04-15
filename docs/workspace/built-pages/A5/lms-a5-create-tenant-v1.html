@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Create Tenant
+  Archetype: A5 CreationWizard — full wizard variant (4 steps)
+  Created  : 2026-03-22
+  Surface  : Super Admin
+  Repo     : tenant-service
+  Steps    : Organisation Details → Plan & Region → Admin & Config → Review & Create
+  Fields   : CreateTenantRequest: tenant_name* · tenant_code* · primary_domain* ·
+             admin_user* (BG-103) · data_residency_region* (BG-102) ·
+             plan_id* (BG-101) · plan_name* (BG-101)
+             InitializeTenantConfigurationRequest (PUT after creation):
+             default_locale · timezone · enabled_modules (BG-104)
+             branding dict (BG-105 — deferred; not collected in wizard)
+  Endpoints: POST /api/v1/tenants/validate → ValidationResponse (pre-flight, mocked)
+             POST /api/v1/tenants          → CreateTenantRequest → CreateTenantResponse (201)
+             PUT  /api/v1/tenants/{id}/configuration → InitializeTenantConfigurationRequest
+  Gaps     : BG-101 (plan_id/plan_name — no plan list endpoint in tenant-service; mocked)
+             BG-102 (data_residency_region — no enum defined; mocked as region list)
+             BG-103 (admin_user is str — ambiguous; treated as email address)
+             BG-104 (enabled_modules — no documented valid module list; mocked)
+             BG-105 (branding dict — no schema; deferred to post-creation config update)
+  Patterns : Full wizard — one step at a time, WizardStepper at top, Next/Back navigation
+             WizardStepper (P-31 — unbuilt in design system; implemented inline this page)
+             Pre-flight: POST /api/v1/tenants/validate with tenant_code + primary_domain + region (mocked)
+             InitializeTenantConfigurationRequest fired as PUT after POST /tenants succeeds
+             isolation_mode is server-determined — not in CreateTenantRequest; shown in response only
+  CSS base : Verbatim foundation from lms-a5-create-course-v1.html
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Create Tenant</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a5-create-course-v1.html ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.layout{display:flex;flex-direction:column;min-height:100vh;}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);position:sticky;top:0;z-index:20;flex-shrink:0;gap:6px;}
+.tb-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+.page-header{background:var(--white);border-bottom:1px solid var(--border);padding:20px var(--pp);}
+.ph-top{display:flex;align-items:center;gap:14px;}
+.ph-icon{width:44px;height:44px;border-radius:50%;background:var(--accent-lt);color:var(--accent);font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid rgba(91,91,214,.15);}
+.ph-identity{flex:1;min-width:0;}
+.ph-name{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);line-height:1.2;}
+.ph-sub{font-size:13px;color:var(--ink-3);margin-top:3px;}
+.canvas{flex:1;padding:28px var(--pp);padding-bottom:calc(var(--action-bar-h) + 28px);max-width:800px;width:100%;margin:0 auto;}
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.fs-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:20px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-input:disabled{background:var(--subtle);color:var(--ink-3);cursor:not-allowed;}
+.field-input.has-error{border-color:var(--red);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+.field-error{font-size:11px;color:var(--red);line-height:1.4;display:none;}
+.field-error.visible{display:block;}
+.summary-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);width:160px;flex-shrink:0;padding-top:1px;}
+.summary-value{font-size:13px;color:var(--ink);flex:1;}
+.summary-value.empty{color:var(--ink-4);font-style:italic;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.action-bar{position:fixed;bottom:0;left:0;right:0;height:var(--action-bar-h);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:12px;z-index:20;box-shadow:0 -2px 8px rgba(0,0,0,.04);}
+.action-bar-status{flex:1;font-size:12px;color:var(--ink-3);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── WIZARD STEPPER (P-31 — unbuilt in design system; implemented inline) ── */
+.wizard-nav{background:var(--white);border-bottom:1px solid var(--border);padding:18px var(--pp);}
+.wz-steps{display:flex;align-items:flex-start;max-width:752px;margin:0 auto;}
+.wz-step{display:flex;flex-direction:column;align-items:center;flex:1;}
+.wz-step:last-child{flex:0 0 auto;}
+.wz-head{display:flex;align-items:center;width:100%;}
+.wz-circle{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--ink-3);flex-shrink:0;transition:all 150ms;}
+.wz-step.done .wz-circle{background:var(--green);border-color:var(--green);color:white;}
+.wz-step.active .wz-circle{background:var(--accent);border-color:var(--accent);color:white;}
+.wz-line{flex:1;height:1px;background:var(--border);margin:0 6px 2px;transition:background 150ms;}
+.wz-step.done .wz-line{background:var(--green);}
+.wz-label{font-size:11px;font-weight:600;color:var(--ink-4);margin-top:5px;text-align:center;line-height:1.3;}
+.wz-step.active .wz-label{color:var(--accent);}
+.wz-step.done .wz-label{color:var(--green);}
+
+/* ── MODULE CHECKBOXES ── */
+.module-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;}
+.module-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all 100ms;}
+.module-item:hover{border-color:var(--border-s);}
+.module-item.checked{background:var(--accent-lt);border-color:rgba(91,91,214,.25);}
+.module-cb{width:15px;height:15px;border-radius:3px;border:2px solid var(--border);background:var(--white);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 100ms;}
+.module-item.checked .module-cb{background:var(--accent);border-color:var(--accent);color:white;}
+.module-label{font-size:13px;font-weight:500;color:var(--ink);}
+.module-item.checked .module-label{color:var(--accent);font-weight:600;}
+
+/* ── PLAN CARDS ── */
+.plan-card-row{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
+.plan-card{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--white);border:2px solid var(--border);border-radius:var(--r-sm);cursor:pointer;transition:all 100ms;}
+.plan-card:hover{border-color:var(--border-s);}
+.plan-card.selected{border-color:var(--accent);background:var(--accent-lt);}
+.plan-radio{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);background:var(--white);flex-shrink:0;transition:all 100ms;display:flex;align-items:center;justify-content:center;}
+.plan-card.selected .plan-radio{border-color:var(--accent);background:var(--accent);}
+.plan-radio-dot{width:6px;height:6px;border-radius:50%;background:white;display:none;}
+.plan-card.selected .plan-radio-dot{display:block;}
+.plan-info{flex:1;}
+.plan-name{font-size:13px;font-weight:700;color:var(--ink);}
+.plan-desc{font-size:11px;color:var(--ink-3);margin-top:2px;}
+.plan-card.selected .plan-name{color:var(--accent);}
+.plan-card.selected .plan-desc{color:var(--accent);opacity:.8;}
+.plan-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);text-transform:uppercase;letter-spacing:.04em;border:1px solid var(--border);color:var(--ink-3);background:var(--subtle);white-space:nowrap;}
+.plan-card.selected .plan-badge{background:var(--accent);border-color:var(--accent);color:white;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back">← Tenants</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-page">Create Tenant</span>
+    <div class="tb-r">
+      <div class="tb-notif">🔔<div class="npip"></div></div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="ph-top">
+      <div class="ph-icon">🏢</div>
+      <div class="ph-identity">
+        <div class="ph-name">Create New Tenant</div>
+        <div class="ph-sub">Complete all 4 steps to provision a new tenant. Required fields are marked *</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIZARD STEPPER -->
+  <div class="wizard-nav">
+    <div class="wz-steps">
+      <div class="wz-step active" id="wz-step-1">
+        <div class="wz-head"><div class="wz-circle">1</div><div class="wz-line"></div></div>
+        <div class="wz-label">Organisation</div>
+      </div>
+      <div class="wz-step" id="wz-step-2">
+        <div class="wz-head"><div class="wz-circle">2</div><div class="wz-line"></div></div>
+        <div class="wz-label">Plan &amp; Region</div>
+      </div>
+      <div class="wz-step" id="wz-step-3">
+        <div class="wz-head"><div class="wz-circle">3</div><div class="wz-line"></div></div>
+        <div class="wz-label">Admin &amp; Config</div>
+      </div>
+      <div class="wz-step" id="wz-step-4">
+        <div class="wz-head"><div class="wz-circle">4</div></div>
+        <div class="wz-label">Review &amp; Create</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+
+    <!-- SECTION 1: ORGANISATION DETAILS -->
+    <div class="form-section" id="section-org">
+      <div class="fs-title">1 — Organisation Details</div>
+      <div class="field-grid">
+        <div class="field field-full">
+          <label class="field-label">Tenant Name <span class="req">*</span></label>
+          <input class="field-input" id="f-tenant-name" type="text" placeholder="e.g. Acme Corporation" autocomplete="off">
+          <span class="field-error" id="err-tenant-name">Tenant name is required (min 2 characters).</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Tenant Code <span class="req">*</span></label>
+          <input class="field-input" id="f-tenant-code" type="text" placeholder="e.g. acme-corp" autocomplete="off">
+          <span class="field-hint">Unique slug — lowercase, digits, hyphens and underscores. 2–50 characters.</span>
+          <span class="field-error" id="err-tenant-code">Tenant code is required and must be 2–50 lowercase alphanumeric characters, hyphens, or underscores.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Primary Domain <span class="req">*</span></label>
+          <input class="field-input" id="f-primary-domain" type="text" placeholder="e.g. acme.lms.example.com" autocomplete="off">
+          <span class="field-hint">The primary domain this tenant will operate on (min 3 characters, must contain a dot).</span>
+          <span class="field-error" id="err-primary-domain">A valid primary domain is required (e.g. acme.example.com).</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: PLAN & REGION -->
+    <!-- BG-101: no plan list endpoint — mocked -->
+    <!-- BG-102: data_residency_region no enum — mocked as region list -->
+    <div class="form-section" id="section-plan">
+      <div class="fs-title">2 — Plan &amp; Region</div>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="field-label" style="margin-bottom:8px;">Subscription Plan <span class="req">*</span></label>
+        <!-- BG-101: plan_id and plan_name are free strings — no GET /plans endpoint in tenant-service -->
+        <div class="plan-card-row" id="plan-card-row">
+          <div class="plan-card" data-plan-id="plan_starter" data-plan-name="Starter" onclick="selectPlan(this)">
+            <div class="plan-radio"><div class="plan-radio-dot"></div></div>
+            <div class="plan-info">
+              <div class="plan-name">Starter</div>
+              <div class="plan-desc">Up to 100 users · 5 GB storage · Core LMS features</div>
+            </div>
+            <div class="plan-badge">Starter</div>
+          </div>
+          <div class="plan-card" data-plan-id="plan_professional" data-plan-name="Professional" onclick="selectPlan(this)">
+            <div class="plan-radio"><div class="plan-radio-dot"></div></div>
+            <div class="plan-info">
+              <div class="plan-name">Professional</div>
+              <div class="plan-desc">Up to 1,000 users · 50 GB storage · Full feature set</div>
+            </div>
+            <div class="plan-badge">Pro</div>
+          </div>
+          <div class="plan-card" data-plan-id="plan_enterprise" data-plan-name="Enterprise" onclick="selectPlan(this)">
+            <div class="plan-radio"><div class="plan-radio-dot"></div></div>
+            <div class="plan-info">
+              <div class="plan-name">Enterprise</div>
+              <div class="plan-desc">Unlimited users · 500 GB storage · Advanced security &amp; SLA</div>
+            </div>
+            <div class="plan-badge">Enterprise</div>
+          </div>
+        </div>
+        <span class="field-error" id="err-plan">Please select a subscription plan.</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Data Residency Region <span class="req">*</span></label>
+        <!-- BG-102: data_residency_region is free string — no enum; mocked region options -->
+        <select class="field-input" id="f-region" onchange="onRegionChange()">
+          <option value="">Select a data residency region…</option>
+          <option value="eu-west-1">EU West (Ireland)</option>
+          <option value="us-east-1">US East (N. Virginia)</option>
+          <option value="us-west-2">US West (Oregon)</option>
+          <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+          <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+        </select>
+        <span class="field-hint">All tenant data will be stored and processed in the selected region.</span>
+        <span class="field-error" id="err-region">Data residency region is required.</span>
+      </div>
+    </div>
+
+    <!-- SECTION 3: ADMIN USER & CONFIGURATION -->
+    <!-- BG-103: admin_user is str — ambiguous; treated as email address -->
+    <!-- BG-104: enabled_modules no documented module list — mocked -->
+    <div class="form-section" id="section-config">
+      <div class="fs-title">3 — Admin &amp; Configuration</div>
+      <div class="field-grid">
+        <div class="field field-full">
+          <label class="field-label">Admin User <span class="req">*</span></label>
+          <!-- BG-103: admin_user is str — schema does not specify UUID vs email vs username -->
+          <input class="field-input" id="f-admin-user" type="email" placeholder="e.g. admin@acme-corp.com" autocomplete="email">
+          <span class="field-hint">Email address or user identifier for the initial tenant administrator.</span>
+          <span class="field-error" id="err-admin-user">A valid admin user email is required.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Default Locale <span class="opt">(optional — defaults to en-US)</span></label>
+          <select class="field-input" id="f-locale">
+            <option value="en-US">en-US — English (United States)</option>
+            <option value="en-GB">en-GB — English (United Kingdom)</option>
+            <option value="fr-FR">fr-FR — French (France)</option>
+            <option value="de-DE">de-DE — German (Germany)</option>
+            <option value="es-ES">es-ES — Spanish (Spain)</option>
+            <option value="pt-BR">pt-BR — Portuguese (Brazil)</option>
+            <option value="ja-JP">ja-JP — Japanese (Japan)</option>
+            <option value="zh-CN">zh-CN — Chinese (Simplified)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Timezone <span class="opt">(optional — defaults to UTC)</span></label>
+          <select class="field-input" id="f-timezone">
+            <option value="UTC">UTC</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="Europe/Paris">Europe/Paris</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="America/Chicago">America/Chicago</option>
+            <option value="America/Los_Angeles">America/Los_Angeles</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="Asia/Singapore">Asia/Singapore</option>
+            <option value="Australia/Sydney">Australia/Sydney</option>
+          </select>
+        </div>
+        <div class="field field-full" style="margin-top:4px;">
+          <label class="field-label" style="margin-bottom:10px;">Enabled Modules <span class="opt">(optional)</span></label>
+          <!-- BG-104: enabled_modules list[str] — no documented valid module list; mocked -->
+          <div class="module-grid" id="module-grid">
+            <div class="module-item" data-key="lms" onclick="toggleModule(this)">
+              <div class="module-cb">✓</div>
+              <span class="module-label">Learning Management</span>
+            </div>
+            <div class="module-item" data-key="assessment" onclick="toggleModule(this)">
+              <div class="module-cb"></div>
+              <span class="module-label">Assessments</span>
+            </div>
+            <div class="module-item" data-key="certificates" onclick="toggleModule(this)">
+              <div class="module-cb"></div>
+              <span class="module-label">Certificates</span>
+            </div>
+            <div class="module-item" data-key="analytics" onclick="toggleModule(this)">
+              <div class="module-cb"></div>
+              <span class="module-label">Analytics</span>
+            </div>
+            <div class="module-item" data-key="learning_paths" onclick="toggleModule(this)">
+              <div class="module-cb"></div>
+              <span class="module-label">Learning Paths</span>
+            </div>
+            <div class="module-item" data-key="reporting" onclick="toggleModule(this)">
+              <div class="module-cb"></div>
+              <span class="module-label">Reporting</span>
+            </div>
+          </div>
+          <div class="field-hint" style="margin-top:6px;">Select which modules to enable for this tenant. LMS is enabled by default.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: REVIEW & CREATE -->
+    <div class="form-section" id="section-review">
+      <div class="fs-title">4 — Review &amp; Create</div>
+      <div id="summary-rows"></div>
+    </div>
+
+  </div><!-- /canvas -->
+
+</div><!-- /layout -->
+
+<!-- ACTION BAR -->
+<div class="action-bar">
+  <div class="action-bar-status">
+    <span id="action-status-text">Fill in organisation details to continue.</span>
+  </div>
+  <button class="btn-g" onclick="handleCancel()">Cancel</button>
+  <button class="btn-g" id="btn-back" style="display:none;" onclick="goBack()">← Back</button>
+  <button class="btn-primary" id="btn-next" onclick="goNext()">Next →</button>
+  <button class="btn-primary" id="btn-create" style="display:none;" onclick="handleCreate()">Create Tenant</button>
+</div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="stb"    onclick="setState('submitting',this)">Submitting</button>
+  <button class="stb"    onclick="setState('error',this)">Error</button>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+   MOCK DATA
+   BG-101: no plan list endpoint — tenant-service has no GET /plans
+   BG-102: data_residency_region free string — no enum
+   BG-104: enabled_modules list[str] — no documented valid module list
+   ────────────────────────────────────────────── */
+const MOCK_REGION_NAMES = {
+  'eu-west-1':      'EU West (Ireland)',
+  'us-east-1':      'US East (N. Virginia)',
+  'us-west-2':      'US West (Oregon)',
+  'ap-southeast-1': 'Asia Pacific (Singapore)',
+  'ap-northeast-1': 'Asia Pacific (Tokyo)',
+};
+
+/* working state */
+let _planId   = '';
+let _planName = '';
+let _modules  = ['lms']; /* lms enabled by default */
+
+/* ── wizard navigation ── */
+const SECTIONS = ['section-org','section-plan','section-config','section-review'];
+const TOTAL = SECTIONS.length;
+let _step = 1;
+const MSGS = [
+  'Fill in organisation details to continue.',
+  'Choose a plan and select a data residency region.',
+  'Set the admin user and initial configuration.',
+  'Review and confirm the tenant details.',
+];
+
+function goTo(n){
+  if(n < 1 || n > TOTAL) return;
+  SECTIONS.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = i === n-1 ? '' : 'none';
+  });
+  _step = n;
+  window.scrollTo({top:0, behavior:'smooth'});
+  updateWizardNav();
+  updateActionBar();
+  if(_step === TOTAL) renderSummary();
+}
+
+function goNext(){
+  if(_step === 1 && !validateStep1()){
+    document.getElementById(SECTIONS[0]).scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  if(_step === 2 && !validateStep2()){
+    document.getElementById(SECTIONS[1]).scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  if(_step === 3 && !validateStep3()){
+    document.getElementById('f-admin-user').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  goTo(_step + 1);
+}
+
+function goBack(){ goTo(_step - 1); }
+
+function updateWizardNav(){
+  for(let i = 1; i <= TOTAL; i++){
+    const el = document.getElementById('wz-step-' + i);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i < _step) el.classList.add('done');
+    else if(i === _step) el.classList.add('active');
+  }
+}
+
+function updateActionBar(){
+  document.getElementById('action-status-text').textContent = MSGS[_step-1];
+  const isLast = _step === TOTAL;
+  document.getElementById('btn-back').style.display   = _step > 1 ? '' : 'none';
+  document.getElementById('btn-next').style.display   = isLast ? 'none' : '';
+  document.getElementById('btn-create').style.display = isLast ? '' : 'none';
+}
+
+/* ── plan selection ── */
+function selectPlan(card){
+  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  _planId   = card.dataset.planId;
+  _planName = card.dataset.planName;
+  /* clear plan error if shown */
+  const errEl = document.getElementById('err-plan');
+  if(errEl) errEl.classList.remove('visible');
+  renderSummary();
+}
+
+/* ── region change ── */
+function onRegionChange(){
+  validateField('f-region');
+  renderSummary();
+}
+
+/* ── module toggles ── */
+function toggleModule(item){
+  const key = item.dataset.key;
+  item.classList.toggle('checked');
+  const cb = item.querySelector('.module-cb');
+  if(item.classList.contains('checked')){
+    if(cb) cb.textContent = '✓';
+    if(!_modules.includes(key)) _modules.push(key);
+  } else {
+    if(cb) cb.textContent = '';
+    _modules = _modules.filter(k => k !== key);
+  }
+  renderSummary();
+}
+
+function initModules(){
+  /* sync DOM to _modules state */
+  document.querySelectorAll('.module-item').forEach(item => {
+    const key = item.dataset.key;
+    const cb  = item.querySelector('.module-cb');
+    if(_modules.includes(key)){
+      item.classList.add('checked');
+      if(cb) cb.textContent = '✓';
+    } else {
+      item.classList.remove('checked');
+      if(cb) cb.textContent = '';
+    }
+  });
+}
+
+/* ── validation ── */
+const CODE_PATTERN = /^[a-z0-9][a-z0-9_-]{1,49}$/;
+const DOMAIN_PATTERN = /^[^\s.]+\.[^\s.]+/;
+const EMAIL_PATTERN  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const VALIDATORS = {
+  'f-tenant-name':   { errId:'err-tenant-name',   test: v => v.trim().length >= 2 },
+  'f-tenant-code':   { errId:'err-tenant-code',   test: v => CODE_PATTERN.test(v.trim()) },
+  'f-primary-domain':{ errId:'err-primary-domain', test: v => v.trim().length >= 3 && DOMAIN_PATTERN.test(v.trim()) },
+  'f-region':        { errId:'err-region',         test: v => v.trim().length > 0 },
+  'f-admin-user':    { errId:'err-admin-user',     test: v => EMAIL_PATTERN.test(v.trim()) },
+};
+
+function validateField(inputId){
+  const rule = VALIDATORS[inputId];
+  if(!rule) return true;
+  const val = document.getElementById(inputId)?.value || '';
+  const valid = rule.test(val);
+  document.getElementById(inputId)?.classList.toggle('has-error', !valid);
+  const errEl = document.getElementById(rule.errId);
+  if(errEl) errEl.classList.toggle('visible', !valid);
+  return valid;
+}
+
+function validateStep1(){
+  return ['f-tenant-name','f-tenant-code','f-primary-domain'].map(validateField).every(Boolean);
+}
+
+function validateStep2(){
+  let ok = validateField('f-region');
+  /* validate plan selection */
+  const errPlan = document.getElementById('err-plan');
+  if(!_planId){
+    if(errPlan) errPlan.classList.add('visible');
+    ok = false;
+  } else {
+    if(errPlan) errPlan.classList.remove('visible');
+  }
+  return ok;
+}
+
+function validateStep3(){
+  return validateField('f-admin-user');
+}
+
+function attachValidators(){
+  Object.keys(VALIDATORS).forEach(id=>{
+    document.getElementById(id)?.addEventListener('blur', ()=>{ validateField(id); renderSummary(); });
+  });
+}
+
+/* ── summary (section 4) ── */
+function renderSummary(){
+  const el = document.getElementById('summary-rows');
+  if(!el) return;
+  const v = id => document.getElementById(id)?.value?.trim() || '';
+  const row = (label, value) =>
+    `<div class="summary-row">
+      <span class="summary-label">${label}</span>
+      <span class="summary-value ${value?'':'empty'}">${value || '—'}</span>
+    </div>`;
+
+  const regionId = v('f-region');
+  const regionName = regionId ? (MOCK_REGION_NAMES[regionId] || regionId) : '';
+  const moduleSummary = _modules.length ? _modules.join(', ') : '';
+
+  el.innerHTML =
+    row('Tenant Name',    v('f-tenant-name')) +
+    row('Tenant Code',    v('f-tenant-code')) +
+    row('Primary Domain', v('f-primary-domain')) +
+    row('Plan',           _planName) +
+    row('Region',         regionName) +
+    row('Admin User',     v('f-admin-user')) +
+    row('Locale',         v('f-locale') || 'en-US') +
+    row('Timezone',       v('f-timezone') || 'UTC') +
+    row('Modules',        moduleSummary);
+}
+
+/* update summary on any field input */
+document.addEventListener('input', e=>{
+  if(e.target.classList.contains('field-input')) renderSummary();
+});
+
+/* ── create / cancel ── */
+function handleCreate(){
+  const _stb = [...document.querySelectorAll('.stb')].find(b => b.textContent.trim() === 'Submitting');
+  setState('submitting', _stb);
+}
+
+function handleCancel(){
+  /* navigate back to tenants list */
+}
+
+/* ── state switcher ── */
+const _formHTML = document.getElementById('canvas').innerHTML;
+
+function setState(s, btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+
+  if(s === 'loaded'){
+    document.getElementById('canvas').innerHTML = _formHTML;
+    _planId   = '';
+    _planName = '';
+    _modules  = ['lms'];
+    attachValidators();
+    initModules();
+    renderSummary();
+    document.addEventListener('input', e=>{
+      if(e.target.classList.contains('field-input')) renderSummary();
+    });
+    goTo(1);
+
+  } else if(s === 'submitting'){
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:48px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:16px;">⏳</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Provisioning tenant…</div>
+          <div style="font-size:13px;color:var(--ink-3);">POST /api/v1/tenants — please wait.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'Provisioning tenant…';
+    document.getElementById('btn-create').disabled = true;
+
+  } else if(s === 'error'){
+    document.getElementById('canvas').innerHTML = `
+      <div class="form-section">
+        <div style="padding:40px 0;text-align:center;">
+          <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Could not create tenant</div>
+          <div style="font-size:13px;color:var(--ink-3);">Could not reach tenant-service. Please try again.</div>
+        </div>
+      </div>`;
+    document.getElementById('action-status-text').textContent = 'An error occurred.';
+    document.getElementById('btn-create').disabled = false;
+  }
+}
+
+/* init */
+attachValidators();
+initModules();
+renderSummary();
+goTo(1);
+</script>
+</body>
+</html>

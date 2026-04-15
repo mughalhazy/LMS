@@ -1,0 +1,140 @@
+[
+  {
+    "capability_key": "delivery.secure_media",
+    "capability_name": "Secure Media Delivery",
+    "category": "delivery",
+    "status": "active",
+    "ownership": {
+      "primary_service": "media-service",
+      "supporting_services": [
+        "entitlement-service",
+        "session-service",
+        "api-gateway",
+        "audit-log-service"
+      ]
+    },
+    "description": "Protects premium learning media from unauthorized redistribution while preserving authorized learner playback.",
+    "out_of_scope": [
+      "course/lesson authoring",
+      "assessment execution",
+      "progress mastery logic"
+    ],
+    "functional_scope": [
+      "DRM license issuance tied to tenant/user/session",
+      "forensic watermarking per playback session",
+      "signed playback tokens with short TTL and device constraints",
+      "domain/app-bound controlled playback policies"
+    ],
+    "real_world_constraints": [
+      "Must tolerate unstable mobile networks by supporting segment retries without revealing decryption keys.",
+      "Must reduce screen-capture and account-sharing piracy risk using watermark + concurrent-session enforcement.",
+      "Must fail closed for non-entitled requests and expired licenses."
+    ],
+    "dependencies": {
+      "required": [
+        {
+          "service": "media-service",
+          "reason": "Owns transcoded assets, manifests, key identifiers, and delivery URLs."
+        },
+        {
+          "service": "entitlement-service",
+          "reason": "Authoritative check that user/tenant can access protected media."
+        }
+      ],
+      "optional": [
+        {
+          "service": "device-trust-service",
+          "reason": "Raises risk score for rooted/jailbroken or high-fraud devices."
+        }
+      ]
+    },
+    "usage_tracking": {
+      "metering_event": "delivery.secure_media.playback_attempted",
+      "billable_unit": "protected_playback_minutes",
+      "dimensions": [
+        "tenant_id",
+        "user_id",
+        "asset_id",
+        "session_id",
+        "drm_profile",
+        "watermark_profile",
+        "network_type"
+      ],
+      "security_events": [
+        "delivery.secure_media.license_issued",
+        "delivery.secure_media.license_denied",
+        "delivery.secure_media.watermark_applied",
+        "delivery.secure_media.policy_violation"
+      ]
+    }
+  },
+  {
+    "capability_key": "delivery.offline_mode",
+    "capability_name": "Offline Learning Delivery",
+    "category": "delivery",
+    "status": "active",
+    "ownership": {
+      "primary_service": "offline-sync-service",
+      "supporting_services": [
+        "media-service",
+        "entitlement-service",
+        "progress-service",
+        "event-ingestion-service"
+      ]
+    },
+    "description": "Enables learning continuity with unreliable internet through secure download, local playback, and resumable sync.",
+    "out_of_scope": [
+      "curriculum sequencing rules",
+      "grading policy decisions",
+      "content creation workflows"
+    ],
+    "functional_scope": [
+      "download queue with pause/resume and integrity checks",
+      "selective sync of only entitled courses/assets",
+      "resume playback/reading from last local checkpoint",
+      "adaptive low-bandwidth profiles for constrained networks"
+    ],
+    "real_world_constraints": [
+      "Must work in poor-connectivity regions with intermittent packet loss and long offline windows.",
+      "Downloaded media must remain encrypted at rest and expire when entitlement or offline lease ends.",
+      "Sync conflicts must resolve deterministically (idempotent event merge by attempt/session timestamp)."
+    ],
+    "dependencies": {
+      "required": [
+        {
+          "service": "media-service",
+          "reason": "Provides downloadable renditions and integrity metadata."
+        },
+        {
+          "service": "entitlement-service",
+          "reason": "Validates offline download rights and lease duration."
+        }
+      ],
+      "optional": [
+        {
+          "service": "notification-service",
+          "reason": "Prompts learner when sync is pending or lease nearing expiry."
+        }
+      ]
+    },
+    "usage_tracking": {
+      "metering_event": "delivery.offline_mode.sync_completed",
+      "billable_unit": "offline_active_learners",
+      "dimensions": [
+        "tenant_id",
+        "user_id",
+        "course_id",
+        "asset_id",
+        "download_profile",
+        "offline_duration_seconds",
+        "sync_result"
+      ],
+      "operational_events": [
+        "delivery.offline_mode.download_started",
+        "delivery.offline_mode.download_resumed",
+        "delivery.offline_mode.playback_resumed",
+        "delivery.offline_mode.sync_conflict_resolved"
+      ]
+    }
+  }
+]

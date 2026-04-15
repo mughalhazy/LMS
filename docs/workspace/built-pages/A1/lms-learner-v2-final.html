@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ── */
+:root {
+  --canvas:  #F7F7F5;
+  --white:   #FFFFFF;
+  --subtle:  #F2F2F0;
+  --border:  #E8E8E4;
+  --border-s:#D8D8D2;
+
+  --ink:   #1A1A18;
+  --ink-2: #52524E;
+  --ink-3: #8C8C84;
+  --ink-4: #C0C0B8;
+
+  /* One accent. Used sparingly. */
+  --accent:    #5B5BD6;
+  --accent-lt: #F0F0FF;
+  --accent-dk: #3D3ABF;
+
+  /* Status — indicators only, never containers */
+  --green:    #18794E;
+  --green-bg: rgba(24,121,78,.08);
+  --amber:    #92400E;
+  --amber-bg: #FEF9EE;
+  --amber-bd: rgba(146,64,14,.15);
+
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --sh-xs: 0 1px 2px rgba(0,0,0,.04);
+  --sh-sm: 0 1px 4px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md: 0 4px 14px rgba(0,0,0,.07), 0 1px 3px rgba(0,0,0,.04);
+  --r: 14px;
+  --r-sm: 7px;
+  --r-pill: 999px;
+}
+
+
+/* Canonical zoom — baked from user validation */
+html { zoom: 1.1; }
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:var(--font);background:var(--canvas);
+  color:var(--ink);-webkit-font-smoothing:antialiased;
+  display:flex;min-height:100vh;font-size:14px;line-height:1.5;
+}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:228px;background:var(--white);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  flex-shrink:0;position:sticky;top:0;height:100vh;
+}
+.logo{
+  height:60px;display:flex;align-items:center;
+  padding:0 20px;border-bottom:1px solid var(--border);gap:10px;
+}
+.logo-mark{
+  width:28px;height:28px;background:var(--ink);
+  border-radius:7px;font-size:13px;
+  display:flex;align-items:center;justify-content:center;
+}
+.logo-name{font-size:15px;font-weight:700;letter-spacing:-0.02em;}
+.nav{padding:14px 10px;flex:1;}
+.nav-group{margin-bottom:22px;}
+.nav-label{
+  font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--ink-4);padding:0 10px;margin-bottom:4px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:9px;
+  padding:7px 10px;border-radius:var(--r-sm);
+  font-size:13.5px;font-weight:500;color:var(--ink-3);
+  cursor:pointer;transition:all 100ms;margin-bottom:1px;
+}
+.nav-item:hover{background:var(--subtle);color:var(--ink-2);}
+.nav-item.on{background:var(--accent-lt);color:var(--accent);font-weight:600;}
+.nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.nav-count{
+  margin-left:auto;font-size:11px;font-weight:600;
+  color:var(--ink-4);background:var(--subtle);
+  padding:1px 7px;border-radius:var(--r-pill);
+}
+.sidebar-footer{padding:14px;border-top:1px solid var(--border);}
+.user{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 6px;border-radius:var(--r-sm);
+  cursor:pointer;transition:background 100ms;
+}
+.user:hover{background:var(--subtle);}
+.user-av{
+  width:32px;height:32px;border-radius:50%;background:var(--ink);
+  color:white;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.user-name{font-size:13px;font-weight:600;}
+.user-role{font-size:11px;color:var(--ink-4);}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{
+  height:60px;background:var(--white);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 32px;
+  flex-shrink:0;position:sticky;top:0;z-index:40;
+}
+.tb-title{font-size:14px;font-weight:600;}
+.tb-right{margin-left:auto;display:flex;gap:10px;align-items:center;}
+.btn-ghost{
+  padding:7px 14px;border-radius:var(--r-sm);font-family:var(--font);
+  font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);background:var(--white);color:var(--ink-2);
+  transition:border-color 120ms,color 120ms;
+}
+.btn-ghost:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{
+  padding:7px 16px;border-radius:var(--r-sm);font-family:var(--font);
+  font-size:13px;font-weight:600;cursor:pointer;
+  border:none;background:var(--accent);color:white;transition:opacity 120ms;
+}
+.btn-primary:hover{opacity:.88;}
+
+.canvas{flex:1;overflow-y:auto;padding:32px;}
+.canvas::-webkit-scrollbar{width:5px;}
+.canvas::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.wrap{max-width:1100px;margin:0 auto;}
+
+/* ── HEADER ── */
+.page-header{margin-bottom:28px;}
+.greet-date{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-4);margin-bottom:5px;}
+.greet-name{font-size:26px;font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin-bottom:5px;}
+.greet-sub{font-size:14px;color:var(--ink-3);}
+
+/* ── P-38: HERO COURSE CARD ──────────────────────────
+   The most actionable element on the page.
+   Accent top-border only. No colored background.
+   Two zones: course info left, stat+CTA right.
+────────────────────────────────────────────────── */
+.hero-card{
+  background:var(--white);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  box-shadow:var(--sh-sm);
+  overflow:hidden;
+  margin-bottom:20px;
+  display:grid;
+  grid-template-columns:1fr 200px;
+}
+
+/* Left zone */
+.hero-left{
+  padding:28px 32px;
+  border-right:1px solid var(--border);
+}
+.hero-eyebrow{
+  display:flex;align-items:center;gap:7px;
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--accent);margin-bottom:10px;
+}
+.hero-pulse{
+  width:7px;height:7px;border-radius:50%;background:var(--accent);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+
+.hero-title{
+  font-size:19px;font-weight:800;letter-spacing:-0.02em;
+  color:var(--ink);margin-bottom:5px;line-height:1.2;
+}
+.hero-next{
+  font-size:13px;color:var(--ink-3);margin-bottom:24px;
+  font-weight:500;
+}
+.hero-next b{color:var(--ink-2);font-weight:600;}
+
+.hero-prog-label{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:8px;
+}
+.hpl-text{font-size:12px;font-weight:500;color:var(--ink-3);}
+.hpl-pct{font-size:13px;font-weight:800;letter-spacing:-0.02em;color:var(--accent);}
+.hero-bar{
+  height:6px;background:var(--subtle);
+  border-radius:var(--r-pill);overflow:hidden;
+}
+.hero-fill{
+  height:100%;border-radius:var(--r-pill);background:var(--accent);
+  animation:fillIn 700ms cubic-bezier(.23,1,.32,1) .15s both;
+}
+@keyframes fillIn{from{width:0!important}to{}}
+
+/* Right zone — dark, creating contrast without color */
+.hero-right{
+  background:var(--ink);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:28px 24px;gap:24px;
+}
+.hero-stat{text-align:center;}
+.hero-stat-val{
+  font-size:36px;font-weight:800;letter-spacing:-0.04em;
+  color:white;line-height:1;
+}
+.hero-stat-lbl{font-size:12px;color:rgba(255,255,255,.45);font-weight:500;margin-top:4px;}
+.hero-cta{
+  width:100%;padding:11px 0;border-radius:var(--r-sm);
+  font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;
+  border:1.5px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.1);color:white;
+  transition:background 150ms,border-color 150ms;
+}
+.hero-cta:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);}
+
+/* ── KPI ROW ── 4 neutral cards, number carries weight ── */
+.kpi-row{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:14px;margin-bottom:20px;
+}
+.kpi{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);padding:20px 22px 18px;
+  box-shadow:var(--sh-xs);transition:box-shadow 150ms;
+}
+.kpi:hover{box-shadow:var(--sh-md);}
+.kpi-num{
+  font-size:30px;font-weight:800;letter-spacing:-0.04em;
+  color:var(--ink);line-height:1;margin-bottom:5px;
+}
+.kpi-lbl{font-size:12px;font-weight:500;color:var(--ink-3);margin-bottom:10px;}
+.kpi-trend{font-size:12px;font-weight:600;color:var(--ink-4);display:flex;align-items:center;gap:4px;}
+.up{color:var(--green);}
+
+/* Ring KPI variant — P-41 */
+.kpi-ring-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+.ring-wrap{position:relative;width:44px;height:44px;flex-shrink:0;}
+svg.kring{width:44px;height:44px;transform:rotate(-90deg);display:block;}
+.rt{fill:none;stroke:var(--subtle);stroke-width:4;}
+.rf{
+  fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;
+  stroke-dasharray:120;stroke-dashoffset:120;
+  animation:ringDraw 700ms cubic-bezier(.23,1,.32,1) .3s forwards;
+}
+@keyframes ringDraw{to{stroke-dashoffset:30;}}
+.ring-pct{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:9px;font-weight:800;color:var(--accent);
+}
+
+/* ── P-39: DEADLINE CALLOUT ── */
+.deadline{
+  background:var(--amber-bg);
+  border:1px solid var(--amber-bd);
+  border-left:3px solid #D97706;
+  border-radius:var(--r);
+  padding:14px 20px;
+  display:flex;align-items:center;gap:12px;
+  margin-bottom:20px;
+  box-shadow:var(--sh-xs);
+}
+.dl-icon{font-size:16px;flex-shrink:0;}
+.dl-body{flex:1;font-size:13px;color:var(--amber);font-weight:500;line-height:1.4;}
+.dl-body b{font-weight:700;color:#78350F;}
+.dl-btn{
+  padding:6px 14px;border-radius:6px;font-family:var(--font);
+  font-size:12px;font-weight:700;cursor:pointer;
+  border:1px solid var(--amber-bd);background:white;color:#92400E;
+  white-space:nowrap;transition:opacity 120ms;
+}
+.dl-btn:hover{opacity:.8;}
+
+/* ── CONTENT GRID ── 3:2 col ── */
+.content-grid{
+  display:grid;grid-template-columns:3fr 2fr;
+  gap:24px;margin-bottom:28px;
+}
+.panel{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--sh-xs);overflow:hidden;
+}
+.panel-head{
+  padding:16px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title{font-size:14px;font-weight:700;}
+.panel-link{font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;}
+
+/* ── COURSE CARD (progress mode) ── */
+/* Course card — visual-first grid variant (prompt improvement) */
+.course-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;}
+.course-card{
+  background:var(--white);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;cursor:pointer;transition:box-shadow 150ms,border-color 150ms;
+  box-shadow:var(--sh-xs);
+}
+.course-card:hover{box-shadow:var(--sh-md);border-color:var(--border-s);}
+.cc-thumb{
+  height:72px;background:var(--subtle);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;border-bottom:1px solid var(--border);position:relative;
+}
+.cc-body{padding:14px;}
+.cc-title{
+  font-size:13.5px;font-weight:700;color:var(--ink);
+  margin-bottom:3px;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.cc-lesson{font-size:11px;color:var(--ink-4);font-weight:500;margin-bottom:10px;}
+.cc-prog{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.cc-bar{flex:1;height:5px;background:var(--subtle);border-radius:var(--r-pill);overflow:hidden;}
+.cc-fill{height:100%;border-radius:var(--r-pill);background:var(--accent);}
+.cc-pct{font-size:11px;font-weight:700;color:var(--accent);min-width:28px;text-align:right;}
+.cc-foot{display:flex;align-items:center;justify-content:space-between;}
+.cc-time{font-size:11px;color:var(--ink-4);}
+.cc-btn{
+  padding:5px 12px;border-radius:6px;font-family:var(--font);
+  font-size:12px;font-weight:600;cursor:pointer;
+  border:none;background:var(--accent-lt);color:var(--accent);
+  transition:all 120ms;
+}
+.cc-btn:hover{background:var(--accent);color:white;}
+
+/* ── P-40: DISCOVERY CARD (recommended mode) ──────────
+   Visually distinct from progress cards.
+   Larger icon. Tag-based meta. No progress bar.
+   Grey right-arrow = "explore" not "resume".
+─────────────────────────────────────────────────── */
+.disc-card{
+  padding:16px 24px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;
+  cursor:pointer;transition:background 120ms;
+}
+.disc-card:last-child{border-bottom:none;}
+.disc-card:hover{background:var(--subtle);}
+
+.disc-thumb{
+  width:52px;height:52px;border-radius:10px;
+  background:var(--subtle);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;flex-shrink:0;
+}
+.disc-info{flex:1;min-width:0;}
+.disc-title{
+  font-size:13px;font-weight:700;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;
+}
+.disc-tags{display:flex;align-items:center;gap:5px;margin-bottom:3px;flex-wrap:wrap;}
+.tag{
+  font-size:10px;font-weight:600;color:var(--ink-4);
+  background:var(--subtle);border:1px solid var(--border);
+  padding:2px 7px;border-radius:var(--r-pill);white-space:nowrap;
+}
+.tag.required{
+  background:rgba(146,64,14,.08);border-color:var(--amber-bd);
+  color:var(--amber);
+}
+/* Enrollment status chips — all 6 states from SPEC_11 */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;border:1.5px solid;text-transform:uppercase;letter-spacing:.05em;}
+.chip::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.chip.active   {background:var(--accent-lt);border-color:rgba(91,91,214,.2);color:var(--accent);}
+.chip.completed{background:var(--green-bg);border-color:rgba(24,121,78,.15);color:var(--green);}
+.chip.assigned {background:var(--subtle);border-color:var(--border-s);color:var(--ink-3);}
+.chip.deferred {background:#FFFBEB;border-color:rgba(245,158,11,.2);color:#B45309;}     /* gold — On Hold */
+.chip.expired  {background:rgba(196,43,28,.07);border-color:rgba(196,43,28,.15);color:#C42B1C;} /* brick — Expired */
+.chip.dropped  {background:var(--subtle);border-color:var(--border-s);color:var(--ink-4);}
+.disc-instructor{font-size:11px;color:var(--ink-4);}
+.disc-arrow{
+  font-size:16px;color:var(--ink-4);flex-shrink:0;
+  transition:color 120ms,transform 120ms;
+}
+.disc-card:hover .disc-arrow{color:var(--accent);transform:translateX(2px);}
+
+
+/* Secondary slot — unified Recommendations + Deadlines (prompt: SECONDARY_SLOT) */
+.sec-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);}
+.sec-tab{
+  padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;
+  color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:all 100ms;
+}
+.sec-tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+.sec-tab:hover:not(.on){color:var(--ink-2);}
+.sec-pane{display:none;}
+.sec-pane.on{display:block;}
+
+/* ── BOTTOM ROW ── */
+.bottom-row{
+  display:grid;grid-template-columns:1fr 260px;
+  gap:24px;
+}
+
+/* ── P-42: ACTIVITY FEED ── verb first ── */
+.activity-body{padding:6px 0;}
+.act{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:11px 24px;transition:background 120ms;cursor:default;
+}
+.act:hover{background:var(--subtle);}
+.act-left{display:flex;flex-direction:column;align-items:center;padding-top:5px;}
+.act-dot{width:8px;height:8px;border-radius:50%;background:var(--border-s);flex-shrink:0;}
+.act-dot.recent{background:var(--accent);}
+.act-line{width:1px;height:18px;background:var(--border);margin-top:4px;}
+.act:last-child .act-line{display:none;}
+.act-text{flex:1;font-size:13px;color:var(--ink-2);font-weight:500;line-height:1.4;}
+.act-text b{color:var(--ink);font-weight:600;}
+.act-time{font-size:11px;color:var(--ink-4);padding-top:2px;white-space:nowrap;}
+
+/* ── QUICK ACTIONS ── */
+.quick-list{display:flex;flex-direction:column;gap:8px;}
+.qa{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--sh-xs);
+  padding:14px 16px;display:flex;align-items:center;gap:12px;
+  cursor:pointer;transition:box-shadow 150ms,border-color 150ms;
+}
+.qa:hover{box-shadow:var(--sh-md);border-color:var(--border-s);}
+.qa-icon{
+  width:34px;height:34px;border-radius:8px;background:var(--subtle);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+.qa-label{font-size:13px;font-weight:600;}
+.qa-sub{font-size:11px;color:var(--ink-4);margin-top:1px;}
+.qa-arr{margin-left:auto;font-size:15px;color:var(--ink-4);transition:color 120ms,transform 120ms;}
+.qa:hover .qa-arr{color:var(--accent);transform:translateX(2px);}
+
+
+/* ── UG-001: LEARNING PATH PROGRESS ── */
+.lp-section{margin-bottom:20px;}
+.lp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.lp-title{font-size:14px;font-weight:700;color:var(--ink);}
+.lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.lp-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);padding:18px 20px;
+  box-shadow:var(--sh-xs);transition:box-shadow 150ms;
+}
+.lp-card:hover{box-shadow:var(--sh-md);}
+.lp-card-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.lp-icon{
+  width:36px;height:36px;border-radius:8px;background:var(--subtle);
+  border:1px solid var(--border);display:flex;align-items:center;
+  justify-content:center;font-size:17px;flex-shrink:0;
+}
+.lp-meta{flex:1;min-width:0;}
+.lp-name{font-size:13px;font-weight:700;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+.lp-steps{font-size:11px;color:var(--ink-4);}
+.lp-progress-row{display:flex;align-items:center;gap:10px;}
+.lp-bar-wrap{flex:1;display:flex;flex-direction:column;gap:8px;}
+.lp-bar{height:4px;background:var(--subtle);border-radius:var(--r-pill);overflow:hidden;}
+.lp-fill{height:100%;border-radius:var(--r-pill);background:var(--accent);
+  animation:fillIn 700ms cubic-bezier(.23,1,.32,1) .2s both;}
+.lp-nodes{display:flex;justify-content:space-between;padding:0 2px;}
+.lp-node{font-size:8px;color:var(--border-s);transition:color 120ms;}
+.lp-node.done{color:var(--accent);}
+.lp-node.current{color:var(--accent);animation:pulse 2s ease-in-out infinite;}
+.lp-pct{font-size:13px;font-weight:800;letter-spacing:-0.02em;color:var(--accent);min-width:30px;text-align:right;}
+
+/* ── ANIMATIONS ── */
+.page-header{animation:up .3s ease both .03s;}
+.hero-card  {animation:up .3s ease both .06s;}
+.kpi-row    {animation:up .3s ease both .09s;}
+.deadline   {animation:up .3s ease both .11s;}
+.lp-section  {animation:up .3s ease both .12s;}
+.content-grid{animation:up .3s ease both .15s;}
+.bottom-row {animation:up .3s ease both .17s;}
+@keyframes up{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* ── STATE SWITCHER (demo tool) ── */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.sb{padding:5px 14px;border-radius:999px;border:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.sb.on{background:white;color:#1A1A18;}
+
+/* State visibility */
+.s-loaded,.s-skeleton,.s-empty,.s-error{display:none;}
+body.show-loaded .s-loaded{display:contents;}
+body.show-skeleton .s-skeleton{display:contents;}
+body.show-empty .s-empty{display:contents;}
+body.show-error .s-error{display:contents;}
+body.show-loaded .canvas > .wrap > *:not(.s-loaded){opacity:1;}
+
+/* Skeleton shimmer */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:6px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sk-h{height:14px;margin-bottom:6px;}
+.sk-sm{height:10px;width:60%;}
+.sk-num{height:32px;width:80px;margin-bottom:6px;}
+.sk-btn{height:34px;width:120px;border-radius:7px;}
+.sk-bar{height:6px;border-radius:999px;margin-top:8px;}
+.sk-card{background:#F2F2F0;border:1px solid #E8E8E4;border-radius:14px;padding:24px;}
+.sk-row{height:56px;border-bottom:1px solid #E8E8E4;display:flex;align-items:center;gap:12px;padding:0 24px;}
+
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">🎓</div>
+    <div class="logo-name">LMS</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-group">
+      <div class="nav-item on"><span class="nav-icon">⊞</span>Dashboard</div>
+      <div class="nav-item"><span class="nav-icon">📖</span>My Courses<span class="nav-count">4</span></div>
+      <div class="nav-item"><span class="nav-icon">🗺️</span>Learning Paths</div>
+      <div class="nav-item"><span class="nav-icon">🔍</span>Browse Catalog</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Progress</div>
+      <div class="nav-item"><span class="nav-icon">🏆</span>Certificates</div>
+      <div class="nav-item"><span class="nav-icon">📈</span>My Progress</div>
+      <div class="nav-item"><span class="nav-icon">💬</span>Discussions</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Account</div>
+      <div class="nav-item"><span class="nav-icon">👤</span>Profile</div>
+      <div class="nav-item"><span class="nav-icon">⚙️</span>Settings</div>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user">
+      <div class="user-av">SJ</div>
+      <div>
+        <div class="user-name">Sarah Johnson</div>
+        <div class="user-role">Learner</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="tb-title">Dashboard</div>
+    <div class="tb-right">
+      
+      <!-- D-02 Role Switcher -->
+      <div class="rs" onclick="this.classList.toggle('open')" style="display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:7px;border:1px solid #E8E8E4;background:white;cursor:pointer;font-family:'Plus Jakarta Sans',system-ui;font-size:12px;font-weight:600;color:#52524E;position:relative;user-select:none;">
+        <div style="width:6px;height:6px;border-radius:50%;background:#5B5BD6;"></div>
+        Learner
+        <span style="font-size:10px;color:#C0C0B8;">▾</span>
+        <div class="rs-drop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:white;border:1px solid #E8E8E4;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.04);min-width:160px;overflow:hidden;z-index:200;">
+          <div style="padding:8px 12px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#C0C0B8;">Switch to</div>
+          <div class="rd-i on" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:#5B5BD6;background:#F0F0FF;"><div style="width:5px;height:5px;border-radius:50%;background:#5B5BD6;"></div>Learner</div>
+          <div class="rd-i" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12.5px;font-weight:500;color:#8C8C84;transition:background 100ms;" onmouseover="this.style.background='#F2F2F0'" onmouseout="this.style.background=''"><div style="width:5px;height:5px;border-radius:50%;background:#D8D8D2;"></div>Instructor</div>
+          <div class="rd-i" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12.5px;font-weight:500;color:#8C8C84;transition:background 100ms;" onmouseover="this.style.background='#F2F2F0'" onmouseout="this.style.background=''"><div style="width:5px;height:5px;border-radius:50%;background:#D8D8D2;"></div>Manager</div>
+          <div class="rd-i" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12.5px;font-weight:500;color:#8C8C84;transition:background 100ms;" onmouseover="this.style.background='#F2F2F0'" onmouseout="this.style.background=''"><div style="width:5px;height:5px;border-radius:50%;background:#D8D8D2;"></div>Admin</div>
+        </div>
+      </div>
+      <button class="btn-ghost">View Certificates</button>
+      <button class="btn-primary">Browse Courses</button>
+    </div>
+  </div>
+
+  <div class="canvas">
+    <div class="wrap">
+
+      <!-- HEADER -->
+      <div class="page-header">
+        <div class="greet-date">Monday · 16 March 2026</div>
+        <div class="greet-name">Welcome back, Sarah.</div>
+        <div class="greet-sub">You have 2 deadlines this week. Keep the momentum going.</div>
+      </div>
+
+      <!-- P-38 HERO CARD
+           Source: enrollment-service GET /api/v1/enrollments?learner_id={id}&status=active
+                   progress-service GET /api/v1/progress/learners/{id}/courses/{course_id}
+                   course-service GET /api/v1/courses/{course_id}
+           Fields: course.title · CourseProgressSnapshot.progress_percentage
+                   CourseProgressSnapshot.total_lessons - completed_lessons = lessons left
+                   CourseProgressSnapshot.current_lesson_id → lesson.title (BG-005: pending)
+           Sort:   last_activity_at desc (most recently active course) -->
+      <div class="hero-card">
+        <div class="hero-left">
+          <div class="hero-eyebrow">
+            <div class="hero-pulse"></div>
+            Continue Learning
+          </div>
+          <div class="hero-title">Advanced Machine Learning</div>
+          <div class="hero-next">Next up: <b>Lesson 17 — Backpropagation & Gradient Flow</b> · 18 min video</div>
+          <div class="hero-prog-label">
+            <span class="hpl-text">Course Progress</span>
+            <span class="hpl-pct">68%</span>
+          </div>
+          <div class="hero-bar">
+            <div class="hero-fill" style="width:68%;"></div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="hero-stat">
+            <div class="hero-stat-val">8</div>
+            <div class="hero-stat-lbl">lessons left</div>
+          </div>
+          <button class="hero-cta">Resume Lesson →</button>
+        </div>
+      </div>
+
+      <!-- KPI ROW
+           In Progress:   enrollment-service · count(status="active")
+           Completed:     enrollment-service · count(status="completed")
+           Weekly Hours:  progress-service · sum(time_spent_seconds)/3600 this week
+           Goal (8h):     user-service preferences.weekly_hours_target (BG-007: pending, hardcoded)
+           Certificates:  certificate-service · count(status="active") -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-num">4</div>
+          <div class="kpi-lbl">Courses in Progress</div>
+          <div class="kpi-trend"><span class="up">↑ 2</span> Keep going! 🎯</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-num">12</div>
+          <div class="kpi-lbl">Courses Completed</div>
+          <div class="kpi-trend"><span class="up">+3</span> Great progress 🏆</div>
+        </div>
+        <div class="kpi">
+          <!-- P-41 Ring variant -->
+          <div class="kpi-ring-row">
+            <div>
+              <div class="kpi-num">5.2h</div>
+              <div class="kpi-lbl">Weekly Learning</div>
+            </div>
+            <div class="ring-wrap">
+              <svg class="kring" viewBox="0 0 44 44">
+                <circle class="rt" cx="22" cy="22" r="19"/>
+                <circle class="rf" cx="22" cy="22" r="19"/>
+              </svg>
+              <div class="ring-pct">65%</div>
+            </div>
+          </div>
+          <div class="kpi-trend">65% of weekly goal ✨</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-num">3</div>
+          <div class="kpi-lbl">Certificates Earned</div>
+          <div class="kpi-trend">1 almost ready 🎓</div>
+        </div>
+      </div>
+
+
+      <!-- UG-001 RESOLVED: Learning Path Progress
+           Source: progress-service GET /api/v1/progress/learners/{learner_id}
+           Field:  LearnerProgressSummaryResponse.learning_paths[]
+           Hidden when learning_paths array is empty -->
+      <div class="lp-section">
+        <div class="lp-header">
+          <div class="lp-title">My Learning Paths</div>
+          <div class="panel-link" style="font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;">View all →</div>
+        </div>
+        <div class="lp-grid">
+
+          <!-- Path 1: active — current_course_id populated -->
+          <div class="lp-card">
+            <div class="lp-card-head">
+              <div class="lp-icon">🎯</div>
+              <div class="lp-meta">
+                <div class="lp-name">Senior Engineer Track</div>
+                <div class="lp-steps">Course 3 of 5 · Advanced Machine Learning</div>
+              </div>
+              <div class="chip active">Active</div>
+            </div>
+            <div class="lp-progress-row">
+              <div class="lp-bar-wrap">
+                <div class="lp-bar"><div class="lp-fill" style="width:60%;"></div></div>
+                <div class="lp-nodes">
+                  <div class="lp-node done" title="Python Fundamentals">●</div>
+                  <div class="lp-node done" title="Data Structures">●</div>
+                  <div class="lp-node current" title="Machine Learning">●</div>
+                  <div class="lp-node" title="System Design">●</div>
+                  <div class="lp-node" title="Capstone Project">●</div>
+                </div>
+              </div>
+              <div class="lp-pct">60%</div>
+            </div>
+          </div>
+
+          <!-- Path 2: in progress -->
+          <div class="lp-card">
+            <div class="lp-card-head">
+              <div class="lp-icon">📋</div>
+              <div class="lp-meta">
+                <div class="lp-name">Compliance Certification Path</div>
+                <div class="lp-steps">Course 1 of 3 · Data Privacy</div>
+              </div>
+              <div class="chip assigned">Assigned</div>
+            </div>
+            <div class="lp-progress-row">
+              <div class="lp-bar-wrap">
+                <div class="lp-bar"><div class="lp-fill" style="width:18%;background:#D97706;"></div></div>
+                <div class="lp-nodes">
+                  <div class="lp-node current" title="Data Privacy">●</div>
+                  <div class="lp-node" title="Security Essentials">●</div>
+                  <div class="lp-node" title="Compliance Assessment">●</div>
+                </div>
+              </div>
+              <div class="lp-pct" style="color:#D97706;">18%</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- P-39 DEADLINE CALLOUT -->
+      <div class="deadline">
+        <div class="dl-icon">📅</div>
+        <div class="dl-body">
+          <b>Due in 4 days:</b> Data Privacy & Compliance assessment — March 20. You haven't started it.
+        </div>
+        <button class="dl-btn">Start Now</button>
+      </div>
+
+      <!-- CONTENT GRID: Continue Learning + Recommended -->
+      <div class="content-grid">
+
+        <!-- PRIMARY_SLOT: CourseCard Grid — max 6, visual-first (prompt improvement)
+             Source: enrollment-service active enrollments + progress-service progress_percentage
+             Expanded from 3 list items to 6 grid cards per prompt spec -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Continue Learning</div>
+            <div class="panel-link">View all →</div>
+          </div>
+          <div class="course-grid">
+
+            <div class="course-card">
+              <div class="cc-thumb">📊</div>
+              <div class="cc-body">
+                <div class="cc-title">Product Analytics Fundamentals</div>
+                <div class="cc-lesson">Lesson 26 of 30 · Cohort Analysis</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:85%;"></div></div>
+                  <div class="cc-pct">85%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~40 min left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="course-card">
+              <div class="cc-thumb">🏗️</div>
+              <div class="cc-body">
+                <div class="cc-title">Systems Design Architecture</div>
+                <div class="cc-lesson">Lesson 9 of 18 · Load Balancing</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:42%;"></div></div>
+                  <div class="cc-pct">42%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~3h left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="course-card">
+              <div class="cc-thumb">🎨</div>
+              <div class="cc-body">
+                <div class="cc-title">UX Design Principles</div>
+                <div class="cc-lesson">Lesson 4 of 20 · User Research</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:20%;"></div></div>
+                  <div class="cc-pct">20%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~6h left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="course-card">
+              <div class="cc-thumb">🔐</div>
+              <div class="cc-body">
+                <div class="cc-title">Advanced Machine Learning</div>
+                <div class="cc-lesson">Lesson 17 of 25 · Backpropagation</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:68%;"></div></div>
+                  <div class="cc-pct">68%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~2h left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="course-card">
+              <div class="cc-thumb">💬</div>
+              <div class="cc-body">
+                <div class="cc-title">Technical Writing Essentials</div>
+                <div class="cc-lesson">Lesson 3 of 12 · Audience Analysis</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:18%;"></div></div>
+                  <div class="cc-pct">18%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~3h 30m left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="course-card">
+              <div class="cc-thumb">🧩</div>
+              <div class="cc-body">
+                <div class="cc-title">Agile Project Management</div>
+                <div class="cc-lesson">Lesson 1 of 16 · Scrum Basics</div>
+                <div class="cc-prog">
+                  <div class="cc-bar"><div class="cc-fill" style="width:6%;"></div></div>
+                  <div class="cc-pct">6%</div>
+                </div>
+                <div class="cc-foot">
+                  <div class="cc-time">~7h left</div>
+                  <button class="cc-btn">Continue</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SECONDARY_SLOT: Unified Recommended + Deadlines (prompt improvement)
+             Tab 1 — Recommended: recommendation-service or catalog fallback (GAP-007)
+             Tab 2 — Deadlines:   enrollment-service due_date (BG-006 pending) -->
+        <div class="panel">
+          <div class="sec-tabs">
+            <div class="sec-tab on" onclick="switchTab('recs',this)">Recommended</div>
+            <div class="sec-tab" onclick="switchTab('due',this)">Deadlines</div>
+          </div>
+
+          <!-- Recommended pane -->
+          <div class="sec-pane on" id="pane-recs">
+            <div class="disc-card">
+              <div class="disc-thumb">🔐</div>
+              <div class="disc-info">
+                <div class="disc-title">Data Privacy & Compliance</div>
+                <div class="disc-tags">
+                  <div class="tag">Beginner</div><div class="tag">2h 30m</div>
+                  <div class="tag required">Required</div>
+                </div>
+                <div class="disc-instructor">by Layla Ahmed</div>
+              </div>
+              <div class="disc-arrow">›</div>
+            </div>
+            <div class="disc-card">
+              <div class="disc-thumb">📡</div>
+              <div class="disc-info">
+                <div class="disc-title">Leadership Essentials</div>
+                <div class="disc-tags">
+                  <div class="tag">All levels</div><div class="tag">5h 20m</div>
+                </div>
+                <div class="disc-instructor">by Sara Williams</div>
+              </div>
+              <div class="disc-arrow">›</div>
+            </div>
+            <div class="disc-card">
+              <div class="disc-thumb">📊</div>
+              <div class="disc-info">
+                <div class="disc-title">SQL for Data Analysis</div>
+                <div class="disc-tags">
+                  <div class="tag">Intermediate</div><div class="tag">6h</div>
+                </div>
+                <div class="disc-instructor">by Marcus Chen</div>
+              </div>
+              <div class="disc-arrow">›</div>
+            </div>
+          </div>
+
+          <!-- Deadlines pane — BG-006: due_date not on enrollment yet -->
+          <div class="sec-pane" id="pane-due">
+            <div style="padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;cursor:pointer;transition:background 120ms;" onmouseover="this.style.background='var(--amber-bg)'" onmouseout="this.style.background=''">
+              <div style="width:36px;height:36px;border-radius:8px;background:var(--amber-bg);border:1px solid var(--amber-bd);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">📅</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;">Data Privacy & Compliance</div>
+                <div style="font-size:11px;color:var(--amber);font-weight:600;">Due in 4 days · March 20</div>
+              </div>
+              <div style="font-size:15px;color:var(--ink-4);">›</div>
+            </div>
+            <div style="padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;cursor:pointer;transition:background 120ms;" onmouseover="this.style.background='var(--subtle)'" onmouseout="this.style.background=''">
+              <div style="width:36px;height:36px;border-radius:8px;background:var(--subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🏗️</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;">Systems Design Architecture</div>
+                <div style="font-size:11px;color:var(--ink-3);font-weight:500;">Due in 12 days · March 28</div>
+              </div>
+              <div style="font-size:15px;color:var(--ink-4);">›</div>
+            </div>
+            <div style="padding:12px 24px;text-align:center;">
+              <div style="font-size:11px;color:var(--ink-4);">No upcoming deadlines</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BOTTOM: Activity + Quick Actions -->
+      <div class="bottom-row">
+
+        <!-- P-42 Activity feed — verb-first -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Recent Activity</div>
+          </div>
+          <div class="activity-body">
+            <div class="act">
+              <div class="act-left"><div class="act-dot recent"></div><div class="act-line"></div></div>
+              <!-- event: lms.progress.lesson_completed.v1 -->
+              <div class="act-text">Completed lesson: <b>Gradient Descent</b> · Machine Learning</div>
+              <div class="act-time">2h ago</div>
+            </div>
+            <div class="act">
+              <div class="act-left"><div class="act-dot"></div><div class="act-line"></div></div>
+              <!-- event: lms.progress.course_completed.v1 → attempt scored -->
+              <div class="act-text">Passed assessment: <b>Cohort Analysis — 91%</b> · Product Analytics</div>
+              <div class="act-time">Yesterday</div>
+            </div>
+            <div class="act">
+              <div class="act-left"><div class="act-dot"></div><div class="act-line"></div></div>
+              <!-- event: lms.certificate.issued.v1 -->
+              <div class="act-text">Earned certificate: <b>Python for Data Science</b></div>
+              <div class="act-time">3 days ago</div>
+            </div>
+            <div class="act">
+              <div class="act-left"><div class="act-dot"></div><div class="act-line"></div></div>
+              <!-- event: lms.enrollment.created.v1 -->
+              <div class="act-text">Started course: <b>UX Design Principles</b></div>
+              <div class="act-time">5 days ago</div>
+            </div>
+            <div class="act">
+              <div class="act-left"><div class="act-dot"></div></div>
+              <!-- derived: count(lesson_completed events) this week -->
+              <div class="act-text">Completed <b>12 lessons</b> across all courses this week</div>
+              <div class="act-time">This week</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-list">
+          <div class="qa">
+            <div class="qa-icon">🔍</div>
+            <div><div class="qa-label">Browse Catalog</div><div class="qa-sub">500+ courses</div></div>
+            <div class="qa-arr">›</div>
+          </div>
+          <div class="qa">
+            <div class="qa-icon">🏆</div>
+            <div><div class="qa-label">View Certificates</div><div class="qa-sub">3 earned · 1 in progress</div></div>
+            <div class="qa-arr">›</div>
+          </div>
+          <div class="qa">
+            <div class="qa-icon">🗺️</div>
+            <div><div class="qa-label">My Learning Paths</div><div class="qa-sub">2 active paths</div></div>
+            <div class="qa-arr">›</div>
+          </div>
+          <div class="qa">
+            <div class="qa-icon">💬</div>
+            <div><div class="qa-label">Discussions</div><div class="qa-sub">3 unread replies</div></div>
+            <div class="qa-arr">›</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── STATE SWITCHER ── -->
+<div class="state-bar">
+  <button class="sb on" onclick="setState('loaded',this)">Loaded</button>
+  <button class="sb" onclick="setState('skeleton',this)">Skeleton</button>
+  <button class="sb" onclick="setState('empty',this)">Empty</button>
+  <button class="sb" onclick="setState('error',this)">Error</button>
+</div>
+
+<!-- ── SKELETON STATE ── -->
+<div class="s-skeleton" style="position:fixed;inset:0;background:#F7F7F5;z-index:100;display:none;overflow-y:auto;padding:32px;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <!-- header skeleton -->
+    <div style="margin-bottom:28px;"><div class="sk sk-sm" style="width:140px;margin-bottom:8px;"></div><div class="sk" style="height:26px;width:280px;margin-bottom:6px;"></div><div class="sk sk-h" style="width:320px;"></div></div>
+    <!-- hero card skeleton -->
+    <div style="background:white;border:1px solid #E8E8E4;border-radius:14px;padding:28px 32px;margin-bottom:24px;display:grid;grid-template-columns:1fr 200px;gap:32px;">
+      <div><div class="sk sk-sm" style="width:120px;margin-bottom:12px;"></div><div class="sk" style="height:20px;width:280px;margin-bottom:8px;"></div><div class="sk sk-h" style="width:340px;margin-bottom:24px;"></div><div class="sk sk-bar"></div></div>
+      <div style="background:#F2F2F0;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;"><div class="sk" style="width:44px;height:44px;border-radius:50%;"></div><div class="sk" style="width:90px;height:32px;border-radius:7px;"></div></div>
+    </div>
+    <!-- LP skeleton -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:white;border:1px solid #E8E8E4;border-radius:14px;padding:18px 20px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><div class="sk" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;"></div><div style="flex:1"><div class="sk" style="height:13px;width:70%;margin-bottom:5px;"></div><div class="sk" style="height:10px;width:50%;"></div></div></div><div class="sk" style="height:4px;margin-bottom:8px;"></div><div class="sk" style="height:8px;width:30%;"></div></div>
+      <div style="background:white;border:1px solid #E8E8E4;border-radius:14px;padding:18px 20px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><div class="sk" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;"></div><div style="flex:1"><div class="sk" style="height:13px;width:65%;margin-bottom:5px;"></div><div class="sk" style="height:10px;width:45%;"></div></div></div><div class="sk" style="height:4px;margin-bottom:8px;"></div><div class="sk" style="height:8px;width:25%;"></div></div>
+    </div>
+    <!-- KPI skeleton -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+      ${['','','',''].map(()=>`<div style="background:white;border:1px solid #E8E8E4;border-radius:14px;padding:20px 22px;"><div class="sk sk-num"></div><div class="sk sk-h" style="width:100px;"></div><div class="sk sk-sm" style="width:80px;"></div></div>`).join('')}
+    </div>
+    <!-- content grid skeleton -->
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:20px;">
+      <div style="background:white;border:1px solid #E8E8E4;border-radius:14px;overflow:hidden;"><div style="padding:18px 24px;border-bottom:1px solid #E8E8E4;"><div class="sk" style="width:140px;height:14px;"></div></div>${[1,2,3].map(()=>`<div class="sk-row"><div class="sk" style="width:38px;height:38px;border-radius:9px;flex-shrink:0;"></div><div style="flex:1;"><div class="sk sk-h" style="width:70%;"></div><div class="sk sk-sm"></div></div></div>`).join('')}</div>
+      <div style="background:white;border:1px solid #E8E8E4;border-radius:14px;overflow:hidden;"><div style="padding:18px 24px;border-bottom:1px solid #E8E8E4;"><div class="sk" style="width:140px;height:14px;"></div></div>${[1,2,3,4].map(()=>`<div class="sk-row"><div class="sk" style="width:48px;height:48px;border-radius:9px;flex-shrink:0;"></div><div style="flex:1;"><div class="sk sk-h" style="width:80%;"></div><div class="sk sk-sm"></div></div></div>`).join('')}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── EMPTY STATE ── -->
+<div class="s-empty" style="position:fixed;inset:0;background:#F7F7F5;z-index:100;display:none;overflow-y:auto;">
+  <!-- Topbar stays -->
+  <div style="height:60px;background:white;border-bottom:1px solid #E8E8E4;display:flex;align-items:center;padding:0 32px;"><span style="font-size:14px;font-weight:600;">Dashboard</span></div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 60px);text-align:center;padding:48px 32px;">
+    <div style="font-size:56px;margin-bottom:24px;">📚</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-0.03em;color:#1A1A18;margin-bottom:10px;">You haven't enrolled in any courses yet.</div>
+    <div style="font-size:14px;color:#8C8C84;margin-bottom:28px;max-width:400px;line-height:1.6;">Browse the catalog to find courses that match your goals and start your learning journey.</div>
+    <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:#5B5BD6;color:white;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity 120ms;" onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">Browse Catalog →</a>
+  </div>
+</div>
+
+<!-- ── ERROR STATE ── -->
+<div class="s-error" style="position:fixed;inset:0;background:#F7F7F5;z-index:100;display:none;overflow-y:auto;">
+  <div style="height:60px;background:white;border-bottom:1px solid #E8E8E4;display:flex;align-items:center;padding:0 32px;"><span style="font-size:14px;font-weight:600;">Dashboard</span></div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 60px);text-align:center;padding:48px 32px;">
+    <div style="width:52px;height:52px;border-radius:50%;background:rgba(196,43,28,.08);border:1px solid rgba(196,43,28,.15);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:20px;">✕</div>
+    <div style="font-size:18px;font-weight:700;color:#1A1A18;margin-bottom:8px;">Couldn't load your dashboard.</div>
+    <div style="font-size:13px;color:#8C8C84;margin-bottom:24px;">There was a problem connecting to the server. Your progress is safe.</div>
+    <button onclick="setState('loaded',document.querySelector('.sb'))" style="padding:8px 20px;background:#1A1A18;color:white;border:none;border-radius:7px;font-family:'Plus Jakarta Sans',system-ui;font-size:13px;font-weight:600;cursor:pointer;">Try Again</button>
+  </div>
+</div>
+
+<script>
+function setState(s,btn){
+  document.body.className=document.body.className.replace(/show-\S+/g,'').trim()+' show-'+s;
+  document.querySelectorAll('.sb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  // Show/hide skeleton/empty/error overlays
+  document.querySelectorAll('.s-skeleton,.s-empty,.s-error').forEach(el=>{el.style.display='none';});
+  if(s==='skeleton')document.querySelector('.s-skeleton').style.display='block';
+  if(s==='empty')document.querySelector('.s-empty').style.display='block';
+  if(s==='error')document.querySelector('.s-error').style.display='block';
+}
+function switchTab(pane, btn) {
+  document.querySelectorAll('.sec-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.sec-pane').forEach(p => p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('pane-' + pane).classList.add('on');
+}
+
+// Role switcher close on outside click
+document.addEventListener('click',function(e){
+  document.querySelectorAll('.rs').forEach(rs=>{if(!rs.contains(e.target))rs.classList.remove('open');});
+  document.querySelectorAll('.rs-drop').forEach(d=>{if(!d.closest('.rs').contains(e.target))d.style.display='none';});
+});
+document.querySelectorAll('.rs').forEach(rs=>{
+  rs.addEventListener('click',function(){
+    const drop=this.querySelector('.rs-drop');
+    drop.style.display=drop.style.display==='block'?'none':'block';
+  });
+});
+</script>
+
+</body>
+</html>

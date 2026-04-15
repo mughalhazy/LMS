@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from typing import List
+
+from pydantic import BaseModel, Field
+
+from .models import (
+    BehavioralLearningRecommendation,
+    LearnerRecommendationBundle,
+    LearningPathSuggestion,
+    PersonalizedCourseRecommendation,
+    SkillGapRecommendation,
+)
+
+
+class PersonalizedRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    target_skills: List[str] = Field(default_factory=list)
+    preferred_modalities: List[str] = Field(default_factory=list)
+    available_minutes_per_week: int = Field(default=120, gt=0)
+
+
+class SkillGapRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    required_skills: List[str] = Field(default_factory=list)
+    current_skill_levels: dict[str, float] = Field(default_factory=dict)
+    target_skill_levels: dict[str, float] = Field(default_factory=dict)
+
+
+class LearningPathSuggestionRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    goal: str
+    available_hours_per_week: int = Field(default=4, gt=0)
+    mandatory_course_ids: List[str] = Field(default_factory=list)
+
+
+class BehavioralRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    activity_streak_days: int = Field(default=0, ge=0)
+    average_session_minutes: int = Field(default=0, ge=0)
+    dropoff_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class PersonalizedRecommendationResponse(BaseModel):
+    items: List[PersonalizedCourseRecommendation]
+
+
+class SkillGapRecommendationResponse(BaseModel):
+    items: List[SkillGapRecommendation]
+
+
+class LearningPathSuggestionResponse(BaseModel):
+    items: List[LearningPathSuggestion]
+
+
+class BehavioralRecommendationResponse(BaseModel):
+    items: List[BehavioralLearningRecommendation]
+
+
+class LearnerRecommendationBundleResponse(BaseModel):
+    bundle: LearnerRecommendationBundle
+
+
+class AnalyticsRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    completion_rate: float = Field(ge=0, le=100)
+    engagement_score: float = Field(ge=0, le=100)
+    average_sentiment: float
+    trend_direction: str = "stable"
+
+
+class AnalyticsSnapshot(BaseModel):
+    completion_rate: float = Field(ge=0, le=100)
+    average_engagement_score: float = Field(ge=0, le=100)
+    average_sentiment: float = Field(ge=-1.0, le=1.0)
+    trend_direction: str = "stable"
+
+
+class InferredSkillSignal(BaseModel):
+    skill_id: str
+    inferred_level: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ProgressSnapshot(BaseModel):
+    completed_course_ids: List[str] = Field(default_factory=list)
+    in_progress_course_ids: List[str] = Field(default_factory=list)
+    learning_path_completion_rate: float = Field(default=0.0, ge=0.0, le=100.0)
+    weekly_active_minutes: int = Field(default=0, ge=0)
+
+
+class IntegratedRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    goal: str
+    target_skills: List[str] = Field(default_factory=list)
+    mandatory_course_ids: List[str] = Field(default_factory=list)
+    available_hours_per_week: int = Field(default=4, gt=0)
+    analytics: AnalyticsSnapshot
+    skill_inference: List[InferredSkillSignal] = Field(default_factory=list)
+    progress: ProgressSnapshot
+
+
+class IntegratedRecommendationResponse(BaseModel):
+    personalized_courses: List[PersonalizedCourseRecommendation]
+    learning_paths: List[LearningPathSuggestion]
+
+
+class LearningInsightRecommendationRequest(BaseModel):
+    tenant_id: str
+    learner_id: str
+    risk_band: str = "low"
+    dropoff_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    engagement_score: float = Field(default=100.0, ge=0.0, le=100.0)
+    completion_rate: float = Field(default=100.0, ge=0.0, le=100.0)
+    predicted_performance_score: float = Field(default=100.0, ge=0.0, le=100.0)
+
+
+class LearningInsightRecommendationResponse(BaseModel):
+    items: List[BehavioralLearningRecommendation]

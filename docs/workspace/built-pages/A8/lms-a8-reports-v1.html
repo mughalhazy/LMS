@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Reports
+  Archetype: A8 Insight — Grid layout
+  Created  : 2026-03-23
+  Surface  : Admin · Manager
+  Repo     : reporting-service (full) · learning-analytics-service (no HTTP REST API — BG-063)
+  Modes    : Explore (interactive KPIs + charts) · Export (table + download)
+  Endpoints: POST /reports/compliance            → ComplianceReportResponse
+             POST /reports/course-completion     → CourseCompletionReportResponse
+             POST /dashboards/analytics          → DashboardResponse (AnalyticsDashboard)
+             POST /exports                       → ExportResponse (BG-132 — data encoding undefined)
+  Gaps     : BG-131 (no GET /reports — POST-only inline; no report history)
+             BG-132 (ReportExport.data: str encoding undefined — export stubbed)
+             BG-063 (learning-analytics-service no HTTP REST API — chart data mocked)
+  Patterns : A8 Insight — Grid layout: page header + filter bar + KPI strip + chart grid + export table
+             zoom:1.25 · Admin/Manager surface · --pp:28px · row-height:40px
+             Explore mode: KPI cards (DashboardKPI shape) + bar chart + donut + trend line (SVG)
+             Export mode: report type tabs + data table + CSV/PDF export buttons
+             P-56 skeleton · P-55 inline error · StatCard L1/L2 KPI patterns (design system §5.3)
+             Bar chart: CSS horizontal bars · Donut: CSS conic-gradient · Trend: inline SVG
+  CSS base : Verbatim :root + shared components from lms-a7-lesson-player-v1.html (last sealed)
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Reports</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a7-lesson-player-v1.html (last sealed) ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ── A8 INSIGHT LAYOUT ── */
+.layout{display:flex;flex-direction:column;min-height:100vh;background:var(--canvas);}
+
+/* Topbar */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:16px;flex-shrink:0;position:sticky;top:0;z-index:20;}
+.tb-title{font-size:16px;font-weight:800;color:var(--ink);}
+.tb-divider{width:1px;height:20px;background:var(--border);}
+.mode-toggle{display:flex;background:var(--subtle);border-radius:var(--r-sm);padding:3px;gap:2px;}
+.mode-btn{padding:5px 14px;border-radius:6px;border:none;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all 120ms;color:var(--ink-3);background:transparent;}
+.mode-btn.active{background:var(--white);color:var(--ink);box-shadow:var(--sh-xs);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-gen-time{font-size:12px;color:var(--ink-4);}
+
+/* Filter bar */
+.filter-bar{background:var(--white);border-bottom:1px solid var(--border);padding:12px var(--pp);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.fb-label{font-size:12px;font-weight:700;color:var(--ink-3);white-space:nowrap;}
+.fb-select{height:34px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;color:var(--ink-2);cursor:pointer;outline:none;transition:border-color 100ms;}
+.fb-select:focus{border-color:var(--border-focus);}
+.fb-input{height:34px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;color:var(--ink-2);outline:none;transition:border-color 100ms;width:130px;}
+.fb-input:focus{border-color:var(--border-focus);}
+.fb-sep{color:var(--ink-4);font-size:13px;}
+.fb-run{padding:7px 18px;border-radius:var(--r-sm);border:none;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.fb-run:hover{opacity:.9;}
+.fb-clear{font-size:12px;color:var(--ink-3);cursor:pointer;padding:4px 8px;border-radius:4px;background:none;border:none;font-family:var(--font);transition:all 100ms;}
+.fb-clear:hover{background:var(--subtle);color:var(--ink-2);}
+.active-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.filter-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r-pill);background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);font-size:11px;font-weight:600;color:var(--accent);}
+.filter-chip-x{cursor:pointer;opacity:.6;font-size:13px;margin-left:2px;}
+.filter-chip-x:hover{opacity:1;}
+
+/* Page canvas */
+.page-canvas{flex:1;padding:var(--pp);display:flex;flex-direction:column;gap:20px;max-width:1400px;width:100%;}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.kpi-card{background:var(--white);border-radius:var(--r);padding:20px;border:1px solid var(--border);box-shadow:var(--sh-xs);position:relative;overflow:hidden;}
+.kpi-card.l1{border-left:3px solid var(--accent);}
+.kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);margin-bottom:8px;}
+.kpi-value{font-size:32px;font-weight:800;color:var(--ink);line-height:1;margin-bottom:4px;}
+.kpi-value.green{color:var(--green);}
+.kpi-value.amber{color:var(--amber);}
+.kpi-value.red{color:var(--red);}
+.kpi-unit{font-size:12px;color:var(--ink-3);}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;margin-top:6px;padding:2px 6px;border-radius:var(--r-pill);}
+.kpi-delta.up{background:var(--green-bg);color:var(--green);}
+.kpi-delta.down{background:var(--red-bg);color:var(--red);}
+.kpi-delta.neutral{background:var(--subtle);color:var(--ink-3);}
+
+/* Chart grid */
+.chart-grid{display:grid;grid-template-columns:1fr 320px;gap:16px;}
+.chart-card{background:var(--white);border-radius:var(--r);padding:20px;border:1px solid var(--border);box-shadow:var(--sh-xs);}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.chart-title{font-size:13px;font-weight:700;color:var(--ink);word-spacing:0.08em;}
+.chart-subtitle{font-size:11px;color:var(--ink-4);margin-top:2px;}
+.chart-legend{display:flex;align-items:center;gap:12px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-3);}
+.legend-dot{width:8px;height:8px;border-radius:50%;}
+
+/* Horizontal bar chart */
+.hbar-chart{display:flex;flex-direction:column;gap:10px;}
+.hbar-row{display:flex;align-items:center;gap:10px;}
+.hbar-label{font-size:12px;color:var(--ink-2);width:110px;flex-shrink:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hbar-track{flex:1;height:20px;background:var(--subtle);border-radius:4px;overflow:hidden;position:relative;}
+.hbar-fill{height:100%;border-radius:4px;transition:width 600ms cubic-bezier(.23,1,.32,1);}
+.hbar-fill.completed{background:var(--green);}
+.hbar-fill.in_progress{background:var(--accent);}
+.hbar-fill.not_started{background:var(--border-s);}
+.hbar-pct{font-size:11px;font-weight:700;color:var(--ink-3);width:36px;text-align:right;flex-shrink:0;}
+
+/* Trend SVG chart */
+.trend-wrap{width:100%;height:120px;}
+
+/* Donut chart */
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.donut-chart{width:120px;height:120px;border-radius:50%;position:relative;flex-shrink:0;}
+.donut-center{position:absolute;inset:22px;border-radius:50%;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut-pct{font-size:20px;font-weight:800;color:var(--ink);}
+.donut-pct-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-4);}
+.donut-legend{width:100%;display:flex;flex-direction:column;gap:8px;}
+.donut-leg-row{display:flex;align-items:center;justify-content:space-between;}
+.donut-leg-left{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);}
+.donut-leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.donut-leg-val{font-size:12px;font-weight:700;color:var(--ink);}
+
+/* Second row charts */
+.chart-row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* Stacked bar chart */
+.sbar-chart{display:flex;align-items:flex-end;gap:6px;height:100px;padding-top:8px;}
+.sbar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;}
+.sbar-stack{width:100%;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden;}
+.sbar-seg{width:100%;transition:height 600ms cubic-bezier(.23,1,.32,1);}
+.sbar-seg.completed{background:var(--green);}
+.sbar-seg.in_progress{background:var(--accent);opacity:.75;}
+.sbar-seg.not_started{background:var(--border-s);}
+.sbar-xlabel{font-size:10px;color:var(--ink-4);white-space:nowrap;}
+
+/* Export table section */
+.export-section{display:flex;flex-direction:column;gap:16px;}
+.export-header{display:flex;align-items:center;justify-content:space-between;}
+.export-title{font-size:14px;font-weight:700;color:var(--ink);word-spacing:0.08em;}
+.export-actions{display:flex;align-items:center;gap:8px;}
+.export-btn{display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.export-btn:hover{border-color:var(--border-s);color:var(--ink);}
+.export-btn.primary{border:none;background:var(--accent);color:white;}
+.export-btn.primary:hover{opacity:.9;}
+
+/* Report type tabs */
+.report-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:0;}
+.report-tab{padding:8px 18px;font-size:13px;font-weight:600;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;transition:all 100ms;}
+.report-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* Data table */
+.table-card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh-xs);overflow:hidden;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);white-space:nowrap;background:var(--subtle);}
+td{padding:0 14px;height:40px;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--subtle);}
+.cell-name{font-weight:600;color:var(--ink);}
+.cell-mono{font-family:monospace;font-size:12px;font-weight:400;color:var(--ink-3);}
+
+/* Status chips */
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-pill);font-size:11px;font-weight:700;}
+.chip.completed{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.chip.in_progress{background:var(--accent-lt);border:1px solid rgba(91,91,214,.2);color:var(--accent);}
+.chip.not_started{background:var(--subtle);border:1px solid var(--border);color:var(--ink-4);}
+.chip.overdue{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+.chip.compliant{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);}
+.chip.non_compliant{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border);background:var(--white);}
+.pag-info{font-size:12px;color:var(--ink-3);}
+.pag-controls{display:flex;align-items:center;gap:6px;}
+.pag-btn{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--white);font-family:var(--font);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink-3);transition:all 100ms;}
+.pag-btn:hover{border-color:var(--border-s);color:var(--ink);}
+.pag-btn:disabled{opacity:.4;cursor:not-allowed;}
+.pag-page{font-size:12px;color:var(--ink-2);padding:0 8px;}
+
+/* Empty / Error states */
+.page-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;text-align:center;}
+.pe-icon{font-size:40px;opacity:.3;margin-bottom:14px;}
+.pe-title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.pe-sub{font-size:13px;color:var(--ink-3);max-width:360px;line-height:1.6;margin-bottom:20px;}
+.err-block{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:20px 24px;display:flex;gap:14px;align-items:flex-start;margin:24px var(--pp);}
+.err-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.err-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:4px;}
+.err-msg{font-size:13px;color:var(--red);opacity:.85;line-height:1.5;}
+.err-retry{margin-top:12px;padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--white);color:var(--red);transition:all 100ms;}
+.err-retry:hover{background:var(--red-bg);}
+
+/* Toast */
+.toast{position:fixed;bottom:60px;right:24px;background:#1A1A18;color:white;padding:10px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:300;opacity:0;transition:opacity 200ms;pointer-events:none;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="layout" id="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="tb-title">Reports</span>
+    <div class="tb-divider"></div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-explore" onclick="setMode('explore')">Explore</button>
+      <button class="mode-btn" id="mode-export" onclick="setMode('export')">Export</button>
+    </div>
+    <div class="tb-r">
+      <span class="tb-gen-time" id="gen-time">Generated: 23 Mar 2026, 09:41</span>
+      <button class="btn-g" onclick="refreshReport()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar" id="filter-bar">
+    <span class="fb-label">Filters</span>
+    <select class="fb-select" id="f-dept" onchange="updateFilterChips()">
+      <option value="">All Departments</option>
+      <option value="engineering" selected>Engineering</option>
+      <option value="product">Product</option>
+      <option value="sales">Sales</option>
+      <option value="operations">Operations</option>
+    </select>
+    <select class="fb-select" id="f-course" onchange="updateFilterChips()">
+      <option value="">All Courses</option>
+      <option value="c002" selected>Security Fundamentals</option>
+      <option value="c006">Data Privacy & Compliance</option>
+      <option value="c013">GDPR Deep Dive</option>
+      <option value="c021">SOC 2 Compliance</option>
+    </select>
+    <span class="fb-sep">From</span>
+    <input class="fb-input" type="date" id="f-from" value="2026-01-01">
+    <span class="fb-sep">To</span>
+    <input class="fb-input" type="date" id="f-to" value="2026-03-23">
+    <button class="fb-run" onclick="runReport()">Generate Report</button>
+    <div class="active-filters" id="active-filters">
+      <span class="filter-chip">Engineering <span class="filter-chip-x" onclick="clearFilter('f-dept')">×</span></span>
+      <span class="filter-chip">Security Fundamentals <span class="filter-chip-x" onclick="clearFilter('f-course')">×</span></span>
+    </div>
+    <button class="fb-clear" onclick="clearAllFilters()">Clear all</button>
+  </div>
+
+  <!-- PAGE CANVAS -->
+  <div class="page-canvas" id="page-canvas">
+    <!-- content injected by render() -->
+  </div>
+
+</div><!-- /.layout -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setState('loaded')">Loaded</button>
+  <button class="stb" onclick="setState('skeleton')">Skeleton</button>
+  <button class="stb" onclick="setState('empty')">Empty</button>
+  <button class="stb" onclick="setState('error')">Error</button>
+</div>
+
+<script>
+/* ── MOCK DATA ──────────────────────────────────────────────────────────────
+   AnalyticsDashboard shaped to DashboardWidget / DashboardKPI (reporting-service models.py)
+   ComplianceRecord shaped to ComplianceRecord (reporting-service models.py)
+   CourseCompletionRecord shaped to CourseCompletionRecord (reporting-service models.py)
+   CompletionStatus: completed | in_progress | not_started
+   ReportType: compliance | course_completion
+   ExportFormat: csv | pdf
+   BG-063: learning-analytics-service chart data mocked — no HTTP REST API
+   BG-131: report_id captured client-side only — no GET /reports/{id}
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* DashboardKPI shapes — POST /dashboards/analytics → AnalyticsDashboard */
+const DASHBOARD = {
+  dashboard_id: 'dash-001',
+  tenant_id: 'tenant-acme',
+  time_granularity: 'day',
+  widgets: [
+    { widget_id: 'w-001', widget_name: 'Enrolled Learners',    metrics: [{ metric:'enrolled_total',      value:248, unit:'learners' }] },
+    { widget_id: 'w-002', widget_name: 'Completion Rate',       metrics: [{ metric:'completion_rate',     value:73.4, unit:'%' }] },
+    { widget_id: 'w-003', widget_name: 'Overdue',               metrics: [{ metric:'overdue_count',       value:18, unit:'learners' }] },
+    { widget_id: 'w-004', widget_name: 'Non-Compliant',         metrics: [{ metric:'non_compliant_count', value:8, unit:'learners' }] },
+  ],
+};
+
+/* POST /reports/compliance → ComplianceReportResponse */
+const COMPLIANCE_REPORT = {
+  envelope: { report_id:'rpt-comp-001', report_type:'compliance', tenant_id:'tenant-acme', row_count:8, generated_at:'2026-03-23T09:41:00Z', filters:{department:'engineering',course_id:'c002'} },
+  items: [
+    { learner_id:'u-001', learner_name:'Alice Harrington', department:'Engineering', role:'Software Engineer', policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-02-14', exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+    { learner_id:'u-002', learner_name:'Ben Okafor',       department:'Engineering', role:'Lead Engineer',     policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-03-01', exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+    { learner_id:'u-003', learner_name:'Carla Mendes',     department:'Engineering', role:'Software Engineer', policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'in_progress', completion_date:null, exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+    { learner_id:'u-004', learner_name:'David Thornton',   department:'Engineering', role:'DevOps Engineer',   policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', completion_date:null, exemption_flag:false, exemption_reason:null, non_compliance_flag:true, escalation_level:'manager' },
+    { learner_id:'u-005', learner_name:'Elena Vasquez',    department:'Engineering', role:'Security Analyst',  policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-01-28', exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+    { learner_id:'u-006', learner_name:'Frank Nguyen',     department:'Engineering', role:'Software Engineer', policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', completion_date:null, exemption_flag:false, exemption_reason:null, non_compliance_flag:true, escalation_level:'manager' },
+    { learner_id:'u-007', learner_name:'Grace Liu',        department:'Engineering', role:'QA Engineer',       policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'in_progress', completion_date:null, exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+    { learner_id:'u-008', learner_name:'Hassan Al-Amin',   department:'Engineering', role:'Engineering Mgr',   policy_id:'pol-001', mandatory_course_id:'c002', mandatory_course_title:'Security Fundamentals', assignment_date:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-02-05', exemption_flag:false, exemption_reason:null, non_compliance_flag:false, escalation_level:'none' },
+  ],
+};
+
+/* POST /reports/course-completion → CourseCompletionReportResponse */
+const COMPLETION_REPORT = {
+  envelope: { report_id:'rpt-comp-002', report_type:'course_completion', tenant_id:'tenant-acme', row_count:8, generated_at:'2026-03-23T09:41:00Z', filters:{department:'engineering',course_id:'c002'} },
+  items: [
+    { learner_id:'u-001', learner_name:'Alice Harrington', department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-02-14', completion_percentage:100, days_to_complete:35, overdue_flag:false },
+    { learner_id:'u-002', learner_name:'Ben Okafor',       department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-03-01', completion_percentage:100, days_to_complete:50, overdue_flag:false },
+    { learner_id:'u-003', learner_name:'Carla Mendes',     department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'in_progress', completion_date:null, completion_percentage:62, days_to_complete:null, overdue_flag:false },
+    { learner_id:'u-004', learner_name:'David Thornton',   department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', completion_date:null, completion_percentage:0, days_to_complete:null, overdue_flag:true },
+    { learner_id:'u-005', learner_name:'Elena Vasquez',    department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-01-28', completion_percentage:100, days_to_complete:18, overdue_flag:false },
+    { learner_id:'u-006', learner_name:'Frank Nguyen',     department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-02-28', completion_status:'not_started', completion_date:null, completion_percentage:0, days_to_complete:null, overdue_flag:true },
+    { learner_id:'u-007', learner_name:'Grace Liu',        department:'Engineering', manager_id:'u-008', course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'in_progress', completion_date:null, completion_percentage:41, days_to_complete:null, overdue_flag:false },
+    { learner_id:'u-008', learner_name:'Hassan Al-Amin',   department:'Engineering', manager_id:'—',     course_id:'c002', course_title:'Security Fundamentals', assignment_type:'mandatory', assigned_at:'2026-01-10', due_date:'2026-03-31', completion_status:'completed', completion_date:'2026-02-05', completion_percentage:100, days_to_complete:26, overdue_flag:false },
+  ],
+};
+
+/* BG-063: chart data mocked — learning-analytics-service has no HTTP REST API */
+const DEPT_COMPLETION = [
+  { dept:'Engineering', completed:62, in_progress:25, not_started:13 },
+  { dept:'Product',     completed:78, in_progress:14, not_started:8  },
+  { dept:'Sales',       completed:45, in_progress:32, not_started:23 },
+  { dept:'Operations',  completed:81, in_progress:12, not_started:7  },
+  { dept:'Finance',     completed:91, in_progress:6,  not_started:3  },
+];
+
+const TREND_DATA = [
+  {month:'Oct',pct:41},{month:'Nov',pct:48},{month:'Dec',pct:52},
+  {month:'Jan',pct:59},{month:'Feb',pct:65},{month:'Mar',pct:73},
+];
+
+/* ── UI STATE ──────────────────────────────────────────────────────────── */
+const UI = { mode:'explore', reportTab:'compliance' };
+
+/* ── INTERACTIONS ────────────────────────────────────────────────────────── */
+function setMode(m) {
+  UI.mode = m;
+  document.getElementById('mode-explore').classList.toggle('active', m === 'explore');
+  document.getElementById('mode-export').classList.toggle('active', m === 'export');
+  render();
+}
+
+function setState(s) {
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  event.target.classList.add('on');
+  const canvas = document.getElementById('page-canvas');
+  if (s === 'loaded') { render(); return; }
+  if (s === 'skeleton') { renderSkeleton(); return; }
+  if (s === 'empty') {
+    canvas.innerHTML = `<div class="page-empty">
+      <div class="pe-icon">📊</div>
+      <div class="pe-title">No data for selected filters</div>
+      <div class="pe-sub">Try adjusting the date range or selecting a different department or course.</div>
+      <button class="btn-primary" onclick="clearAllFilters()">Clear Filters</button>
+    </div>`;
+    return;
+  }
+  if (s === 'error') {
+    canvas.innerHTML = `<div class="err-block">
+      <span class="err-icon">⚠</span>
+      <div>
+        <div class="err-title">Failed to generate report</div>
+        <div class="err-msg">The reporting service returned an error. Please try again or contact support if the problem persists.</div>
+        <button class="err-retry" onclick="setState('loaded')">Retry</button>
+      </div>
+    </div>`;
+  }
+}
+
+function runReport() { showToast('Report generated'); render(); }
+function refreshReport() { showToast('Refreshed'); }
+
+function setReportTab(tab) {
+  UI.reportTab = tab;
+  renderExportMode();
+}
+
+function exportReport(fmt) {
+  /* POST /exports — BG-132: ExportResponse.data encoding undefined; download stubbed */
+  showToast(`Exporting as ${fmt.toUpperCase()}…`);
+}
+
+function updateFilterChips() {
+  const dept  = document.getElementById('f-dept');
+  const course = document.getElementById('f-course');
+  const wrap  = document.getElementById('active-filters');
+  if (!wrap) return;
+  const chips = [];
+  if (dept.value)   chips.push(`<span class="filter-chip">${dept.options[dept.selectedIndex].text} <span class="filter-chip-x" onclick="clearFilter('f-dept')">×</span></span>`);
+  if (course.value) chips.push(`<span class="filter-chip">${course.options[course.selectedIndex].text} <span class="filter-chip-x" onclick="clearFilter('f-course')">×</span></span>`);
+  wrap.innerHTML = chips.join('');
+}
+
+function clearFilter(id) {
+  const el = document.getElementById(id);
+  if (el) el.value = '';
+  updateFilterChips();
+}
+
+function clearAllFilters() {
+  ['f-dept','f-course'].forEach(id => { const el = document.getElementById(id); if (el) el.value=''; });
+  document.getElementById('f-from').value = '2026-01-01';
+  document.getElementById('f-to').value   = '2026-03-23';
+  updateFilterChips();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ── RENDER ──────────────────────────────────────────────────────────────── */
+function render() {
+  if (UI.mode === 'explore') renderExploreMode();
+  else renderExportMode();
+}
+
+function renderExploreMode() {
+  const canvas = document.getElementById('page-canvas');
+
+  /* KPI cards — shaped to DashboardKPI */
+  const kpis = [
+    { label:'Enrolled Learners', value:'248',  unit:'total learners', cls:'l1', delta:'+12', dir:'up' },
+    { label:'Completion Rate',   value:'73.4%', unit:'of assigned courses', cls:'', delta:'+5.2%', dir:'up' },
+    { label:'Overdue',           value:'18',   unit:'learners past due', cls:'', delta:'+3', dir:'down' },
+    { label:'Non-Compliant',     value:'8',    unit:'pending escalation', cls:'', delta:'-2', dir:'up' },
+  ];
+
+  const kpiHtml = kpis.map((k,i) => `
+    <div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value${i===2?' amber':i===3?' red':''}">${k.value}</div>
+      <div class="kpi-unit">${k.unit}</div>
+      <div class="kpi-delta ${k.dir}">${k.dir==='up'?'↑':'↓'} ${k.delta} vs last period</div>
+    </div>`).join('');
+
+  /* Horizontal bar chart — completion by dept (BG-063: mocked) */
+  const hbarsHtml = DEPT_COMPLETION.map(d => `
+    <div class="hbar-row">
+      <span class="hbar-label">${d.dept}</span>
+      <div class="hbar-track">
+        <div class="hbar-fill completed" style="width:${d.completed}%"></div>
+      </div>
+      <span class="hbar-pct">${d.completed}%</span>
+    </div>`).join('');
+
+  /* Donut — compliance status */
+  const compItems = COMPLIANCE_REPORT.items;
+  const doneCount = compItems.filter(i=>i.completion_status==='completed').length;
+  const ipCount   = compItems.filter(i=>i.completion_status==='in_progress').length;
+  const nsCount   = compItems.filter(i=>i.completion_status==='not_started').length;
+  const total     = compItems.length;
+  const donePct   = Math.round((doneCount/total)*100);
+  const ipDeg     = Math.round((ipCount/total)*360);
+  const nsDeg     = Math.round((nsCount/total)*360);
+  const doneDeg   = 360 - ipDeg - nsDeg;
+  const donutBg   = `conic-gradient(var(--green) 0deg ${doneDeg}deg, var(--accent) ${doneDeg}deg ${doneDeg+ipDeg}deg, var(--border-s) ${doneDeg+ipDeg}deg 360deg)`;
+
+  /* Trend SVG (BG-063: mocked) */
+  const maxPct = 100, chartW = 320, chartH = 100;
+  const pts = TREND_DATA.map((d,i) => {
+    const x = 20 + (i / (TREND_DATA.length-1)) * (chartW - 40);
+    const y = chartH - 10 - ((d.pct / maxPct) * (chartH - 20));
+    return `${x},${y}`;
+  });
+  const trendSvg = `<svg viewBox="0 0 ${chartW} ${chartH}" width="100%" height="100%" preserveAspectRatio="none">
+    <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5B5BD6" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#5B5BD6" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${pts.join(' ')} ${pts[pts.length-1].split(',')[0]},${chartH} 20,${chartH}" fill="url(#tg)"/>
+    <polyline points="${pts.join(' ')}" fill="none" stroke="#5B5BD6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${TREND_DATA.map((d,i)=>{const[x,y]=pts[i].split(',');return`<circle cx="${x}" cy="${y}" r="3.5" fill="#5B5BD6" stroke="white" stroke-width="1.5"/>`;}).join('')}
+    ${TREND_DATA.map((d,i)=>{const[x,y]=pts[i].split(',');return`<text x="${x}" y="${Number(y)-8}" text-anchor="middle" font-size="9" fill="#8C8C84">${d.pct}%</text>`;}).join('')}
+    ${TREND_DATA.map((d,i)=>{const x=20+(i/(TREND_DATA.length-1))*(chartW-40);return`<text x="${x}" y="${chartH}" text-anchor="middle" font-size="9" fill="#C0C0B8">${d.month}</text>`;}).join('')}
+  </svg>`;
+
+  /* Stacked bar — monthly completions */
+  const months = ['Oct','Nov','Dec','Jan','Feb','Mar'];
+  const stackData = [
+    {c:30,i:28,n:42},{c:38,i:30,n:32},{c:44,i:26,n:30},
+    {c:52,i:28,n:20},{c:61,i:22,n:17},{c:73,i:16,n:11},
+  ];
+  const stackHtml = stackData.map((d,i)=>`
+    <div class="sbar-col">
+      <div class="sbar-stack" style="height:80px;">
+        <div class="sbar-seg completed" style="height:${d.c*0.8}px"></div>
+        <div class="sbar-seg in_progress" style="height:${d.i*0.8}px"></div>
+        <div class="sbar-seg not_started" style="height:${d.n*0.8}px"></div>
+      </div>
+      <span class="sbar-xlabel">${months[i]}</span>
+    </div>`).join('');
+
+  canvas.innerHTML = `
+    <div class="kpi-strip">${kpiHtml}</div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Completion by Department</div>
+            <div class="chart-subtitle">% completed of assigned mandatory courses</div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Completed</div>
+          </div>
+        </div>
+        <div class="hbar-chart">${hbarsHtml}</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Compliance Status</div>
+            <div class="chart-subtitle">Engineering · Security Fundamentals</div>
+          </div>
+        </div>
+        <div class="donut-wrap">
+          <div class="donut-chart" style="background:${donutBg}">
+            <div class="donut-center">
+              <div class="donut-pct">${donePct}%</div>
+              <div class="donut-pct-label">Done</div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="donut-leg-dot" style="background:var(--green)"></div>Completed</div>
+              <div class="donut-leg-val">${doneCount}</div>
+            </div>
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="donut-leg-dot" style="background:var(--accent)"></div>In Progress</div>
+              <div class="donut-leg-val">${ipCount}</div>
+            </div>
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="donut-leg-dot" style="background:var(--border-s)"></div>Not Started</div>
+              <div class="donut-leg-val">${nsCount}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-row2">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Completion Trend</div>
+            <div class="chart-subtitle">Overall platform completion rate, last 6 months</div>
+          </div>
+        </div>
+        <div class="trend-wrap">${trendSvg}</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Monthly Breakdown</div>
+            <div class="chart-subtitle">Learner status distribution per month</div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Done</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent);opacity:.75"></div>In Progress</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--border-s)"></div>Not Started</div>
+          </div>
+        </div>
+        <div class="sbar-chart">${stackHtml}</div>
+      </div>
+    </div>`;
+}
+
+function renderExportMode() {
+  const canvas = document.getElementById('page-canvas');
+  const isComp = UI.reportTab === 'compliance';
+  const report  = isComp ? COMPLIANCE_REPORT : COMPLETION_REPORT;
+
+  let tableHtml = '';
+  if (isComp) {
+    tableHtml = `<table>
+      <thead><tr>
+        <th>Learner</th><th>Department</th><th>Role</th>
+        <th>Due Date</th><th>Status</th><th>Compliance</th><th>Escalation</th>
+      </tr></thead>
+      <tbody>
+        ${report.items.map(r=>`<tr>
+          <td><span class="cell-name">${r.learner_name}</span><br><span class="cell-mono">${r.learner_id}</span></td>
+          <td>${r.department}</td>
+          <td>${r.role}</td>
+          <td>${r.due_date}</td>
+          <td><span class="chip ${r.completion_status}">${r.completion_status.replace('_',' ')}</span></td>
+          <td><span class="chip ${r.non_compliance_flag ? 'non_compliant' : 'compliant'}">${r.non_compliance_flag ? 'Non-Compliant' : 'Compliant'}</span></td>
+          <td>${r.escalation_level === 'none' ? '—' : r.escalation_level}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  } else {
+    tableHtml = `<table>
+      <thead><tr>
+        <th>Learner</th><th>Department</th><th>Course</th>
+        <th>Due Date</th><th>Status</th><th>Progress</th><th>Overdue</th>
+      </tr></thead>
+      <tbody>
+        ${report.items.map(r=>`<tr>
+          <td><span class="cell-name">${r.learner_name}</span><br><span class="cell-mono">${r.learner_id}</span></td>
+          <td>${r.department}</td>
+          <td>${r.course_title}</td>
+          <td>${r.due_date}</td>
+          <td><span class="chip ${r.completion_status}">${r.completion_status.replace('_',' ')}</span></td>
+          <td>${r.completion_percentage}%</td>
+          <td>${r.overdue_flag ? '<span class="chip overdue">Overdue</span>' : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  canvas.innerHTML = `
+    <div class="export-section">
+      <div class="export-header">
+        <div class="export-title">Export Report</div>
+        <div class="export-actions">
+          <button class="export-btn" onclick="exportReport('csv')">⬇ CSV</button>
+          <button class="export-btn primary" onclick="exportReport('pdf')">⬇ PDF</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="report-tabs">
+          <div class="report-tab ${UI.reportTab==='compliance'?'active':''}" onclick="setReportTab('compliance')">Compliance Report</div>
+          <div class="report-tab ${UI.reportTab==='course_completion'?'active':''}" onclick="setReportTab('course_completion')">Course Completion</div>
+        </div>
+        <div class="table-wrap">${tableHtml}</div>
+        <div class="pagination">
+          <span class="pag-info">Showing ${report.items.length} of ${report.envelope.row_count} records · Report ID: <span class="cell-mono">${report.envelope.report_id}</span></span>
+          <div class="pag-controls">
+            <button class="pag-btn" disabled>‹</button>
+            <span class="pag-page">Page 1 of 1</span>
+            <button class="pag-btn" disabled>›</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSkeleton() {
+  const canvas = document.getElementById('page-canvas');
+  canvas.innerHTML = `
+    <div class="kpi-strip">
+      ${Array(4).fill(0).map(()=>`<div class="kpi-card"><div class="sk" style="height:11px;width:60%;margin-bottom:10px"></div><div class="sk" style="height:32px;width:50%;margin-bottom:6px"></div><div class="sk" style="height:11px;width:70%"></div></div>`).join('')}
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card" style="min-height:220px"><div class="sk" style="height:14px;width:40%;margin-bottom:16px"></div>${Array(5).fill(0).map(()=>`<div style="display:flex;gap:10px;margin-bottom:10px;align-items:center"><div class="sk" style="height:12px;width:100px;flex-shrink:0"></div><div class="sk" style="height:20px;flex:1;border-radius:4px"></div></div>`).join('')}</div>
+      <div class="chart-card" style="min-height:220px"><div class="sk" style="height:14px;width:55%;margin-bottom:20px"></div><div class="sk" style="width:120px;height:120px;border-radius:50%;margin:0 auto 16px"></div>${Array(3).fill(0).map(()=>`<div class="sk" style="height:12px;width:90%;margin-bottom:8px"></div>`).join('')}</div>
+    </div>
+    <div class="chart-row2">
+      <div class="chart-card" style="min-height:160px"><div class="sk" style="height:14px;width:40%;margin-bottom:16px"></div><div class="sk" style="height:120px;width:100%;border-radius:4px"></div></div>
+      <div class="chart-card" style="min-height:160px"><div class="sk" style="height:14px;width:45%;margin-bottom:16px"></div><div style="display:flex;align-items:flex-end;gap:6px;height:100px;">${Array(6).fill(0).map(()=>`<div class="sk" style="flex:1;height:${40+Math.random()*50|0}px;border-radius:4px 4px 0 0"></div>`).join('')}</div></div>
+    </div>`;
+}
+
+/* ── INIT ─────────────────────────────────────────────────────────────────── */
+render();
+</script>
+</body>
+</html>

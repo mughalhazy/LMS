@@ -1,0 +1,131 @@
+service: scorm-runtime-service
+version: 1
+transport:
+  bus: lms-event-bus
+  delivery_semantics: at-least-once
+  ordering_key: [tenant_id, registration_id, session_id]
+
+events:
+  - event_type: scorm_session_started
+    topic: lms.scorm.session.started.v1
+    producer_service: scorm-runtime-service
+    consumer_services:
+      - learning-analytics-service
+      - progress-tracking-service
+      - course-service
+      - audit-service
+    purpose: >-
+      Emitted when a learner launches a SCO and the SCORM runtime API session is initialized,
+      enabling downstream systems to begin attempt/session tracking.
+    payload:
+      event_id: uuid
+      timestamp: datetime
+      tenant_id: string
+      learner_id: string
+      course_id: string
+      registration_id: string
+      session_id: string
+      attempt_number: integer
+      sco_id: string
+      launch_mode: enum[normal, review, browse]
+      runtime_version: enum[scorm_1_2, scorm_2004]
+      launch_url: string
+      initial_cmi:
+        lesson_status: string
+        completion_status: string|null
+        success_status: string|null
+        lesson_location: string|null
+        suspend_data_present: boolean
+
+  - event_type: scorm_progress_updated
+    topic: lms.scorm.progress.updated.v1
+    producer_service: scorm-runtime-service
+    consumer_services:
+      - progress-tracking-service
+      - learning-analytics-service
+      - learner-profile-service
+      - event-ingestion-service
+    purpose: >-
+      Emitted on validated CMI commit checkpoints so learner resume state, progress percentage,
+      interaction history, and session time are reflected asynchronously across dependent services.
+    payload:
+      event_id: uuid
+      timestamp: datetime
+      tenant_id: string
+      learner_id: string
+      course_id: string
+      registration_id: string
+      session_id: string
+      sco_id: string
+      cmi_updates:
+        lesson_location: string|null
+        suspend_data_hash: string|null
+        session_time_seconds: integer
+        total_time_seconds: integer
+        interactions_count: integer
+        objectives_count: integer
+      progress:
+        completion_percent: number
+        status: enum[not_started, in_progress, completed, passed, failed]
+      commit_sequence: integer
+
+  - event_type: scorm_score_recorded
+    topic: lms.scorm.score.recorded.v1
+    producer_service: scorm-runtime-service
+    consumer_services:
+      - gradebook-service
+      - learning-analytics-service
+      - reporting-service
+      - compliance-reporting-service
+    purpose: >-
+      Emitted whenever score values are committed from runtime CMI data to make grading,
+      analytics, and compliance evidence pipelines eventually consistent.
+    payload:
+      event_id: uuid
+      timestamp: datetime
+      tenant_id: string
+      learner_id: string
+      course_id: string
+      registration_id: string
+      session_id: string
+      sco_id: string
+      score:
+        raw: number|null
+        min: number|null
+        max: number|null
+        scaled: number|null
+      mastery_score: number|null
+      success_status: enum[passed, failed, unknown]
+      is_mastery_achieved: boolean|null
+      commit_sequence: integer
+
+  - event_type: scorm_session_completed
+    topic: lms.scorm.session.completed.v1
+    producer_service: scorm-runtime-service
+    consumer_services:
+      - course-service
+      - enrollment-service
+      - learning-analytics-service
+      - notification-service
+      - reporting-service
+      - audit-service
+    purpose: >-
+      Emitted when LMSFinish/Terminate finalizes an attempt so course enrollment state,
+      completion evidence, reporting, and learner notifications can be processed asynchronously.
+    payload:
+      event_id: uuid
+      timestamp: datetime
+      tenant_id: string
+      learner_id: string
+      course_id: string
+      registration_id: string
+      session_id: string
+      attempt_number: integer
+      sco_id: string
+      final_outcome: enum[completed, passed, failed, incomplete]
+      completion_status: enum[completed, incomplete, not_attempted, unknown]
+      success_status: enum[passed, failed, unknown]
+      score_scaled: number|null
+      total_time_seconds: integer
+      completed_at: datetime
+      attempt_limit_reached: boolean

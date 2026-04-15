@@ -1,0 +1,36 @@
+{
+  "event_type": "prerequisite_rule_created",
+  "domain": "prerequisite_engine",
+  "version": "1.0.0",
+  "producer_service": "prerequisite-engine-service",
+  "consumer_services": [
+    "course-service",
+    "learning-path-service",
+    "enrollment-service",
+    "audit-service"
+  ],
+  "description": "Published when a prerequisite rule is created or published for course enrollment or learning-path dependency enforcement.",
+  "trigger": "A new prerequisite rule is saved and passes graph and policy validation.",
+  "payload": {
+    "rule_id": "string(uuid)",
+    "tenant_id": "string",
+    "rule_type": "string(enum: course_prerequisite | learning_path_dependency)",
+    "target_type": "string(enum: course | learning_path_node)",
+    "target_id": "string",
+    "dependency_mode": "string(enum: AND | OR | SEQUENTIAL | CO_REQUISITE)",
+    "strictness": "string(enum: strict | advisory)",
+    "conditions": [
+      {
+        "node_id": "string",
+        "required_completion_state": "string(enum: completed | passed)",
+        "minimum_grade": "number|null",
+        "validity_window_days": "number|null"
+      }
+    ],
+    "equivalency_map_version": "string",
+    "policy_version": "string",
+    "created_by": "string",
+    "created_at": "string(date-time)",
+    "trace_id": "string"
+  }
+}

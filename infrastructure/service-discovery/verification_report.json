@@ -1,0 +1,5 @@
+{
+  "services_registered": 38,
+  "health_checks_configured": 38,
+  "discovery_configuration": "infrastructure/service-discovery/discovery_configuration.json"
+}

@@ -1,0 +1,30 @@
+events:
+  - name: rbac.role.created.v1
+    owner: rbac-service
+    payload:
+      tenant_id: string
+      role_id: uuid
+      role_key: string
+  - name: rbac.role.updated.v1
+    owner: rbac-service
+    payload:
+      tenant_id: string
+      role_id: uuid
+      version: integer
+  - name: rbac.assignment.created.v1
+    owner: rbac-service
+    payload:
+      tenant_id: string
+      assignment_id: uuid
+      subject_id: string
+  - name: rbac.assignment.revoked.v1
+    owner: rbac-service
+    payload:
+      tenant_id: string
+      assignment_id: uuid
+  - name: rbac.policy_rule.changed.v1
+    owner: rbac-service
+    payload:
+      tenant_id: string
+      policy_rule_id: uuid
+      action: string

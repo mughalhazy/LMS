@@ -1,0 +1,20 @@
+{
+  "event_type": "enrollment.created",
+  "producer_service": "enrollment-service",
+  "topic": "lms.enrollment.created.v1",
+  "schema_version": "1.0.0",
+  "payload": {
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "enrollment_id": "uuid",
+    "learner_id": "string",
+    "course_id": "string",
+    "assignment_source": "self|manager|admin|integration",
+    "cohort_id": "string|null",
+    "session_id": "string|null",
+    "status": "assigned",
+    "actor_id": "string",
+    "change_reason": "created",
+    "created_at": "datetime"
+  }
+}

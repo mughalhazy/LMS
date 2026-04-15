@@ -1,0 +1,51 @@
+{
+  "event_type": "media_processing_started",
+  "topic": "lms.media.processing.started.v1",
+  "producer_service": "media-pipeline-service",
+  "consumer_services": [
+    "content-management-service",
+    "notification-service",
+    "audit-compliance-service"
+  ],
+  "purpose": "Emitted when transcoding and derivative generation begins for an uploaded media asset.",
+  "schema": {
+    "type": "object",
+    "required": [
+      "event_id",
+      "event_type",
+      "timestamp",
+      "tenant_id",
+      "data"
+    ],
+    "properties": {
+      "event_id": { "type": "string" },
+      "event_type": { "const": "media_processing_started" },
+      "timestamp": { "type": "string", "format": "date-time" },
+      "tenant_id": { "type": "string" },
+      "data": {
+        "type": "object",
+        "required": [
+          "media_asset_id",
+          "processing_job_id",
+          "object_storage_uri",
+          "target_profiles",
+          "encoding_preset"
+        ],
+        "properties": {
+          "media_asset_id": { "type": "string" },
+          "processing_job_id": { "type": "string" },
+          "object_storage_uri": { "type": "string" },
+          "target_profiles": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "encoding_preset": { "type": "string" },
+          "drm_enabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

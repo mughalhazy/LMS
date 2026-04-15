@@ -1,0 +1,13 @@
+event_type: question_bank_item_added
+producer_service: assessment-service
+topic: lms.assessment.question_bank_item_added.v1
+consumer_services:
+  - assessment-service
+  - learning-analytics-service
+  - notification-service
+description: Fired when a question is appended to a tenant question bank.
+payload:
+  tenant_id: string
+  question_bank_id: uuid
+  question_id: uuid
+  created_at: datetime

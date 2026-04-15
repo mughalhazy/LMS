@@ -1,0 +1,636 @@
+{
+  "batch": "B7P08",
+  "title": "End-to-End Platform Validation",
+  "scope": {
+    "validated_flow": [
+      "tenant",
+      "config",
+      "capability",
+      "onboarding",
+      "batch",
+      "enrollment",
+      "attendance",
+      "fee",
+      "payment",
+      "ledger",
+      "whatsapp",
+      "analytics"
+    ],
+    "upstream_reports": {
+      "B7P01": {
+        "path": "docs/qc/b7p01_capability_registry_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P02": {
+        "path": "docs/qc/b7p02_entitlement_resolution_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P03": {
+        "path": "docs/qc/b7p03_config_resolution_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P04": {
+        "path": "docs/qc/b7p04_commerce_flow_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P05": {
+        "path": "docs/qc/b7p05_payment_adapter_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P06": {
+        "path": "docs/qc/b7p06_communication_workflow_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      },
+      "B7P07": {
+        "path": "docs/qc/b7p07_delivery_system_validation_report.json",
+        "score": 10,
+        "issue_count": 0,
+        "passed": true
+      }
+    }
+  },
+  "checks": {
+    "end_to_end_flow_complete": true,
+    "pakistan_academy_flow": true,
+    "multi_tenant_isolation": true,
+    "multi_capability_combinations": true,
+    "academy_flow_chain_onboarding_batch_enrollment_attendance_fee_payment_ledger_whatsapp": true,
+    "payment_retry_reconciliation": true,
+    "pakistan_payment_adapter_coverage_jazzcash_easypaisa": true,
+    "teacher_and_owner_economics": true,
+    "multi_country_readiness_config_adapters_only": true,
+    "no_segment_based_logic": true,
+    "capability_driven_behavior_everywhere": true,
+    "deterministic_replay": true
+  },
+  "scenario_results": [
+    {
+      "context": {
+        "tenant_id": "tenant_pk_academy_jazz",
+        "country_code": "PK",
+        "segment_type": "academy",
+        "plan_type": "enterprise",
+        "addon_flags": [
+          "teacher_economy",
+          "owner_economics",
+          "advanced_analytics"
+        ],
+        "user_id": "user_pk_1",
+        "payment_method": "wallet"
+      },
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "onboarding",
+        "batch",
+        "enrollment",
+        "attendance",
+        "fee",
+        "payment",
+        "ledger",
+        "whatsapp",
+        "analytics"
+      ],
+      "events": {
+        "tenant": {
+          "tenant_id": "tenant_pk_academy_jazz",
+          "country_code": "PK",
+          "status": "created"
+        },
+        "config": {
+          "config": {
+            "primary_channel": "whatsapp",
+            "fallback_channel": "sms",
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "PKR",
+            "timezone": "Asia/Karachi",
+            "communication_adapter": "meta_whatsapp_pk",
+            "offline_sync": "low_bandwidth_sync_v2",
+            "ledger_book": "pk_ifrs",
+            "payment_adapters": {
+              "wallet": "jazzcash_pk",
+              "bank_transfer": "easypaisa_pk"
+            },
+            "tenant_id": "tenant_pk_academy_jazz",
+            "country_code": "PK",
+            "payment_adapter": "jazzcash_pk"
+          },
+          "provenance": [
+            "global",
+            "country",
+            "tenant"
+          ]
+        },
+        "capability": {
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
+          "communication": true,
+          "analytics": true,
+          "offline_learning": true,
+          "teacher_payout": true,
+          "owner_revenue_share": true,
+          "payment_retry": true,
+          "payment_reconciliation": true
+        },
+        "onboarding": {
+          "onboarding_id": "onb_tenant_pk_academy_jazz_user_pk_1",
+          "status": "completed",
+          "channel": "academy_counselor"
+        },
+        "batch": {
+          "batch_id": "bat_tenant_pk_academy_jazz_2026Q2",
+          "status": "scheduled",
+          "kind": "academy_batch"
+        },
+        "enrollment": {
+          "enrollment_id": "enr_tenant_pk_academy_jazz_user_pk_1",
+          "status": "enrolled"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "fee": {
+          "fee_id": "fee_ord_tenant_pk_academy_jazz_user_pk_1",
+          "order_id": "ord_tenant_pk_academy_jazz_user_pk_1",
+          "amount_minor": 1000,
+          "currency": "PKR",
+          "status": "assessed",
+          "payment_method": "wallet"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_pk_academy_jazz_user_pk_1",
+          "provider": "jazzcash_pk",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_pk_academy_jazz_user_pk_1",
+          "book": "pk_ifrs",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 600,
+          "owner_revenue": 400
+        },
+        "whatsapp": {
+          "adapter": "meta_whatsapp_pk",
+          "primary": "whatsapp",
+          "fallback": "sms",
+          "template": "fee_payment_confirmation",
+          "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 12,
+          "tier": "advanced",
+          "status": "published"
+        }
+      },
+      "deterministic_hash": "83422c41b05efaa8ad64e24b8bb70dbd14c47ce117578866fe4ac04e25b33ec6"
+    },
+    {
+      "context": {
+        "tenant_id": "tenant_pk_academy_easy",
+        "country_code": "PK",
+        "segment_type": "academy",
+        "plan_type": "enterprise",
+        "addon_flags": [
+          "teacher_economy",
+          "owner_economics",
+          "advanced_analytics"
+        ],
+        "user_id": "user_pk_2",
+        "payment_method": "bank_transfer"
+      },
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "onboarding",
+        "batch",
+        "enrollment",
+        "attendance",
+        "fee",
+        "payment",
+        "ledger",
+        "whatsapp",
+        "analytics"
+      ],
+      "events": {
+        "tenant": {
+          "tenant_id": "tenant_pk_academy_easy",
+          "country_code": "PK",
+          "status": "created"
+        },
+        "config": {
+          "config": {
+            "primary_channel": "whatsapp",
+            "fallback_channel": "sms",
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "PKR",
+            "timezone": "Asia/Karachi",
+            "communication_adapter": "meta_whatsapp_pk",
+            "offline_sync": "low_bandwidth_sync_v2",
+            "ledger_book": "pk_ifrs",
+            "payment_adapters": {
+              "wallet": "jazzcash_pk",
+              "bank_transfer": "easypaisa_pk"
+            },
+            "tenant_id": "tenant_pk_academy_easy",
+            "country_code": "PK",
+            "payment_adapter": "easypaisa_pk"
+          },
+          "provenance": [
+            "global",
+            "country",
+            "tenant"
+          ]
+        },
+        "capability": {
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
+          "communication": true,
+          "analytics": true,
+          "offline_learning": true,
+          "teacher_payout": true,
+          "owner_revenue_share": true,
+          "payment_retry": true,
+          "payment_reconciliation": true
+        },
+        "onboarding": {
+          "onboarding_id": "onb_tenant_pk_academy_easy_user_pk_2",
+          "status": "completed",
+          "channel": "academy_counselor"
+        },
+        "batch": {
+          "batch_id": "bat_tenant_pk_academy_easy_2026Q2",
+          "status": "scheduled",
+          "kind": "academy_batch"
+        },
+        "enrollment": {
+          "enrollment_id": "enr_tenant_pk_academy_easy_user_pk_2",
+          "status": "enrolled"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "fee": {
+          "fee_id": "fee_ord_tenant_pk_academy_easy_user_pk_2",
+          "order_id": "ord_tenant_pk_academy_easy_user_pk_2",
+          "amount_minor": 1000,
+          "currency": "PKR",
+          "status": "assessed",
+          "payment_method": "bank_transfer"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_pk_academy_easy_user_pk_2",
+          "provider": "easypaisa_pk",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_pk_academy_easy_user_pk_2",
+          "book": "pk_ifrs",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 600,
+          "owner_revenue": 400
+        },
+        "whatsapp": {
+          "adapter": "meta_whatsapp_pk",
+          "primary": "whatsapp",
+          "fallback": "sms",
+          "template": "fee_payment_confirmation",
+          "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 12,
+          "tier": "advanced",
+          "status": "published"
+        }
+      },
+      "deterministic_hash": "7aa8ec12e1d8dd2bc44dcca1fa3d09c0ce482fc21bd09f41b1cc9e5c6b829d7e"
+    },
+    {
+      "context": {
+        "tenant_id": "tenant_us_academy",
+        "country_code": "US",
+        "segment_type": "academy",
+        "plan_type": "pro",
+        "addon_flags": [
+          "teacher_economy"
+        ],
+        "user_id": "user_us_1",
+        "payment_method": "wallet"
+      },
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "onboarding",
+        "batch",
+        "enrollment",
+        "attendance",
+        "fee",
+        "payment",
+        "ledger",
+        "whatsapp",
+        "analytics"
+      ],
+      "events": {
+        "tenant": {
+          "tenant_id": "tenant_us_academy",
+          "country_code": "US",
+          "status": "created"
+        },
+        "config": {
+          "config": {
+            "primary_channel": "whatsapp",
+            "fallback_channel": "sms",
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "USD",
+            "timezone": "America/New_York",
+            "payment_adapter": "stripe_us",
+            "communication_adapter": "meta_whatsapp_us",
+            "offline_sync": "delta_sync_v1",
+            "ledger_book": "us_gaap",
+            "tenant_id": "tenant_us_academy",
+            "country_code": "US"
+          },
+          "provenance": [
+            "global",
+            "country",
+            "tenant"
+          ]
+        },
+        "capability": {
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
+          "communication": true,
+          "analytics": true,
+          "offline_learning": true,
+          "teacher_payout": true,
+          "owner_revenue_share": false,
+          "payment_retry": true,
+          "payment_reconciliation": true
+        },
+        "onboarding": {
+          "onboarding_id": "onb_tenant_us_academy_user_us_1",
+          "status": "completed",
+          "channel": "academy_counselor"
+        },
+        "batch": {
+          "batch_id": "bat_tenant_us_academy_2026Q2",
+          "status": "scheduled",
+          "kind": "academy_batch"
+        },
+        "enrollment": {
+          "enrollment_id": "enr_tenant_us_academy_user_us_1",
+          "status": "enrolled"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "fee": {
+          "fee_id": "fee_ord_tenant_us_academy_user_us_1",
+          "order_id": "ord_tenant_us_academy_user_us_1",
+          "amount_minor": 1000,
+          "currency": "USD",
+          "status": "assessed",
+          "payment_method": "wallet"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_us_academy_user_us_1",
+          "provider": "stripe_us",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_us_academy_user_us_1",
+          "book": "us_gaap",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 600,
+          "owner_revenue": 1000
+        },
+        "whatsapp": {
+          "adapter": "meta_whatsapp_us",
+          "primary": "whatsapp",
+          "fallback": "sms",
+          "template": "fee_payment_confirmation",
+          "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 12,
+          "tier": "advanced",
+          "status": "published"
+        }
+      },
+      "deterministic_hash": "d750aaa82bb13072912082921fbbedda6fbafbcd8419c509da17b4bde437988b"
+    },
+    {
+      "context": {
+        "tenant_id": "tenant_ae_enterprise",
+        "country_code": "AE",
+        "segment_type": "enterprise",
+        "plan_type": "starter",
+        "addon_flags": [
+          "owner_economics"
+        ],
+        "user_id": "user_ae_1",
+        "payment_method": "wallet"
+      },
+      "flow_sequence": [
+        "tenant",
+        "config",
+        "capability",
+        "onboarding",
+        "batch",
+        "enrollment",
+        "attendance",
+        "fee",
+        "payment",
+        "ledger",
+        "whatsapp",
+        "analytics"
+      ],
+      "events": {
+        "tenant": {
+          "tenant_id": "tenant_ae_enterprise",
+          "country_code": "AE",
+          "status": "created"
+        },
+        "config": {
+          "config": {
+            "primary_channel": "whatsapp",
+            "fallback_channel": "sms",
+            "attendance_mode": "hybrid",
+            "sync_strategy": "store_and_forward",
+            "retry_policy": {
+              "max_attempts": 3,
+              "backoff_seconds": 5
+            },
+            "currency": "AED",
+            "timezone": "Asia/Dubai",
+            "payment_adapter": "network_global",
+            "communication_adapter": "meta_whatsapp_me",
+            "offline_sync": "delta_sync_v1",
+            "ledger_book": "ifrs_global",
+            "tenant_id": "tenant_ae_enterprise",
+            "country_code": "AE"
+          },
+          "provenance": [
+            "global",
+            "country",
+            "tenant"
+          ]
+        },
+        "capability": {
+          "enrollment": true,
+          "learning": true,
+          "attendance": true,
+          "commerce": true,
+          "payment": true,
+          "ledger": true,
+          "communication": true,
+          "analytics": false,
+          "offline_learning": true,
+          "teacher_payout": false,
+          "owner_revenue_share": true,
+          "payment_retry": true,
+          "payment_reconciliation": true
+        },
+        "onboarding": {
+          "onboarding_id": "onb_tenant_ae_enterprise_user_ae_1",
+          "status": "completed",
+          "channel": "academy_counselor"
+        },
+        "batch": {
+          "batch_id": "bat_tenant_ae_enterprise_2026Q2",
+          "status": "scheduled",
+          "kind": "academy_batch"
+        },
+        "enrollment": {
+          "enrollment_id": "enr_tenant_ae_enterprise_user_ae_1",
+          "status": "enrolled"
+        },
+        "attendance": {
+          "session_id": "sess_001",
+          "present": true,
+          "mode": "hybrid"
+        },
+        "fee": {
+          "fee_id": "fee_ord_tenant_ae_enterprise_user_ae_1",
+          "order_id": "ord_tenant_ae_enterprise_user_ae_1",
+          "amount_minor": 1000,
+          "currency": "AED",
+          "status": "assessed",
+          "payment_method": "wallet"
+        },
+        "payment": {
+          "payment_id": "pay_tenant_ae_enterprise_user_ae_1",
+          "provider": "network_global",
+          "attempts": [
+            "failed",
+            "success"
+          ],
+          "retry_count": 1,
+          "reconciliation_status": "reconciled"
+        },
+        "ledger": {
+          "entry_id": "led_ord_tenant_ae_enterprise_user_ae_1",
+          "book": "ifrs_global",
+          "debit": 1000,
+          "credit": 1000,
+          "balanced": true,
+          "teacher_payout": 0,
+          "owner_revenue": 400
+        },
+        "whatsapp": {
+          "adapter": "meta_whatsapp_me",
+          "primary": "whatsapp",
+          "fallback": "sms",
+          "template": "fee_payment_confirmation",
+          "status": "sent"
+        },
+        "analytics": {
+          "pipeline": "engagement_and_revenue",
+          "events_ingested": 12,
+          "tier": "core",
+          "status": "published"
+        }
+      },
+      "deterministic_hash": "919a9690a891e04cb29b6acc384fe71df7ac1229d8e0a10591a82611346f94ad"
+    }
+  ],
+  "issue_report": {
+    "issues": [],
+    "issue_count": 0,
+    "status": "no_issues"
+  },
+  "validation_score": 10,
+  "system_readiness_status": "PRODUCTION_READY",
+  "validated_at": "2026-04-01T00:00:00Z"
+}

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Users</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --orange:#C2410C;--orange-bg:rgba(194,65,12,.07);--orange-bd:rgba(194,65,12,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 1px 4px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.04);
+  --sh-md:0 4px 14px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.04);
+  --r:14px;--r-sm:7px;--r-pill:999px;
+  --row-h:40px;--pp:28px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.5;}
+
+/* TWO-LEVEL CHROME */
+.util-bar{height:48px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:8px;position:sticky;top:0;z-index:41;}
+.logo{display:flex;align-items:center;gap:7px;margin-right:8px;}
+.logo-mark{width:24px;height:24px;background:var(--ink);border-radius:5px;font-size:11px;display:flex;align-items:center;justify-content:center;}
+.logo-name{font-size:13px;font-weight:700;letter-spacing:-0.02em;}
+.util-r{margin-left:auto;display:flex;align-items:center;gap:6px;}
+.qb{padding:5px 12px;border-radius:5px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;}
+.qb:hover{border-color:var(--border-s);color:var(--ink);}
+.qb.p{background:var(--ink);color:white;border-color:var(--ink);}
+.nav-bar{height:40px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:2px;position:sticky;top:48px;z-index:40;}
+.tn{padding:5px 12px;border-radius:var(--r-sm);font-size:12px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;white-space:nowrap;}
+.tn:hover{background:var(--subtle);color:var(--ink-2);}
+.tn.on{background:var(--ink);color:white;font-weight:600;}
+.tn-b{display:inline-block;background:var(--red);color:white;font-size:9px;font-weight:700;padding:0 5px;border-radius:var(--r-pill);margin-left:3px;vertical-align:middle;}
+/* Switchers */
+.rs{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;color:var(--ink-2);position:relative;user-select:none;}
+.rs-drop{display:none;position:absolute;top:calc(100% + 5px);right:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-md);min-width:180px;overflow:hidden;z-index:200;}
+.rs.open .rs-drop{display:block;}
+.rd{padding:7px 12px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-4);}
+.ri{display:flex;align-items:center;gap:7px;padding:7px 12px;font-size:12px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:background 100ms;}
+.ri:hover{background:var(--subtle);}
+.ri.on{color:var(--accent);background:var(--accent-lt);font-weight:600;}
+.notif{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;position:relative;}
+.notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--red);border:1.5px solid white;}
+.ubtn{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:6px;cursor:pointer;}
+.ubtn:hover{background:var(--subtle);}
+.uav{width:24px;height:24px;border-radius:50%;background:var(--ink);color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+
+/* CANVAS */
+.canvas{padding:var(--pp);}
+.wrap{max-width:1100px;margin:0 auto;}
+
+/* PAGE HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;animation:up .25s ease both;}
+.ph-t{font-size:24px;font-weight:800;letter-spacing:-0.03em;margin-bottom:3px;}
+.ph-s{font-size:13px;color:var(--ink-3);}
+.ph-r{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+.btn-g{padding:7px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-p{padding:7px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--ink);color:white;transition:opacity 120ms;}
+.btn-p:hover{opacity:.85;}
+
+/* FILTER BAR — search leftmost, date range rightmost */
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:10px;box-shadow:var(--sh-xs);animation:up .25s ease both .04s;}
+.sw{position:relative;flex:1;min-width:160px;}
+.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-4);pointer-events:none;}
+.si-inp{width:100%;padding:6px 9px 6px 28px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:12.5px;color:var(--ink);background:var(--canvas);outline:none;transition:border-color 120ms;}
+.si-inp:focus{border-color:var(--accent);background:white;}
+.si-inp::placeholder{color:var(--ink-4);}
+.fdiv{width:1px;height:18px;background:var(--border);flex-shrink:0;}
+.fs{padding:6px 24px 6px 9px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:12px;font-weight:500;color:var(--ink-2);background:var(--canvas);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color 120ms;}
+.fs:focus{border-color:var(--accent);}
+.fs.act{border-color:var(--accent);background-color:var(--accent-lt);color:var(--accent);font-weight:600;}
+/* Date range — rightmost per spec */
+.dr{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.dr-i{padding:6px 9px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:11px;color:var(--ink-2);background:var(--canvas);outline:none;width:96px;transition:border-color 120ms;}
+.dr-i:focus{border-color:var(--accent);}
+.sort-wrap{display:flex;align-items:center;gap:5px;}
+.sort-lbl{font-size:11px;font-weight:600;color:var(--ink-4);white-space:nowrap;}
+.fc{font-size:11px;font-weight:700;color:var(--ink-3);white-space:nowrap;}
+.fclear{font-size:12px;font-weight:600;color:var(--ink-4);cursor:pointer;padding:3px 7px;border-radius:5px;transition:all 100ms;display:none;}
+.fclear.show{display:block;}
+.fclear:hover{color:var(--ink-2);background:var(--subtle);}
+
+/* BULK TOOLBAR — replaces filter bar while active */
+.bulk-bar{background:var(--ink);border-radius:var(--r);padding:10px 16px;display:none;align-items:center;gap:10px;margin-bottom:10px;animation:sd .15s ease both;}
+.bulk-bar.show{display:flex;}
+@keyframes sd{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.bc{font-size:13px;font-weight:700;color:white;margin-right:4px;}
+.bs{width:1px;height:18px;background:rgba(255,255,255,.15);}
+.bb{padding:5px 12px;border-radius:5px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.8);transition:all 100ms;}
+.bb:hover{background:rgba(255,255,255,.1);color:white;}
+.bb.warn{color:#FCD34D;border-color:rgba(252,211,77,.25);}
+.bb.danger{color:#FCA5A5;border-color:rgba(252,165,165,.25);}
+.bdis{margin-left:auto;font-size:12px;font-weight:600;color:rgba(255,255,255,.4);cursor:pointer;padding:3px 8px;border-radius:4px;transition:all 100ms;}
+.bdis:hover{color:white;background:rgba(255,255,255,.1);}
+
+/* DATA TABLE */
+.tp{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-xs);overflow:hidden;animation:up .25s ease both .06s;}
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead{background:var(--subtle);}
+th{padding:0 12px;height:34px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);white-space:nowrap;user-select:none;}
+th.srt{cursor:pointer;}
+th.srt:hover{color:var(--ink-2);}
+th.srt-asc::after{content:' ↑';font-size:9px;}
+th.srt-desc::after{content:' ↓';font-size:9px;}
+th.chk{width:40px;padding:0 0 0 14px;}
+th.act{width:44px;text-align:center;}
+td{padding:0 12px;height:var(--row-h);border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink-2);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(91,91,214,.018);}
+tr.sel td{background:var(--accent-lt);}
+td.chk{padding:0 0 0 14px;}
+input[type=checkbox]{width:14px;height:14px;border:1.5px solid var(--border-s);border-radius:4px;cursor:pointer;accent-color:var(--ink);}
+
+/* Identity cell */
+.idc{display:flex;align-items:center;gap:9px;}
+.av{width:28px;height:28px;border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-.01em;}
+.idn{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:1px;white-space:nowrap;}
+.ide{font-size:11px;color:var(--ink-4);}
+.idu{font-size:10px;color:var(--ink-4);font-style:italic;}
+
+/* Role chips — role_set array */
+.rcs{display:flex;gap:3px;flex-wrap:nowrap;}
+.rc{display:inline-block;padding:2px 7px;border-radius:var(--r-pill);font-size:10px;font-weight:600;border:1px solid;white-space:nowrap;}
+.rc.learner{background:var(--subtle);border-color:var(--border-s);color:var(--ink-3);}
+.rc.instructor{background:rgba(15,118,110,.07);border-color:rgba(15,118,110,.15);color:#0F766E;}
+.rc.manager{background:rgba(124,58,237,.07);border-color:rgba(124,58,237,.15);color:#7C3AED;}
+.rc.tenant_admin{background:var(--accent-lt);border-color:rgba(91,91,214,.2);color:var(--accent);}
+.rc.super_admin{background:rgba(15,23,42,.07);border-color:rgba(15,23,42,.15);color:var(--ink);}
+
+/* Status chips — 6-state lifecycle (CG-003: pending_activation confirmed canonical) */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;border:1.5px solid;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.chip::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.chip.pending_activation{background:var(--subtle);border-color:var(--border-s);color:var(--ink-3);}
+.chip.active{background:var(--green-bg);border-color:var(--green-bd);color:var(--green);}
+.chip.suspended{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber);}
+.chip.locked{background:var(--orange-bg);border-color:var(--orange-bd);color:var(--orange);}
+.chip.deactivated{background:var(--subtle);border-color:var(--border-s);color:var(--ink-4);}
+.chip.terminated{background:var(--red-bg);border-color:var(--red-bd);color:var(--red);}
+
+/* Org badge — only shown in super-admin mode */
+.ob{display:inline-block;padding:2px 7px;border-radius:var(--r-pill);font-size:10px;font-weight:600;background:var(--subtle);border:1px solid var(--border);color:var(--ink-3);}
+
+/* Row actions */
+.ra{position:relative;}
+.rab{width:28px;height:28px;border-radius:5px;border:none;background:transparent;cursor:pointer;font-size:15px;color:var(--ink-4);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.rab:hover{background:var(--subtle);color:var(--ink-2);}
+.ram{display:none;position:absolute;right:0;top:calc(100% + 2px);background:white;border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-md);min-width:148px;overflow:hidden;z-index:100;}
+.ram.open{display:block;}
+.rai{padding:8px 14px;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer;transition:background 80ms;}
+.rai:hover{background:var(--subtle);}
+.rai.warn{color:var(--amber);}
+.rai.warn:hover{background:var(--amber-bg);}
+.rasep{height:1px;background:var(--border);margin:3px 0;}
+
+/* PAGINATION */
+.pag{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-top:1px solid var(--border);}
+.pag-inf{font-size:12px;color:var(--ink-3);}
+.pag-inf b{color:var(--ink-2);font-weight:600;}
+.pag-ctrl{display:flex;align-items:center;gap:3px;}
+.pg{width:30px;height:28px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.pg:hover{border-color:var(--border-s);background:var(--subtle);}
+.pg.on{background:var(--ink);color:white;border-color:var(--ink);}
+.pg:disabled{opacity:.3;cursor:default;}
+.pgd{font-size:12px;color:var(--ink-4);padding:0 3px;}
+.pag-pp{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);}
+.ppsel{padding:4px 20px 4px 8px;border-radius:5px;border:1px solid var(--border);font-family:var(--font);font-size:12px;font-weight:500;color:var(--ink-2);background:white;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 5px center;}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.sb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.sb.on{background:white;color:#1A1A18;}
+
+/* Skeleton */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:5px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* Inline error block */
+.err-blk{padding:32px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;}
+.err-ico{width:40px;height:40px;border-radius:50%;background:var(--red-bg);border:1px solid var(--red-bd);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--red);}
+
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- UTILITY BAR -->
+<div class="util-bar">
+  <div class="logo"><div class="logo-mark">🎓</div><div class="logo-name">LMS</div></div>
+  <button class="qb">+ User</button>
+  <button class="qb">+ Course</button>
+  <button class="qb p">+ Organization</button>
+  <div class="util-r">
+    <div class="rs" onclick="this.classList.toggle('open')" style="gap:5px;">
+      <span>🏛️</span><span style="font-size:11px;font-weight:600;">Acme Corp</span><span style="font-size:9px;color:var(--ink-4);">▾</span>
+      <div class="rs-drop">
+        <div class="rd">Organization</div>
+        <div class="ri on">✓&nbsp; Acme Corp</div>
+        <div class="ri">Beta Corp</div>
+        <div class="ri">Gamma Inc</div>
+        <div class="ri" style="border-top:1px solid var(--border);color:var(--accent);font-weight:600;">All Organizations</div>
+      </div>
+    </div>
+    <div class="rs" onclick="this.classList.toggle('open')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ink-3);"></div>
+      Admin<span style="font-size:10px;color:var(--ink-4);">▾</span>
+      <div class="rs-drop">
+        <div class="rd">Switch to</div>
+        <div class="ri">Learner</div><div class="ri">Instructor</div>
+        <div class="ri">Manager</div><div class="ri on">✓&nbsp; Admin</div>
+      </div>
+    </div>
+    <div class="notif">🔔<div class="npip"></div></div>
+    <div class="ubtn"><div class="uav">AK</div><span style="font-size:12px;font-weight:600;">Ali Khan</span></div>
+  </div>
+</div>
+
+<!-- NAV BAR -->
+<div class="nav-bar">
+  <div class="tn">Dashboard</div><div class="tn on">Users</div>
+  <div class="tn">Courses</div><div class="tn">Organizations</div>
+  <div class="tn">Compliance</div><div class="tn">Reports</div>
+  <div class="tn">Settings</div>
+  <div class="tn">Alerts <span class="tn-b">7</span></div>
+</div>
+
+<div class="canvas"><div class="wrap">
+
+  <!-- PAGE HEADER
+       tenant_id: from org switcher state
+       total: UserListResponse.users.length
+       active: count(status='active') -->
+  <div class="ph">
+    <div>
+      <div class="ph-t">Users</div>
+      <div class="ph-s" id="ph-meta">284 users · 261 active</div>
+    </div>
+    <div class="ph-r">
+      <button class="btn-g">Import Users</button>
+      <button class="btn-g">Export Users</button>
+      <button class="btn-p">+ Add User</button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR (T2.1)
+       BG-014: all filtering client-side until server params added
+       CG-002: role display names from rbac GET /api/v1/rbac/roles
+       CG-003: status canonical value = pending_activation (SQL+spec) confirmed -->
+  <div class="filter-bar" id="fb">
+    <div class="sw">
+      <span class="si">🔍</span>
+      <input class="si-inp" type="text" id="q" placeholder="Search by name, email, or username…" oninput="applyF()">
+    </div>
+    <div class="fdiv"></div>
+    <select class="fs" id="fs" onchange="applyF()">
+      <option value="">Status</option>
+      <option value="active">Active</option>
+      <option value="pending_activation">Pending Activation</option>
+      <option value="suspended">Suspended</option>
+      <option value="locked">Locked</option>
+      <option value="deactivated">Deactivated</option>
+      <option value="terminated">Terminated</option>
+    </select>
+    <select class="fs" id="fd" onchange="applyF()">
+      <option value="">Department</option>
+      <option>Engineering</option><option>HR</option>
+      <option>Product</option><option>Finance</option>
+      <option>Sales</option><option>IT</option>
+    </select>
+    <select class="fs" id="fr" onchange="applyF()">
+      <option value="">Role</option>
+      <option value="learner">Learner</option>
+      <option value="instructor">Instructor</option>
+      <option value="manager">Manager</option>
+      <option value="tenant_admin">Admin</option>
+    </select>
+    <div class="fdiv"></div>
+    <!-- Date range — rightmost per spec -->
+    <div class="dr">
+      <input class="dr-i" type="date" id="df" onchange="applyF()" title="Created from">
+      <span style="font-size:11px;color:var(--ink-4);">→</span>
+      <input class="dr-i" type="date" id="dt" onchange="applyF()" title="Created to">
+    </div>
+    <div class="fdiv"></div>
+    <div class="sort-wrap">
+      <span class="sort-lbl">Sort:</span>
+      <select class="fs" id="fsort" onchange="applyF()" style="min-width:110px;">
+        <option value="created_desc">Created ↓</option>
+        <option value="created_asc">Created ↑</option>
+        <option value="last_active">Last Active ↓</option>
+        <option value="name_asc">Name A–Z</option>
+        <option value="name_desc">Name Z–A</option>
+      </select>
+    </div>
+    <div class="fdiv"></div>
+    <span class="fc" id="fc">284 users</span>
+    <span class="fclear" id="fclear" onclick="clearF()">Clear all</span>
+  </div>
+
+  <!-- BULK TOOLBAR (T2.2) — REPLACES filter bar while active
+       BG-015: bulk endpoint not built; N individual PATCH calls
+       Destructive actions require confirmation -->
+  <div class="bulk-bar" id="bb">
+    <span class="bc" id="bcount">0 selected</span>
+    <div class="bs"></div>
+    <button class="bb" onclick="bulkA('activate')">Activate</button>
+    <button class="bb warn" onclick="bulkA('suspend')">Suspend</button>
+    <button class="bb warn" onclick="bulkA('deactivate')">Deactivate</button>
+    <button class="bb" onclick="bulkA('export')">Export selected</button>
+    <span class="bdis" onclick="clearSel()">✕ Clear selection</span>
+  </div>
+
+  <!-- DATA TABLE
+       Source: GET /api/v1/users?tenant_id={tid}
+       Fields per UserAggregate: user_id · tenant_id · organization_id · email · username
+         status · first_name · last_name · department · role_set[] · created_at · activated_at · avatar_url
+       Org column: hidden default — visible in super-admin all-orgs mode (toggle via state bar) -->
+  <div class="tp" id="tp">
+    <div class="tw">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="chk"><input type="checkbox" id="sa" onchange="toggleAll(this)"></th>
+            <th class="srt srt-asc" data-col="name" onclick="sortCol('name')">User</th>
+            <th>Role Set</th>
+            <th class="srt" data-col="status" onclick="sortCol('status')">Status</th>
+            <th>Department</th>
+            <th class="srt" data-col="last_active" onclick="sortCol('last_active')">Last Active</th>
+            <th class="srt srt-desc" data-col="created" onclick="sortCol('created')">Created At</th>
+            <th id="org-th" style="display:none;">Organization</th>
+            <th class="act"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <!-- PAGINATION (T2.3) — BG-014: client-side until server params land -->
+    <div class="pag">
+      <div class="pag-pp">Per page:
+        <select class="ppsel" onchange="setPP(+this.value)">
+          <option>10</option><option selected>25</option><option>50</option><option>100</option>
+        </select>
+      </div>
+      <div class="pag-inf" id="paginf">—</div>
+      <div class="pag-ctrl" id="pagctrl"></div>
+    </div>
+  </div>
+
+</div></div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="sb on" onclick="setS('loaded',this)">Loaded</button>
+  <button class="sb" onclick="setS('skeleton',this)">Skeleton</button>
+  <button class="sb" onclick="setS('empty',this)">Empty</button>
+  <button class="sb" onclick="setS('error',this)">Error</button>
+  <button class="sb" onclick="setS('partial',this)">Partial</button>
+  <button class="sb" onclick="toggleSA()" id="sa-btn">Super Admin</button>
+</div>
+
+<!-- EMPTY STATE -->
+<div id="s-empty" style="display:none;position:fixed;inset:0;background:var(--canvas);z-index:100;padding-top:88px;overflow-y:auto;">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 88px);text-align:center;padding:48px;">
+    <div style="font-size:48px;margin-bottom:18px;">👥</div>
+    <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px;">No users yet.</div>
+    <div style="font-size:13px;color:var(--ink-3);margin-bottom:24px;max-width:420px;line-height:1.6;">Invite people to this organisation so they can start learning or managing courses.</div>
+    <button class="btn-p">+ Add User</button>
+  </div>
+</div>
+
+<!-- ERROR STATE — inline in table zone, page chrome stays visible -->
+<div id="s-error" style="display:none;position:fixed;inset:0;background:var(--canvas);z-index:100;padding-top:88px;overflow-y:auto;">
+  <div style="padding:var(--pp);max-width:1100px;margin:0 auto;">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:24px;font-weight:800;letter-spacing:-0.03em;margin-bottom:3px;">Users</div>
+      <div style="font-size:13px;color:var(--ink-3);">284 users · 261 active</div>
+    </div>
+    <!-- Real column headers stay visible — error only in table body zone -->
+    <div style="background:white;border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh-xs);">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead style="background:var(--subtle);">
+          <tr>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">User</th>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">Role Set</th>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">Status</th>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">Department</th>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">Last Active</th>
+            <th style="height:34px;padding:0 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);">Created At</th>
+          </tr>
+        </thead>
+      </table>
+      <div class="err-blk">
+        <div class="err-ico">✕</div>
+        <div style="font-size:14px;font-weight:700;color:var(--ink);">Failed to load users.</div>
+        <div style="font-size:12px;color:var(--ink-3);">user-service is unavailable. Check system health or try again.</div>
+        <button onclick="setS('loaded',document.querySelector('.sb'))" class="btn-p" style="margin-top:4px;font-size:12px;padding:6px 14px;">Retry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// UserAggregate fields — role_set is array per real schema
+// status: pending_activation | active | suspended | locked | deactivated | terminated (CG-003)
+// organization_id: hidden by default, shown in super-admin mode
+const USERS = [
+  {user_id:'u01',first:'Alex',    last:'Jordan',  username:'alex.jordan',  email:'alex.jordan@acme.com',   role_set:['learner'],             dept:'Engineering',last_active:'Just now',     created_at:'Mar 17, 2026',status:'active',            org:'Acme Corp',av:'AJ',avc:'#1E40AF'},
+  {user_id:'u02',first:'Sara',    last:'Khan',    username:'sara.khan',    email:'sara.khan@acme.com',     role_set:['instructor'],          dept:'HR',         last_active:'2h ago',        created_at:'Mar 16, 2026',status:'active',            org:'Acme Corp',av:'SK',avc:'#0F766E'},
+  {user_id:'u03',first:'Marcus',  last:'Webb',    username:'m.webb',       email:'marcus.webb@acme.com',   role_set:['instructor','manager'],dept:'Engineering',last_active:'Yesterday',     created_at:'Mar 14, 2026',status:'active',            org:'Acme Corp',av:'MW',avc:'#6D28D9'},
+  {user_id:'u04',first:'Rajan',   last:'Patel',   username:'rajan.patel',  email:'rajan.patel@acme.com',   role_set:['manager'],             dept:'Product',    last_active:'—',             created_at:'Mar 12, 2026',status:'pending_activation',org:'Acme Corp',av:'RP',avc:'#92400E'},
+  {user_id:'u05',first:'Layla',   last:'Ahmed',   username:'layla.a',      email:'layla.ahmed@acme.com',   role_set:['learner'],             dept:'Finance',    last_active:'3 days ago',    created_at:'Mar 10, 2026',status:'active',            org:'Acme Corp',av:'LA',avc:'#166534'},
+  {user_id:'u06',first:'James',   last:'Thornton',username:'j.thornton',   email:'j.thornton@acme.com',    role_set:['tenant_admin'],        dept:'IT',         last_active:'1h ago',        created_at:'Mar 08, 2026',status:'active',            org:'Acme Corp',av:'JT',avc:'#1E40AF'},
+  {user_id:'u07',first:'Priya',   last:'Nair',    username:'priya.nair',   email:'priya.nair@acme.com',    role_set:['learner'],             dept:'HR',         last_active:'12 days ago',   created_at:'Mar 06, 2026',status:'suspended',         org:'Beta Corp', av:'PN',avc:'#92400E'},
+  {user_id:'u08',first:'Carlos',  last:'Mendez',  username:'c.mendez',     email:'c.mendez@acme.com',      role_set:['learner'],             dept:'Sales',      last_active:'Today',         created_at:'Mar 05, 2026',status:'active',            org:'Acme Corp',av:'CM',avc:'#0F766E'},
+  {user_id:'u09',first:'Yuki',    last:'Tanaka',  username:'yuki.t',       email:'yuki.tanaka@acme.com',   role_set:['instructor'],          dept:'Product',    last_active:'4 days ago',    created_at:'Mar 03, 2026',status:'active',            org:'Acme Corp',av:'YT',avc:'#6D28D9'},
+  {user_id:'u10',first:'David',   last:'Osei',    username:'d.osei',       email:'d.osei@acme.com',        role_set:['learner'],             dept:'Engineering',last_active:'1 week ago',    created_at:'Feb 28, 2026',status:'active',            org:'Acme Corp',av:'DO',avc:'#166534'},
+  {user_id:'u11',first:'Nina',    last:'Vasquez', username:'nina.v',       email:'nina.v@acme.com',        role_set:['manager'],             dept:'Sales',      last_active:'Yesterday',     created_at:'Feb 25, 2026',status:'active',            org:'Gamma Inc', av:'NV',avc:'#1E40AF'},
+  {user_id:'u12',first:'Tom',     last:'Briggs',  username:'t.briggs',     email:'t.briggs@acme.com',      role_set:['learner'],             dept:'Finance',    last_active:'45 days ago',   created_at:'Feb 20, 2026',status:'deactivated',       org:'Acme Corp',av:'TB',avc:'#92400E'},
+  {user_id:'u13',first:'Amara',   last:'Diallo',  username:'a.diallo',     email:'a.diallo@acme.com',      role_set:['learner'],             dept:'HR',         last_active:'6 days ago',    created_at:'Feb 18, 2026',status:'active',            org:'Acme Corp',av:'AD',avc:'#0F766E'},
+  {user_id:'u14',first:'Felix',   last:'Schmitt', username:'f.schmitt',    email:'f.schmitt@acme.com',     role_set:['instructor'],          dept:'Engineering',last_active:'—',             created_at:'Feb 15, 2026',status:'pending_activation',org:'Beta Corp', av:'FS',avc:'#6D28D9'},
+  {user_id:'u15',first:'Grace',   last:'Okonkwo', username:'g.okonkwo',    email:'g.okonkwo@acme.com',     role_set:['learner'],             dept:'Product',    last_active:'2 days ago',    created_at:'Feb 12, 2026',status:'active',            org:'Acme Corp',av:'GO',avc:'#166534'},
+  {user_id:'u16',first:'Hassan',  last:'Ali',     username:'h.ali',        email:'h.ali@acme.com',         role_set:['learner'],             dept:'Sales',      last_active:'Today',         created_at:'Feb 10, 2026',status:'locked',            org:'Acme Corp',av:'HA',avc:'#1E40AF'},
+  {user_id:'u17',first:'Sophie',  last:'Laurent', username:'s.laurent',    email:'s.laurent@acme.com',     role_set:['manager','learner'],   dept:'Finance',    last_active:'3 days ago',    created_at:'Feb 08, 2026',status:'active',            org:'Gamma Inc', av:'SL',avc:'#0F766E'},
+  {user_id:'u18',first:'Omar',    last:'Farooq',  username:'o.farooq',     email:'o.farooq@acme.com',      role_set:['learner'],             dept:'Engineering',last_active:'5 days ago',    created_at:'Feb 05, 2026',status:'active',            org:'Acme Corp',av:'OF',avc:'#6D28D9'},
+  {user_id:'u19',first:'Elena',   last:'Popescu', username:'e.popescu',    email:'e.popescu@acme.com',     role_set:['learner'],             dept:'HR',         last_active:'2 months ago',  created_at:'Feb 01, 2026',status:'terminated',        org:'Acme Corp',av:'EP',avc:'#92400E'},
+  {user_id:'u20',first:'Kwame',   last:'Asante',  username:'k.asante',     email:'k.asante@acme.com',      role_set:['learner'],             dept:'Product',    last_active:'1 day ago',     created_at:'Jan 28, 2026',status:'active',            org:'Beta Corp', av:'KA',avc:'#166534'},
+];
+
+const SLABELS={active:'Active',pending_activation:'Pending Activation',suspended:'Suspended',locked:'Locked',deactivated:'Deactivated',terminated:'Terminated'};
+const RLABELS={learner:'Learner',instructor:'Instructor',manager:'Manager',tenant_admin:'Admin',super_admin:'Super Admin'};
+
+let filtered=[...USERS],selected=new Set(),page=1,pp=25,superAdmin=false;
+
+function chip(s){return `<span class="chip ${s}">${SLABELS[s]||s}</span>`;}
+function roleChips(rs){return `<div class="rcs">${rs.map(r=>`<span class="rc ${r}">${RLABELS[r]||r}</span>`).join('')}</div>`;}
+
+function renderRows(users){
+  const start=(page-1)*pp, end=Math.min(start+pp,users.length), slice=users.slice(start,end);
+  document.getElementById('tbody').innerHTML=slice.map(u=>`
+    <tr class="${selected.has(u.user_id)?'sel':''}" data-id="${u.user_id}">
+      <td class="chk"><input type="checkbox" ${selected.has(u.user_id)?'checked':''} onchange="toggleRow('${u.user_id}',this)"></td>
+      <td><div class="idc"><div class="av" style="background:${u.avc}">${u.av}</div><div><div class="idn">${u.first} ${u.last}</div><div class="ide">${u.email}</div><div class="idu">@${u.username}</div></div></div></td>
+      <td>${roleChips(u.role_set)}</td>
+      <td>${chip(u.status)}</td>
+      <td style="font-size:12px;">${u.dept||'—'}</td>
+      <td style="font-size:12px;color:var(--ink-3);">${u.last_active}</td>
+      <td style="font-size:12px;color:var(--ink-3);">${u.created_at}</td>
+      ${superAdmin?`<td><span class="ob">${u.org}</span></td>`:''}
+      <td style="text-align:center;"><div class="ra"><button class="rab" onclick="toggleM(event,'m${u.user_id}')">⋯</button><div class="ram" id="m${u.user_id}"><div class="rai">View profile</div><div class="rai">Edit</div><div class="rasep"></div><div class="rai warn">Change Status</div></div></div></td>
+    </tr>`).join('');
+  renderPag(users.length);
+  syncSA();
+  document.getElementById('fc').textContent=`${users.length} user${users.length!==1?'s':''}`;
+}
+
+function renderPag(total){
+  const pages=Math.max(1,Math.ceil(total/pp)),s=(page-1)*pp+1,e=Math.min(page*pp,total);
+  document.getElementById('paginf').innerHTML=`Showing <b>${total?s:0}–${e}</b> of <b>${total}</b>`;
+  let h=`<button class="pg" onclick="goP(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=pages;i++){
+    if(i===1||i===pages||Math.abs(i-page)<=1) h+=`<button class="pg${i===page?' on':''}" onclick="goP(${i})">${i}</button>`;
+    else if(Math.abs(i-page)===2) h+=`<span class="pgd">…</span>`;
+  }
+  h+=`<button class="pg" onclick="goP(${page+1})" ${page>=pages?'disabled':''}>›</button>`;
+  document.getElementById('pagctrl').innerHTML=h;
+}
+
+function applyF(){
+  const q=document.getElementById('q').value.toLowerCase();
+  const s=document.getElementById('fs').value;
+  const d=document.getElementById('fd').value;
+  const r=document.getElementById('fr').value;
+  const sort=document.getElementById('fsort').value;
+  const hasF=q||s||d||r;
+  document.getElementById('fclear').classList.toggle('show',!!hasF);
+  ['fs','fd','fr'].forEach(id=>document.getElementById(id).classList.toggle('act',!!document.getElementById(id).value));
+  filtered=USERS.filter(u=>{
+    const nm=`${u.first} ${u.last} ${u.username}`.toLowerCase();
+    return (!q||nm.includes(q)||u.email.toLowerCase().includes(q))
+        && (!s||u.status===s)&&(!d||u.dept===d)&&(!r||u.role_set.includes(r));
+  });
+  if(sort==='name_asc')  filtered.sort((a,b)=>`${a.last}${a.first}`.localeCompare(`${b.last}${b.first}`));
+  if(sort==='name_desc') filtered.sort((a,b)=>`${b.last}${b.first}`.localeCompare(`${a.last}${a.first}`));
+  if(sort==='status')    filtered.sort((a,b)=>a.status.localeCompare(b.status));
+  page=1; renderRows(filtered);
+}
+
+function clearF(){
+  document.getElementById('q').value='';
+  ['fs','fd','fr'].forEach(id=>{document.getElementById(id).value='';document.getElementById(id).classList.remove('act');});
+  document.getElementById('fclear').classList.remove('show');
+  filtered=[...USERS];page=1;renderRows(filtered);
+}
+
+function sortCol(col){
+  const sel=document.getElementById('fsort');
+  const map={name:'name_asc',status:'status',last_active:'last_active',created:'created_desc'};
+  sel.value=sel.value===map[col]?(sel.value.endsWith('desc')?sel.value.replace('desc','asc'):sel.value.replace('asc','desc')):map[col]||'created_desc';
+  document.querySelectorAll('th.srt').forEach(th=>{
+    th.classList.remove('srt-asc','srt-desc');
+    if(th.dataset.col===col)th.classList.add(sel.value.endsWith('asc')?'srt-asc':'srt-desc');
+  });
+  applyF();
+}
+
+function toggleRow(id,cb){
+  if(cb.checked)selected.add(id);else selected.delete(id);
+  cb.closest('tr').classList.toggle('sel',cb.checked);
+  updateBB();syncSA();
+}
+function toggleAll(cb){
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const id=tr.dataset.id,rowCb=tr.querySelector('input[type=checkbox]');
+    if(cb.checked){selected.add(id);tr.classList.add('sel');rowCb.checked=true;}
+    else{selected.delete(id);tr.classList.remove('sel');rowCb.checked=false;}
+  });
+  updateBB();
+}
+function syncSA(){
+  const rows=document.querySelectorAll('#tbody tr');
+  document.getElementById('sa').checked=rows.length>0&&[...rows].every(tr=>selected.has(tr.dataset.id));
+}
+function updateBB(){
+  const bb=document.getElementById('bb'),fb=document.getElementById('fb');
+  if(selected.size>0){bb.classList.add('show');fb.style.display='none';document.getElementById('bcount').textContent=`${selected.size} selected`;}
+  else{bb.classList.remove('show');fb.style.display='flex';}
+}
+function clearSel(){
+  selected.clear();
+  document.querySelectorAll('#tbody input[type=checkbox]').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('#tbody tr').forEach(tr=>tr.classList.remove('sel'));
+  document.getElementById('sa').checked=false;
+  updateBB();
+}
+function toggleM(e,id){
+  e.stopPropagation();
+  document.querySelectorAll('.ram').forEach(m=>{if(m.id!==id)m.classList.remove('open');});
+  document.getElementById(id).classList.toggle('open');
+}
+function goP(n){page=n;renderRows(filtered);}
+function setPP(n){pp=n;page=1;renderRows(filtered);}
+function bulkA(act){console.log('Bulk:',act,[...selected]);}
+
+// Super-admin org column toggle
+function toggleSA(){
+  superAdmin=!superAdmin;
+  const btn=document.getElementById('sa-btn');
+  btn.classList.toggle('on',superAdmin);
+  document.getElementById('org-th').style.display=superAdmin?'':'none';
+  renderRows(filtered);
+}
+
+function setS(s,btn){
+  document.querySelectorAll('.sb').forEach(b=>{if(b.id!=='sa-btn')b.classList.remove('on');});
+  btn.classList.add('on');
+  ['s-empty','s-error'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('tp').style.display='block';
+  document.getElementById('fb').style.display='flex';
+  document.getElementById('bb').classList.remove('show');
+  if(s==='skeleton') renderSkel();
+  else if(s==='empty'){document.getElementById('s-empty').style.display='block';document.getElementById('tp').style.display='none';}
+  else if(s==='error'){document.getElementById('s-error').style.display='block';document.getElementById('tp').style.display='none';}
+  else if(s==='partial'){renderRows(filtered);document.querySelectorAll('#tbody tr').forEach((tr,i)=>{if(i<3)tr.querySelectorAll('.rcs').forEach(el=>{el.innerHTML='<div class="sk" style="height:18px;width:60px;border-radius:99px;"></div>';});});}
+  else{filtered=[...USERS];renderRows(filtered);}
+}
+
+function renderSkel(){
+  // Skeleton: page header + column labels stay real — only rows are skeletonised
+  const row=()=>`<tr>
+    <td class="chk"><div class="sk" style="width:14px;height:14px;border-radius:3px;"></div></td>
+    <td><div class="idc"><div class="sk" style="width:28px;height:28px;border-radius:50%;flex-shrink:0;"></div><div><div class="sk" style="height:12px;width:120px;margin-bottom:4px;"></div><div class="sk" style="height:10px;width:90px;margin-bottom:3px;"></div><div class="sk" style="height:9px;width:70px;"></div></div></div></td>
+    <td><div class="sk" style="height:18px;width:64px;border-radius:99px;"></div></td>
+    <td><div class="sk" style="height:18px;width:86px;border-radius:99px;"></div></td>
+    <td><div class="sk" style="height:12px;width:80px;"></div></td>
+    <td><div class="sk" style="height:12px;width:70px;"></div></td>
+    <td><div class="sk" style="height:12px;width:80px;"></div></td>
+    <td></td></tr>`;
+  document.getElementById('tbody').innerHTML=Array.from({length:5},row).join('');
+  document.getElementById('paginf').innerHTML='<div class="sk" style="height:12px;width:140px;"></div>';
+  document.getElementById('pagctrl').innerHTML='';
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ra'))document.querySelectorAll('.ram').forEach(m=>m.classList.remove('open'));
+  if(!e.target.closest('.rs'))document.querySelectorAll('.rs').forEach(r=>r.classList.remove('open'));
+});
+
+renderRows(USERS);
+</script>
+</body>
+</html>

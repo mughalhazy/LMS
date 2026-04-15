@@ -1,0 +1,19 @@
+registry:
+  provider: consul
+  address: ${SERVICE_REGISTRY_ADDRESS:-consul.service.consul:8500}
+  datacenter: ${SERVICE_REGISTRY_DATACENTER:-dc1}
+  namespace: lms
+  defaults:
+    registration_ttl: 30s
+    deregister_after: 60s
+    health_interval: 10s
+    health_timeout: 2s
+
+service_lookup:
+  scheme: discovery://
+  resolver: consul
+  load_balancing: round_robin
+  retry:
+    max_attempts: 3
+    backoff: 250ms
+  cache_ttl: 30s

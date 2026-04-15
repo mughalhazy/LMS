@@ -1,0 +1,53 @@
+{
+  "event_type": "learning_path_created",
+  "version": "1.0.0",
+  "producer_service": "learning_path_service",
+  "topic": "lms.learning_path.learning_path_created.v1",
+  "purpose": "Published when a new learning path definition is created in draft or published status.",
+  "payload_schema": {
+    "tenant_id": "string",
+    "path_id": "string",
+    "title": "string",
+    "description": "string|null",
+    "status": "draft|published|archived",
+    "owner_id": "string",
+    "version": "integer",
+    "node_count": "integer",
+    "required_node_count": "integer",
+    "created_at": "RFC3339 timestamp",
+    "created_by": "string",
+    "change_reason": "string|null"
+  },
+  "required_fields": [
+    "tenant_id",
+    "path_id",
+    "title",
+    "status",
+    "owner_id",
+    "version",
+    "created_at",
+    "created_by"
+  ],
+  "consumers": [
+    {
+      "service": "enrollment_service",
+      "usage": "Indexes new path metadata for assignment and enrollment eligibility checks."
+    },
+    {
+      "service": "progress_tracking_service",
+      "usage": "Initializes path topology references used for downstream progress computation."
+    },
+    {
+      "service": "notification_service",
+      "usage": "Optionally triggers owner/admin notifications for newly created paths."
+    },
+    {
+      "service": "analytics_reporting_service",
+      "usage": "Captures curriculum creation trends and catalog coverage metrics."
+    },
+    {
+      "service": "audit_compliance_service",
+      "usage": "Stores immutable creation evidence with actor and timestamp."
+    }
+  ]
+}

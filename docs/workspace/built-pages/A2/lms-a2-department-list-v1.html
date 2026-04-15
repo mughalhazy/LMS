@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<!-- LMS A2 — Department List
+     Version  : v1.0
+     Surface  : Admin
+     Archetype: A2 ResourceList
+     Created  : 2026-03-18
+     Repo     : org-service — DepartmentOut (schemas.py) · Department (models.py) · SQL migration 0002
+     API      : GET /organizations/{org_id}/hierarchy → HierarchyOut.departments[] + HierarchyOut.teams[]
+     Gaps     : BG-023 (no list-by-tenant) · BG-024 (no deactivate endpoint) · CG-005 (head ID unresolved)
+     Patterns : P-54 (bulk replaces filter) · P-55 (inline error) · P-56 (skeleton headers real) · P-70 (3-line identity cell)
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Departments</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 1px 4px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.04);
+  --sh-md:0 4px 14px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.04);
+  --r:14px;--r-sm:7px;--r-pill:999px;
+  --row-h:40px;--pp:28px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.5;}
+
+/* TWO-LEVEL CHROME — identical to users list gold standard */
+.util-bar{height:48px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:8px;position:sticky;top:0;z-index:41;}
+.logo{display:flex;align-items:center;gap:7px;margin-right:8px;}
+.logo-mark{width:24px;height:24px;background:var(--ink);border-radius:5px;font-size:11px;display:flex;align-items:center;justify-content:center;}
+.logo-name{font-size:13px;font-weight:700;letter-spacing:-0.02em;}
+.util-r{margin-left:auto;display:flex;align-items:center;gap:6px;}
+.qb{padding:5px 12px;border-radius:5px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;}
+.qb:hover{border-color:var(--border-s);color:var(--ink);}
+.qb.p{background:var(--ink);color:white;border-color:var(--ink);}
+.nav-bar{height:40px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);gap:2px;position:sticky;top:48px;z-index:40;}
+.tn{padding:5px 12px;border-radius:var(--r-sm);font-size:12px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:all 100ms;white-space:nowrap;}
+.tn:hover{background:var(--subtle);color:var(--ink-2);}
+.tn.on{background:var(--ink);color:white;font-weight:600;}
+.tn-b{display:inline-block;background:var(--red);color:white;font-size:9px;font-weight:700;padding:0 5px;border-radius:var(--r-pill);margin-left:3px;vertical-align:middle;}
+.rs{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;color:var(--ink-2);position:relative;user-select:none;}
+.rs-drop{display:none;position:absolute;top:calc(100% + 5px);right:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-md);min-width:180px;overflow:hidden;z-index:200;}
+.rs.open .rs-drop{display:block;}
+.rd{padding:7px 12px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-4);}
+.ri{display:flex;align-items:center;gap:7px;padding:7px 12px;font-size:12px;font-weight:500;color:var(--ink-3);cursor:pointer;transition:background 100ms;}
+.ri:hover{background:var(--subtle);}
+.ri.on{color:var(--accent);background:var(--accent-lt);font-weight:600;}
+.notif{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;position:relative;}
+.notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--red);border:1.5px solid white;}
+.ubtn{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:6px;cursor:pointer;}
+.ubtn:hover{background:var(--subtle);}
+.uav{width:24px;height:24px;border-radius:50%;background:var(--ink);color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+
+/* CANVAS */
+.canvas{padding:var(--pp);}
+.wrap{max-width:1100px;margin:0 auto;}
+
+/* PAGE HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;animation:up .25s ease both;}
+.ph-t{font-size:24px;font-weight:800;letter-spacing:-0.03em;margin-bottom:3px;}
+.ph-s{font-size:13px;color:var(--ink-3);}
+.ph-r{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+.btn-g{padding:7px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-p{padding:7px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--ink);color:white;transition:opacity 120ms;}
+.btn-p:hover{opacity:.85;}
+
+/* FILTER BAR (T2.1) */
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:10px;box-shadow:var(--sh-xs);animation:up .25s ease both .04s;}
+.sw{position:relative;flex:1;min-width:160px;}
+.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-4);pointer-events:none;}
+.si-inp{width:100%;padding:6px 9px 6px 28px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:12.5px;color:var(--ink);background:var(--canvas);outline:none;transition:border-color 120ms;}
+.si-inp:focus{border-color:var(--accent);background:white;}
+.si-inp::placeholder{color:var(--ink-4);}
+.fdiv{width:1px;height:18px;background:var(--border);flex-shrink:0;}
+.fs{padding:6px 24px 6px 9px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:12px;font-weight:500;color:var(--ink-2);background:var(--canvas);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color 120ms;}
+.fs:focus{border-color:var(--accent);}
+.fs.act{border-color:var(--accent);background-color:var(--accent-lt);color:var(--accent);font-weight:600;}
+.dr{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.dr-i{padding:6px 9px;border-radius:var(--r-sm);border:1px solid var(--border);font-family:var(--font);font-size:11px;color:var(--ink-2);background:var(--canvas);outline:none;width:96px;transition:border-color 120ms;}
+.dr-i:focus{border-color:var(--accent);}
+.sort-wrap{display:flex;align-items:center;gap:5px;}
+.sort-lbl{font-size:11px;font-weight:600;color:var(--ink-4);white-space:nowrap;}
+.fc{font-size:11px;font-weight:700;color:var(--ink-3);white-space:nowrap;}
+.fclear{font-size:12px;font-weight:600;color:var(--ink-4);cursor:pointer;padding:3px 7px;border-radius:5px;transition:all 100ms;display:none;}
+.fclear.show{display:block;}
+.fclear:hover{color:var(--ink-2);background:var(--subtle);}
+
+/* RESULTS BAR — filtered count + clear between filter bar and table */
+.results-bar{display:flex;align-items:center;gap:8px;padding:0 2px;margin-bottom:8px;margin-top:-4px;}
+
+/* BULK TOOLBAR (T2.2 / P-54) — replaces filter bar */
+.bulk-bar{background:var(--ink);border-radius:var(--r);padding:10px 16px;display:none;align-items:center;gap:10px;margin-bottom:10px;animation:sd .15s ease both;}
+.bulk-bar.show{display:flex;}
+@keyframes sd{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.bc{font-size:13px;font-weight:700;color:white;margin-right:4px;}
+.bs{width:1px;height:18px;background:rgba(255,255,255,.15);}
+.bb{padding:5px 12px;border-radius:5px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.8);transition:all 100ms;}
+.bb:hover{background:rgba(255,255,255,.1);color:white;}
+.bb.warn{color:#FCD34D;border-color:rgba(252,211,77,.25);}
+.bdis{margin-left:auto;font-size:12px;font-weight:600;color:rgba(255,255,255,.4);cursor:pointer;padding:3px 8px;border-radius:4px;transition:all 100ms;}
+.bdis:hover{color:white;background:rgba(255,255,255,.1);}
+
+/* DATA TABLE */
+.tp{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-xs);overflow:hidden;animation:up .25s ease both .06s;}
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead{background:var(--subtle);}
+th{padding:0 12px;height:34px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4);border-bottom:1px solid var(--border);white-space:nowrap;user-select:none;}
+th.srt{cursor:pointer;}
+th.srt:hover{color:var(--ink-2);}
+th.srt-asc::after{content:' ↑';font-size:9px;}
+th.srt-desc::after{content:' ↓';font-size:9px;}
+th.chk{width:40px;padding:0 0 0 14px;}
+th.num{text-align:right;}
+th.act{width:44px;text-align:center;position:sticky;right:0;background:var(--subtle);}
+td.act-cell{text-align:center;position:sticky;right:0;background:white;}
+tr:hover td.act-cell{background:rgba(249,249,255,1);}
+tr.sel td.act-cell{background:var(--accent-lt);}
+td{padding:0 12px;height:var(--row-h);border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink-2);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(91,91,214,.018);}
+tr.sel td{background:var(--accent-lt);}
+td.chk{padding:0 0 0 14px;}
+td.num{text-align:right;}
+input[type=checkbox]{width:14px;height:14px;border:1.5px solid var(--border-s);border-radius:4px;cursor:pointer;accent-color:var(--ink);}
+
+/* Department identity cell — P-70: 3-line stack (name / @code / org)
+   Rounded-rect avatar (not circle — entity not person) */
+.ddc{display:flex;align-items:center;gap:9px;}
+.dept-av{width:28px;height:28px;border-radius:6px;background:var(--subtle);border:1px solid var(--border-s);color:var(--ink-3);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.dept-av.sub{background:var(--canvas);border-style:dashed;color:var(--ink-4);}
+.ddn{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:1px;white-space:nowrap;}
+.ddc-code{font-size:11px;color:var(--ink-4);font-family:monospace;}
+.ddc-org{font-size:10px;color:var(--ink-4);font-style:italic;}
+
+/* Status chips — Status enum: active | inactive (2 states only, models.py) */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:700;border:1.5px solid;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.chip::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
+.chip.active{background:var(--green-bg);border-color:var(--green-bd);color:var(--green);}
+.chip.inactive{background:var(--subtle);border-color:var(--border-s);color:var(--ink-4);}
+
+/* Parent badge — parent_department_id → parent name, null = root */
+.parent-badge{display:inline-block;padding:2px 8px;border-radius:var(--r-pill);font-size:10px;font-weight:600;background:var(--subtle);border:1px solid var(--border-s);color:var(--ink-3);}
+
+/* Cost center tag — cost_center field (nullable) */
+.cc{font-size:11px;color:var(--ink-3);font-family:monospace;background:var(--subtle);padding:2px 6px;border-radius:4px;}
+
+/* Head cell — CG-005: raw user ID shown until batch resolve endpoint built */
+.head-id{font-size:11px;color:var(--ink-3);font-family:monospace;}
+
+/* Teams count */
+.cnt{font-size:13px;font-weight:600;color:var(--ink-2);}
+.cnt.muted{color:var(--ink-4);}
+
+/* Row actions */
+.ra{position:relative;}
+.rab{width:28px;height:28px;border-radius:5px;border:none;background:transparent;cursor:pointer;font-size:15px;color:var(--ink-4);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.rab:hover{background:var(--subtle);color:var(--ink-2);}
+.ram{display:none;position:absolute;right:0;top:calc(100% + 2px);background:white;border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-md);min-width:148px;overflow:hidden;z-index:100;}
+.ram.open{display:block;}
+.rai{padding:8px 14px;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer;transition:background 80ms;}
+.rai:hover{background:var(--subtle);}
+.rai.warn{color:var(--amber);}
+.rai.warn:hover{background:var(--amber-bg);}
+.rasep{height:1px;background:var(--border);margin:3px 0;}
+
+/* PAGINATION */
+.pag{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-top:1px solid var(--border);}
+.pag-inf{font-size:12px;color:var(--ink-3);}
+.pag-inf b{color:var(--ink-2);font-weight:600;}
+.pag-ctrl{display:flex;align-items:center;gap:3px;}
+.pg{width:30px;height:28px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;justify-content:center;transition:all 100ms;}
+.pg:hover{border-color:var(--border-s);background:var(--subtle);}
+.pg.on{background:var(--ink);color:white;border-color:var(--ink);}
+.pg:disabled{opacity:.3;cursor:default;}
+.pgd{font-size:12px;color:var(--ink-4);padding:0 3px;}
+.pag-pp{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);}
+.ppsel{padding:4px 20px 4px 8px;border-radius:5px;border:1px solid var(--border);font-family:var(--font);font-size:12px;font-weight:500;color:var(--ink-2);background:white;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238C8C84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 5px center;}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.sb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.sb.on{background:white;color:#1A1A18;}
+
+/* Skeleton — P-56 */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:5px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* Inline error block — P-55 */
+.err-blk{padding:32px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;}
+.err-ico{width:40px;height:40px;border-radius:50%;background:var(--red-bg);border:1px solid var(--red-bd);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--red);}
+
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<!-- UTILITY BAR -->
+<div class="util-bar">
+  <div class="logo"><div class="logo-mark">🎓</div><div class="logo-name">LMS</div></div>
+  <button class="qb">+ User</button>
+  <button class="qb">+ Course</button>
+  <button class="qb p">+ Department</button>
+  <div class="util-r">
+    <div class="rs" onclick="this.classList.toggle('open')">
+      <span>🏛️</span><span style="font-size:11px;font-weight:600;">Acme Corp</span><span style="font-size:9px;color:var(--ink-4);">▾</span>
+      <div class="rs-drop">
+        <div class="rd">Organization</div>
+        <div class="ri on">✓&nbsp; Acme Corp</div>
+        <div class="ri">Beta Corp</div>
+        <div class="ri">Gamma Inc</div>
+        <div class="ri" style="border-top:1px solid var(--border);color:var(--accent);font-weight:600;">All Organizations</div>
+      </div>
+    </div>
+    <div class="rs" onclick="this.classList.toggle('open')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ink-3);"></div>
+      Admin<span style="font-size:10px;color:var(--ink-4);">▾</span>
+      <div class="rs-drop">
+        <div class="rd">Switch to</div>
+        <div class="ri">Learner</div><div class="ri">Instructor</div>
+        <div class="ri">Manager</div><div class="ri on">✓&nbsp; Admin</div>
+      </div>
+    </div>
+    <div class="notif">🔔<div class="npip"></div></div>
+    <div class="ubtn"><div class="uav">AK</div><span style="font-size:12px;font-weight:600;">Ali Khan</span></div>
+  </div>
+</div>
+
+<!-- NAV BAR -->
+<div class="nav-bar">
+  <div class="tn">Dashboard</div>
+  <div class="tn">Users</div>
+  <div class="tn">Courses</div>
+  <div class="tn">Organizations</div>
+  <div class="tn on">Departments</div>
+  <div class="tn">Compliance</div>
+  <div class="tn">Reports</div>
+  <div class="tn">Settings</div>
+  <div class="tn">Alerts <span class="tn-b">7</span></div>
+</div>
+
+<div class="canvas"><div class="wrap">
+
+  <!-- PAGE HEADER
+       Source: org-service GET /organizations/{org_id}/hierarchy → HierarchyOut.departments[]
+       BG-023: no list-by-tenant endpoint — hierarchy call per org, flattened client-side
+       total: DEPTS.length · active: count(status='active') -->
+  <div class="ph">
+    <div>
+      <div class="ph-t">Departments</div>
+      <div class="ph-s" id="ph-meta">14 departments · 13 active</div>
+    </div>
+    <div class="ph-r">
+      <button class="btn-g">Export</button>
+      <button class="btn-p">+ Create Department</button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR (T2.1)
+       BG-023: client-side filtering — no server list endpoint
+       search: name + code (DepartmentOut fields)
+       status: Status enum — active | inactive (models.py — 2 states only)
+       org: organization_id — from org switcher context
+       type: root (parent_department_id=null) vs sub (parent_department_id≠null)
+       date range: created_at
+       sort: created_at · name -->
+  <div class="filter-bar" id="fb">
+    <div class="sw">
+      <span class="si">🔍</span>
+      <input class="si-inp" type="text" id="q" placeholder="Search by department name…" oninput="applyF()">
+    </div>
+    <div class="fdiv"></div>
+    <select class="fs" id="fs" onchange="applyF()">
+      <option value="">Status</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+    <select class="fs" id="fo" onchange="applyF()">
+      <option value="">Organization</option>
+      <option value="Acme Corp">Acme Corp</option>
+      <option value="Beta Corp">Beta Corp</option>
+      <option value="Gamma Inc">Gamma Inc</option>
+    </select>
+    <select class="fs" id="ftype" onchange="applyF()">
+      <option value="">Type</option>
+      <option value="root">Root</option>
+      <option value="sub">Sub-department</option>
+    </select>
+    <select class="fs" id="fmgr" onchange="applyF()">
+      <option value="">Manager</option>
+      <option value="assigned">Assigned</option>
+      <option value="unassigned">Unassigned</option>
+    </select>
+    <div class="fdiv"></div>
+    <div class="dr">
+      <input class="dr-i" type="date" id="df" onchange="applyF()" title="Created from">
+      <span style="font-size:11px;color:var(--ink-4);">→</span>
+      <input class="dr-i" type="date" id="dt" onchange="applyF()" title="Created to">
+    </div>
+    <div class="fdiv"></div>
+    <div class="sort-wrap">
+      <span class="sort-lbl">Sort:</span>
+      <select class="fs" id="fsort" onchange="applyF()" style="min-width:90px;">
+        <option value="created_desc">Created ↓</option>
+        <option value="created_asc">Created ↑</option>
+        <option value="name_asc">Name A–Z</option>
+        <option value="name_desc">Name Z–A</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- RESULTS BAR — filtered count + clear, sits between filter bar and table -->
+  <div class="results-bar" id="rbar">
+    <span class="fc" id="fc">14 departments</span>
+    <span class="fclear" id="fclear" onclick="clearF()">Clear all</span>
+  </div>
+
+  <!-- BULK TOOLBAR (T2.2 / P-54) — replaces filter bar
+       BG-024: no bulk/dedicated deactivate endpoint — PATCH /departments/{id} per item
+       Deactivate wired to PATCH with {status:'inactive'} until BG-024 resolved -->
+  <div class="bulk-bar" id="bb">
+    <span class="bc" id="bcount">0 selected</span>
+    <div class="bs"></div>
+    <button class="bb warn" onclick="bulkA('deactivate')">Deactivate</button>
+    <button class="bb" onclick="bulkA('export')">Export</button>
+    <span class="bdis" onclick="clearSel()">✕ Clear selection</span>
+  </div>
+
+  <!-- DATA TABLE
+       Source: DepartmentOut (org-service/app/schemas.py)
+       Columns:
+         1. Department   — name / @code / org_name  (P-70: 3-line stack, rounded-rect avatar)
+         2. Status       — Status enum: active|inactive (models.py)
+         3. Parent       — parent_department_id → parent name | null = "Root"
+         4. Head         — department_head_user_id (CG-005: raw ID, no resolve yet)
+         5. Teams        — count from HierarchyOut.teams[] filtered by department_id
+         6. Cost Center  — cost_center (nullable)
+         7. Created At   — created_at
+         8. Actions      — Edit | Deactivate/Reactivate via PATCH /departments/{id} (BG-024) -->
+  <div class="tp" id="tp">
+    <div class="tw">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="chk"><input type="checkbox" id="sa" onchange="toggleAll(this)"></th>
+            <th class="srt srt-asc" data-col="name" onclick="sortCol('name')">Department</th>
+            <th class="srt" data-col="status" onclick="sortCol('status')">Status</th>
+            <th>Parent</th>
+            <th>Manager</th>
+            <th class="num">Users</th>
+            <th class="num">Teams</th>
+            <th>Cost Center</th>
+            <th class="srt srt-desc" data-col="created" onclick="sortCol('created')">Created At</th>
+            <th class="act"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pag">
+      <div class="pag-pp">Per page:
+        <select class="ppsel" onchange="setPP(+this.value)">
+          <option>10</option><option selected>25</option><option>50</option><option>100</option>
+        </select>
+      </div>
+      <div class="pag-inf" id="paginf">—</div>
+      <div class="pag-ctrl" id="pagctrl"></div>
+    </div>
+  </div>
+
+</div></div>
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="sb on" onclick="setS('loaded',this)">Loaded</button>
+  <button class="sb" onclick="setS('skeleton',this)">Skeleton</button>
+  <button class="sb" onclick="setS('empty',this)">Empty</button>
+  <button class="sb" onclick="setS('error',this)">Error</button>
+</div>
+
+<!-- EMPTY STATE -->
+<div id="s-empty" style="display:none;">
+  <div style="padding:64px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;">
+    <div style="font-size:40px;">🏢</div>
+    <div style="font-size:16px;font-weight:800;letter-spacing:-0.02em;color:var(--ink);">No departments yet.</div>
+    <div style="font-size:13px;color:var(--ink-3);max-width:340px;line-height:1.6;">Create your first department to start building your org structure.</div>
+    <button class="btn-p" style="margin-top:4px;">+ Create Department</button>
+  </div>
+</div>
+
+<!-- ERROR STATE — P-55: inline, column headers stay real -->
+<div id="s-error" style="display:none;">
+  <div class="err-blk">
+    <div class="err-ico">✕</div>
+    <div style="font-size:14px;font-weight:700;color:var(--ink);">Couldn't load departments.</div>
+    <div style="font-size:12px;color:var(--ink-3);">org-service may be unavailable.</div>
+    <button onclick="setS('loaded',document.querySelector('.sb'))" style="padding:7px 16px;background:var(--ink);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;margin-top:4px;">Try Again</button>
+  </div>
+</div>
+
+<script>
+/* Department data — from Department dataclass (org-service/app/models.py) + DepartmentOut (schemas.py)
+   Fields confirmed from repo:
+     department_id: uuid4() — standard UUID
+     organization_id: FK to Organization
+     name: string — unique within org (service.py create_department check)
+     code: string — unique within org (SQL CONSTRAINT uq_dept_org_code)
+     department_head_user_id: string|null — CG-005: raw ID, display name unresolved
+     cost_center: string|null
+     parent_department_id: string|null — null = root dept; self-ref FK in SQL
+     status: 'active'|'inactive' — Status enum, only 2 states
+     created_at, updated_at: datetime
+   teams: count from HierarchyOut.teams[] filtered by department_id
+   BG-023: no list-by-tenant endpoint — loaded from GET /organizations/{org_id}/hierarchy per org */
+const DEPTS = [
+  {id:'dept-a1b2c3d4-0001', name:'Engineering',          code:'ENG',     org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_001', teams:4, cc:'CC-100', status:'active',   created:'Jan 15, 2025'},
+  {id:'dept-a1b2c3d4-0002', name:'Platform Engineering', code:'ENG-PLT', org:'Acme Corp', parent:'dept-a1b2c3d4-0001', parentName:'Engineering',   head:'u_head_002', teams:2, cc:'CC-101', status:'active',   created:'Jan 20, 2025'},
+  {id:'dept-a1b2c3d4-0003', name:'Frontend Engineering', code:'ENG-FE',  org:'Acme Corp', parent:'dept-a1b2c3d4-0001', parentName:'Engineering',   head:null,         teams:1, cc:'CC-102', status:'active',   created:'Jan 25, 2025'},
+  {id:'dept-a1b2c3d4-0004', name:'Product',              code:'PROD',    org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_004', teams:3, cc:'CC-200', status:'active',   created:'Feb 01, 2025'},
+  {id:'dept-a1b2c3d4-0005', name:'Design',               code:'DSN',     org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_005', teams:2, cc:'CC-300', status:'active',   created:'Feb 08, 2025'},
+  {id:'dept-a1b2c3d4-0006', name:'Marketing',            code:'MKT',     org:'Acme Corp', parent:null,             parentName:null,           head:null,         teams:3, cc:'CC-400', status:'active',   created:'Feb 15, 2025'},
+  {id:'dept-a1b2c3d4-0007', name:'Sales',                code:'SLS',     org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_007', teams:5, cc:'CC-500', status:'active',   created:'Mar 01, 2025'},
+  {id:'dept-a1b2c3d4-0008', name:'Enterprise Sales',     code:'SLS-ENT', org:'Acme Corp', parent:'dept-a1b2c3d4-0007', parentName:'Sales',         head:'u_head_008', teams:2, cc:'CC-501', status:'active',   created:'Mar 10, 2025'},
+  {id:'dept-a1b2c3d4-0009', name:'Finance',              code:'FIN',     org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_009', teams:2, cc:'CC-600', status:'active',   created:'Mar 20, 2025'},
+  {id:'dept-a1b2c3d4-0010', name:'HR',                   code:'HR',      org:'Acme Corp', parent:null,             parentName:null,           head:'u_head_010', teams:2, cc:'CC-700', status:'active',   created:'Apr 01, 2025'},
+  {id:'dept-b1b2c3d4-0001', name:'Research',             code:'RES',     org:'Beta Corp', parent:null,             parentName:null,           head:'u_head_011', teams:3, cc:'BC-100', status:'active',   created:'Feb 03, 2025'},
+  {id:'dept-b1b2c3d4-0002', name:'Operations',           code:'OPS',     org:'Beta Corp', parent:null,             parentName:null,           head:'u_head_012', teams:4, cc:'BC-200', status:'active',   created:'Feb 20, 2025'},
+  {id:'dept-c1b2c3d4-0001', name:'Compliance',           code:'COMP',    org:'Gamma Inc', parent:null,             parentName:null,           head:'u_head_013', teams:2, cc:'GI-100', status:'active',   created:'Mar 01, 2025'},
+  {id:'dept-c1b2c3d4-0002', name:'Infrastructure',       code:'INFRA',   org:'Gamma Inc', parent:null,             parentName:null,           head:null,         teams:0, cc:null,     status:'inactive', created:'Jan 05, 2025'},
+];
+
+let filtered=[...DEPTS], selected=new Set(), page=1, pp=25;
+
+function initials(name){
+  return name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+function rowMenu(d){
+  // Status change: PATCH /departments/{id} with {status:'inactive'|'active'}
+  // BG-024: no dedicated deactivate endpoint — PATCH only
+  let m=`<div class="rai">Edit</div><div class="rasep"></div>`;
+  if(d.status==='active')   m+=`<div class="rai warn">Deactivate</div>`;
+  if(d.status==='inactive') m+=`<div class="rai">Reactivate</div>`;
+  return m;
+}
+
+function renderRows(depts){
+  const start=(page-1)*pp, end=Math.min(start+pp,depts.length), slice=depts.slice(start,end);
+  document.getElementById('tbody').innerHTML=slice.map(d=>`
+    <tr class="${selected.has(d.id)?'sel':''}" data-id="${d.id}">
+      <td class="chk"><input type="checkbox" ${selected.has(d.id)?'checked':''} onchange="toggleRow('${d.id}',this)"></td>
+      <td><div class="ddc">
+        <div class="dept-av${d.parent?' sub':''}">${initials(d.name)}</div>
+        <div>
+          <div class="ddn">${d.name}</div>
+          <div class="ddc-code">@${d.code}</div>
+          <div class="ddc-org">${d.org}</div>
+        </div>
+      </div></td>
+      <td><span class="chip ${d.status}">${d.status==='active'?'Active':'Inactive'}</span></td>
+      <td>${d.parentName
+        ? `<div style="display:flex;align-items:center;gap:4px;"><span style="color:var(--ink-4);font-size:11px;">↳</span><span class="parent-badge">${d.parentName}</span></div>`
+        : `<span style="font-size:11px;color:var(--ink-4);">—</span>`}</td>
+      <td>${d.head
+        ? `<span style="font-size:10px;color:var(--ink-4);font-family:monospace;background:var(--subtle);padding:2px 6px;border-radius:4px;border:1px dashed var(--border-s);" title="Manager name pending">ID: ${d.head.replace('u_head_','')}</span>`
+        : `<span style="color:var(--ink-4);font-size:12px;">—</span>`}</td>
+      <td class="num"><span class="cnt muted">—</span></td>
+      <td class="num"><span class="cnt${d.teams===0?' muted':''}">${d.teams>0?d.teams:'—'}</span></td>
+      <td>${d.cc
+        ? `<span class="cc">${d.cc}</span>`
+        : `<span style="color:var(--ink-4);font-size:12px;">—</span>`}</td>
+      <td style="font-size:12px;color:var(--ink-3);">${d.created}</td>
+      <td class="act-cell"><div class="ra">
+        <button class="rab" onclick="toggleM(event,'m${d.id}')">⋯</button>
+        <div class="ram" id="m${d.id}">${rowMenu(d)}</div>
+      </div></td>
+    </tr>`).join('');
+  renderPag(depts.length);
+  syncSA();
+  document.getElementById('fc').textContent=`${depts.length} department${depts.length!==1?'s':''}`;
+}
+
+function renderPag(total){
+  const pages=Math.max(1,Math.ceil(total/pp)),s=(page-1)*pp+1,e=Math.min(page*pp,total);
+  document.getElementById('paginf').innerHTML=`${total?total+' result'+(total!==1?'s':''):'No results'} · page ${page} of ${pages}`;
+  let h=`<button class="pg" onclick="goP(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=pages;i++){
+    if(i===1||i===pages||Math.abs(i-page)<=1) h+=`<button class="pg${i===page?' on':''}" onclick="goP(${i})">${i}</button>`;
+    else if(Math.abs(i-page)===2) h+=`<span class="pgd">…</span>`;
+  }
+  h+=`<button class="pg" onclick="goP(${page+1})" ${page>=pages?'disabled':''}>›</button>`;
+  document.getElementById('pagctrl').innerHTML=h;
+}
+
+function applyF(){
+  const q=document.getElementById('q').value.toLowerCase();
+  const s=document.getElementById('fs').value;
+  const o=document.getElementById('fo').value;
+  const t=document.getElementById('ftype').value;
+  const mgr=document.getElementById('fmgr').value;
+  const sort=document.getElementById('fsort').value;
+  const hasF=q||s||o||t||mgr;
+  document.getElementById('fclear').classList.toggle('show',!!hasF);
+  ['fs','fo','ftype','fmgr'].forEach(id=>document.getElementById(id).classList.toggle('act',!!document.getElementById(id).value));
+  filtered=DEPTS.filter(d=>
+    (!q||d.name.toLowerCase().includes(q))
+    &&(!s||d.status===s)
+    &&(!o||d.org===o)
+    &&(!t||(t==='root'?!d.parent:!!d.parent))
+    &&(!mgr||(mgr==='assigned'?!!d.head:!d.head))
+  );
+  if(sort==='name_asc')    filtered.sort((a,b)=>a.name.localeCompare(b.name));
+  if(sort==='name_desc')   filtered.sort((a,b)=>b.name.localeCompare(a.name));
+  if(sort==='created_asc') filtered.sort((a,b)=>a.created.localeCompare(b.created));
+  page=1; renderRows(filtered);
+}
+
+function clearF(){
+  document.getElementById('q').value='';
+  ['fs','fo','ftype','fmgr'].forEach(id=>{document.getElementById(id).value='';document.getElementById(id).classList.remove('act');});
+  document.getElementById('fclear').classList.remove('show');
+  filtered=[...DEPTS];page=1;renderRows(filtered);
+}
+
+function sortCol(col){
+  const sel=document.getElementById('fsort');
+  const map={name:'name_asc',status:'status',created:'created_desc'};
+  const cur=sel.value;
+  sel.value=cur===map[col]?(cur.endsWith('desc')?cur.replace('desc','asc'):cur.replace('asc','desc')):map[col]||'created_desc';
+  document.querySelectorAll('th.srt').forEach(th=>{
+    th.classList.remove('srt-asc','srt-desc');
+    if(th.dataset.col===col)th.classList.add(sel.value.endsWith('asc')?'srt-asc':'srt-desc');
+  });
+  applyF();
+}
+
+function toggleRow(id,cb){
+  if(cb.checked)selected.add(id);else selected.delete(id);
+  cb.closest('tr').classList.toggle('sel',cb.checked);
+  updateBB();syncSA();
+}
+function toggleAll(cb){
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const id=tr.dataset.id,rowCb=tr.querySelector('input[type=checkbox]');
+    if(cb.checked){selected.add(id);tr.classList.add('sel');rowCb.checked=true;}
+    else{selected.delete(id);tr.classList.remove('sel');rowCb.checked=false;}
+  });
+  updateBB();
+}
+function syncSA(){
+  const rows=document.querySelectorAll('#tbody tr');
+  document.getElementById('sa').checked=rows.length>0&&[...rows].every(tr=>selected.has(tr.dataset.id));
+}
+function updateBB(){
+  const bb=document.getElementById('bb'),fb=document.getElementById('fb');
+  if(selected.size>0){bb.classList.add('show');fb.style.display='none';document.getElementById('bcount').textContent=`${selected.size} selected`;}
+  else{bb.classList.remove('show');fb.style.display='flex';}
+}
+function clearSel(){
+  selected.clear();
+  document.querySelectorAll('#tbody input[type=checkbox]').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('#tbody tr').forEach(tr=>tr.classList.remove('sel'));
+  document.getElementById('sa').checked=false;
+  updateBB();
+}
+function toggleM(e,id){
+  e.stopPropagation();
+  document.querySelectorAll('.ram').forEach(m=>{if(m.id!==id)m.classList.remove('open');});
+  document.getElementById(id).classList.toggle('open');
+}
+function goP(n){page=n;renderRows(filtered);}
+function setPP(n){pp=n;page=1;renderRows(filtered);}
+function bulkA(act){console.log('Bulk:',act,[...selected]);}
+
+/* P-56: skeleton — column headers real, 5 rows at 40px
+   DG-001: 10 cols — all repo-valid or gap-logged operator fields */
+function renderSkel(){
+  const row=()=>`<tr>
+    <td class="chk"><div class="sk" style="width:14px;height:14px;border-radius:3px;"></div></td>
+    <td><div class="ddc"><div class="sk" style="width:28px;height:28px;border-radius:6px;flex-shrink:0;"></div><div><div class="sk" style="height:12px;width:110px;margin-bottom:3px;"></div><div class="sk" style="height:10px;width:60px;margin-bottom:2px;"></div><div class="sk" style="height:10px;width:80px;"></div></div></div></td>
+    <td><div class="sk" style="height:18px;width:64px;border-radius:99px;"></div></td>
+    <td><div class="sk" style="height:16px;width:80px;border-radius:99px;"></div></td>
+    <td><div class="sk" style="height:10px;width:70px;border-radius:4px;"></div></td>
+    <td class="num"><div class="sk" style="height:12px;width:24px;display:inline-block;border-radius:4px;"></div></td>
+    <td class="num"><div class="sk" style="height:12px;width:20px;display:inline-block;border-radius:4px;"></div></td>
+    <td><div class="sk" style="height:16px;width:56px;border-radius:4px;"></div></td>
+    <td><div class="sk" style="height:12px;width:80px;"></div></td>
+    <td></td></tr>`;
+  document.getElementById('tbody').innerHTML=Array.from({length:5},row).join('');
+  document.getElementById('paginf').innerHTML='<div class="sk" style="height:12px;width:140px;"></div>';
+  document.getElementById('pagctrl').innerHTML='';
+}
+
+function setS(s,btn){
+  document.querySelectorAll('.sb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  ['s-empty','s-error'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('tp').style.display='block';
+  if(s==='skeleton') renderSkel();
+  else if(s==='empty'){
+    document.getElementById('s-empty').style.display='block';
+    document.getElementById('tp').style.display='none';
+    document.getElementById('fb').style.display='flex';
+    document.getElementById('bb').classList.remove('show');
+  }
+  else if(s==='error'){
+    document.getElementById('s-error').style.display='block';
+    document.getElementById('tp').style.display='none';
+  }
+  else{filtered=[...DEPTS];renderRows(filtered);}
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ra'))document.querySelectorAll('.ram').forEach(m=>m.classList.remove('open'));
+  if(!e.target.closest('.rs'))document.querySelectorAll('.rs').forEach(r=>r.classList.remove('open'));
+});
+
+const activeCount=DEPTS.filter(d=>d.status==='active').length;
+document.getElementById('ph-meta').textContent=`${DEPTS.length} departments · ${activeCount} active`;
+renderRows(DEPTS);
+</script>
+</body>
+</html>

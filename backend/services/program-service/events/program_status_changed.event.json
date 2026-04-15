@@ -1,0 +1,17 @@
+{
+  "event_type": "lms.program.program_status_changed.v1",
+  "owner": "program-service",
+  "payload_schema": {
+    "tenant_id": "string",
+    "correlation_id": "string",
+    "program_id": "string",
+    "timestamp": "date-time",
+    "data": "object"
+  },
+  "required_fields": [
+    "tenant_id",
+    "correlation_id",
+    "program_id",
+    "timestamp"
+  ]
+}

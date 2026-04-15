@@ -1,0 +1,37 @@
+{
+  "event_type": "lesson_completed",
+  "event_version": "v1",
+  "topic": "lms.progress.lesson_completed.v1",
+  "producer_service": "progress-service",
+  "description": "Published when a learner completes a lesson attempt.",
+  "consumers": [
+    "analytics-service",
+    "recommendation-service",
+    "adaptive-learning-engine",
+    "learner-profile-service",
+    "notification-service"
+  ],
+  "payload_schema": {
+    "tenant_id": "uuid",
+    "correlation_id": "uuid",
+    "learner_id": "uuid",
+    "course_id": "uuid",
+    "lesson_id": "uuid",
+    "enrollment_id": "uuid",
+    "completion_status": "string",
+    "score": "number",
+    "time_spent_seconds": "integer",
+    "completed_at": "date-time",
+    "attempt_count": "integer"
+  },
+  "required_fields": [
+    "tenant_id",
+    "correlation_id",
+    "learner_id",
+    "course_id",
+    "lesson_id",
+    "enrollment_id",
+    "completion_status",
+    "completed_at"
+  ]
+}

@@ -1,0 +1,251 @@
+[
+  {
+    "capability_id": "comm.whatsapp.operational_interface",
+    "capability_name": "WhatsApp Operational Interface",
+    "domain": "communications",
+    "description": "Uses WhatsApp as a two-way operational surface for learner and guardian actions (not a passive alert channel).",
+    "channels": [
+      "whatsapp"
+    ],
+    "interaction_model": "interactive_operations",
+    "supported_operations": [
+      "attendance_check_in",
+      "fee_balance_query",
+      "payment_link_request",
+      "assignment_acknowledgement",
+      "session_reschedule_request",
+      "human_agent_handoff"
+    ],
+    "adapter_dependencies": [
+      {
+        "adapter": "adapter.whatsapp.business_api",
+        "required": true,
+        "purpose": "Interactive messaging transport, template/session handling, and delivery state callbacks."
+      },
+      {
+        "adapter": "adapter.identity.contact_resolution",
+        "required": true,
+        "purpose": "Map phone number to learner/guardian/institution context."
+      },
+      {
+        "adapter": "adapter.conversation_state_store",
+        "required": true,
+        "purpose": "Persist conversation state, action tokens, and idempotency keys."
+      }
+    ],
+    "usage_tracking": {
+      "enabled": true,
+      "meter_dimensions": [
+        "tenant_id",
+        "institution_id",
+        "conversation_id",
+        "operation_type",
+        "inbound_message_count",
+        "outbound_message_count",
+        "session_window_count",
+        "human_handoff_count",
+        "monthly_active_contacts"
+      ],
+      "event_streams": [
+        "comm.whatsapp.message_received.v1",
+        "comm.whatsapp.operation_completed.v1",
+        "comm.whatsapp.operation_failed.v1"
+      ]
+    },
+    "workflow_automation_support": {
+      "enabled": true,
+      "workflow_roles": [
+        "workflow_input_channel",
+        "workflow_action_execution",
+        "workflow_state_update"
+      ]
+    }
+  },
+  {
+    "capability_id": "comm.sms.operational_fallback",
+    "capability_name": "SMS Operational Fallback",
+    "domain": "communications",
+    "description": "Provides operational continuity when WhatsApp delivery fails, is unavailable, or contact is not WhatsApp-opted-in.",
+    "channels": [
+      "sms"
+    ],
+    "interaction_model": "fallback_operations",
+    "fallback_from": [
+      "comm.whatsapp.operational_interface"
+    ],
+    "supported_operations": [
+      "otp_verification",
+      "short_code_reply_for_attendance",
+      "payment_due_acknowledgement",
+      "reminder_confirmation"
+    ],
+    "adapter_dependencies": [
+      {
+        "adapter": "adapter.sms.gateway",
+        "required": true,
+        "purpose": "SMS send/receive, DLR callbacks, and local carrier routing for Pakistan."
+      },
+      {
+        "adapter": "adapter.fallback_routing_policy",
+        "required": true,
+        "purpose": "Channel failover logic based on delivery status, retry window, and user preference."
+      }
+    ],
+    "usage_tracking": {
+      "enabled": true,
+      "meter_dimensions": [
+        "tenant_id",
+        "institution_id",
+        "message_id",
+        "fallback_reason",
+        "sms_outbound_count",
+        "sms_inbound_count",
+        "delivery_receipt_status"
+      ],
+      "event_streams": [
+        "comm.sms.fallback_triggered.v1",
+        "comm.sms.message_delivered.v1",
+        "comm.sms.reply_received.v1"
+      ]
+    },
+    "workflow_automation_support": {
+      "enabled": true,
+      "workflow_roles": [
+        "workflow_fallback_channel",
+        "workflow_retry_execution"
+      ]
+    }
+  },
+  {
+    "capability_id": "comm.broadcast.campaign_orchestration",
+    "capability_name": "Broadcast Messaging Orchestration",
+    "domain": "communications",
+    "description": "Orchestrates one-to-many campaign messaging across cohorts, campuses, and fee groups with channel-aware execution.",
+    "channels": [
+      "whatsapp",
+      "sms"
+    ],
+    "interaction_model": "broadcast_operations",
+    "supported_operations": [
+      "audience_segment_broadcast",
+      "scheduled_campaign_dispatch",
+      "delivery_wave_throttling",
+      "response_collection",
+      "broadcast_pause_resume"
+    ],
+    "adapter_dependencies": [
+      {
+        "adapter": "adapter.audience_segmentation",
+        "required": true,
+        "purpose": "Resolve dynamic recipient lists from enrollment, attendance, and fee states."
+      },
+      {
+        "adapter": "adapter.dispatch_scheduler",
+        "required": true,
+        "purpose": "Time-zone aware and institution calendar-aware campaign scheduling."
+      },
+      {
+        "adapter": "adapter.whatsapp.business_api",
+        "required": true,
+        "purpose": "Primary campaign channel transport for interactive broadcast prompts."
+      },
+      {
+        "adapter": "adapter.sms.gateway",
+        "required": true,
+        "purpose": "Secondary campaign channel for recipients outside WhatsApp reach."
+      }
+    ],
+    "usage_tracking": {
+      "enabled": true,
+      "meter_dimensions": [
+        "tenant_id",
+        "campaign_id",
+        "audience_size",
+        "channel_mix_ratio",
+        "messages_sent",
+        "messages_delivered",
+        "responses_received",
+        "opt_out_count",
+        "cost_per_campaign"
+      ],
+      "event_streams": [
+        "comm.broadcast.created.v1",
+        "comm.broadcast.dispatched.v1",
+        "comm.broadcast.completed.v1"
+      ]
+    },
+    "workflow_automation_support": {
+      "enabled": true,
+      "workflow_roles": [
+        "workflow_bulk_action_channel"
+      ]
+    }
+  },
+  {
+    "capability_id": "comm.workflow.triggered_automation",
+    "capability_name": "Triggered Communication Workflows",
+    "domain": "communications_workflows",
+    "description": "Runs event-driven communication workflows for attendance, fee payments, and reminders with escalation and closure logic.",
+    "channels": [
+      "whatsapp",
+      "sms"
+    ],
+    "interaction_model": "event_triggered_workflows",
+    "trigger_families": [
+      "attendance_marked_absent",
+      "payment_due_window_reached",
+      "installment_overdue",
+      "class_start_reminder_window",
+      "assignment_deadline_reminder_window"
+    ],
+    "adapter_dependencies": [
+      {
+        "adapter": "adapter.event_bus.consumer",
+        "required": true,
+        "purpose": "Subscribe to attendance, billing, and scheduling domain events."
+      },
+      {
+        "adapter": "adapter.workflow_orchestrator",
+        "required": true,
+        "purpose": "State-machine execution for retries, escalation, wait-steps, and completion rules."
+      },
+      {
+        "adapter": "adapter.policy_rules_engine",
+        "required": true,
+        "purpose": "Tenant-specific automation conditions, quiet hours, and escalation thresholds."
+      },
+      {
+        "adapter": "adapter.channel_router",
+        "required": true,
+        "purpose": "Route each workflow step to WhatsApp primary and SMS fallback according to policy."
+      }
+    ],
+    "usage_tracking": {
+      "enabled": true,
+      "meter_dimensions": [
+        "tenant_id",
+        "workflow_instance_id",
+        "trigger_type",
+        "step_count",
+        "sla_breach_count",
+        "escalation_count",
+        "channel_switch_count",
+        "workflow_completion_state"
+      ],
+      "event_streams": [
+        "comm.workflow.triggered.v1",
+        "comm.workflow.step_executed.v1",
+        "comm.workflow.completed.v1",
+        "comm.workflow.escalated.v1"
+      ]
+    },
+    "workflow_automation_support": {
+      "enabled": true,
+      "workflow_roles": [
+        "workflow_definition_host",
+        "workflow_trigger_processor",
+        "workflow_escalation_manager"
+      ]
+    }
+  }
+]

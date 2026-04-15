@@ -1,0 +1,54 @@
+service: institution-service
+version: v1
+endpoints:
+  - path: /api/v1/institutions
+    method: POST
+    operation: create_institution
+  - path: /api/v1/institutions/{institution_id}
+    method: GET
+    operation: get_institution
+  - path: /api/v1/institutions/{institution_id}
+    method: PATCH
+    operation: update_institution
+  - path: /api/v1/institutions/{institution_id}/activate
+    method: POST
+    operation: activate_institution
+  - path: /api/v1/institutions/{institution_id}/suspend
+    method: POST
+    operation: suspend_institution
+  - path: /api/v1/institutions/{institution_id}/archive
+    method: POST
+    operation: archive_institution
+  - path: /api/v1/institutions/{institution_id}/parents/{parent_id}
+    method: DELETE
+    operation: remove_parent
+  - path: /api/v1/institutions/{institution_id}/parents
+    method: POST
+    operation: add_parent
+  - path: /api/v1/institutions/{institution_id}/hierarchy
+    method: GET
+    operation: get_hierarchy
+  - path: /api/v1/institutions/{institution_id}/reparent
+    method: POST
+    operation: reparent
+  - path: /api/v1/institution-types
+    method: GET
+    operation: list_institution_types
+  - path: /api/v1/institution-types
+    method: POST
+    operation: create_institution_type
+  - path: /api/v1/institutions/{institution_id}/tenant-links
+    method: POST
+    operation: create_tenant_link
+  - path: /api/v1/institutions/{institution_id}/tenant-links
+    method: GET
+    operation: list_tenant_links
+  - path: /api/v1/tenants/{tenant_id}/institution-context
+    method: GET
+    operation: get_tenant_institution_context
+  - path: /health
+    method: GET
+    operation: health
+  - path: /metrics
+    method: GET
+    operation: metrics

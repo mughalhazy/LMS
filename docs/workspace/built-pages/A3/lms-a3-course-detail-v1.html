@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<!-- LMS A3 — Course Detail (Admin / Instructor / Learner)
+     Version  : v1.0
+     Surface  : Admin (primary) · Instructor · Learner (surface switcher)
+     Archetype: A3 ResourceDetail — sidebar layout
+     Created  : 2026-03-21
+     Repo     : course-service · lesson-service · enrollment-service · learning-analytics-service
+     Fields   : CourseResponse: course_id · tenant_id · status (draft|published|archived)
+                  publish_status (unpublished|scheduled|published) · title · description
+                  course_code · language_code · credit_value · grading_scheme
+                  published_at · published_by · created_at · updated_at
+                  metadata: category_id · delivery_mode · duration_minutes · tags · objectives
+                  program_links · session_links
+                LessonResponse: lesson_id · course_id · module_id · title · description
+                  lesson_type · estimated_duration_minutes · order_index · status
+                  learning_objectives · created_by · published_at · created_at
+     Endpoints: GET /api/v1/courses/{course_id}                              → ApiResponse{CourseResponse}
+                PATCH /api/v1/courses/{course_id}                            → update
+                POST /api/v1/courses/{course_id}/publish                     → publish
+                POST /api/v1/courses/{course_id}/archive                     → archive
+                GET /api/v1/lessons?course_id={course_id}                    → LessonListResponse
+                GET /api/v1/enrollments?learner_id=&course_id=               → EnrollmentListResponse
+                learning-analytics-service (BG-063: no HTTP API — class only)
+                No reviews endpoint (BG-064: no review service)
+     Gaps     : BG-027 (created_by not in CourseResponse — instructor identity unknown)
+                BG-028 (instructor name unresolved — user-service lookup needed)
+                BG-063 (learning-analytics-service has no HTTP API — analytics mocked)
+                BG-064 (no reviews/ratings service — Reviews tab fully mocked)
+     Patterns : P-56 · P-72 · P-73 · P-74 · P-75
+     Design   : Admin surface primary · zoom:1.25 · --pp:28px · A3 Sidebar layout
+                Slots: BREADCRUMB · PAGE_HEADER · TAB_NAV · CONTENT
+                Tabs: Overview · Curriculum · Instructor · Reviews
+                Actions: Admin: Publish · Archive · Edit
+                         Instructor: Edit Course · Add Lesson
+                         Learner: Enroll / Continue
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Course Detail</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --gold:#92400E;--gold-bg:#FFFBEB;--gold-bd:rgba(245,158,11,.2);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+
+/* LAYOUT */
+.layout{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:220px;background:var(--white);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;flex-shrink:0;}
+.sb-logo{display:flex;align-items:center;gap:8px;padding:20px 20px 16px;}
+.sb-mark{width:28px;height:28px;background:var(--ink);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.sb-name{font-size:14px;font-weight:700;letter-spacing:-0.02em;}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:8px;}
+.sb-av{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-uname{font-size:13px;font-weight:600;}
+.sb-role{font-size:11px;color:var(--ink-4);}
+.sb-nav{flex:1;padding:4px 12px;overflow-y:auto;}
+.sb-section{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-4);padding:12px 8px 4px;}
+.sn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer;margin-bottom:1px;}
+.sn:hover{background:var(--subtle);color:var(--ink-2);}
+.sn.on{background:var(--accent-lt);color:var(--accent);font-weight:600;}
+.sn-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.sb-footer{padding:16px 20px;border-top:1px solid var(--border);}
+
+/* MAIN */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+/* TOPBAR */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);position:sticky;top:0;z-index:20;flex-shrink:0;gap:6px;}
+.tb-back{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-page{font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.tb-notif{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;position:relative;}
+.tb-notif:hover{background:var(--subtle);}
+.npip{position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white;}
+
+/* SURFACE SWITCHER (in topbar) */
+.surf-sw{display:flex;align-items:center;background:var(--subtle);border-radius:var(--r-pill);padding:3px;gap:2px;}
+.surf-btn{padding:4px 12px;border-radius:var(--r-pill);border:none;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--ink-3);transition:all 120ms;}
+.surf-btn.on{background:var(--white);color:var(--ink);box-shadow:var(--sh-xs);}
+
+/* ENTITY HEADER */
+.entity-header{background:var(--white);border-bottom:1px solid var(--border);padding:24px var(--pp);}
+.eh-top{display:flex;align-items:flex-start;gap:16px;}
+.eh-ico{width:56px;height:56px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;background:var(--accent-lt);border:1px solid rgba(91,91,214,.15);}
+.eh-identity{flex:1;min-width:0;}
+.eh-name{font-size:20px;font-weight:800;letter-spacing:-0.025em;word-spacing:0.08em;color:var(--ink);line-height:1.2;margin-bottom:6px;}
+.eh-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.eh-sub{font-size:13px;color:var(--ink-3);}
+.eh-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto;}
+
+/* BUTTONS */
+.btn-g{padding:7px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-p{padding:7px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--ink);color:white;transition:opacity 120ms;white-space:nowrap;}
+.btn-p:hover{opacity:.85;}
+.btn-accent{padding:7px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:opacity 120ms;white-space:nowrap;}
+.btn-accent:hover{opacity:.85;}
+.btn-warn{padding:7px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber);transition:all 100ms;white-space:nowrap;}
+.btn-warn:hover{opacity:.85;}
+
+/* STATUS CHIPS */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;}
+.chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+.chip.published{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+.chip.draft{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.chip.archived{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd);}
+.chip.scheduled{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);}
+.chip.unpublished{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.chip.lesson-pub{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+.chip.lesson-draft{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+
+/* TAGS */
+.tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:600;background:var(--accent-lt);color:var(--accent);border:1px solid rgba(91,91,214,.15);}
+
+/* TAB NAV */
+.tab-nav{background:var(--white);border-bottom:1px solid var(--border);padding:0 var(--pp);display:flex;position:sticky;top:56px;z-index:10;}
+.tab{padding:12px 16px;font-size:13px;font-weight:600;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 120ms;white-space:nowrap;}
+.tab:hover{color:var(--ink-2);}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* CANVAS */
+.canvas{padding:28px var(--pp);flex:1;}
+
+/* SECTION CARDS */
+.section-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.sc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:16px;}
+
+/* FIELD GRID */
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.field{display:flex;flex-direction:column;gap:3px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-val{font-size:14px;color:var(--ink);font-weight:600;}
+.field-val.muted{color:var(--ink-4);font-weight:400;}
+.field-val.mono{font-family:monospace;font-size:13px;background:var(--subtle);padding:2px 7px;border-radius:5px;display:inline-block;font-weight:400;}
+.field-full{grid-column:1/-1;}
+
+/* ANALYTICS STRIP */
+.analytics-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh-xs);}
+.stat-val{font-size:24px;font-weight:800;letter-spacing:-0.03em;color:var(--ink);margin-bottom:2px;}
+.stat-val.green{color:var(--green);}
+.stat-val.accent{color:var(--accent);}
+.stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);}
+.stat-sub{font-size:11px;color:var(--ink-4);margin-top:2px;}
+
+/* CURRICULUM */
+.module-group{margin-bottom:20px;}
+.module-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--subtle);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px;cursor:pointer;}
+.module-title{font-size:13px;font-weight:700;color:var(--ink);flex:1;}
+.module-count{font-size:11px;color:var(--ink-4);}
+.lesson-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;}
+.lesson-row:hover{background:var(--subtle);}
+.lesson-num{width:24px;height:24px;border-radius:50%;background:var(--subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-3);flex-shrink:0;}
+.lesson-ico{font-size:16px;flex-shrink:0;}
+.lesson-body{flex:1;min-width:0;}
+.lesson-title{font-size:13px;font-weight:700;color:var(--ink);}
+.lesson-meta{font-size:11px;color:var(--ink-3);margin-top:1px;}
+.lesson-dur{font-size:12px;color:var(--ink-4);white-space:nowrap;flex-shrink:0;}
+
+/* INSTRUCTOR TAB */
+.instructor-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.inst-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.inst-av{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:white;flex-shrink:0;}
+.inst-name{font-size:15px;font-weight:700;color:var(--ink);}
+.inst-title{font-size:12px;color:var(--ink-3);margin-top:2px;}
+.inst-bio{font-size:13px;color:var(--ink-2);line-height:1.6;}
+
+/* REVIEWS TAB */
+.review-agg{display:flex;align-items:center;gap:24px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;box-shadow:var(--sh-xs);}
+.review-score{font-size:48px;font-weight:800;color:var(--ink);letter-spacing:-0.03em;line-height:1;}
+.review-stars{font-size:20px;letter-spacing:2px;margin:4px 0;}
+.review-count{font-size:13px;color:var(--ink-3);}
+.rating-bars{flex:1;}
+.rating-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.rating-lbl{font-size:11px;font-weight:600;color:var(--ink-3);width:36px;text-align:right;flex-shrink:0;}
+.rating-bar-bg{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.rating-bar-fill{height:6px;border-radius:3px;background:var(--gold-bg);background:#F59E0B;}
+.rating-n{font-size:11px;color:var(--ink-4);width:24px;flex-shrink:0;}
+.review-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:12px;box-shadow:var(--sh-xs);}
+.rev-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.rev-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+.rev-name{font-size:13px;font-weight:700;color:var(--ink);}
+.rev-date{font-size:11px;color:var(--ink-4);}
+.rev-stars{font-size:14px;letter-spacing:1px;margin-bottom:8px;}
+.rev-body{font-size:13px;color:var(--ink-2);line-height:1.6;}
+
+/* EMPTY + ERROR */
+.tab-empty{padding:56px 24px;text-align:center;}
+.tab-empty-ico{font-size:36px;margin-bottom:12px;}
+.tab-empty-ttl{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.tab-empty-sub{font-size:13px;color:var(--ink-3);}
+.err-blk{padding:48px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;}
+.err-ico{width:48px;height:48px;border-radius:50%;background:var(--red-bg);border:1px solid var(--red-bd);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--red);}
+
+/* SKELETON — P-56 */
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* STATE SWITCHER */
+.state-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-mark">🎓</div>
+      <div class="sb-name">LMS</div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-av">AK</div>
+      <div>
+        <div class="sb-uname">Ali Khan</div>
+        <div class="sb-role" id="sb-role-lbl">Administrator</div>
+      </div>
+    </div>
+    <nav class="sb-nav" id="sb-nav">
+      <div class="sb-section">Platform</div>
+      <div class="sn"><span class="sn-ico">🏠</span>Dashboard</div>
+      <div class="sb-section">Content</div>
+      <div class="sn on"><span class="sn-ico">📚</span>Courses</div>
+      <div class="sn"><span class="sn-ico">📝</span>Assessments</div>
+      <div class="sn"><span class="sn-ico">🏆</span>Certificates</div>
+      <div class="sb-section">User Management</div>
+      <div class="sn"><span class="sn-ico">👥</span>Users</div>
+      <div class="sn"><span class="sn-ico">🔑</span>Roles</div>
+    </nav>
+    <div class="sb-footer">
+      <div style="font-size:12px;color:var(--ink-4);">LMS Admin Console v2.0</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOPBAR — BREADCRUMB + SURFACE SWITCHER -->
+    <div class="topbar">
+      <div class="tb-back">← Courses</div>
+      <span class="tb-sep">›</span>
+      <span class="tb-page" id="tb-name">Security Fundamentals</span>
+      <div class="tb-r">
+        <div class="surf-sw">
+          <button class="surf-btn on" onclick="setSurface('admin',this)">Admin</button>
+          <button class="surf-btn" onclick="setSurface('instructor',this)">Instructor</button>
+          <button class="surf-btn" onclick="setSurface('learner',this)">Learner</button>
+        </div>
+        <div class="tb-notif">🔔<div class="npip"></div></div>
+      </div>
+    </div>
+
+    <!-- ENTITY HEADER -->
+    <div class="entity-header" id="entity-header">
+      <div class="eh-top">
+        <div class="eh-ico">📚</div>
+        <div class="eh-identity">
+          <div class="eh-name" id="eh-name">Security Fundamentals</div>
+          <div class="eh-meta">
+            <span class="chip published" id="eh-status"><span class="chip-dot"></span>Published</span>
+            <span id="eh-pubstatus" style="display:none;"></span>
+            <span class="eh-sub" id="eh-mode">🖥️ Self-paced</span>
+            <span style="color:var(--border-s);">·</span>
+            <span class="eh-sub" id="eh-dur">⏱ 4h 30m</span>
+            <span style="color:var(--border-s);">·</span>
+            <span class="eh-sub mono" id="eh-code">SEC-101</span>
+          </div>
+        </div>
+        <div class="eh-actions" id="eh-actions">
+          <!-- Admin actions by default; updated by setSurface() -->
+          <button class="btn-g" id="btn-edit">✏️ Edit</button>
+          <button class="btn-warn" id="btn-secondary">📦 Archive</button>
+          <button class="btn-p" id="btn-primary">↗ Publish</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB NAV -->
+    <div class="tab-nav">
+      <div class="tab on" onclick="switchTab('overview',this)">Overview</div>
+      <div class="tab" onclick="switchTab('curriculum',this)">Curriculum</div>
+      <div class="tab" onclick="switchTab('instructor',this)">Instructor</div>
+      <div class="tab" onclick="switchTab('reviews',this)">Reviews</div>
+    </div>
+
+    <!-- CONTENT AREA -->
+    <div class="canvas" id="canvas">
+
+      <!-- OVERVIEW TAB -->
+      <div id="tab-overview">
+
+        <!-- Analytics strip — BG-063: learning-analytics-service has no HTTP API, mocked -->
+        <div class="analytics-strip" id="analytics-strip">
+          <div class="stat-card">
+            <div class="stat-val accent" id="st-enrolled">247</div>
+            <div class="stat-label">Enrolled</div>
+            <div class="stat-sub">Active learners</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val green" id="st-complete">68%</div>
+            <div class="stat-label">Completion Rate</div>
+            <div class="stat-sub">168 completed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" id="st-score">82.4</div>
+            <div class="stat-label">Avg Score</div>
+            <div class="stat-sub">Out of 100</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" id="st-rating">4.7 ⭐</div>
+            <div class="stat-label">Rating</div>
+            <div class="stat-sub">38 reviews</div>
+          </div>
+        </div>
+
+        <!-- Course Info -->
+        <div class="section-card">
+          <div class="sc-title">Course Details</div>
+          <div class="field-grid">
+            <div class="field">
+              <div class="field-label">Course Code</div>
+              <div class="field-val mono" id="p-code">SEC-101</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Status</div>
+              <div class="field-val"><span class="chip published" id="p-status"><span class="chip-dot"></span>Published</span></div>
+            </div>
+            <div class="field">
+              <div class="field-label">Delivery Mode</div>
+              <div class="field-val" id="p-mode">Self-paced</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Duration</div>
+              <div class="field-val" id="p-dur">4h 30m</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Language</div>
+              <div class="field-val" id="p-lang">English (en-GB)</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Credit Value</div>
+              <div class="field-val" id="p-credit">3.0</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Grading Scheme</div>
+              <div class="field-val" id="p-grade">Pass / Fail</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Published</div>
+              <div class="field-val" id="p-pubat">14 Feb 2025</div>
+            </div>
+            <div class="field field-full">
+              <div class="field-label">Course ID</div>
+              <div class="field-val mono" id="p-cid">c002</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="section-card">
+          <div class="sc-title">Description</div>
+          <div style="font-size:14px;color:var(--ink-2);line-height:1.7;" id="p-desc">
+            A comprehensive introduction to information security principles and practices. Covers threat modelling, access control, encryption fundamentals, and incident response. Designed for all staff regardless of technical background.
+          </div>
+        </div>
+
+        <!-- Objectives + Tags -->
+        <div class="section-card">
+          <div class="sc-title">Learning Objectives</div>
+          <div id="p-objectives" style="display:flex;flex-direction:column;gap:8px;">
+            <!-- rendered by JS -->
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="sc-title">Tags</div>
+          <div id="p-tags" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+
+      </div><!-- /tab-overview -->
+
+      <!-- CURRICULUM TAB — GET /api/v1/lessons?course_id= -->
+      <div id="tab-curriculum" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:14px;color:var(--ink-3);" id="curr-count">8 lessons · 4h 30m total</div>
+          <div id="curr-actions"></div>
+        </div>
+        <div id="curriculum-list"></div>
+      </div>
+
+      <!-- INSTRUCTOR TAB — BG-027/028: no instructor in CourseResponse, pre-joined -->
+      <div id="tab-instructor" style="display:none;">
+        <div class="instructor-card">
+          <div class="inst-header">
+            <div class="inst-av" style="background:#18794E;">SL</div>
+            <div>
+              <div class="inst-name">Dr. Sarah Lennox</div>
+              <div class="inst-title">Head of Cybersecurity · Engineering</div>
+            </div>
+            <div style="margin-left:auto;">
+              <span class="chip published" style="background:var(--green-bg);color:var(--green);border-color:var(--green-bd);">Verified Instructor</span>
+            </div>
+          </div>
+          <div class="inst-bio">
+            Dr. Lennox has over 15 years of experience in enterprise information security. She holds CISSP and CEH certifications and has led security programmes for FTSE 100 organisations. She is passionate about making security accessible to non-technical audiences.
+          </div>
+          <div style="margin-top:16px;display:flex;gap:16px;font-size:13px;color:var(--ink-3);">
+            <span>📚 <strong style="color:var(--ink);">12</strong> courses</span>
+            <span>👥 <strong style="color:var(--ink);">1,240</strong> learners</span>
+            <span>⭐ <strong style="color:var(--ink);">4.8</strong> avg rating</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- REVIEWS TAB — BG-064: no review service, fully mocked -->
+      <div id="tab-reviews" style="display:none;">
+        <div class="review-agg">
+          <div style="text-align:center;">
+            <div class="review-score">4.7</div>
+            <div class="review-stars">★★★★★</div>
+            <div class="review-count">38 reviews</div>
+          </div>
+          <div class="rating-bars">
+            <div class="rating-row"><span class="rating-lbl">5★</span><div class="rating-bar-bg"><div class="rating-bar-fill" style="width:72%;"></div></div><span class="rating-n">27</span></div>
+            <div class="rating-row"><span class="rating-lbl">4★</span><div class="rating-bar-bg"><div class="rating-bar-fill" style="width:18%;"></div></div><span class="rating-n">7</span></div>
+            <div class="rating-row"><span class="rating-lbl">3★</span><div class="rating-bar-bg"><div class="rating-bar-fill" style="width:5%;"></div></div><span class="rating-n">2</span></div>
+            <div class="rating-row"><span class="rating-lbl">2★</span><div class="rating-bar-bg"><div class="rating-bar-fill" style="width:3%;"></div></div><span class="rating-n">1</span></div>
+            <div class="rating-row"><span class="rating-lbl">1★</span><div class="rating-bar-bg"><div class="rating-bar-fill" style="width:3%;"></div></div><span class="rating-n">1</span></div>
+          </div>
+        </div>
+        <div id="reviews-list"></div>
+      </div>
+
+      <!-- ERROR -->
+      <div id="tab-error" style="display:none;">
+        <div class="err-blk">
+          <div class="err-ico">✕</div>
+          <div style="font-size:16px;font-weight:700;">Couldn't load course.</div>
+          <div style="font-size:14px;color:var(--ink-3);">course-service may be unavailable.</div>
+          <button onclick="setS('loaded',document.querySelector('.stb'))" style="margin-top:8px;padding:10px 24px;background:var(--ink);color:white;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;">Try Again</button>
+        </div>
+      </div>
+
+    </div><!-- /canvas -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- STATE SWITCHER -->
+<div class="state-bar">
+  <button class="stb on" onclick="setS('loaded',this)">Loaded</button>
+  <button class="stb" onclick="setS('skeleton',this)">Skeleton</button>
+  <button class="stb" onclick="setS('error',this)">Error</button>
+</div>
+
+<script>
+/* ── Mock data — shaped to real API schemas
+   course-service CourseResponse:
+     course_id · tenant_id · status · publish_status · title · description
+     course_code · language_code · credit_value · grading_scheme
+     published_at · published_by · created_at · updated_at
+     metadata: category_id · delivery_mode · duration_minutes · tags · objectives
+   lesson-service LessonResponse (via GET /api/v1/lessons?course_id=):
+     lesson_id · course_id · module_id · title · description · lesson_type
+     estimated_duration_minutes · order_index · status · created_by · published_at
+   learning-analytics-service (BG-063: no HTTP API — internal library only — mocked):
+     total_enrollments · completion_rate · avg_score · avg_rating
+   Reviews (BG-064: no review service — fully mocked):
+     reviewer_id · reviewer_name · rating · body · created_at
+─────────────────────────────────────────────── */
+
+const COURSE = {
+  course_id: 'c002',
+  tenant_id: 't_001',
+  status: 'published',
+  publish_status: 'published',
+  title: 'Security Fundamentals',
+  description: 'A comprehensive introduction to information security principles and practices. Covers threat modelling, access control, encryption fundamentals, and incident response. Designed for all staff regardless of technical background.',
+  course_code: 'SEC-101',
+  language_code: 'en-GB',
+  credit_value: 3.0,
+  grading_scheme: 'Pass / Fail',
+  published_at: '2025-02-14T10:00:00Z',
+  published_by: 'u_ins_002',
+  created_at: '2025-01-10T09:00:00Z',
+  updated_at: '2026-03-01T14:00:00Z',
+  metadata: {
+    category_id: 'security',
+    delivery_mode: 'self_paced',
+    duration_minutes: 270,
+    tags: ['security','compliance','GDPR','cyber-awareness','mandatory'],
+    objectives: [
+      'Identify common cyber threats and attack vectors',
+      'Apply access control principles in day-to-day work',
+      'Understand encryption and why it matters',
+      'Follow the correct incident response procedure',
+      'Recognise phishing and social engineering attempts'
+    ]
+  },
+  /* BG-063: analytics mocked — learning-analytics-service has no HTTP API */
+  _analytics: { total_enrollments:247, completion_rate:68, avg_score:82.4, avg_rating:4.7, review_count:38 }
+};
+
+/* lesson-service GET /api/v1/lessons?course_id=c002
+   LessonResponse: lesson_id · module_id · title · lesson_type · estimated_duration_minutes · order_index · status */
+const LESSONS = [
+  { lesson_id:'ls_001', module_id:'mod_a', title:'Introduction to Cybersecurity', lesson_type:'self_paced', estimated_duration_minutes:20, order_index:0, status:'published' },
+  { lesson_id:'ls_002', module_id:'mod_a', title:'Common Threat Landscape', lesson_type:'self_paced', estimated_duration_minutes:25, order_index:1, status:'published' },
+  { lesson_id:'ls_003', module_id:'mod_b', title:'Access Control Principles', lesson_type:'self_paced', estimated_duration_minutes:30, order_index:2, status:'published' },
+  { lesson_id:'ls_004', module_id:'mod_b', title:'Password & MFA Best Practices', lesson_type:'self_paced', estimated_duration_minutes:20, order_index:3, status:'published' },
+  { lesson_id:'ls_005', module_id:'mod_c', title:'Encryption Fundamentals', lesson_type:'self_paced', estimated_duration_minutes:35, order_index:4, status:'published' },
+  { lesson_id:'ls_006', module_id:'mod_c', title:'Phishing & Social Engineering', lesson_type:'self_paced', estimated_duration_minutes:25, order_index:5, status:'published' },
+  { lesson_id:'ls_007', module_id:'mod_d', title:'Incident Response Procedure', lesson_type:'self_paced', estimated_duration_minutes:40, order_index:6, status:'published' },
+  { lesson_id:'ls_008', module_id:'mod_d', title:'Security Awareness Assessment', lesson_type:'assessment', estimated_duration_minutes:45, order_index:7, status:'published' }
+];
+
+const MODULE_NAMES = {
+  mod_a: 'Module 1 — Foundations',
+  mod_b: 'Module 2 — Access & Identity',
+  mod_c: 'Module 3 — Threats & Encryption',
+  mod_d: 'Module 4 — Response & Assessment'
+};
+
+/* BG-064: no review service — fully mocked */
+const REVIEWS = [
+  { reviewer:'James Okafor', initials:'JO', color:'#5B5BD6', rating:5, body:'Excellent course. Clearly explained and relevant to my day-to-day work. The incident response module was particularly useful.', date:'2026-02-20T11:00:00Z' },
+  { reviewer:'Priya Sharma', initials:'PS', color:'#18794E', rating:5, body:'Very well structured. I appreciated that it was written for non-technical staff — no jargon. Finished in one sitting.', date:'2026-01-15T09:30:00Z' },
+  { reviewer:'Tom Brennan',  initials:'TB', color:'#0D9488', rating:4, body:'Good content overall. Some sections felt a little long but the assessments were fair. Would recommend to new starters.', date:'2025-12-10T14:00:00Z' },
+  { reviewer:'Aisha Nwosu',  initials:'AN', color:'#7C3AED', rating:5, body:'Mandatory for all staff and rightly so. The phishing module was eye-opening. Completed the assessment first try.', date:'2025-11-28T16:15:00Z' }
+];
+
+/* ── helpers ── */
+function fmtDate(iso){ if(!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function fmtDur(mins){ if(!mins) return '—'; const h=Math.floor(mins/60),m=mins%60; return h?`${h}h${m?' '+m+'m':''}`:m+'m'; }
+function stars(n){ return '★'.repeat(n)+'☆'.repeat(5-n); }
+function modeLabel(m){
+  return {self_paced:'Self-paced',instructor_led:'Instructor-led',blended:'Blended',virtual_classroom:'Virtual Classroom'}[m]||m||'—';
+}
+function lessonIco(t){
+  return {self_paced:'📄',assessment:'📝',video:'🎬',live_session:'🎙️',interactive:'🎮'}[t]||'📄';
+}
+
+/* ── surface switcher ── */
+let currentSurface = 'admin';
+function setSurface(surf, btn){
+  document.querySelectorAll('.surf-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  currentSurface = surf;
+  renderActions();
+  renderCurrActions();
+  document.getElementById('sb-role-lbl').textContent = {admin:'Administrator',instructor:'Instructor',learner:'Learner'}[surf];
+}
+
+function renderActions(){
+  const el = document.getElementById('eh-actions');
+  if(currentSurface==='admin'){
+    el.innerHTML=`<button class="btn-g">✏️ Edit</button>
+      <button class="btn-warn">📦 Archive</button>
+      <button class="btn-p">↗ Publish</button>`;
+  } else if(currentSurface==='instructor'){
+    el.innerHTML=`<button class="btn-g">✏️ Edit Course</button>
+      <button class="btn-p">+ Add Lesson</button>`;
+  } else {
+    const enrolled = false; /* mock: learner not yet enrolled */
+    el.innerHTML=`<button class="btn-accent">${enrolled?'▶ Continue':'+ Enroll'}</button>`;
+  }
+}
+
+function renderCurrActions(){
+  const el = document.getElementById('curr-actions');
+  if(currentSurface==='instructor'){
+    el.innerHTML=`<button class="btn-p">+ Add Lesson</button>`;
+  } else { el.innerHTML=''; }
+}
+
+/* ── tab switching ── */
+function switchTab(name, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  ['overview','curriculum','instructor','reviews','error'].forEach(t=>{
+    const div=document.getElementById('tab-'+t);
+    if(div) div.style.display=(t===name)?'':'none';
+  });
+  if(name==='curriculum') renderCurrActions();
+}
+
+/* ── render overview ── */
+function renderOverview(){
+  const c=COURSE, a=c._analytics, m=c.metadata;
+  document.getElementById('eh-name').textContent=c.title;
+  document.getElementById('tb-name').textContent=c.title;
+  document.getElementById('eh-status').innerHTML=`<span class="chip-dot"></span>${c.status.charAt(0).toUpperCase()+c.status.slice(1)}`;
+  document.getElementById('eh-status').className=`chip ${c.status}`;
+  const psEl=document.getElementById('eh-pubstatus');
+  if(c.publish_status&&c.publish_status!=='published'){
+    psEl.className=`chip ${c.publish_status}`;
+    psEl.innerHTML=`<span class="chip-dot"></span>${c.publish_status.charAt(0).toUpperCase()+c.publish_status.slice(1)}`;
+    psEl.style.display='';
+  } else { psEl.style.display='none'; }
+  document.getElementById('eh-mode').textContent='🖥️ '+modeLabel(m.delivery_mode);
+  document.getElementById('eh-dur').textContent='⏱ '+fmtDur(m.duration_minutes);
+  document.getElementById('eh-code').textContent=c.course_code||'—';
+
+  document.getElementById('st-enrolled').textContent=a.total_enrollments;
+  document.getElementById('st-complete').textContent=a.completion_rate+'%';
+  document.getElementById('st-score').textContent=a.avg_score;
+  document.getElementById('st-rating').textContent=a.avg_rating+' ⭐';
+
+  document.getElementById('p-code').textContent=c.course_code||'—';
+  document.getElementById('p-status').className=`chip ${c.status}`;
+  document.getElementById('p-status').innerHTML=`<span class="chip-dot"></span>${c.status.charAt(0).toUpperCase()+c.status.slice(1)}`;
+  document.getElementById('p-mode').textContent=modeLabel(m.delivery_mode);
+  document.getElementById('p-dur').textContent=fmtDur(m.duration_minutes);
+  document.getElementById('p-lang').textContent={en:'English','en-GB':'English (en-GB)','en-US':'English (en-US)'}[c.language_code]||c.language_code||'—';
+  document.getElementById('p-credit').textContent=c.credit_value??'—';
+  document.getElementById('p-grade').textContent=c.grading_scheme||'—';
+  document.getElementById('p-pubat').textContent=fmtDate(c.published_at);
+  document.getElementById('p-cid').textContent=c.course_id;
+  document.getElementById('p-desc').textContent=c.description||'No description provided.';
+
+  document.getElementById('p-objectives').innerHTML=(m.objectives||[]).map(o=>`
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <span style="color:var(--green);font-size:13px;flex-shrink:0;margin-top:1px;">✓</span>
+      <span style="font-size:14px;color:var(--ink-2);">${o}</span>
+    </div>`).join('');
+
+  document.getElementById('p-tags').innerHTML=(m.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+}
+
+/* ── render curriculum ── */
+function renderCurriculum(){
+  const grouped={};
+  LESSONS.forEach(l=>{
+    const mid=l.module_id||'_ungrouped';
+    if(!grouped[mid]) grouped[mid]=[];
+    grouped[mid].push(l);
+  });
+  let total=0;
+  const html=Object.entries(grouped).map(([mid,lessons])=>{
+    const modName=MODULE_NAMES[mid]||mid;
+    const modDur=lessons.reduce((s,l)=>s+(l.estimated_duration_minutes||0),0);
+    total+=modDur;
+    const lessonHtml=lessons.sort((a,b)=>a.order_index-b.order_index).map((l,i)=>`
+      <div class="lesson-row">
+        <div class="lesson-num">${l.order_index+1}</div>
+        <div class="lesson-ico">${lessonIco(l.lesson_type)}</div>
+        <div class="lesson-body">
+          <div class="lesson-title">${l.title}</div>
+          <div class="lesson-meta">${l.lesson_type.replace('_',' ')} · <span class="chip lesson-${l.status}" style="padding:1px 6px;font-size:10px;">${l.status}</span></div>
+        </div>
+        <div class="lesson-dur">${fmtDur(l.estimated_duration_minutes)}</div>
+      </div>`).join('');
+    return `<div class="module-group">
+      <div class="module-header">
+        <span style="font-size:14px;">📂</span>
+        <span class="module-title">${modName}</span>
+        <span class="module-count">${lessons.length} lesson${lessons.length!==1?'s':''} · ${fmtDur(modDur)}</span>
+      </div>
+      ${lessonHtml}
+    </div>`;
+  }).join('');
+  document.getElementById('curriculum-list').innerHTML=html;
+  document.getElementById('curr-count').textContent=`${LESSONS.length} lessons · ${fmtDur(total)} total`;
+}
+
+/* ── render reviews ── */
+function renderReviews(){
+  document.getElementById('reviews-list').innerHTML=REVIEWS.map(r=>`
+    <div class="review-card">
+      <div class="rev-header">
+        <div class="rev-av" style="background:${r.color};">${r.initials}</div>
+        <div>
+          <div class="rev-name">${r.reviewer}</div>
+          <div class="rev-date">${fmtDate(r.date)}</div>
+        </div>
+      </div>
+      <div class="rev-stars">${stars(r.rating)}</div>
+      <div class="rev-body">${r.body}</div>
+    </div>`).join('');
+}
+
+/* ── state switcher ── */
+function setS(s, btn){
+  document.querySelectorAll('.stb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  ['overview','curriculum','instructor','reviews','error'].forEach(t=>{
+    const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
+  });
+  const eh=document.getElementById('entity-header');
+  const tabNav=document.querySelector('.tab-nav');
+
+  if(s==='loaded'){
+    renderOverview();
+    renderCurriculum();
+    renderReviews();
+    renderActions();
+    document.getElementById('tab-overview').style.display='';
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('.tab')[0].classList.add('on');
+    eh.style.display=''; tabNav.style.display='';
+  } else if(s==='skeleton'){
+    eh.style.display=''; tabNav.style.display='';
+    document.getElementById('eh-name').innerHTML='<div class="sk" style="width:220px;height:20px;"></div>';
+    document.getElementById('eh-status').innerHTML='<div class="sk" style="width:70px;height:18px;border-radius:999px;"></div>';
+    document.getElementById('eh-pubstatus').style.display='none';
+    document.getElementById('eh-mode').innerHTML='<div class="sk" style="width:80px;height:13px;display:inline-block;"></div>';
+    document.getElementById('eh-dur').innerHTML='';
+    document.getElementById('eh-code').innerHTML='';
+    document.getElementById('eh-actions').innerHTML='';
+    document.getElementById('tab-overview').style.display='';
+    document.getElementById('analytics-strip').innerHTML=Array.from({length:4},()=>`
+      <div class="stat-card">
+        <div class="sk" style="width:60px;height:28px;margin-bottom:6px;"></div>
+        <div class="sk" style="width:80px;height:10px;"></div>
+      </div>`).join('');
+    document.getElementById('p-objectives').innerHTML='';
+    document.getElementById('p-tags').innerHTML='';
+    ['p-code','p-mode','p-dur','p-lang','p-credit','p-grade','p-pubat','p-cid'].forEach(id=>{
+      document.getElementById(id).innerHTML='<div class="sk" style="width:100px;height:14px;"></div>';
+    });
+    document.getElementById('p-desc').innerHTML='<div class="sk" style="width:100%;height:14px;margin-bottom:6px;"></div><div class="sk" style="width:85%;height:14px;"></div>';
+  } else if(s==='error'){
+    eh.style.display='none'; tabNav.style.display='none';
+    document.getElementById('tab-error').style.display='';
+  }
+}
+
+/* ── init ── */
+setS('loaded', document.querySelector('.stb'));
+</script>
+</body>
+</html>

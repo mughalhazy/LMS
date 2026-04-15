@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  Page     : Quiz Builder
+  Archetype: A6 Builder — A6b Sequential variant (2-zone)
+  Created  : 2026-03-22
+  Surface  : Instructor
+  Repo     : assessment-service (full API) · quiz-engine (stub — BG-122)
+  Zones    : Question List Panel (300px fixed) · Editor Panel (flex-1)
+  Endpoints: GET  /api/v1/assessments/{id}          → AssessmentResponse
+             PATCH /api/v1/assessments/{id}          → AssessmentUpdateRequest → AssessmentResponse
+             POST /api/v1/assessments/{id}/publish   → publish assessment
+             POST /api/v1/assessments/{id}/activate  → activate assessment
+             POST /api/v1/assessments/{id}/retire    → retire assessment
+             DELETE /api/v1/assessments/{id}         → delete assessment
+  Gaps     : BG-122 (quiz-engine full stub — no question management REST API; question_count integer only)
+             BG-123 (GET /assessments — no course_id filter; fetch all, filter client-side)
+             BG-108 (question authoring deferred — extends existing gap)
+  Patterns : A6b Sequential — ordered list panel (300px) + editor panel (flex-1)
+             zoom:1.25 · min-width:960px · auto-save every 30s · manual Publish required
+             BG-122 prominent gap notice in question editor zone
+             Question stubs shown as planning placeholders (no real CRUD available)
+             P-55 inline error block · P-56 partial skeleton
+  CSS base : Verbatim from lms-a6-course-builder-v1.html (A6 anchor)
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS — Quiz Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── VERBATIM FOUNDATION — lms-a6-course-builder-v1.html (A6 anchor) ── */
+:root {
+  --canvas:#F7F7F5;--white:#FFFFFF;--subtle:#F2F2F0;
+  --border:#E8E8E4;--border-s:#D8D8D2;--border-focus:#5B5BD6;
+  --ink:#1A1A18;--ink-2:#52524E;--ink-3:#8C8C84;--ink-4:#C0C0B8;
+  --accent:#5B5BD6;--accent-lt:#F0F0FF;
+  --green:#18794E;--green-bg:rgba(24,121,78,.08);--green-bd:rgba(24,121,78,.15);
+  --amber:#92400E;--amber-bg:#FEF9EE;--amber-bd:rgba(146,64,14,.15);
+  --red:#C42B1C;--red-bg:rgba(196,43,28,.07);--red-bd:rgba(196,43,28,.14);
+  --teal:#0D9488;--teal-bg:rgba(13,148,136,.07);--teal-bd:rgba(13,148,136,.15);
+  --font:'Plus Jakarta Sans',system-ui,sans-serif;
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --r:14px;--r-sm:8px;--r-pill:999px;
+  --pp:28px;--body-size:14px;--lh:1.5;
+  --action-bar-h:64px;
+}
+html{zoom:1.25;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:var(--body-size);line-height:var(--lh);}
+.sk{background:linear-gradient(90deg,#F2F2F0 25%,#E8E8E4 50%,#F2F2F0 75%);background-size:400% 100%;animation:shimmer 1400ms ease-in-out infinite;border-radius:4px;}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.state-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1A1A18;border-radius:999px;padding:5px 6px;display:flex;gap:3px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.stb{padding:5px 12px;border-radius:999px;border:none;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.4);transition:all 150ms;}
+.stb.on{background:white;color:#1A1A18;}
+
+/* ── BUILDER LAYOUT ── */
+.layout{display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:960px;}
+
+/* Topbar */
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 var(--pp);flex-shrink:0;gap:8px;z-index:20;}
+.tb-back{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--ink-3);font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 100ms;}
+.tb-back:hover{background:var(--subtle);color:var(--ink-2);}
+.tb-sep{color:var(--ink-4);font-size:13px;}
+.tb-title{font-size:18px;font-weight:800;letter-spacing:-0.02em;word-spacing:0.08em;color:var(--ink);}
+.tb-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);background:var(--accent-lt);border:1px solid rgba(91,91,214,.18);border-radius:4px;padding:2px 6px;margin-left:4px;}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.autosave{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);}
+.autosave-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;transition:background 300ms;}
+.autosave-dot.unsaved{background:#D97706;}
+.btn-g{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink-2);transition:all 100ms;white-space:nowrap;}
+.btn-g:hover{border-color:var(--border-s);color:var(--ink);}
+.btn-primary{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-primary:hover{opacity:.9;}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+.btn-success{padding:8px 20px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--green);color:white;transition:all 100ms;white-space:nowrap;}
+.btn-success:hover{opacity:.9;}
+.btn-success:disabled{opacity:.45;cursor:not-allowed;}
+.btn-danger{padding:8px 16px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--red-bg);color:var(--red);transition:all 100ms;white-space:nowrap;}
+.btn-danger:hover{background:rgba(196,43,28,.12);}
+.btn-full{width:100%;}
+
+/* Builder body */
+.builder-body{display:flex;flex:1;overflow:hidden;}
+
+/* ── QUESTION LIST PANEL (Zone 1 — 300px) ── */
+.ql-panel{width:300px;flex-shrink:0;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.ql-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.ql-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);}
+.ql-count{font-size:11px;font-weight:600;color:var(--ink-4);}
+.ql-scroll{flex:1;overflow-y:auto;padding:8px 0;}
+.ql-footer{padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.ql-add-btn{width:100%;padding:7px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-lt);border:1px dashed rgba(91,91,214,.3);cursor:pointer;transition:all 100ms;}
+.ql-add-btn:hover{background:rgba(91,91,214,.12);}
+/* Question row */
+.q-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;cursor:pointer;transition:background 100ms;border-bottom:1px solid var(--border);user-select:none;}
+.q-row:last-child{border-bottom:none;}
+.q-row:hover{background:var(--subtle);}
+.q-row.selected{background:var(--accent-lt);}
+.q-row.selected .q-title{color:var(--accent);font-weight:600;}
+.q-num{width:22px;height:22px;border-radius:50%;background:var(--subtle);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink-3);flex-shrink:0;margin-top:1px;}
+.q-row.selected .q-num{background:var(--accent);border-color:var(--accent);color:white;}
+.q-body{flex:1;min-width:0;}
+.q-title{font-size:12px;color:var(--ink-2);line-height:1.4;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.q-meta{display:flex;align-items:center;gap:6px;}
+.q-type-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border-radius:3px;}
+.q-type-tag.mc{background:var(--accent-lt);color:var(--accent);}
+.q-type-tag.tf{background:var(--teal-bg);color:var(--teal);}
+.q-type-tag.sa{background:var(--amber-bg);color:var(--amber);}
+.q-pts{font-size:10px;color:var(--ink-4);font-weight:500;}
+/* Drag handle */
+.q-drag{color:var(--ink-4);font-size:13px;cursor:grab;flex-shrink:0;margin-top:3px;opacity:.4;}
+.q-row:hover .q-drag{opacity:.8;}
+/* Section divider */
+.ql-section-div{padding:8px 14px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);}
+
+/* ── EDITOR PANEL (Zone 2 — flex-1) ── */
+.editor-panel{flex:1;overflow-y:auto;background:var(--canvas);}
+.editor-inner{padding:24px var(--pp);max-width:800px;margin:0 auto;}
+
+/* Editor header */
+.ed-header{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+.ed-q-num{font-size:13px;font-weight:700;color:var(--ink-3);}
+.ed-type-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:4px;}
+.ed-type-badge.mc{background:var(--accent-lt);color:var(--accent);border:1px solid rgba(91,91,214,.18);}
+.ed-type-badge.tf{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);}
+.ed-type-badge.sa{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
+.ed-pts-tag{font-size:11px;font-weight:600;color:var(--ink-3);margin-left:auto;}
+
+/* Form cards */
+.form-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:14px;box-shadow:var(--sh-xs);}
+.fc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:16px;}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.field-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;}
+.field-label .req{color:var(--red);margin-left:2px;}
+.field-label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-4);font-size:10px;margin-left:4px;}
+.field-input{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;}
+.field-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-select{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;cursor:pointer;width:100%;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C8C84' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+.field-select:focus{border-color:var(--border-focus);}
+.field-textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;outline:none;transition:border-color 120ms;width:100%;resize:vertical;min-height:80px;line-height:1.5;}
+.field-textarea:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,91,214,.08);}
+.field-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+
+/* Answer options (MC) */
+.answer-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+.answer-item{display:flex;align-items:center;gap:8px;}
+.answer-correct-radio{width:16px;height:16px;accent-color:var(--green);flex-shrink:0;cursor:pointer;}
+.answer-item input[type="text"]{flex:1;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white);border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;outline:none;transition:border-color 120ms;}
+.answer-item input[type="text"]:focus{border-color:var(--border-focus);}
+.answer-item.correct-ans input[type="text"]{border-color:var(--green-bd);background:var(--green-bg);}
+.ans-remove{width:24px;height:24px;border-radius:4px;border:none;background:none;cursor:pointer;color:var(--ink-4);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 100ms;}
+.ans-remove:hover{background:var(--red-bg);color:var(--red);}
+.ans-add-btn{font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;background:none;border:none;font-family:var(--font);padding:3px 0;display:flex;align-items:center;gap:4px;}
+.ans-add-btn:hover{opacity:.75;}
+.correct-hint{font-size:11px;color:var(--ink-3);line-height:1.4;}
+
+/* True/False options */
+.tf-options{display:flex;gap:10px;}
+.tf-opt{flex:1;padding:12px;border-radius:var(--r-sm);border:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer;transition:all 100ms;}
+.tf-opt:hover{border-color:var(--border-s);}
+.tf-opt.selected-t{border-color:var(--green-bd);background:var(--green-bg);}
+.tf-opt.selected-f{border-color:var(--red-bd);background:var(--red-bg);}
+.tf-radio{width:16px;height:16px;flex-shrink:0;}
+.tf-label{font-size:13px;font-weight:600;color:var(--ink-2);}
+.tf-opt.selected-t .tf-label{color:var(--green);}
+.tf-opt.selected-f .tf-label{color:var(--red);}
+
+/* Gap notice (BG-122) */
+.gap-notice{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--r-sm);margin-bottom:14px;}
+.gn-icon{font-size:13px;flex-shrink:0;margin-top:1px;}
+.gn-text{font-size:11px;color:var(--amber);line-height:1.5;}
+.gn-code{font-family:monospace;font-size:10px;background:rgba(146,64,14,.08);padding:1px 4px;border-radius:3px;}
+
+/* Canvas actions */
+.canvas-actions{display:flex;gap:10px;margin-top:6px;padding-top:16px;border-top:1px solid var(--border);}
+
+/* Empty state */
+.canvas-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:60px 28px;}
+.ce-icon{font-size:40px;margin-bottom:14px;opacity:.35;}
+.ce-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.ce-sub{font-size:13px;color:var(--ink-3);max-width:300px;line-height:1.6;}
+
+/* No selection prompt */
+.canvas-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:60px 28px;}
+.cp-icon{font-size:36px;margin-bottom:12px;opacity:.25;}
+.cp-text{font-size:13px;color:var(--ink-3);}
+
+/* Error block (P-55) */
+.err-block{background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--r);padding:20px;display:flex;gap:14px;align-items:flex-start;}
+.err-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.err-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:4px;}
+.err-msg{font-size:13px;color:var(--red);opacity:.85;line-height:1.5;}
+.err-retry{margin-top:12px;padding:6px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--red-bd);background:var(--white);color:var(--red);transition:all 100ms;}
+.err-retry:hover{background:var(--red-bg);}
+
+/* Assessment meta card (top of editor) */
+.asmt-meta-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:14px;box-shadow:var(--sh-xs);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.meta-item{display:flex;flex-direction:column;gap:2px;}
+.meta-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);}
+.meta-val{font-size:13px;font-weight:600;color:var(--ink-2);}
+.meta-sep{width:1px;height:32px;background:var(--border);flex-shrink:0;}
+.status-chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:var(--r-pill);}
+.status-chip.draft{background:var(--subtle);color:var(--ink-3);border:1px solid var(--border);}
+.status-chip.published{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+.status-chip.active{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-bd);}
+.status-chip.retired{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd);}
+.meta-edit-link{margin-left:auto;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;border:none;background:none;font-family:var(--font);padding:0;}
+.meta-edit-link:hover{opacity:.75;}
+
+/* Skeleton rows */
+.sk-q-row{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-back" onclick="history.back()">← Assessments</div>
+    <span class="tb-sep">›</span>
+    <span class="tb-title" id="tb-asmt-title">Security Fundamentals Quiz</span>
+    <span class="tb-badge">Quiz Builder</span>
+    <div class="tb-r">
+      <div class="autosave" id="autosave-wrap">
+        <div class="autosave-dot" id="autosave-dot"></div>
+        <span id="autosave-text">Saved</span>
+      </div>
+      <button class="btn-g" onclick="handleSettings()">Settings</button>
+      <button class="btn-g" onclick="handleSaveDraft()">Save Draft</button>
+      <button class="btn-success" id="tb-publish-btn" onclick="handlePublish()">Publish Assessment</button>
+    </div>
+  </div>
+
+  <!-- BUILDER BODY -->
+  <div class="builder-body">
+
+    <!-- ZONE 1 — QUESTION LIST PANEL -->
+    <div class="ql-panel">
+      <div class="ql-header">
+        <span class="ql-title">Questions</span>
+        <span class="ql-count" id="ql-count-label">0</span>
+      </div>
+      <div class="ql-scroll" id="ql-scroll"></div>
+      <div class="ql-footer">
+        <button class="ql-add-btn" onclick="handleAddQuestion()">+ Add Question</button>
+      </div>
+    </div>
+
+    <!-- ZONE 2 — EDITOR PANEL -->
+    <div class="editor-panel">
+      <div class="editor-inner" id="editor-inner"></div>
+    </div>
+
+  </div>
+
+  <!-- STATE BAR -->
+  <div class="state-bar">
+    <button class="stb on"  onclick="setState('loaded',this)">Loaded</button>
+    <button class="stb"     onclick="setState('skeleton',this)">Skeleton</button>
+    <button class="stb"     onclick="setState('empty',this)">Empty</button>
+    <button class="stb"     onclick="setState('error',this)">Error</button>
+  </div>
+</div>
+
+<script>
+/* ── MOCK DATA (assessment-service) ── */
+/* BG-122: quiz-engine is a full stub — no question management REST API.
+   Questions below are planning stubs rendered client-side only.
+   question_count on AssessmentResponse is an integer planning field. */
+const ASSESSMENT = {
+  assessment_id: 'asmt-001',
+  title: 'Security Fundamentals Quiz',
+  assessment_type: 'quiz',          /* AssessmentType enum: quiz|assignment|exam|mock_test */
+  course_id: 'c002',
+  lesson_id: 'ls-005',
+  status: 'draft',                  /* AssessmentStatus: draft|published|active|retired */
+  passing_score: 70,
+  max_score: 100,
+  duration_minutes: 30,
+  question_count: 5,                /* BG-122: integer planning field only — no question objects */
+  created_by: 'instr-001',
+  created_at: '2026-03-22T09:00:00Z',
+  updated_at: '2026-03-22T10:15:00Z'
+};
+
+/* BG-122: Question stubs — planning placeholders only.
+   quiz-engine has /health and /metrics only. No question CRUD endpoints exist.
+   Actual question management deferred (extends BG-108). */
+const QUESTIONS_STUB = [
+  { q_id:'q-001', order:1, type:'mc',  text:'What is phishing?',                                          points:10, correct_index:1,
+    options:['A network scanning technique','A social engineering attack via deceptive communications','A type of malware that encrypts files','A firewall bypass method'] },
+  { q_id:'q-002', order:2, type:'tf',  text:'Firewalls alone are sufficient to prevent all cyber attacks.', points:10, correct_tf:false },
+  { q_id:'q-003', order:3, type:'mc',  text:'Which authentication method is considered most secure?',       points:10, correct_index:2,
+    options:['Password only','SMS one-time password','Hardware security key (FIDO2)','Security question'] },
+  { q_id:'q-004', order:4, type:'sa',  text:'Define social engineering in the context of information security.', points:20, model_answer:'Social engineering is the psychological manipulation of people into performing actions or divulging confidential information.' },
+  { q_id:'q-005', order:5, type:'mc',  text:'In the CIA triad, what does "Integrity" refer to?',            points:10, correct_index:0,
+    options:['Ensuring data is accurate and not tampered with','Ensuring data is accessible when needed','Ensuring data is confidential','Ensuring data is encrypted at rest'] }
+];
+
+const TYPE_LABEL = { mc:'Multiple Choice', tf:'True / False', sa:'Short Answer' };
+
+/* ── STATE ── */
+let currentState  = 'loaded';
+let selectedId    = 'q-001';
+let autosaved     = true;
+let questions     = QUESTIONS_STUB.map(q => ({ ...q, options: q.options ? [...q.options] : undefined }));
+
+/* ── HELPERS ── */
+function markUnsaved(){
+  autosaved = false;
+  document.getElementById('autosave-dot').classList.add('unsaved');
+  document.getElementById('autosave-text').textContent = 'Unsaved changes';
+}
+function markSaved(){
+  autosaved = true;
+  document.getElementById('autosave-dot').classList.remove('unsaved');
+  document.getElementById('autosave-text').textContent = 'Saved';
+}
+
+/* ── STATE SWITCHER ── */
+function setState(s, btn){
+  currentState = s;
+  document.querySelectorAll('.stb').forEach(b => b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  render();
+}
+
+/* ── RENDER ── */
+function render(){
+  renderList();
+  renderEditor();
+}
+
+/* ── QUESTION LIST ── */
+function renderList(){
+  const scroll = document.getElementById('ql-scroll');
+  const countLabel = document.getElementById('ql-count-label');
+
+  if(currentState === 'skeleton'){
+    countLabel.textContent = '';
+    scroll.innerHTML = [1,2,3,4,5].map(i => `
+      <div class="sk-q-row">
+        <div class="sk" style="width:22px;height:22px;border-radius:50%;flex-shrink:0;"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px;">
+          <div class="sk" style="height:12px;width:${60+i*8}%;"></div>
+          <div class="sk" style="height:10px;width:40%;"></div>
+        </div>
+      </div>`).join('');
+    return;
+  }
+
+  if(currentState === 'empty'){
+    countLabel.textContent = '0';
+    scroll.innerHTML = `<div style="padding:40px 14px;text-align:center;">
+      <div style="font-size:28px;opacity:.25;margin-bottom:10px;">❓</div>
+      <div style="font-size:12px;color:var(--ink-4);line-height:1.6;">No questions yet.<br>Click <strong>+ Add Question</strong> to start.</div>
+    </div>`;
+    return;
+  }
+
+  if(currentState === 'error'){
+    countLabel.textContent = '—';
+    scroll.innerHTML = `<div style="padding:20px 14px;">
+      <div style="font-size:11px;color:var(--red);line-height:1.5;">Failed to load questions. Check your connection and retry.</div>
+    </div>`;
+    return;
+  }
+
+  /* Loaded */
+  countLabel.textContent = `${questions.length} of ${ASSESSMENT.question_count}`;
+  scroll.innerHTML = questions.map(q => `
+    <div class="q-row${q.q_id === selectedId ? ' selected' : ''}" onclick="selectQuestion('${q.q_id}')">
+      <span class="q-drag" title="Drag to reorder">⠿</span>
+      <div class="q-num">${q.order}</div>
+      <div class="q-body">
+        <div class="q-title">${q.text}</div>
+        <div class="q-meta">
+          <span class="q-type-tag ${q.type}">${TYPE_LABEL[q.type]}</span>
+          <span class="q-pts">${q.points} pts</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+/* ── EDITOR PANEL ── */
+function renderEditor(){
+  const inner = document.getElementById('editor-inner');
+
+  if(currentState === 'skeleton'){
+    inner.innerHTML = `
+      <div class="sk" style="height:60px;border-radius:var(--r);margin-bottom:14px;"></div>
+      <div class="form-card">
+        <div class="sk" style="height:12px;width:120px;margin-bottom:20px;"></div>
+        <div class="sk" style="height:80px;border-radius:var(--r-sm);margin-bottom:14px;"></div>
+        <div class="sk" style="height:36px;border-radius:var(--r-sm);width:60%;margin-bottom:10px;"></div>
+        <div class="sk" style="height:36px;border-radius:var(--r-sm);width:75%;margin-bottom:10px;"></div>
+        <div class="sk" style="height:36px;border-radius:var(--r-sm);width:55%;"></div>
+      </div>
+      <div class="form-card">
+        <div class="sk" style="height:12px;width:100px;margin-bottom:16px;"></div>
+        <div class="field-grid">
+          <div class="sk" style="height:36px;border-radius:var(--r-sm);"></div>
+          <div class="sk" style="height:36px;border-radius:var(--r-sm);"></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if(currentState === 'empty'){
+    inner.innerHTML = renderAsmtMetaBar() + `
+      <div class="canvas-empty">
+        <div class="ce-icon">📝</div>
+        <div class="ce-title">No questions added yet</div>
+        <div class="ce-sub">Add your first question using the panel on the left. Questions will appear here for editing once a question management API is available.</div>
+      </div>`;
+    return;
+  }
+
+  if(currentState === 'error'){
+    inner.innerHTML = `
+      <div class="err-block">
+        <span class="err-icon">⚠</span>
+        <div>
+          <div class="err-title">Failed to load assessment</div>
+          <div class="err-msg">GET /api/v1/assessments/asmt-001 returned 503. The assessment service may be temporarily unavailable.</div>
+          <button class="err-retry" onclick="setState('loaded',null);document.querySelectorAll('.stb')[0].classList.add('on')">Retry</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  /* Loaded — find selected question */
+  const q = questions.find(x => x.q_id === selectedId);
+  if(!q){
+    inner.innerHTML = renderAsmtMetaBar() + `
+      <div class="canvas-prompt">
+        <div class="cp-icon">👆</div>
+        <div class="cp-text">Select a question from the list to edit it.</div>
+      </div>`;
+    return;
+  }
+
+  /* BG-122: quiz-engine stub — question stubs client-side only */
+  inner.innerHTML = renderAsmtMetaBar() + `
+    <div class="ed-header">
+      <span class="ed-q-num">Question ${q.order}</span>
+      <span class="ed-type-badge ${q.type}">${TYPE_LABEL[q.type]}</span>
+      <span class="ed-pts-tag">${q.points} pts</span>
+    </div>
+    ${renderQuestionCard(q)}
+    ${renderScoringCard(q)}
+    <div class="canvas-actions">
+      <button class="btn-g" onclick="handleDeleteQuestion('${q.q_id}')">Delete Question</button>
+      ${q.order > 1 ? `<button class="btn-g" onclick="handleMoveUp('${q.q_id}')">↑ Move Up</button>` : ''}
+      ${q.order < questions.length ? `<button class="btn-g" onclick="handleMoveDown('${q.q_id}')">↓ Move Down</button>` : ''}
+      <button class="btn-primary" onclick="handleSaveDraft()" style="margin-left:auto;">Save Draft</button>
+    </div>`;
+}
+
+function renderAsmtMetaBar(){
+  return `<div class="asmt-meta-bar">
+    <div class="meta-item">
+      <span class="meta-lbl">Type</span>
+      <span class="meta-val">Quiz</span>
+    </div>
+    <div class="meta-sep"></div>
+    <div class="meta-item">
+      <span class="meta-lbl">Status</span>
+      <span class="status-chip ${ASSESSMENT.status}">${ASSESSMENT.status.charAt(0).toUpperCase()+ASSESSMENT.status.slice(1)}</span>
+    </div>
+    <div class="meta-sep"></div>
+    <div class="meta-item">
+      <span class="meta-lbl">Passing Score</span>
+      <span class="meta-val">${ASSESSMENT.passing_score} / ${ASSESSMENT.max_score}</span>
+    </div>
+    <div class="meta-sep"></div>
+    <div class="meta-item">
+      <span class="meta-lbl">Duration</span>
+      <span class="meta-val">${ASSESSMENT.duration_minutes} min</span>
+    </div>
+    <div class="meta-sep"></div>
+    <div class="meta-item">
+      <span class="meta-lbl">Planned Questions</span>
+      <span class="meta-val">${ASSESSMENT.question_count}</span>
+    </div>
+    <button class="meta-edit-link" onclick="handleSettings()">Edit Settings</button>
+  </div>`;
+}
+
+function renderQuestionCard(q){
+  let answerHtml = '';
+  if(q.type === 'mc'){
+    answerHtml = `
+      <div class="field field-full" style="margin-top:16px;">
+        <label class="field-label">Answer Options <span class="req">*</span></label>
+        <div class="hint" style="font-size:11px;color:var(--ink-3);margin-bottom:8px;">Select the radio button to mark the correct answer.</div>
+        <div class="answer-list">
+          ${q.options.map((opt, idx) => `
+            <div class="answer-item${idx === q.correct_index ? ' correct-ans' : ''}">
+              <input type="radio" class="answer-correct-radio" name="correct-${q.q_id}" ${idx === q.correct_index ? 'checked' : ''} onchange="markUnsaved()">
+              <input type="text" value="${opt}" placeholder="Option ${idx+1}" oninput="markUnsaved()">
+              <button class="ans-remove" title="Remove option" onclick="markUnsaved()">✕</button>
+            </div>`).join('')}
+        </div>
+        <button class="ans-add-btn" onclick="markUnsaved()">+ Add Option</button>
+      </div>`;
+  } else if(q.type === 'tf'){
+    answerHtml = `
+      <div class="field field-full" style="margin-top:16px;">
+        <label class="field-label">Correct Answer <span class="req">*</span></label>
+        <div class="tf-options">
+          <div class="tf-opt${q.correct_tf === true ? ' selected-t' : ''}" onclick="markUnsaved()">
+            <input type="radio" class="tf-radio" name="tf-${q.q_id}" ${q.correct_tf === true ? 'checked' : ''}>
+            <span class="tf-label">True</span>
+          </div>
+          <div class="tf-opt${q.correct_tf === false ? ' selected-f' : ''}" onclick="markUnsaved()">
+            <input type="radio" class="tf-radio" name="tf-${q.q_id}" ${q.correct_tf === false ? 'checked' : ''}>
+            <span class="tf-label">False</span>
+          </div>
+        </div>
+      </div>`;
+  } else if(q.type === 'sa'){
+    answerHtml = `
+      <div class="field field-full" style="margin-top:16px;">
+        <label class="field-label">Model Answer <span class="opt">optional — shown to learner after submission</span></label>
+        <textarea class="field-textarea" placeholder="Enter a model answer or marking guidance…" oninput="markUnsaved()">${q.model_answer || ''}</textarea>
+      </div>`;
+  }
+
+  return `
+    <div class="form-card">
+      <div class="fc-title">Question Text</div>
+      <div class="field-grid">
+        <div class="field field-full">
+          <label class="field-label">Question <span class="req">*</span></label>
+          <textarea class="field-textarea" style="min-height:96px;" oninput="markUnsaved()">${q.text}</textarea>
+        </div>
+        <div class="field">
+          <label class="field-label">Question Type</label>
+          <select class="field-select" onchange="markUnsaved()">
+            <option value="mc"  ${q.type==='mc'?'selected':''}>Multiple Choice</option>
+            <option value="tf"  ${q.type==='tf'?'selected':''}>True / False</option>
+            <option value="sa"  ${q.type==='sa'?'selected':''}>Short Answer</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Points <span class="req">*</span></label>
+          <input class="field-input" type="number" min="1" max="100" value="${q.points}" oninput="markUnsaved()">
+        </div>
+        ${answerHtml}
+      </div>
+    </div>`;
+}
+
+function renderScoringCard(q){
+  const notes = {
+    mc: 'Learner selects one option. Full points awarded for correct selection, zero otherwise.',
+    tf: 'Learner selects True or False. Full points awarded for correct selection, zero otherwise.',
+    sa: 'Learner submits a free-text response. Manual grading required — automated scoring not yet supported (BG-122).'
+  };
+  return `
+    <div class="form-card">
+      <div class="fc-title">Scoring</div>
+      <div class="field-grid">
+        <div class="field">
+          <label class="field-label">Grading Mode</label>
+          <select class="field-select" onchange="markUnsaved()">
+            <option>Automatic</option>
+            <option${q.type==='sa'?' selected':''}>Manual</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Partial Credit</label>
+          <select class="field-select" onchange="markUnsaved()">
+            <option>None</option>
+            <option>Proportional</option>
+          </select>
+        </div>
+        <div class="field field-full">
+          <span class="field-hint">${notes[q.type]}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── INTERACTIONS ── */
+function selectQuestion(id){
+  if(currentState !== 'loaded') return;
+  selectedId = id;
+  renderList();
+  renderEditor();
+}
+
+function handleAddQuestion(){
+  markUnsaved();
+}
+
+function handleDeleteQuestion(id){
+  markUnsaved();
+}
+
+function handleMoveUp(id){
+  markUnsaved();
+}
+
+function handleMoveDown(id){
+  markUnsaved();
+}
+
+function handleSaveDraft(){
+  markSaved();
+}
+
+function handlePublish(){
+  /* POST /api/v1/assessments/{id}/publish (assessment-service) */
+  markSaved();
+}
+
+function handleSettings(){
+  /* Opens settings modal — Assessment metadata editor */
+}
+
+/* ── AUTOSAVE (every 30s) ── */
+setInterval(() => {
+  if(!autosaved) markSaved();
+}, 30000);
+
+/* ── INIT ── */
+render();
+</script>
+</body>
+</html>

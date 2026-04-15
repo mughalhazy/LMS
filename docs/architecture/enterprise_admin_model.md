@@ -1,0 +1,8 @@
+admin_component | responsibility | actors
+--- | --- | ---
+rbac_policy_and_access_control | Defines and enforces role-based permissions for enterprise administration actions (create/update organizations, manage users, assign policies, view audit data), including scoped roles and delegated administration boundaries. | super_admin, enterprise_admin, compliance_admin, department_admin, manager, auditor
+organizational_hierarchy_management | Models and maintains multi-level enterprise structure (tenant -> business unit -> division -> department -> team), with inherited policy and visibility boundaries across levels. | super_admin, enterprise_admin, org_admin, hr_operations
+department_administration | Creates and governs departments, ownership, cost-center metadata, and department-level learning/compliance policy assignment. | enterprise_admin, department_admin, hr_operations, finance_controller
+group_and_membership_management | Manages dynamic and static groups for audience targeting, enrollment automation, communication segmentation, and access scoping based on attributes or rules. | enterprise_admin, department_admin, manager, learning_operations
+manager_relationship_management | Maintains manager-to-user reporting lines for approval workflows, assignment cascades, escalation routing, and managerial reporting visibility. | enterprise_admin, hr_operations, manager, line_manager_delegate
+audit_logging_and_compliance_trail | Captures immutable administrative activity logs (who, what, when, where, before/after state), supports retention policies, export, and compliance investigations. | compliance_admin, security_analyst, auditor, enterprise_admin
