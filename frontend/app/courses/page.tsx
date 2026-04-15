@@ -444,17 +444,6 @@ export default function CoursesPage() {
               </button>
             ))}
           </nav>
-          {/* Mobile quick-add actions */}
-          <div className="px-4 pt-2 pb-4 flex flex-col gap-2 border-t border-border mt-2">
-            <Button size="sm" className="w-full gap-1.5 justify-start">
-              <Icon name="add" size="sm" color="inverse" />
-              Create Course
-            </Button>
-            <Button variant="outline" size="sm" className="w-full gap-1.5 justify-start">
-              <Icon name="enroll" size="sm" color="muted" />
-              Add User
-            </Button>
-          </div>
         </SheetContent>
       </Sheet>
 
