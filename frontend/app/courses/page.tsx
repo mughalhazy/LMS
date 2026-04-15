@@ -5,6 +5,7 @@
 // Reference: C:/LMS/built-pages/A2/lms-a2-courses-list-v1.html
 // Gaps: BG-026 (no server filter/sort/pagination) · BG-027 (no created_by) · BG-008 (no thumbnail_url)
 
+import Image from "next/image"
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -418,11 +419,8 @@ export default function CoursesPage() {
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <SheetContent side="left" className="w-[75vw] max-w-[240px] p-0">
           <SheetHeader className="px-5 py-4 border-b border-border">
-            <SheetTitle className="flex items-center gap-2 text-[14px] font-bold">
-              <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center shrink-0">
-                <Icon name="learner" size="xs" color="inverse" />
-              </div>
-              Meridian
+            <SheetTitle className="flex items-center">
+              <Image src="/nucleus-logo.png" alt="Nucleus LMS" width={120} height={40} className="h-9 w-auto object-contain" />
             </SheetTitle>
           </SheetHeader>
           <nav className="py-2">
@@ -544,11 +542,8 @@ export default function CoursesPage() {
       {/* ── UTILITY BAR ── */}
       <header className="h-12 bg-white border-b border-border flex items-center px-4 md:px-7 gap-2 sticky top-0 z-40 shadow-[var(--sh-xs)]">
         {/* Logo */}
-        <div className="flex items-center gap-1.5 mr-2">
-          <div className="w-6 h-6 bg-[var(--ink)] rounded-[5px] flex items-center justify-center">
-            <Icon name="learner" size="xs" color="inverse" />
-          </div>
-          <span className="text-[13px] font-bold tracking-[-0.02em]">Meridian</span>
+        <div className="flex items-center mr-2 shrink-0">
+          <Image src="/nucleus-logo.png" alt="Nucleus LMS" width={96} height={32} className="h-8 w-auto object-contain" priority />
         </div>
 
         {/* Quick-add buttons — desktop only */}
