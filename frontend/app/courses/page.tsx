@@ -609,12 +609,10 @@ export default function CoursesPage() {
                           style={{ background: isSel ? "var(--accent-lt)" : "white" }}
                         >
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm"
-                                className="w-7 h-7 p-0 text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)]"
-                              >
-                                <Icon name="more" size="sm" />
-                              </Button>
+                            <DropdownMenuTrigger
+                              className="w-7 h-7 p-0 inline-flex items-center justify-center rounded-[7px] text-[var(--ink-4)] hover:text-[var(--ink-2)] hover:bg-[var(--subtle)] transition-colors outline-none"
+                            >
+                              <Icon name="more" size="sm" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-[148px] rounded-[10px] shadow-[var(--sh-md)]">
                               <DropdownMenuItem className="text-[12.5px]">View</DropdownMenuItem>
