@@ -716,8 +716,8 @@ export default function CoursesPage() {
               </button>
             )}
           </div>
-          {/* Scrollable filter chips */}
-          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none -mx-4 px-4">
+          {/* Filter chips — wrapping rows, no horizontal scroll */}
+          <div className="flex flex-wrap gap-1.5">
             {[
               { label: "All",            val: "",              field: "status" as const },
               { label: "Published",      val: "published",     field: "status" as const },
@@ -740,9 +740,9 @@ export default function CoursesPage() {
                     else { setDelivery(isActive ? "" : chip.val); setPage(1) }
                   }}
                   className={cn(
-                    "shrink-0 h-8 px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all duration-150",
+                    "h-7 px-3 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-all duration-150",
                     isActive
-                      ? "bg-[var(--ink)] text-white shadow-[var(--sh-sm)]"
+                      ? "bg-[var(--ink)] text-white"
                       : "bg-white text-[var(--ink-3)] shadow-[0_1px_4px_rgba(0,0,0,0.07)]"
                   )}
                 >
@@ -750,13 +750,12 @@ export default function CoursesPage() {
                 </button>
               )
             })}
-            {/* More filters */}
             <button
               onClick={() => setFilterOpen(true)}
               className={cn(
-                "shrink-0 h-8 px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all duration-150 flex items-center gap-1.5",
+                "h-7 px-3 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-all duration-150 flex items-center gap-1",
                 instructorFilter
-                  ? "bg-[var(--lms-accent)] text-white shadow-[var(--sh-sm)]"
+                  ? "bg-[var(--lms-accent)] text-white"
                   : "bg-white text-[var(--ink-3)] shadow-[0_1px_4px_rgba(0,0,0,0.07)]"
               )}
             >
