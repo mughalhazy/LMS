@@ -37,6 +37,10 @@
 | scorm-service | /api/v1/scorm | ✅ registered in `gateway.yaml` + `routes.yaml` |
 | skill-analytics-service | /api/v1/skill-analytics | ✅ registered in `gateway.yaml` + `routes.yaml` |
 | skill-inference-service | /api/v1/skill-inference | ✅ registered in `gateway.yaml` + `routes.yaml` |
+| session-service | /api/v2/sessions | ⚠️ service exists on disk with full REST API at `/api/v2/sessions` — not yet registered in gateway; registration pending |
+| integration-service | /api/v1/integrations | ⚠️ service confirmed on disk (discovered 2026-05-26 audit) — not yet registered in gateway; registration pending |
+| payment-service | /api/v1/payments | ⚠️ service confirmed on disk (discovered 2026-05-26 audit) — not yet registered in gateway; registration pending |
+| subscription-service | /api/v1/subscriptions | ⚠️ service confirmed on disk (discovered 2026-05-26 audit) — not yet registered in gateway; registration pending |
 | sso-service | /api/v1/sso | ✅ registered in `gateway.yaml` + `routes.yaml` |
 | tenant-service | /api/v1/tenant | ✅ registered in `gateway.yaml` + `routes.yaml` |
 | user-service | /api/v1/user | ✅ registered in `gateway.yaml` + `routes.yaml` |
@@ -45,27 +49,27 @@
 ## API spec route matching check
 | Source spec | Route pattern | Target service |
 |---|---|---|
-| docs/api/core_rest_api.md | /api/v1/users, /api/v1/users/{userId} | user-service |
-| docs/api/core_rest_api.md | /api/v1/courses, /api/v1/courses/{courseId} | course-service |
-| docs/api/core_rest_api.md | /api/v1/lessons, /api/v1/lessons/{lessonId} | lesson-service |
-| docs/api/core_rest_api.md | /api/v1/enrollments, /api/v1/enrollments/{enrollmentId} | enrollment-service |
-| docs/api/core_rest_api.md | /api/v1/assessments, /api/v1/assessments/{assessmentId} | assessment-service |
-| docs/api/core_rest_api.md | /api/v1/certificates, /api/v1/certificates/{certificateId} | certificate-service |
-| docs/api/content_api.md | /api/v1/content/uploads | content-service |
-| docs/api/content_api.md | /api/v1/courses/{courseId}/lessons | lesson-service |
-| docs/api/content_api.md | /api/v1/courses/{courseId}/publish | course-service |
-| docs/api/integration_api.md | /api/v1/integrations/hris/employees/sync | hris-sync-service |
-| docs/api/integration_api.md | /api/v1/integrations/crm/contacts/upsert | org-service |
-| docs/api/integration_api.md | /api/v1/integrations/lti/launch | lti-service |
-| docs/api/integration_api.md | /api/v1/integrations/webhooks/events | webhook-service |
-| docs/api/analytics_api.md | /api/v1/analytics/learners/{learnerId}/progress | learning-analytics-service |
-| docs/api/analytics_api.md | /api/v1/analytics/courses/{courseId}/performance | learning-analytics-service |
-| docs/api/analytics_api.md | /api/v1/analytics/skills | skill-analytics-service |
-| docs/api/analytics_api.md | /api/v1/analytics/compliance/reports | reporting-service |
+| docs/api/core-rest-api.md | /api/v1/users, /api/v1/users/{userId} | user-service |
+| docs/api/core-rest-api.md | /api/v1/courses, /api/v1/courses/{courseId} | course-service |
+| docs/api/core-rest-api.md | /api/v1/lessons, /api/v1/lessons/{lessonId} | lesson-service |
+| docs/api/core-rest-api.md | /api/v1/enrollments, /api/v1/enrollments/{enrollmentId} | enrollment-service |
+| docs/api/core-rest-api.md | /api/v1/assessments, /api/v1/assessments/{assessmentId} | assessment-service |
+| docs/api/core-rest-api.md | /api/v1/certificates, /api/v1/certificates/{certificateId} | certificate-service |
+| docs/api/content-api.md | /api/v1/content/uploads | content-service |
+| docs/api/content-api.md | /api/v1/courses/{courseId}/lessons | lesson-service |
+| docs/api/content-api.md | /api/v1/courses/{courseId}/publish | course-service |
+| docs/api/integration-api.md | /api/v1/integrations/hris/employees/sync | hris-sync-service |
+| docs/api/integration-api.md | /api/v1/integrations/crm/contacts/upsert | org-service |
+| docs/api/integration-api.md | /api/v1/integrations/lti/launch | lti-service |
+| docs/api/integration-api.md | /api/v1/integrations/webhooks/events | webhook-service |
+| docs/api/analytics-api.md | /api/v1/analytics/learners/{learnerId}/progress | learning-analytics-service |
+| docs/api/analytics-api.md | /api/v1/analytics/courses/{courseId}/performance | learning-analytics-service |
+| docs/api/analytics-api.md | /api/v1/analytics/skills | skill-analytics-service |
+| docs/api/analytics-api.md | /api/v1/analytics/compliance/reports | reporting-service |
 
 ## QC_GATE_4 API gateway routing validation
 
-- routes_checked: 38 backend services, 38 service registry entries, 38 gateway prefix routes, 17 API spec explicit routes.
+- routes_checked: 42 backend services (38 registered + 4 pending: session-service, integration-service, payment-service, subscription-service), 38 service registry entries, 38 gateway prefix routes, 17 API spec explicit routes.
 - routes_fixed: added 38 aggregated OpenAPI proxy path entries to represent every service prefix route exposed by the gateway.
 - gateway_routing_score: 10/10.
 

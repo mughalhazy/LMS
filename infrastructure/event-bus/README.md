@@ -1,5 +1,7 @@
 # LMS Event Bus Configuration
 
+> **Runtime status:** The event bus runs **in-memory** in the current runtime. `event_bus_config.json` references a Kafka cluster configuration, but no Kafka broker is wired in the actual running environment. The JSON files in this directory are **spec artifacts** — they define the intended event topology, topic catalog, and producer/consumer contracts for future infrastructure wiring. Do not treat them as running infrastructure configuration.
+
 This directory contains the LMS domain-event bus configuration generated from service event contracts under `backend/services/*/events`.
 
 ## Files

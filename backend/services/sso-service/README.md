@@ -25,4 +25,4 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
 ## Notes
-This scaffold models required configuration fields from `/docs/specs/sso_spec.md`, and follows the identity boundary from core architecture docs by keeping SSO in a dedicated service that can sit behind the API gateway/identity layer.
+This scaffold models required configuration fields from `/docs/specs/sso-spec.md`, and follows the identity boundary from core architecture docs by keeping SSO in a dedicated service that can sit behind the API gateway/identity layer.

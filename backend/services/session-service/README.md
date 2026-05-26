@@ -13,6 +13,10 @@ Production-ready `session_service` implementation for Enterprise LMS V2.
 - audit logging and event publishing
 - health and observability endpoints
 
+## API versioning note
+
+This service uses `/api/v2/sessions`. It is the only service in the platform not on `/api/v1/`. This is intentional — the session service was designed as a v2 API from inception, with a richer scheduling, rescheduling, and cohort-linkage model not present in the v1 baseline. All other services use `/api/v1/`.
+
 ## Module structure
 - `app/main.py` — versioned REST API (`/api/v2/sessions`)
 - `app/schemas.py` — request schema contracts

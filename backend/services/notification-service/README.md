@@ -19,3 +19,7 @@ Provides tenant-scoped notification orchestration for LMS workflows.
 - email
 - push notifications
 - in-app notifications
+- WhatsApp
+- SMS
+
+> **Note:** WhatsApp is a first-class delivery surface per the platform behavioral spec. The WhatsApp adapter exists at `integrations/communication/whatsapp_adapter.py`. SMS is supported as a secondary channel. Both channels require wiring into the notification dispatch pipeline.

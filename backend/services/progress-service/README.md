@@ -25,6 +25,8 @@ Production-oriented progress tracking service aligned to Rails LMS `Progress` se
 - `CourseCompletionTracked`
 - `LearningPathProgressUpdated`
 
+> **Naming convention note:** `progress.updated` and `progress.completed` use dot.case (internal state notifications). `LessonCompletionTracked`, `CourseCompletionTracked`, and `LearningPathProgressUpdated` use PascalCase (domain events published to the event bus). These are two separate namespaces — dot.case for internal service signals, PascalCase for cross-service domain events. Reconciliation to a single canonical naming convention is a pending normalisation action.
+
 ## Local test
 ```bash
 python -m unittest discover -s backend/services/progress-service/tests -p 'test_*.py'

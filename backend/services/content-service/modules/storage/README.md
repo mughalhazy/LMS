@@ -2,9 +2,9 @@
 
 This module implements the content-service storage integration pipeline described by:
 
-- `docs/specs/content_service_spec.md`
-- `docs/architecture/content_storage_model.md`
-- `docs/architecture/file_storage_design.md`
+- `docs/specs/features/content-service-spec.md`
+- `docs/contracts/content-storage-model.md`
+- `docs/designs/file-storage-design.md`
 
 ## Capabilities
 

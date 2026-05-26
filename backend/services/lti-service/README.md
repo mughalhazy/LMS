@@ -42,4 +42,4 @@ uvicorn app.main:app --host 0.0.0.0 --port 8090
 ```
 
 ## Notes
-This scaffold follows `/docs/integrations/lti_provider_spec.md`, `/docs/integrations/lti_consumer_spec.md`, and `/docs/integrations/standards_support.md` for LTI 1.3 + Advantage behavior and security controls.
+This scaffold follows `/docs/integrations/lti-provider-spec.md`, `/docs/integrations/lti-consumer-spec.md`, and `/docs/integrations/standards-support.md` for LTI 1.3 + Advantage behavior and security controls.

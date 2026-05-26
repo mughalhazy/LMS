@@ -2,6 +2,8 @@
 
 Implements tenant-scoped enrollment workflows for the Course Service.
 
+> **Boundary note:** This module defines its own enrollment status lifecycle (`enrolled`, `waitlisted`, `completed`, `withdrawn`, `cancelled`). The canonical enrollment-service uses a different lifecycle (`assigned` → `active` → `completed`). This module is internal to the course-service domain only — it does not replace or duplicate the enrollment-service. Reconciliation of status terminology with the canonical enrollment-service lifecycle is a pending normalisation action.
+
 ## Features
 
 - Enroll user to course with duplicate active-enrollment protection.

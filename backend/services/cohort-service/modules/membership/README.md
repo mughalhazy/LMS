@@ -1,6 +1,6 @@
 # Cohort Membership Module
 
-Implements cohort membership operations from `docs/specs/cohort_spec.md`:
+Implements cohort membership operations from `docs/specs/cohort-service-spec.md`:
 - add learner to cohort
 - remove learner from cohort
 - bulk enrollment
@@ -9,7 +9,7 @@ Implements cohort membership operations from `docs/specs/cohort_spec.md`:
 ## Entities used
 - `cohorts` (capacity checks and membership scope)
 - `users` (learner existence validation)
-- `cohort_memberships` (membership record lifecycle; introduced based on validation in `docs/data/data_model_validation.md`)
+- `cohort_memberships` (membership record lifecycle; introduced based on validation in `docs/data/data-model-validation-report.md`)
 
 ## API endpoints
 - `POST /cohorts/:cohortId/memberships` - Add learner to cohort.

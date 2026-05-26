@@ -1,6 +1,6 @@
 # Course Generation Service
 
-FastAPI microservice implementing the AI Course Generation pipeline described in `docs/architecture/ai_course_generation.md`.
+FastAPI microservice implementing the AI Course Generation pipeline described in `docs/designs/ai-course-generation-pipeline.md`.
 
 ## Implemented stages
 - Document ingestion

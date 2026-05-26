@@ -10,5 +10,5 @@ This directory defines versioned event contracts emitted by `learning_path_servi
 
 ## Notes
 - Naming follows snake_case and past-tense semantics requested for this batch.
-- Payload attributes align with learning path topology, assignment scope, completion rules, and auditability constraints defined in `/docs/specs/learning_path_spec.md`.
+- Payload attributes align with learning path topology, assignment scope, completion rules, and auditability constraints defined in `/docs/specs/features/learning-path-spec.md`.
 - Consumer lists align with LMS service boundaries and event-driven integration patterns from architecture specs.

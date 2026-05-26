@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# local machine config — not portable
+.npmrc
+
 # debug
 npm-debug.log*
 yarn-debug.log*

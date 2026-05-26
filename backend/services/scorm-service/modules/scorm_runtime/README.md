@@ -1,9 +1,9 @@
 # SCORM Runtime Module
 
 Implements tenant-scoped SCORM launch and runtime tracking aligned to:
-- `docs/specs/scorm_runtime_spec.md`
-- `docs/specs/content_service_spec.md`
-- `docs/architecture/core_system_architecture.md`
+- `docs/specs/features/scorm-runtime-spec.md`
+- `docs/specs/features/content-service-spec.md`
+- `docs/architecture/core-system-architecture.md`
 
 ## Features
 

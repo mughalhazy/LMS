@@ -14,4 +14,4 @@ This directory contains versioned domain-event contracts emitted by `course-serv
 ## Notes
 - Event names follow the task-specified snake_case naming.
 - Topic names follow the broader LMS bus convention (`lms.<domain>.<action>.v<version>`).
-- Payload fields are aligned to course service operations in `/docs/specs/course_service_spec.md`.
+- Payload fields are aligned to course service operations in `/docs/specs/course-service-spec.md`.

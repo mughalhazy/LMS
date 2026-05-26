@@ -14,8 +14,8 @@ This module defines progression rules for the Learning Path Service.
 ## Source alignment
 
 Rules are derived from:
-- `docs/specs/learning_path_spec.md`
-- `docs/specs/prerequisite_engine_spec.md`
+- `docs/specs/features/learning-path-spec.md`
+- `docs/specs/features/prerequisite-engine-spec.md`
 
 ## Output contract
 

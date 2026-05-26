@@ -7,7 +7,9 @@
 
 import Image from "next/image"
 import { useState, useMemo, useCallback, useEffect } from "react"
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -117,7 +119,7 @@ function StatusChip({ course }: { course: Course }) {
   const { state, label } = getChipState(course)
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border border-[1.5px] uppercase tracking-[0.04em] whitespace-nowrap",
+      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold border-[1.5px] uppercase tracking-[0.04em] whitespace-nowrap",
       "before:content-[''] before:w-[5px] before:h-[5px] before:rounded-full before:bg-current",
       state === "draft"      && "bg-[var(--subtle)] border-[var(--border-s)] text-[var(--ink-4)]",
       state === "published"  && "bg-[var(--green-bg)] border-[var(--green-bd)] text-[var(--green)]",
@@ -149,7 +151,7 @@ function CompletionCell({ pct }: { pct: number | null }) {
       <div className="w-12 h-1 bg-border rounded-full overflow-hidden shrink-0">
         <div className={cn("h-1 rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-semibold text-[var(--ink-2)]">{pct}%</span>
+      <span className="text-xs font-semibold text-[var(--ink-2)] tabular-nums">{pct}%</span>
     </div>
   )
 }
@@ -169,7 +171,16 @@ function SortHeader({
       )}
       onClick={() => onSort(col)}
     >
-      {label}{active ? (currentDir === "asc" ? " ↑" : " ↓") : ""}
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        {active ? (
+          currentDir === "asc"
+            ? <ChevronUp className="w-3 h-3 shrink-0" />
+            : <ChevronDown className="w-3 h-3 shrink-0" />
+        ) : (
+          <ChevronsUpDown className="w-3 h-3 shrink-0 opacity-35" />
+        )}
+      </span>
     </TableHead>
   )
 }
@@ -281,7 +292,7 @@ function CourseCard({
         <div className="px-4 pb-3.5">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10.5px] font-semibold text-[var(--ink-4)] uppercase tracking-[0.04em]">Completion</span>
-            <span className="text-[11px] font-bold text-[var(--ink-2)]">{course.completion}%</span>
+            <span className="text-[11px] font-bold text-[var(--ink-2)] tabular-nums">{course.completion}%</span>
           </div>
           <div className="h-1 bg-[var(--subtle)] rounded-full overflow-hidden">
             <div
@@ -560,9 +571,9 @@ export default function CoursesPage() {
           </Button>
 
           {/* Avatar — always visible */}
-          <div className="w-7 h-7 rounded-full bg-[var(--ink)] text-white text-[10px] font-bold flex items-center justify-center cursor-pointer">
-            AK
-          </div>
+          <Avatar size="sm" className="cursor-pointer">
+            <AvatarFallback className="bg-[var(--ink)] text-white text-[10px] font-bold">AK</AvatarFallback>
+          </Avatar>
         </div>
       </header>
 
@@ -702,7 +713,7 @@ export default function CoursesPage() {
               className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
             />
             <Input
-              className="pl-10 h-11 text-[13.5px] bg-white border-0 shadow-[0_2px_12px_rgba(0,0,0,0.07)] rounded-[14px] focus-visible:ring-2 focus-visible:ring-[var(--lms-accent)]"
+              className="pl-10 h-11 text-[13.5px] bg-white border border-[var(--border)] shadow-[0_2px_8px_rgba(0,0,0,0.06)] rounded-[14px] focus-visible:ring-2 focus-visible:ring-[var(--lms-accent)]"
               placeholder="Search courses…"
               value={query}
               onChange={e => { setQuery(e.target.value); setPage(1) }}
@@ -923,7 +934,7 @@ export default function CoursesPage() {
                           "border-b border-border h-10 transition-colors cursor-pointer",
                           isSel
                             ? "bg-[var(--accent-lt)] hover:bg-[var(--accent-lt)]"
-                            : "hover:bg-[rgba(91,91,214,0.018)]"
+                            : "hover:bg-[rgba(91,91,214,0.04)]"
                         )}
                         onClick={() => toggleRow(course.id)}
                       >
@@ -941,7 +952,7 @@ export default function CoursesPage() {
                             <div className="min-w-0">
                               <div className="text-[13px] font-semibold text-[var(--ink)] truncate max-w-[200px]">{course.title}</div>
                               {course.code && <div className="text-[11px] text-[var(--ink-4)] font-mono">@{course.code}</div>}
-                              <div className="text-[10px] text-[var(--ink-4)] italic">{getModeLabel(course.mode)}</div>
+                              <div className="text-[10px] text-[var(--ink-4)]">{getModeLabel(course.mode)}</div>
                             </div>
                           </div>
                         </TableCell>
@@ -954,7 +965,7 @@ export default function CoursesPage() {
                         <TableCell><StatusChip course={course} /></TableCell>
                         <TableCell className="text-xs text-[var(--ink-2)]">{course.category ?? "—"}</TableCell>
                         <TableCell className="text-right text-xs text-[var(--ink-3)]">{fmtDuration(course.duration)}</TableCell>
-                        <TableCell className="text-right text-[13px] font-semibold text-[var(--ink-2)]">{course.enrollments.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-[13px] font-semibold text-[var(--ink-2)] tabular-nums">{course.enrollments.toLocaleString()}</TableCell>
                         <TableCell><CompletionCell pct={course.completion} /></TableCell>
                         <TableCell className="text-xs text-[var(--ink-3)] whitespace-nowrap">{course.updated}</TableCell>
                         <TableCell

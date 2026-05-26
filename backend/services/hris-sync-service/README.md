@@ -1,6 +1,6 @@
 # HRIS Sync Service
 
-Implements LMS HRIS synchronization capabilities described in `docs/integrations/hris_sync_spec.md`:
+Implements LMS HRIS synchronization capabilities described in `docs/integrations/hris-sync-spec.md`:
 
 - **employee sync**: maps HRIS employees into LMS user entities
 - **org hierarchy sync**: maps departments and parent-child structure

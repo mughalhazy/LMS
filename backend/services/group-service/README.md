@@ -20,5 +20,5 @@ See `openapi.yaml`.
 - group learning assignment add/list
 
 ## Design alignment
-- Follows hierarchy constraints from `/docs/specs/org_hierarchy_spec.md` by enforcing uniqueness of names/codes within organization scope and lifecycle controls.
-- Extends core LMS schema from `/docs/data/core_lms_schema.md` with group-focused tables in `schema.sql`.
+- Follows hierarchy constraints from `/docs/specs/features/org-hierarchy-spec.md` by enforcing uniqueness of names/codes within organization scope and lifecycle controls.
+- Extends core LMS schema from `/docs/data/core-lms-schema.md` with group-focused tables in `schema.sql`.

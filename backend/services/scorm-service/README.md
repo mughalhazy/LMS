@@ -5,7 +5,7 @@ SCORM runtime service implementing:
 - SCORM session handling
 - completion tracking
 
-Aligned to `docs/specs/scorm_runtime_spec.md`.
+Aligned to `docs/specs/features/scorm-runtime-spec.md`.
 
 > Stage-3 structure note: the SCORM runtime implementation now lives under `modules/scorm_runtime`.
 

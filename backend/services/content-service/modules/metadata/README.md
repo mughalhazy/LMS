@@ -2,8 +2,8 @@
 
 This module regenerates metadata capabilities for the content service based on:
 
-- `docs/specs/content_service_spec.md`
-- `docs/data/core_lms_schema.md`
+- `docs/specs/features/content-service-spec.md`
+- `docs/data/core-lms-schema.md`
 - `docs/architecture/cloud_architecture_lms.md`
 
 ## Implemented capabilities

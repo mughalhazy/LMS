@@ -1,8 +1,8 @@
 # Course Versioning Module
 
 Implements content versioning for course artifacts aligned with:
-- `docs/specs/content_versioning_spec.md`
-- `docs/specs/course_service_spec.md`
+- `docs/specs/features/content-versioning-spec.md`
+- `docs/specs/course-service-spec.md`
 
 ## Capabilities
 
