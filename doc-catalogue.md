@@ -1,7 +1,8 @@
 # LMS — Master Doc Catalogue
 **Version:** 5.4 | **Date:** 2026-05-27 | **Location:** D:\LMS\Repo\doc-catalogue.md
 **Merged from:** workspace/doc-catalogue.md v4.0 + Repo/doc-catalogue.md
-**Stage:** Stage 3+4 COMPLETE, catalogue audit COMPLETE, Phase 2 normalisation COMPLETE, Phase 3 kebab rename COMPLETE 2026-05-26, workspace restructure COMPLETE 2026-05-27, Repo docs/ restructure COMPLETE 2026-05-27
+**Stage:** Stage 3+4 COMPLETE, catalogue audit COMPLETE, Phase 2+3 normalisation COMPLETE, workspace + Repo docs/ restructure COMPLETE 2026-05-27, git initialised on both repos 2026-05-27
+**Git:** `D:\LMS` master (2 commits) | `D:\LMS\Repo` master (5 commits, baseline 54c1af5)
 **Flags:** `ARCHIVED` = moved to _archive/, file not deleted | `DEPRECATED` = superseded, file retained | `EMPTY` = placeholder stub on disk, content pending normalisation
 
 **Columns:** File | Location | Description | Purpose
