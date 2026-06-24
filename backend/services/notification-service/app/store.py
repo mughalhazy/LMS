@@ -103,6 +103,23 @@ class InMemoryNotificationStore:
         self.messages[message.message_id] = message
         self.queue.append(message.message_id)
 
+    def list_messages(
+        self,
+        tenant_id: str,
+        user_id: str,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[NotificationMessage]:
+        self.assert_database_available()
+        results = [
+            m for m in self.messages.values()
+            if m.tenant_id == tenant_id and m.user_id == user_id
+        ]
+        if status:
+            results = [m for m in results if m.status == status]
+        results.sort(key=lambda m: m.created_at, reverse=True)
+        return results[:limit]
+
     def upsert_phone_binding(self, *, tenant_id: str, phone_hash: str, user_id: str) -> None:
         self.assert_database_available()
         self.phone_bindings[(tenant_id, phone_hash)] = user_id

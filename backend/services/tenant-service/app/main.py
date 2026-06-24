@@ -3,15 +3,16 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, Query
 from fastapi.responses import JSONResponse
 
 from app.errors import TenantServiceError
 from app.events import InMemoryEventPublisher
+from app.security import apply_security_headers, require_jwt
 from app.middleware import TenantContextMiddleware
 from app.models import LifecycleState, TenantConfiguration
 from app.observability import MetricsRegistry
-from app.repository import InMemoryTenantStore
+from app.store_db import SQLiteTenantStore
 from app.schemas import (
     ArchiveTenantRequest,
     CreateTenantRequest,
@@ -32,12 +33,28 @@ from app.schemas import (
 )
 from app.service import TenantService
 
-store = InMemoryTenantStore()
+store = SQLiteTenantStore()
 metrics_registry = MetricsRegistry()
 event_publisher = InMemoryEventPublisher()
 service = TenantService(store=store, publisher=event_publisher, metrics=metrics_registry)
 
-app = FastAPI(title="Tenant Service", version="2.0.0")
+# B02-001: spec §5 — service trusts platform identity token claims; JWT required
+app = FastAPI(title="Tenant Service", version="2.0.0", dependencies=[Depends(require_jwt)])
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+apply_security_headers(app)
 app.middleware("http")(TenantContextMiddleware())
 
 
@@ -89,7 +106,11 @@ def validate_tenant_creation(request: ValidateTenantCreationRequest) -> Validati
 
 
 @app.post("/api/v1/tenants", response_model=CreateTenantResponse)
-def create_tenant(request: CreateTenantRequest) -> CreateTenantResponse:
+def create_tenant(
+    request: CreateTenantRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> CreateTenantResponse:
+    # B02-004: spec §5 — POST /tenants and lifecycle transitions require Idempotency-Key header
     return api.create_tenant(request)
 
 
@@ -101,6 +122,20 @@ def initialize_tenant_configuration(tenant_id: str, request: InitializeTenantCon
         tenant_id=tenant_id,
         configuration=asdict(config),
         effective_settings=service.effective_settings(tenant, include_defaults=True),
+    )
+
+
+@app.get("/api/v1/tenants/{tenant_id}/configuration", response_model=TenantConfigurationResponse)
+def get_tenant_configuration(
+    tenant_id: str,
+    include_defaults: bool = Query(default=True),
+) -> TenantConfigurationResponse:
+    # Spec: tenant-service-spec-v0.md §4.4
+    tenant = service.get_tenant(tenant_id)
+    return TenantConfigurationResponse(
+        tenant_id=tenant_id,
+        configuration=asdict(tenant.configuration),
+        effective_settings=service.effective_settings(tenant, include_defaults=include_defaults),
     )
 
 
@@ -127,19 +162,34 @@ def manage_tenant_feature_flags(tenant_id: str, request: ManageFeatureFlagsReque
 
 
 @app.post("/api/v1/tenants/{tenant_id}/lifecycle/suspend")
-def suspend_tenant(tenant_id: str, request: SuspendTenantRequest) -> dict:
+def suspend_tenant(
+    tenant_id: str,
+    request: SuspendTenantRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    # B02-004: spec §5 — lifecycle transitions require Idempotency-Key header
     tenant = service.transition_lifecycle(tenant_id, LifecycleState.SUSPENDED, request.suspension_reason, request.suspended_by, datetime.now(timezone.utc))
     return {"suspension_receipt": {"tenant_id": tenant.tenant_id, "state": tenant.lifecycle_state}}
 
 
 @app.post("/api/v1/tenants/{tenant_id}/lifecycle/reactivate")
-def reactivate_tenant(tenant_id: str, request: ReactivateTenantRequest) -> dict:
+def reactivate_tenant(
+    tenant_id: str,
+    request: ReactivateTenantRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    # B02-004: spec §5 — lifecycle transitions require Idempotency-Key header
     tenant = service.transition_lifecycle(tenant_id, LifecycleState.ACTIVE, request.reactivation_reason, request.approved_by, datetime.now(timezone.utc))
     return {"reactivation_receipt": {"tenant_id": tenant.tenant_id, "state": tenant.lifecycle_state}}
 
 
 @app.post("/api/v1/tenants/{tenant_id}/lifecycle/archive")
-def archive_tenant(tenant_id: str, request: ArchiveTenantRequest) -> dict:
+def archive_tenant(
+    tenant_id: str,
+    request: ArchiveTenantRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    # B02-004: spec §5 — lifecycle transitions require Idempotency-Key header
     tenant = service.transition_lifecycle(
         tenant_id,
         LifecycleState.ARCHIVED,
@@ -151,7 +201,12 @@ def archive_tenant(tenant_id: str, request: ArchiveTenantRequest) -> dict:
 
 
 @app.post("/api/v1/tenants/{tenant_id}/lifecycle/decommission")
-def decommission_tenant(tenant_id: str, request: DecommissionTenantRequest) -> dict:
+def decommission_tenant(
+    tenant_id: str,
+    request: DecommissionTenantRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    # B02-004: spec §5 — lifecycle transitions require Idempotency-Key header
     reason = f"legal_hold={request.legal_hold_status};purge_after={request.purge_after_date.isoformat()}"
     tenant = service.transition_lifecycle(tenant_id, LifecycleState.DECOMMISSIONED, reason, request.approved_by, request.purge_after_date)
     return {"decommission_status": {"tenant_id": tenant.tenant_id, "state": tenant.lifecycle_state}}

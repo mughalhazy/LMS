@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 
 from .schemas import (
     LearningPathAssignmentRequest,
@@ -13,13 +13,29 @@ from .schemas import (
     LessonProgressUpsertRequest,
     ProgressRecordResponse,
 )
+from .security import apply_security_headers, require_jwt
 from .service import EnrollmentInactiveError, InMemoryEventPublisher, NoopMetricsHook, ProgressService
-from .store import InMemoryIdempotencyStore, InMemoryProgressStore
+from .store_db import SQLiteIdempotencyStore, SQLiteProgressStore
 
-app = FastAPI(title="progress-service", version="v1")
+# B01-006: multi-tenant-isolation-model §2 — JWT required on all non-exempt endpoints
+app = FastAPI(title="progress-service", version="v1", dependencies=[Depends(require_jwt)])
 
-store = InMemoryProgressStore()
-idempotency = InMemoryIdempotencyStore()
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+apply_security_headers(app)
+store = SQLiteProgressStore()
+idempotency = SQLiteIdempotencyStore()
 publisher = InMemoryEventPublisher()
 metrics = NoopMetricsHook()
 service = ProgressService(store=store, idempotency=idempotency, publisher=publisher, metrics=metrics)
@@ -102,3 +118,24 @@ def assign_learning_path(
 ) -> LearningPathAssignmentResponse:
     enforce_tenant(request.tenant_id, x_tenant_id)
     return service.assign_learning_path(learning_path_id=learning_path_id, request=request, actor_id="api")
+
+
+@app.get("/api/v1/progress/eligibility/courses/{course_id}/users/{user_id}")
+def get_completion_eligibility(
+    course_id: str,
+    user_id: str,
+    tenant_id: str = Query(...),
+    x_tenant_id: str = Header(alias="X-Tenant-Id"),
+) -> dict:
+    # B01-002: spec §8.1 — read-only eligibility endpoint for certificate-service integration
+    enforce_tenant(tenant_id, x_tenant_id)
+    row = service.get_course_progress(tenant_id=tenant_id, learner_id=user_id, course_id=course_id)
+    eligible = row is not None and row.completion_status in ("completed", "passed")
+    return {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "course_id": course_id,
+        "eligible_for_certificate": eligible,
+        "completion_status": row.completion_status if row else "not_started",
+        "progress_percentage": row.progress_percentage if row else 0.0,
+    }

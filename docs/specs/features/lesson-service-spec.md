@@ -75,7 +75,13 @@ Lesson:
 ---
 
 ## 4) API endpoints and contracts
-All endpoints are tenant-scoped (`/v1/tenants/{tenant_id}/...`).
+
+> **CAT-017 note 2026-05-31:** Tenant scoping is enforced via `X-Tenant-Id` header (platform
+> standard) rather than path-based `/v1/tenants/{tenant_id}/` prefix. All routes use the
+> `/api/v1/` prefix consistent with all other platform services. The original path-based notation
+> below refers to conceptual tenant scoping, not literal path format.
+
+All endpoints are tenant-scoped (enforced via `X-Tenant-Id` header; base path `/api/v1/`).
 
 ### 4.1 Create lesson
 `POST /courses/{course_id}/lessons`

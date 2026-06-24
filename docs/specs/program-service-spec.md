@@ -70,18 +70,21 @@ It provides the curriculum container used to:
 
 ## 3) API endpoints
 
-Base path: `/programs`
+> **As-implemented (v2.0.0):** Base path is `/api/v1/programs` per platform path convention.
+> AUD-011: spec updated 2026-05-31 to reflect as-implemented prefix.
+
+Base path: `/api/v1/programs` (as-implemented) | Original spec path: `/programs`
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/programs` | POST | Create a program container |
-| `/programs/{programId}` | GET | Fetch program + mappings + institution link summary |
-| `/programs/{programId}` | PATCH | Update mutable metadata |
-| `/programs/{programId}/status` | POST | Transition program status |
-| `/programs/{programId}/institution-links` | PUT | Upsert program-to-institution linkage |
-| `/programs/{programId}/courses` | PUT | Replace full ordered program-to-course mapping |
-| `/programs/{programId}/courses/{courseId}` | DELETE | Remove one mapped course |
-| `/programs` | GET | Search/list programs by tenant/institution/status |
+| `/api/v1/programs` | POST | Create a program container |
+| `/api/v1/programs/{program_id}` | GET | Fetch program + mappings + institution link summary |
+| `/api/v1/programs/{program_id}` | PATCH | Update mutable metadata |
+| `/api/v1/programs/{program_id}/status` | POST | Transition program status |
+| `/api/v1/programs/{program_id}/institution-links` | PUT | Upsert program-to-institution linkage |
+| `/api/v1/programs/{program_id}/courses` | PUT | Replace full ordered program-to-course mapping |
+| `/api/v1/programs/{program_id}/courses/{course_id}` | DELETE | Remove one mapped course |
+| `/api/v1/programs` | GET | Search/list programs by tenant/institution/status |
 
 ---
 

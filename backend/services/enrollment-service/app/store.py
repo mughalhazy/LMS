@@ -19,6 +19,10 @@ class EnrollmentStore(Protocol):
         learner_id: str | None = None,
         course_id: str | None = None,
         status: str | None = None,
+        cohort_id: str | None = None,
+        session_id: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
     ) -> list[Enrollment]: ...
 
     def update(self, enrollment: Enrollment) -> Enrollment: ...
@@ -49,6 +53,10 @@ class InMemoryEnrollmentStore:
         learner_id: str | None = None,
         course_id: str | None = None,
         status: str | None = None,
+        cohort_id: str | None = None,
+        session_id: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
     ) -> list[Enrollment]:
         rows = list(self._by_tenant[tenant_id].values())
         if learner_id:
@@ -57,15 +65,27 @@ class InMemoryEnrollmentStore:
             rows = [r for r in rows if r.course_id == course_id]
         if status:
             rows = [r for r in rows if r.status.value == status]
-        return rows
+        if cohort_id:
+            rows = [r for r in rows if r.cohort_id == cohort_id]
+        if session_id:
+            rows = [r for r in rows if r.session_id == session_id]
+        offset = (page - 1) * page_size
+        return rows[offset: offset + page_size]
 
     def update(self, enrollment: Enrollment) -> Enrollment:
         self._by_tenant[enrollment.tenant_id][enrollment.id] = enrollment
         return enrollment
 
     def active_for_learner_course(self, tenant_id: str, learner_id: str, course_id: str) -> Enrollment | None:
+        # CAT-016: unique constraint is (tenant_id, user_id, course_id); tenant_id is first predicate.
+        # _by_tenant[tenant_id] scopes to tenant partition; explicit check guards future refactors.
         for enrollment in self._by_tenant[tenant_id].values():
-            if enrollment.learner_id == learner_id and enrollment.course_id == course_id and enrollment.status in {EnrollmentStatus.ASSIGNED, EnrollmentStatus.ACTIVE}:
+            if (
+                enrollment.tenant_id == tenant_id
+                and enrollment.learner_id == learner_id
+                and enrollment.course_id == course_id
+                and enrollment.status in {EnrollmentStatus.ASSIGNED, EnrollmentStatus.ACTIVE}
+            ):
                 return enrollment
         return None
 

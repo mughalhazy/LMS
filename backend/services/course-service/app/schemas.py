@@ -25,9 +25,23 @@ class DeliveryRole(str, Enum):
     REMEDIAL = "remedial"
 
 
+class DeliveryMode(str, Enum):
+    SELF_PACED = "self_paced"
+    INSTRUCTOR_LED = "instructor_led"
+    BLENDED = "blended"
+    COHORT_BASED = "cohort_based"
+
+
+class GradingScheme(str, Enum):
+    PASS_FAIL = "pass_fail"
+    PERCENTAGE = "percentage"
+    LETTER_GRADE = "letter_grade"
+    COMPLETION = "completion"
+
+
 class CourseMetadata(BaseModel):
     category_id: str | None = None
-    delivery_mode: str | None = None
+    delivery_mode: DeliveryMode | None = None
     cohort_id: str | None = None
     enrollment_enabled: bool = False
     duration_minutes: int | None = Field(default=None, ge=1)
@@ -81,7 +95,7 @@ class CreateCourseRequest(BaseModel):
     description: str | None = None
     language_code: str | None = None
     credit_value: float | None = None
-    grading_scheme: str | None = None
+    grading_scheme: GradingScheme | None = None
     metadata: CourseMetadata = Field(default_factory=CourseMetadata)
 
     @model_validator(mode="after")
@@ -106,7 +120,7 @@ class UpdateCourseRequest(BaseModel):
     description: str | None = None
     language_code: str | None = None
     credit_value: float | None = None
-    grading_scheme: str | None = None
+    grading_scheme: GradingScheme | None = None
     metadata: CourseMetadata | None = None
 
     @model_validator(mode="after")
@@ -182,25 +196,18 @@ class CourseResponse(BaseModel):
     updated_at: datetime
     published_at: datetime | None = None
     published_by: str | None = None
+    created_by: str
     course_code: str | None = None
     title: str
     description: str | None = None
     language_code: str | None = None
     credit_value: float | None = None
-    grading_scheme: str | None = None
+    grading_scheme: GradingScheme | None = None
     metadata: CourseMetadata = Field(default_factory=CourseMetadata)
     program_links: list[ProgramLink] = Field(default_factory=list)
     session_links: list[SessionLink] = Field(default_factory=list)
-
-
-class EventEnvelope(BaseModel):
-    event_id: str
-    event_type: str
-    timestamp: datetime
-    tenant_id: str
-    correlation_id: str
-    payload: dict[str, Any]
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    enrollment_count: int = 0
+    version: int = 1
 
 
 class ApiMeta(BaseModel):

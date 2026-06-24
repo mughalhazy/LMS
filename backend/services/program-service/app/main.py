@@ -20,11 +20,25 @@ from .schemas import (
     UpsertInstitutionLinkRequest,
 )
 from .service import ProgramService
-from .store import InMemoryProgramStore
+from .store_db import SQLiteProgramStore
 from .tenant import tenant_context
 
 app = FastAPI(title="Program Service", version="1.0.0")
-service = ProgramService(store=InMemoryProgramStore(), known_courses={"c-101", "c-205", "c-301"})
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+service = ProgramService(store=SQLiteProgramStore(), known_courses=None)
 
 
 @app.post("/api/v1/programs", response_model=ProgramResponse, status_code=201)

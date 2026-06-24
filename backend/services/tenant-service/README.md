@@ -1,4 +1,8 @@
-# Tenant Service (Enterprise LMS V2)
+﻿# Tenant Service (Enterprise LMS V2)
+
+## Authentication
+
+JWT required on all routes (B02-001, 2026-05-31). Authorization: Bearer <token>. Idempotency-Key header required on POST /tenants and all lifecycle transitions (B02-004).
 
 Production-ready tenant root service for lifecycle + configuration + isolation.
 

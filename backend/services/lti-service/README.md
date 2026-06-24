@@ -10,24 +10,25 @@ Generated LTI integration service implementing both **LTI provider** and **LTI c
 
 ## API endpoints
 ### Provider
-- `POST /provider/tools/register`
-- `POST /provider/tools/validate-activation`
-- `POST /provider/launch/login`
-- `POST /provider/launch/validate`
-- `POST /provider/launch/session`
-- `POST /provider/identity/map`
-- `POST /provider/identity/normalize-roles`
-- `POST /provider/services/token`
-- `POST /provider/services/ags/score`
-- `POST /provider/services/nrps/sync`
+- `POST /api/v1/lti/provider/tools/register`
+- `POST /api/v1/lti/provider/tools/validate-activation`
+- `POST /api/v1/lti/provider/launch/login`
+- `POST /api/v1/lti/provider/launch/validate`
+- `POST /api/v1/lti/provider/launch/session`
+- `POST /api/v1/lti/provider/identity/map`
+- `POST /api/v1/lti/provider/identity/normalize-roles`
+- `POST /api/v1/lti/provider/services/token`
+- `POST /api/v1/lti/provider/services/ags/score`
+- `POST /api/v1/lti/provider/services/nrps/sync`
 
 ### Consumer
-- `POST /consumer/tools/register`
-- `POST /consumer/launch/initiate`
-- `POST /consumer/launch/complete`
+- `POST /api/v1/lti/consumer/tools/register`
+- `POST /api/v1/lti/consumer/launch/initiate`
+- `POST /api/v1/lti/consumer/launch/complete`
 
 ### Utility
 - `GET /health`
+- `GET /metrics`
 
 ## LTI flows modeled
 1. **Provider registration and activation** (tool onboarding + trust policy checks).

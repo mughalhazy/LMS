@@ -15,6 +15,18 @@ class LessonStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+class LessonType(str, Enum):
+    # CAT-018: spec §3.1 canonical values: video|document|quiz|scorm|live_session
+    VIDEO = "video"
+    DOCUMENT = "document"
+    QUIZ = "quiz"
+    SCORM = "scorm"
+    LIVE_SESSION = "live_session"
+    # backward-compat aliases retained for existing records
+    SELF_PACED = "self_paced"
+    ASSESSMENT = "assessment"
+
+
 class LifecycleAction(str, Enum):
     CREATE = "create"
     UPDATE = "update"
@@ -32,7 +44,7 @@ class Lesson:
     course_id: str
     title: str
     created_by: str
-    lesson_type: str = "self_paced"
+    lesson_type: LessonType = LessonType.SELF_PACED
     description: str | None = None
     module_id: str | None = None
     learning_objectives: list[str] = field(default_factory=list)

@@ -185,3 +185,46 @@ class OrganizationService:
             "departments": [asdict(d) for d in departments],
             "teams": [asdict(t) for t in teams],
         }
+
+    # ── Read ──────────────────────────────────────────────────────────────────
+
+    def list_organizations(self, tenant_id: str | None = None) -> list[Organization]:
+        orgs = list(self.repo.organizations.values())
+        if tenant_id:
+            orgs = [o for o in orgs if o.tenant_id == tenant_id]
+        return orgs
+
+    def get_organization(self, organization_id: str) -> Organization:
+        return self._require_org(organization_id)
+
+    def get_department(self, department_id: str) -> Department:
+        return self._require_department(department_id)
+
+    def list_teams(self, department_id: str | None = None) -> list[Team]:
+        if department_id:
+            self._require_department(department_id)
+            return [self.repo.teams[tid] for tid in sorted(self.repo.teams_by_department[department_id])]
+        return list(self.repo.teams.values())
+
+    def get_team(self, team_id: str) -> Team:
+        return self._require_team(team_id)
+
+    # ── Delete ────────────────────────────────────────────────────────────────
+
+    def delete_organization(self, organization_id: str) -> None:
+        org = self._require_org(organization_id)
+        if org.parent_organization_id:
+            self.repo.org_children[org.parent_organization_id].discard(organization_id)
+        del self.repo.organizations[organization_id]
+
+    def delete_department(self, department_id: str) -> None:
+        dep = self._require_department(department_id)
+        self.repo.departments_by_org[dep.organization_id].discard(department_id)
+        if dep.parent_department_id:
+            self.repo.department_children[dep.parent_department_id].discard(department_id)
+        del self.repo.departments[department_id]
+
+    def delete_team(self, team_id: str) -> None:
+        team = self._require_team(team_id)
+        self.repo.teams_by_department[team.department_id].discard(team_id)
+        del self.repo.teams[team_id]

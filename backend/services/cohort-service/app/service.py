@@ -12,11 +12,13 @@ from .schemas import (
     AddMembershipRequest,
     CohortKind,
     CohortResponse,
+    CohortStatus,
     CohortWithMembershipsResponse,
     CreateCohortRequest,
     LinkProgramRequest,
     MembershipResponse,
     UpdateCohortRequest,
+    UpdateMembershipRequest,
 )
 from .store import CohortStore, InMemoryCohortStore
 
@@ -176,6 +178,22 @@ class CohortService:
         )
         return MembershipResponse.model_validate(membership)
 
+    def update_membership(self, tenant_id: str, cohort_id: str, membership_id: str, request: UpdateMembershipRequest) -> MembershipResponse:
+        self._require_cohort(tenant_id, cohort_id)
+        membership = self.store.get_membership(tenant_id, cohort_id, membership_id)
+        if not membership:
+            raise HTTPException(status_code=404, detail="Membership not found")
+        if request.role is not None:
+            membership.role = request.role
+        self.store.save_membership(membership)
+        self.audit.log(
+            event_type="cohort.membership_updated",
+            tenant_id=tenant_id,
+            actor_id=request.updated_by,
+            details={"cohort_id": cohort_id, "membership_id": membership_id},
+        )
+        return MembershipResponse.model_validate(membership)
+
     def remove_membership(self, tenant_id: str, cohort_id: str, membership_id: str, removed_by: str) -> None:
         self._require_cohort(tenant_id, cohort_id)
         self.store.remove_membership(tenant_id, cohort_id, membership_id)
@@ -222,6 +240,27 @@ class CohortService:
             actor_id=deleted_by,
             details={"cohort_id": cohort_id, "kind": cohort.kind.value},
         )
+
+    def bulk_create_cohorts(self, tenant_id: str, requests: list[CreateCohortRequest]) -> list[dict]:
+        results = []
+        for req in requests:
+            try:
+                cohort = self.create_cohort(tenant_id, req)
+                results.append({"cohort_id": cohort.cohort_id, "status": "created"})
+            except Exception as exc:
+                results.append({"cohort_id": None, "status": "failed", "error": str(exc)})
+        return results
+
+    def bulk_update_status(self, tenant_id: str, cohort_ids: list[str], status: CohortStatus, updated_by: str) -> list[dict]:
+        results = []
+        for cohort_id in cohort_ids:
+            try:
+                req = UpdateCohortRequest(status=status, updated_by=updated_by)
+                self.update_cohort(tenant_id, cohort_id, req)
+                results.append({"cohort_id": cohort_id, "status": "updated"})
+            except Exception as exc:
+                results.append({"cohort_id": cohort_id, "status": "failed", "error": str(exc)})
+        return results
 
     def _require_cohort(self, tenant_id: str, cohort_id: str) -> CohortRecord:
         cohort = self.store.get_cohort(tenant_id, cohort_id)

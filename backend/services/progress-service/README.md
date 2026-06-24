@@ -1,4 +1,8 @@
-# Progress Service
+﻿# Progress Service
+
+## Authentication
+
+JWT required on all routes (B01-006, 2026-05-31). Authorization: Bearer <token>.
 
 Production-oriented progress tracking service aligned to Rails LMS `Progress` semantics.
 
@@ -25,7 +29,7 @@ Production-oriented progress tracking service aligned to Rails LMS `Progress` se
 - `CourseCompletionTracked`
 - `LearningPathProgressUpdated`
 
-> **Naming convention note:** `progress.updated` and `progress.completed` use dot.case (internal state notifications). `LessonCompletionTracked`, `CourseCompletionTracked`, and `LearningPathProgressUpdated` use PascalCase (domain events published to the event bus). These are two separate namespaces — dot.case for internal service signals, PascalCase for cross-service domain events. Reconciliation to a single canonical naming convention is a pending normalisation action.
+> **Naming convention note:** `progress.updated` and `progress.completed` use dot.case (internal state notifications). `LessonCompletionTracked`, `CourseCompletionTracked`, and `LearningPathProgressUpdated` use PascalCase (domain events published to the event bus). These are two separate namespaces â€” dot.case for internal service signals, PascalCase for cross-service domain events. Reconciliation to a single canonical naming convention is a pending normalisation action.
 
 ## Local test
 ```bash

@@ -6,7 +6,7 @@
     "sms_fallback": true,
     "workflow_engine": true,
     "communication_adapter_contract": "docs/architecture/communication_adapter_interface_contract.md",
-    "communication_capabilities": "docs/architecture/B0P06_communication_capabilities.json",
+    "communication_capabilities": "docs/architecture/capabilities/B0P06_communication_capabilities.json",
     "workflow_domain_design": "docs/architecture/B5P02_school_engagement_domain_design.md"
   },
   "flow_checks": {

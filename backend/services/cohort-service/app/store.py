@@ -17,6 +17,8 @@ class CohortStore(Protocol):
 
     def save_membership(self, membership: MembershipRecord) -> MembershipRecord: ...
 
+    def get_membership(self, tenant_id: str, cohort_id: str, membership_id: str) -> MembershipRecord | None: ...
+
     def remove_membership(self, tenant_id: str, cohort_id: str, membership_id: str) -> None: ...
 
     def list_memberships(self, tenant_id: str, cohort_id: str) -> list[MembershipRecord]: ...
@@ -54,6 +56,12 @@ class InMemoryCohortStore:
     def save_membership(self, membership: MembershipRecord) -> MembershipRecord:
         self.memberships[membership.membership_id] = membership
         self.cohort_to_membership_ids.setdefault(membership.cohort_id, set()).add(membership.membership_id)
+        return membership
+
+    def get_membership(self, tenant_id: str, cohort_id: str, membership_id: str) -> MembershipRecord | None:
+        membership = self.memberships.get(membership_id)
+        if not membership or membership.tenant_id != tenant_id or membership.cohort_id != cohort_id:
+            return None
         return membership
 
     def remove_membership(self, tenant_id: str, cohort_id: str, membership_id: str) -> None:

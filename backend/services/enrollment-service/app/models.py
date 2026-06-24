@@ -15,17 +15,24 @@ class EnrollmentStatus(str, Enum):
     COMPLETED = "completed"
     WITHDRAWN = "withdrawn"
     CANCELLED = "cancelled"
+    EXPIRED = "expired"          # Assignment deadline passed before learner activated
 
 
-TERMINAL_STATUSES = {EnrollmentStatus.COMPLETED, EnrollmentStatus.WITHDRAWN, EnrollmentStatus.CANCELLED}
+TERMINAL_STATUSES = {
+    EnrollmentStatus.COMPLETED,
+    EnrollmentStatus.WITHDRAWN,
+    EnrollmentStatus.CANCELLED,
+    EnrollmentStatus.EXPIRED,
+}
 
 
 ALLOWED_TRANSITIONS: dict[EnrollmentStatus, set[EnrollmentStatus]] = {
-    EnrollmentStatus.ASSIGNED: {EnrollmentStatus.ACTIVE, EnrollmentStatus.CANCELLED, EnrollmentStatus.WITHDRAWN},
-    EnrollmentStatus.ACTIVE: {EnrollmentStatus.COMPLETED, EnrollmentStatus.WITHDRAWN, EnrollmentStatus.CANCELLED},
+    EnrollmentStatus.ASSIGNED: {EnrollmentStatus.ACTIVE, EnrollmentStatus.CANCELLED, EnrollmentStatus.WITHDRAWN, EnrollmentStatus.EXPIRED},
+    EnrollmentStatus.ACTIVE: {EnrollmentStatus.COMPLETED, EnrollmentStatus.WITHDRAWN, EnrollmentStatus.CANCELLED, EnrollmentStatus.EXPIRED},
     EnrollmentStatus.COMPLETED: set(),
     EnrollmentStatus.WITHDRAWN: set(),
     EnrollmentStatus.CANCELLED: set(),
+    EnrollmentStatus.EXPIRED: set(),
 }
 
 
@@ -38,10 +45,17 @@ class Enrollment:
     assignment_source: str
     cohort_id: str | None = None
     session_id: str | None = None
+    course_title: str | None = None
     status: EnrollmentStatus = EnrollmentStatus.ASSIGNED
     id: str = field(default_factory=lambda: str(uuid4()))
+    version: int = 1
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    enrolled_at: datetime | None = None
+    completed_at: datetime | None = None
+    dropped_at: datetime | None = None
+    deferred_at: datetime | None = None
+    expired_at: datetime | None = None
 
     def transition_to(self, to_status: EnrollmentStatus) -> None:
         if to_status == self.status:
@@ -50,7 +64,18 @@ class Enrollment:
         if to_status not in allowed:
             raise ValueError(f"invalid transition from {self.status.value} to {to_status.value}")
         self.status = to_status
-        self.updated_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        self.updated_at = now
+        _stamps = {
+            EnrollmentStatus.ACTIVE: "enrolled_at",
+            EnrollmentStatus.COMPLETED: "completed_at",
+            EnrollmentStatus.WITHDRAWN: "dropped_at",
+            EnrollmentStatus.CANCELLED: "dropped_at",
+            EnrollmentStatus.EXPIRED: "expired_at",
+        }
+        attr = _stamps.get(to_status)
+        if attr and getattr(self, attr) is None:
+            object.__setattr__(self, attr, now)
 
 
 @dataclass(slots=True)

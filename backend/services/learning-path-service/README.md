@@ -10,19 +10,22 @@ This service implements the **learning_path_service** bounded context and owns c
 - Learning path publishing with validation gates.
 - Tenant-scoped paths and tenant-bound operations.
 
-## Python domain service
+## Structure
 
-A lightweight in-memory reference implementation lives in `src/`:
+- `src/models.py`: core entities — `LearningPath`, `PathNode`, `PathEdge`, `CompletionRules`, `NodeProgress`, `LearningPathProgress`
+- `src/service.py`: domain logic — creation, sequencing validation, completion evaluation, tenant isolation, publish validation
+- `app/service.py`: `LearningPathManagementService` — tenant-scoped facade; also handles assignment scopes and audit log
+- `app/schemas.py`: Pydantic request schemas for all API operations
+- `app/main.py`: FastAPI app with all 14 routes and JWT security
+- `tests/test_learning_path_service.py`: unit tests — tenant isolation, cycle checks, publish gates, completion rules
 
-- `src/models.py`: core entities (`LearningPath`, `PathNode`, `PathEdge`, `CompletionRules`, `NodeProgress`).
-- `src/service.py`: service logic for creation, sequencing validation, completion evaluation, tenant checks, and publish validation.
-- `tests/test_learning_path_service.py`: unit tests covering tenant isolation, cycle checks, publish checks, and completion rules.
+**Import note:** `src/` uses relative imports; import it as a package (`from src.models import ...`) not as bare modules. `app/service.py` and `app/main.py` add the service root (not `src/`) to `sys.path` to preserve this.
 
 Run tests:
 
 ```bash
 cd backend/services/learning-path-service
-python -m unittest discover -s tests
+pytest -q
 ```
 
 ## Responsibilities
@@ -41,16 +44,30 @@ The service does **not** own course metadata or assessment authoring.
 - Assessment validity is resolved via `assessment_service`.
 - Assignment execution and learner state transitions are executed by `enrollment_service` and `progress_tracking_service`.
 
-## API
+## REST API
 
-See `openapi.yaml` for HTTP contract.
+Spec: `Repo/docs/specs/features/learning-path-spec.md` | `Repo/backend/services/learning-path-service/service_rules.md`
 
-Primary resources:
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/learning-paths` | Create a draft learning path |
+| `GET` | `/api/v1/learning-paths` | List paths (filter: `status`, `owner_id`) |
+| `GET` | `/api/v1/learning-paths/{path_id}` | Get a single learning path |
+| `POST` | `/api/v1/learning-paths/{path_id}:publish` | Publish path (requires `change_reason`) |
+| `POST` | `/api/v1/learning-paths/{path_id}:archive` | Archive path |
+| `PUT` | `/api/v1/learning-paths/{path_id}/completion-rules` | Configure completion rules |
+| `PUT` | `/api/v1/learning-paths/{path_id}/nodes` | Replace node set |
+| `GET` | `/api/v1/learning-paths/{path_id}/nodes` | Get node set |
+| `PUT` | `/api/v1/learning-paths/{path_id}/edges` | Replace edge set |
+| `GET` | `/api/v1/learning-paths/{path_id}/edges` | Get edge set |
+| `POST` | `/api/v1/learning-paths/{path_id}/assignments` | Assign path to role/department/location/manual scope |
+| `GET` | `/api/v1/learning-paths/{path_id}/assignments` | List assignment scopes |
+| `POST` | `/api/v1/learning-paths/{path_id}:evaluate-completion` | Evaluate completion against progress snapshot |
+| `GET` | `/api/v1/learning-paths/{path_id}/audit-log` | Get audit log entries |
+| `GET` | `/health` | Health check |
+| `GET` | `/metrics` | Service metrics |
 
-- `/api/v1/learning-paths`
-- `/api/v1/learning-paths/{pathId}/nodes`
-- `/api/v1/learning-paths/{pathId}/edges`
-- `/api/v1/learning-paths/{pathId}/publish`
+Tenant via `X-Tenant-Id` header; actor via `X-Actor-Id`. JWT required (same `JWT_SHARED_SECRET` as auth-service).
 
 ## Data model
 

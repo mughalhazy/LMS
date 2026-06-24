@@ -72,6 +72,7 @@ class RBACService:
             role_id=request.role_id,
             scope_type=request.scope_type,
             scope_id=request.scope_id,
+            branch_ids=request.branch_ids,
             starts_at=request.starts_at or datetime.now(timezone.utc),
             ends_at=request.ends_at,
             source=request.source,

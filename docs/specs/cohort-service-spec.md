@@ -63,18 +63,25 @@ The service is responsible for creating and evolving grouping containers, linkin
 
 ## 3) API Endpoints
 
-Base path: `/v2/cohort-service`
+> **As-implemented (v2.0.0):** Base path is `/api/v1/cohorts`; resource key is `cohort_id`.
+> The original spec path `/v2/cohort-service/groups/*` was superseded during platform path
+> standardisation (all services use `/api/v1/{resource}` prefix). The `group_id` field is
+> available as an alias via `CohortResponse.group_id` (populated by model_validator). The
+> `/api/v1/groups/*` alias routes are also implemented for full spec compatibility (see G-21 fix).
+> AUD-008: spec updated 2026-05-31 to reflect as-implemented paths.
+
+Base path: `/api/v1/cohorts` (as-implemented) | Original spec path: `/v2/cohort-service`
 
 ### 3.1 Group Lifecycle APIs
 
-| Method | Path | Purpose |
+| Method | Path (as-implemented) | Purpose |
 |---|---|---|
-| `POST` | `/groups` | Create cohort/batch/tutor group |
-| `GET` | `/groups/{group_id}` | Fetch group details |
-| `PATCH` | `/groups/{group_id}` | Update mutable group properties |
-| `POST` | `/groups/{group_id}/activate` | Transition to ACTIVE |
-| `POST` | `/groups/{group_id}/complete` | Mark COMPLETED |
-| `POST` | `/groups/{group_id}/cancel` | Cancel group |
+| `POST` | `/api/v1/cohorts` | Create cohort/batch/tutor group |
+| `GET` | `/api/v1/cohorts/{cohort_id}` | Fetch group details |
+| `PATCH` | `/api/v1/cohorts/{cohort_id}` | Update mutable group properties |
+| `POST` | `/api/v1/cohorts/{cohort_id}/activate` | Transition to ACTIVE |
+| `POST` | `/api/v1/cohorts/{cohort_id}/complete` | Mark COMPLETED |
+| `POST` | `/api/v1/cohorts/{cohort_id}/cancel` | Cancel group |
 | `POST` | `/groups/{group_id}/archive` | Archive group |
 
 ### 3.2 Batch Operations and Views

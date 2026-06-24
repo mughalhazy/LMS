@@ -44,6 +44,35 @@ class InMemoryEventStorage(EventStorage):
     def list_by_tenant(self, tenant_id: str) -> List[EventRecord]:
         return list(self._records.get(tenant_id, []))
 
+    def get_by_event_id(self, tenant_id: str, event_id: str) -> "EventRecord | None":
+        for rec in self._records.get(tenant_id, []):
+            if rec.event.event_id == event_id:
+                return rec
+        return None
+
+    def query_by_filter(self, tenant_id: str, event_type: str | None,
+                        from_ts: str | None, to_ts: str | None,
+                        tags: list[str] | None) -> "List[EventRecord]":
+        from datetime import datetime, timezone
+        records = self._records.get(tenant_id, [])
+        results = []
+        for rec in records:
+            ev = rec.event
+            if event_type and ev.event_type != event_type:
+                continue
+            if from_ts:
+                ft = datetime.fromisoformat(from_ts).astimezone(timezone.utc)
+                if ev.ingested_at < ft:
+                    continue
+            if to_ts:
+                tt = datetime.fromisoformat(to_ts).astimezone(timezone.utc)
+                if ev.ingested_at > tt:
+                    continue
+            if tags and not set(tags).issubset(set(ev.tags)):
+                continue
+            results.append(rec)
+        return results
+
     def health(self) -> bool:
         return True
 

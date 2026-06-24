@@ -26,6 +26,30 @@ class IngestionResponse(BaseModel):
     result: IngestResult
 
 
+class BatchIngestionRequest(BaseModel):
+    events: List[IngestionRequest]
+
+
+class ReplayRequest(BaseModel):
+    tenant_id: str
+    event_type: Optional[str] = None
+    from_ts: Optional[str] = None
+    to_ts: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class ValidateRequest(BaseModel):
+    event_id: str
+    tenant_id: str
+    family: str
+    event_type: str
+    source: str
+    timestamp: datetime
+    trace: Optional[Dict[str, Any]] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str

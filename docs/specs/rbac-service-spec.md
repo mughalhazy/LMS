@@ -149,6 +149,11 @@ Base path: `/api/v1/rbac`
 | `/policy-rules/{policy_rule_id}` | PATCH | Update policy rule. |
 | `/policy-rules/{policy_rule_id}` | DELETE | Disable/remove policy rule. |
 
+### Operational APIs (internal)
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/metrics` | GET | Internal observability endpoint; returns service-level metrics (request counts, decision latency p99, cache hit/miss rates, SoD violation counts). Not exposed through the tenant API gateway — accessible from trusted internal network only. |
+
 ---
 
 ## 5) Request and Response Contracts

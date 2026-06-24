@@ -1,9 +1,38 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac as _hmac
 import json
+import os
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+_PUSH_EXEMPT = {"/health", "/metrics"}
+
+
+def _jwt_valid(auth_header: str | None) -> bool:
+    """B05-003: validate HS256 JWT from Authorization: Bearer header."""
+    secret = os.getenv("JWT_SHARED_SECRET")
+    if not secret:
+        return True
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return False
+    token = auth_header[7:]
+    try:
+        h, p, s = token.split(".")
+        _pad = lambda x: x + "=" * ((4 - len(x) % 4) % 4)
+        expected = _hmac.new(secret.encode(), f"{h}.{p}".encode(), hashlib.sha256).digest()
+        received = base64.urlsafe_b64decode(_pad(s))
+        if not _hmac.compare_digest(expected, received):
+            return False
+        payload = json.loads(base64.urlsafe_b64decode(_pad(p)))
+        exp = payload.get("exp")
+        return exp is None or float(exp) >= time.time()
+    except Exception:
+        return False
 
 from .schemas import (
     NotificationSendRequest,
@@ -14,6 +43,11 @@ from .schemas import (
 from .service import PushService
 from .store import InMemoryPushStore
 
+# FA-024 / G-24: register event consumers at module load
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+
 STORE = InMemoryPushStore()
 SERVICE = PushService(STORE)
 
@@ -23,6 +57,7 @@ class PushRequestHandler(BaseHTTPRequestHandler):
         payload = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("X-API-Version", "v1")  # CAT-004
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -33,13 +68,15 @@ class PushRequestHandler(BaseHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def do_POST(self) -> None:  # noqa: N802
+        if self.path not in _PUSH_EXEMPT and not _jwt_valid(self.headers.get("Authorization")):
+            return self._send(401, {"error": "unauthorized"})
         try:
             body = self._read_json()
             if self.path == "/api/v1/push/subscriptions":
                 status, payload = SERVICE.create_subscription(SubscriptionCreateRequest(**body))
                 return self._send(status, payload)
 
-            if self.path == "/api/v1/push/notifications":
+            if self.path in ("/api/v1/push/send", "/api/v1/push/notifications"):
                 status, payload = SERVICE.send_notification(NotificationSendRequest(**body))
                 return self._send(status, payload)
 
@@ -54,6 +91,8 @@ class PushRequestHandler(BaseHTTPRequestHandler):
             self._send(400, {"error": "invalid_json"})
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path not in _PUSH_EXEMPT and not _jwt_valid(self.headers.get("Authorization")):
+            return self._send(401, {"error": "unauthorized"})
         if self.path == "/health":
             return self._send(200, {"status": "ok", "service": "push-service"})
         if self.path == "/metrics":
@@ -73,6 +112,8 @@ class PushRequestHandler(BaseHTTPRequestHandler):
         self._send(status, payload)
 
     def do_PATCH(self) -> None:  # noqa: N802
+        if self.path not in _PUSH_EXEMPT and not _jwt_valid(self.headers.get("Authorization")):
+            return self._send(401, {"error": "unauthorized"})
         try:
             body = self._read_json()
             path_parts = self.path.split("/")

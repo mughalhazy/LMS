@@ -57,6 +57,12 @@ class CreateInstitutionTypeRequest:
 
 
 @dataclass
+class UpdateInstitutionTypeRequest:
+    # B01-018: typed schema for PATCH /api/v1/institution-types/{type_code}
+    governance_profile: dict[str, Any] | None = None
+
+
+@dataclass
 class CreateTenantLinkRequest:
     tenant_id: str
     link_scope: str

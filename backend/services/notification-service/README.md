@@ -9,11 +9,13 @@ Provides tenant-scoped notification orchestration for LMS workflows.
 - Delivery queue processing
 - Multi-channel notification dispatch
 
-## Events Consumed
-- course_completed
-- enrollment_created
-- certificate_issued
-- assessment_passed
+## Authentication
+
+JWT required (`Authorization: Bearer <token>`) on all routes except `/health` and `/metrics`. Added 2026-05-31 (B05-002).
+
+## Events Consumed (actual subscriptions)
+- `enrollment.lifecycle.changed`
+- `assessment.graded`
 
 ## Delivery Channels
 - email

@@ -19,6 +19,20 @@ from .service import HRHelpdeskService
 from .store import InMemoryHelpdeskStore
 
 app = FastAPI(title="HR Helpdesk Service", version="0.1.0")
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
 service = HRHelpdeskService(store=InMemoryHelpdeskStore())
 
 

@@ -13,18 +13,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# Add service root so src/ is importable as a package (preserves relative imports in src/)
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-from models import (  # noqa: E402
+from src.models import (  # noqa: E402
     CompletionRules,
     LearningPath,
     LearningPathProgress,
     PathEdge,
     PathNode,
 )
-from service import LearningPathService, NotFoundError, ValidationError  # noqa: E402
+from src.service import LearningPathService, NotFoundError, ValidationError  # noqa: E402
 
 
 class LearningPathManagementService:
@@ -104,7 +105,7 @@ class LearningPathManagementService:
         if path.status == "archived":
             return path
         path.status = "archived"
-        from models import utc_now  # noqa: PLC0415
+        from src.models import utc_now  # noqa: PLC0415
         path.updated_at = utc_now()
         self._svc._record_audit(path, actor_id, "learning.path.archived", "archived by actor")  # noqa: SLF001
         return path
@@ -220,7 +221,7 @@ class LearningPathManagementService:
         progress_by_node_id: dict[str, Any],
         completed_at: datetime | None = None,
     ) -> LearningPathProgress:
-        from models import NodeProgress  # noqa: PLC0415
+        from src.models import NodeProgress  # noqa: PLC0415
         typed_progress = {
             node_id: NodeProgress(
                 node_id=node_id,

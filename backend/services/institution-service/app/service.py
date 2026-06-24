@@ -185,6 +185,29 @@ class InstitutionService:
     def list_types(self) -> list[InstitutionType]:
         return self.repository.list_types()
 
+    def update_type(self, type_code: str, governance_profile: dict | None = None) -> InstitutionType:
+        institution_type = self.repository.get_type(type_code)
+        if not institution_type:
+            raise InstitutionServiceError("NOT_FOUND", f"Institution type {type_code} not found")
+        if governance_profile is not None:
+            institution_type.governance_profile = governance_profile
+        self.repository.save_type(institution_type)
+        self._publish("institution.type_updated.v1", "system", type_code, {"type_code": type_code, "governance_profile": governance_profile})
+        return institution_type
+
+    def deactivate_tenant_link(self, institution_id: str, link_id: str) -> InstitutionTenantLink:
+        link = self.repository.deactivate_link(link_id)
+        if not link:
+            raise InstitutionServiceError("NOT_FOUND", f"Tenant link {link_id} not found")
+        self._audit("institution.tenant_unlinked", "system", link.tenant_id, institution_id, {"link_id": link_id})
+        self._publish(
+            "institution.tenant_unlinked.v1",
+            link.tenant_id,
+            institution_id,
+            {"institution_id": institution_id, "tenant_id": link.tenant_id, "link_scope": link.link_scope.value if hasattr(link.link_scope, 'value') else link.link_scope, "unlinked_at": datetime.now(timezone.utc).isoformat()},
+        )
+        return link
+
     def create_tenant_link(self, institution_id: str, request) -> InstitutionTenantLink:
         institution = self.get_institution(institution_id)
         self._require_same_tenant(request.actor_id, institution.tenant_id, request.tenant_id)

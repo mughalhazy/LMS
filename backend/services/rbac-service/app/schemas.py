@@ -29,6 +29,7 @@ class AssignmentCreateRequest(BaseModel):
     role_id: str
     scope_type: ScopeType
     scope_id: str
+    branch_ids: list[str] | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     source: str = "direct"

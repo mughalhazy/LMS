@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-from models import Department, DepartmentMembership  # noqa: E402
-from service import DepartmentService, NotFoundError, ValidationError  # noqa: E402
+from src.models import Department, DepartmentMembership  # noqa: E402
+from src.service import DepartmentService, NotFoundError, ValidationError  # noqa: E402
 
 
 class DepartmentManagementService:

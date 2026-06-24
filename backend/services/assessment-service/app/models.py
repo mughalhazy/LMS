@@ -12,6 +12,15 @@ class AssessmentType(str, Enum):
     MOCK_TEST = "mock_test"
 
 
+class AssessmentFormat(str, Enum):
+    # B03-006: assessment-data-schema.md §2 extensibility field
+    STANDARD_QUIZ = "standard_quiz"
+    STANDARD_EXAM = "standard_exam"
+    TAKE_HOME_ASSIGNMENT = "take_home_assignment"
+    MOCK_TEST = "mock_test"
+    BOARD_STYLE = "board_style"
+
+
 class AssessmentStatus(str, Enum):
     DRAFT = "draft"
     PUBLISHED = "published"
@@ -43,6 +52,9 @@ class AssessmentDefinition:
     created_by: str
     created_at: datetime
     updated_at: datetime
+    attempts_count: int = 0
+    avg_score: float | None = None
+    assessment_format: AssessmentFormat | None = None  # B03-006: assessment-data-schema.md §2
 
 
 @dataclass
@@ -67,6 +79,37 @@ class SubmissionRecord:
     payload: dict[str, object]
     submitted_by: str
     submitted_at: datetime
+
+
+@dataclass
+class AssessmentVersion:
+    version_id: str
+    assessment_id: str
+    tenant_id: str
+    version_number: int
+    status: str  # draft | published
+    created_by: str
+    created_at: datetime
+    published_at: datetime | None = None
+    availability_start: datetime | None = None
+    availability_end: datetime | None = None
+    item_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AssessmentItem:
+    item_id: str
+    assessment_id: str
+    version_id: str
+    tenant_id: str
+    question_text: str
+    item_type: str  # mcq | short_answer | true_false | essay
+    options: list[dict[str, object]]
+    correct_answer: str | None
+    points: float
+    order: int
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass

@@ -14,6 +14,20 @@ from .service import AttemptService
 
 app = FastAPI(title="Attempt Service", version="0.1.0", dependencies=[Depends(require_jwt)])
 
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+
 apply_security_headers(app)
 service = AttemptService()
 
@@ -36,24 +50,30 @@ def score_attempt(attempt_id: str, request: ScoreAttemptRequest) -> AttemptRespo
     return service.score_attempt(attempt_id, request)
 
 
-@app.get("/attempts/{attempt_id}", response_model=AttemptResponse)
-@app.get("/api/v1/attempts/{attempt_id}", response_model=AttemptResponse)
-def get_attempt(attempt_id: str, tenant_id: str) -> AttemptResponse:
-    return service.get_attempt(tenant_id, attempt_id)
-
-
+# History routes MUST be registered before /{attempt_id} to avoid FastAPI
+# matching the literal string "history" as an attempt_id path parameter.
 @app.get("/attempts/history", response_model=AttemptHistoryResponse)
 @app.get("/api/v1/attempts/history", response_model=AttemptHistoryResponse)
 def get_attempt_history(
     tenant_id: str,
     learner_id: str,
     assessment_id: str | None = None,
+    course_id: str | None = None,
 ) -> AttemptHistoryResponse:
+    # Spec: assessment-service-spec.md §4 attempt history; course_id filter scopes to a course
     return service.get_attempt_history(
         tenant_id=tenant_id,
         learner_id=learner_id,
         assessment_id=assessment_id,
+        course_id=course_id,
     )
+
+
+@app.get("/attempts/{attempt_id}", response_model=AttemptResponse)
+@app.get("/api/v1/attempts/{attempt_id}", response_model=AttemptResponse)
+def get_attempt(attempt_id: str, tenant_id: str) -> AttemptResponse:
+    return service.get_attempt(tenant_id, attempt_id)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -62,4 +82,3 @@ def health() -> dict[str, str]:
 @app.get("/metrics")
 def metrics() -> dict[str, int | str]:
     return {"service": "attempt-service", "service_up": 1}
-

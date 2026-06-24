@@ -31,17 +31,26 @@ def build_event(
     payload: dict[str, Any],
     metadata: dict[str, Any] | None = None,
 ) -> EventEnvelope:
+    # CAT-001: anchor event-envelope.md mandates exactly 7 top-level fields.
+    # topic, producer_service, schema_version are kept as dataclass fields for internal
+    # bus routing but are ALSO written into metadata so external consumers see a
+    # 7-field-conformant envelope with non-canonical data in metadata.
+    resolved_topic = topic or event_type
+    meta = dict(metadata or {})
+    meta.setdefault("topic", resolved_topic)
+    meta.setdefault("producer", producer_service)
+    meta.setdefault("schema_version", schema_version)
     return EventEnvelope(
         event_id=str(uuid4()),
         event_type=event_type,
-        topic=topic or event_type,
+        topic=resolved_topic,
         producer_service=producer_service,
         schema_version=schema_version,
         timestamp=datetime.now(timezone.utc),
         tenant_id=tenant_id,
         correlation_id=correlation_id,
         payload=payload,
-        metadata=metadata or {},
+        metadata=meta,
     )
 
 

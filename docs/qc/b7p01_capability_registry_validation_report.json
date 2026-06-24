@@ -4,10 +4,10 @@
   "scope": {
     "batch_0_files": [
       "docs/specs/B0P04_core_capabilities.json",
-      "docs/architecture/B0P05_business_capabilities.json",
-      "docs/architecture/B0P06_communication_capabilities.json",
+      "docs/architecture/capabilities/B0P05_business_capabilities.json",
+      "docs/architecture/capabilities/B0P06_communication_capabilities.json",
       "docs/architecture/capabilities/B0P07_delivery_capabilities.json",
-      "docs/architecture/B0P08_intelligence_capabilities.json"
+      "docs/architecture/capabilities/B0P08_intelligence_capabilities.json"
     ],
     "registry_service_artifacts": [
       "docs/architecture/schemas/capability_registry.example.json",

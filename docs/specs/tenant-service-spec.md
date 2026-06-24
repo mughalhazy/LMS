@@ -88,20 +88,49 @@ Out of scope:
 
 ## 4) API Endpoints
 
-Base path: `/api/v1/tenants`
+Base path: `/api/v1/tenants` (except §4.12 which uses `/api/v1/isolation`)
 
-### 4.1 Create Tenant
-- `POST /api/v1/tenants`
+> **As-implemented (v2.0.0)** — routes below reflect the current service implementation.
+> Routes present in the original spec intent but not yet built are listed in §4.13.
+
+### 4.1 Validate Tenant Creation
+- `POST /api/v1/tenants/validate`
+
+Pre-creation validation. Returns pass/fail with error list before committing tenant creation.
 
 Request:
 ```json
 {
-  "tenant_key": "acme-university",
   "name": "Acme University",
-  "data_region": "eu-west-1",
-  "initial_plan_id": "plan_enterprise_v2",
-  "institution_root_ref": "inst_root_123",
-  "primary_admin_user_id": "usr_890"
+  "country_code": "PK",
+  "segment_type": "enterprise",
+  "plan_type": "enterprise_v2",
+  "addon_flags": ["lti", "sso"]
+}
+```
+
+Response `200`:
+```json
+{
+  "validation_passed": true,
+  "errors": []
+}
+```
+
+### 4.2 Create Tenant
+- `POST /api/v1/tenants`
+
+Creates tenant and provisions its namespace. Returns bootstrap status and isolation mode.
+
+Request:
+```json
+{
+  "name": "Acme University",
+  "country_code": "PK",
+  "segment_type": "enterprise",
+  "plan_type": "enterprise_v2",
+  "addon_flags": ["lti", "sso"],
+  "admin_user": "usr_890"
 }
 ```
 
@@ -109,104 +138,213 @@ Response `201`:
 ```json
 {
   "tenant_id": "e1f4...",
-  "tenant_key": "acme-university",
-  "status": "provisioning",
-  "config_version": 1,
-  "plan_link": {
-    "plan_id": "plan_enterprise_v2",
-    "link_status": "active"
-  },
-  "created_at": "2026-01-01T10:00:00Z"
+  "bootstrap_status": "complete",
+  "isolation_mode": "schema_per_tenant",
+  "namespace_resource": "ns://tenant-e1f4"
 }
 ```
 
-Errors: `400` validation, `409` duplicate key, `422` policy violation.
+Isolation modes: `schema_per_tenant` | `database_per_tenant`.
 
-### 4.2 Get Tenant
-- `GET /api/v1/tenants/{tenant_id}`
+### 4.3 Initialize Tenant Configuration
+- `PUT /api/v1/tenants/{tenant_id}/configuration`
 
-Response `200` includes identity + status + active plan summary + isolation policy version.
+Sets the initial full configuration for a newly created tenant. Use PATCH (§4.5) for subsequent partial updates.
 
-### 4.3 Update Tenant Configuration
-- `PATCH /api/v1/tenants/{tenant_id}/configuration`
-
-Request (JSON Merge Patch style):
+Request:
 ```json
 {
+  "default_locale": "en-US",
+  "timezone": "Asia/Karachi",
   "branding": {"logo_url": "https://...", "theme": "dark"},
-  "timezone": "Europe/Berlin",
-  "security": {"mfa_required_for_admins": true},
+  "enabled_modules": ["courses", "assessments", "lti"],
+  "security_baseline": {"mfa_required_for_admins": true},
+  "country_behavior_profiles": {}
+}
+```
+
+Response `200`: `TenantConfigurationResponse` with `configuration` and `effective_settings`.
+
+### 4.4 Get Tenant Configuration
+- `GET /api/v1/tenants/{tenant_id}/configuration?include_defaults=true`
+
+Response `200`: current config, raw payload, and effective settings (with defaults merged when `include_defaults=true`).
+
+### 4.5 Update Tenant Configuration
+- `PATCH /api/v1/tenants/{tenant_id}/configuration`
+
+Partial update. Requires `actor_id` and `change_reason` for audit trail.
+
+Request:
+```json
+{
+  "config_patch": {
+    "timezone": "Europe/Berlin",
+    "security_baseline": {"mfa_required_for_admins": true}
+  },
+  "actor_id": "usr_admin_123",
   "change_reason": "Security baseline uplift"
+}
+```
+
+Response `200`: `TenantConfigurationResponse`.
+
+### 4.6 Manage Feature Flags
+- `PATCH /api/v1/tenants/{tenant_id}/feature-flags`
+
+Toggles individual feature flags without a full config patch. `actor_id` defaults to `"system"`.
+
+Request:
+```json
+{
+  "feature_flag_changes": {"new_course_editor": true, "beta_ai_tutor": false},
+  "actor_id": "usr_admin_123"
+}
+```
+
+Response `200`: `TenantConfigurationResponse`.
+
+### 4.7 Suspend Tenant
+- `POST /api/v1/tenants/{tenant_id}/lifecycle/suspend`
+
+Request:
+```json
+{
+  "suspension_reason": "Invoice overdue > 30 days",
+  "suspended_by": "usr_billing_ops"
 }
 ```
 
 Response `200`:
 ```json
 {
-  "tenant_id": "e1f4...",
-  "config_version": 2,
-  "effective_configuration": {"...": "..."},
-  "changed_at": "2026-01-05T12:00:00Z"
+  "suspension_receipt": {
+    "tenant_id": "e1f4...",
+    "state": "suspended"
+  }
 }
 ```
 
-### 4.4 Get Tenant Configuration
-- `GET /api/v1/tenants/{tenant_id}/configuration?include_defaults=true`
-
-Response `200`: current version + payload + merged defaults (optional).
-
-### 4.5 Transition Tenant Status
-- `POST /api/v1/tenants/{tenant_id}/status-transitions`
+### 4.8 Reactivate Tenant
+- `POST /api/v1/tenants/{tenant_id}/lifecycle/reactivate`
 
 Request:
 ```json
 {
-  "target_status": "suspended",
-  "reason_code": "BILLING_HOLD",
-  "reason_detail": "Invoice overdue > 30 days",
-  "effective_at": "2026-02-01T00:00:00Z"
+  "reactivation_reason": "Invoice cleared",
+  "approved_by": "usr_billing_ops"
 }
 ```
 
-Response `202`:
+Response `200`:
 ```json
 {
-  "tenant_id": "e1f4...",
-  "from_status": "active",
-  "to_status": "suspended",
-  "transition_id": "tr_123",
-  "effective_at": "2026-02-01T00:00:00Z"
+  "reactivation_receipt": {
+    "tenant_id": "e1f4...",
+    "state": "active"
+  }
 }
 ```
 
-### 4.6 Link or Schedule Plan Change
-- `PUT /api/v1/tenants/{tenant_id}/plan-link`
+### 4.9 Archive Tenant
+- `POST /api/v1/tenants/{tenant_id}/lifecycle/archive`
 
 Request:
 ```json
 {
-  "plan_id": "plan_enterprise_plus",
-  "plan_version": "2026.01",
-  "effective_from": "2026-03-01T00:00:00Z"
+  "archive_policy": "soft_delete",
+  "retention_period": "7y",
+  "requested_by": "usr_platform_admin"
 }
 ```
 
-Response `200`: current + scheduled linkage summary.
+Response `200`:
+```json
+{
+  "archive_status": {
+    "tenant_id": "e1f4...",
+    "state": "archived"
+  }
+}
+```
 
-### 4.7 Get Isolation Policy
-- `GET /api/v1/tenants/{tenant_id}/isolation-policy`
+### 4.10 Decommission Tenant
+- `POST /api/v1/tenants/{tenant_id}/lifecycle/decommission`
 
-Response `200`: partition key, region constraints, cross-tenant policy, policy version.
+Request:
+```json
+{
+  "legal_hold_status": false,
+  "purge_after_date": "2030-01-01T00:00:00Z",
+  "approved_by": "usr_platform_admin"
+}
+```
 
-### 4.8 Update Isolation Policy
-- `PATCH /api/v1/tenants/{tenant_id}/isolation-policy`
+Response `200`:
+```json
+{
+  "decommission_status": {
+    "tenant_id": "e1f4...",
+    "state": "decommissioned"
+  }
+}
+```
 
-Restricted to platform security admin role. Returns updated `policy_version`.
+### 4.11 Get Lifecycle Status
+- `GET /api/v1/tenants/{tenant_id}/lifecycle`
 
-### 4.9 Decommission Tenant
-- `POST /api/v1/tenants/{tenant_id}/decommission`
+Returns current lifecycle state, full transition history, and allowed next actions.
 
-Request includes legal hold confirmation and purge schedule. Returns accepted workflow id.
+Response `200` (`LifecycleStatusResponse`):
+- `lifecycle_state` — current `LifecycleState` value
+- `state_history` — ordered list of events (state, reason, actor_id, effective_at, recorded_at)
+- `pending_transitions` — allowed next state names
+- `policy_constraints` — active enforcement rules
+- `next_allowed_actions` — convenience alias for pending_transitions
+
+Lifecycle state machine:
+
+| State | Allowed transitions |
+|---|---|
+| `provisioning` | `activate` |
+| `active` | `suspend`, `archive` |
+| `suspended` | `reactivate`, `archive` |
+| `archived` | `decommission` |
+| `decommissioned` | (none) |
+
+### 4.12 Evaluate Isolation Policy
+- `POST /api/v1/isolation/evaluate`
+
+Evaluates whether an actor is permitted to perform an action on behalf of a tenant. Used by downstream services to enforce cross-tenant access rules. Base path is `/api/v1/isolation`, not `/api/v1/tenants`.
+
+Request (`IsolationContext`):
+```json
+{
+  "tenant_id": "e1f4...",
+  "actor_tenant_id": "e1f4...",
+  "actor_id": "usr_admin_123",
+  "action": "write_course"
+}
+```
+
+Response `200` (`IsolationDecision`):
+```json
+{
+  "allowed": true,
+  "reason": "actor_tenant matches target_tenant"
+}
+```
+
+### 4.13 Planned / Not Yet Implemented
+
+The following routes appear in the original spec intent but are absent from the current v2.0.0 implementation:
+
+| Route | Notes |
+|---|---|
+| `GET /api/v1/tenants/{tenant_id}` | Read tenant identity + status; not yet built |
+| `PUT /api/v1/tenants/{tenant_id}/plan-link` | Plan linkage; currently handled by entitlement domain |
+| `GET /api/v1/tenants/{tenant_id}/isolation-policy` | Isolation policy CRUD; evaluate endpoint (§4.12) is the current form |
+| `PATCH /api/v1/tenants/{tenant_id}/isolation-policy` | Restricted admin endpoint; not yet built |
 
 ---
 

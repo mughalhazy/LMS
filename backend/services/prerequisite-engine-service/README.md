@@ -1,30 +1,40 @@
 # Prerequisite Engine Service
 
-Tenant-scoped microservice for prerequisite definition, validation, course eligibility checks, and learning-path dependency validation.
+Tenant-scoped **Python/FastAPI** service enforcing course prerequisites and learning-path dependency rules per `docs/specs/features/prerequisite-engine-spec.md`.
+
+Authentication: JWT required (`Authorization: Bearer <token>`).
+
+## API routes
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/v1/prerequisites/enroll` | Evaluate enrollment eligibility — returns APPROVED or BLOCKED with unmet prerequisites + remedial recommendations |
+| POST | `/api/v1/prerequisites/enroll/override` | Instructor/admin override — allows enrollment regardless of prerequisite state; audit-logged with reason code |
+| POST | `/api/v1/prerequisites/path-progression` | Recompute learning-path node unlock state after an attempt outcome |
+| POST | `/api/v1/prerequisites/eligibility` | Batch eligibility check across multiple courses for a learner |
+| GET | `/health` | Health check |
+| GET | `/metrics` | Service metrics |
+
+Routes and JWT added 2026-06-01 (B13-005/006).
 
 ## Responsibilities
-- Manage prerequisite definitions per tenant/course.
-- Validate prerequisite rule integrity.
-- Evaluate learner eligibility using transcript completion, grade thresholds, validity windows, and equivalency mapping.
-- Validate learning-path dependencies (including acyclicity checks).
-- Enforce tenant-specific acceptance policies.
+- Manage course prerequisite rule definitions per tenant.
+- Evaluate prerequisites against learner transcript (completion status, grade threshold, validity window, equivalency mappings).
+- Recompute learning-path dependency DAG unlock states on each progression event.
+- Support policy override with full audit trail (instructor/admin reason code required).
 
-## API Endpoints
-Base path: `/api/v1/prerequisite-engine`
-
-- `POST /tenant-policies`
-- `POST /prerequisite-rules`
-- `POST /eligibility/check`
-- `POST /learning-paths/validate`
+## Key modules
+- `app/service.py` — `PrerequisiteEngineService` — facade over validators
+- `app/course_prerequisite_validator.py` — validates transcript against prerequisite rules
+- `app/learning_path_progression_validator.py` — recomputes DAG node unlock states
+- `app/learner_eligibility_validator.py` — cross-course eligibility checks
 
 ## Run
 ```bash
-npm install
-npm run dev
+uvicorn app.main:app --reload --port 8101
 ```
 
-## Build
+## Tests
 ```bash
-npm run build
-npm start
+python -m pytest backend/services/prerequisite-engine-service/tests/ -q
 ```

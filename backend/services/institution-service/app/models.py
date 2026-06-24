@@ -56,6 +56,25 @@ class Institution:
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # B11-003: global-education-schema.md §2 — required Institution fields
+    institution_code: str | None = None  # regionally unique code
+    accreditation_status: str | None = None  # e.g., accredited, provisional, pending
+
+
+@dataclass
+class SubInstitution:
+    """B11-003: institution-hierarchy-schema.md §2.3 — Sub-Institution entity.
+
+    Represents campus, faculty, department, branch, or business unit under an Institution.
+    """
+    sub_institution_id: str
+    tenant_id: str
+    institution_id: str
+    sub_institution_name: str
+    sub_type: str  # campus|faculty|department|branch|business_unit|practice
+    status: str = "active"
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass

@@ -1,4 +1,8 @@
-# Push Service
+﻿# Push Service
+## Push Service Authentication
+
+JWT required (B05-003, 2026-05-31). Authorization: Bearer <token> on all routes except /health /metrics.
+
 
 Push Service delivers LMS notifications to **mobile** and **web** channels using subscription-aware queueing.
 

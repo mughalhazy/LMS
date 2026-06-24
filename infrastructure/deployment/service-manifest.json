@@ -51,10 +51,10 @@
     },
     {
       "name": "capability-registry",
-      "path": "services/capability-registry",
+      "path": "backend/services/capability-registry",
       "runtime": "python",
       "port": 8140,
-      "app_module": "service:CapabilityRegistryService",
+      "app_module": "app.main:app",
       "start_command": ""
     },
     {
@@ -75,10 +75,10 @@
     },
     {
       "name": "config-service",
-      "path": "services/config-service",
+      "path": "backend/services/config-service",
       "runtime": "python",
       "port": 8141,
-      "app_module": "service:ConfigService",
+      "app_module": "app.main:app",
       "start_command": ""
     },
     {
@@ -131,10 +131,10 @@
     },
     {
       "name": "entitlement-service",
-      "path": "services/entitlement-service",
+      "path": "backend/services/entitlement-service",
       "runtime": "python",
       "port": 8142,
-      "app_module": "service:EntitlementService",
+      "app_module": "app.main:app",
       "start_command": ""
     },
     {
@@ -334,6 +334,222 @@
       "path": "backend/services/webhook-service",
       "runtime": "python",
       "port": 8137,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "academy-commerce-service",
+      "path": "backend/services/academy-commerce-service",
+      "runtime": "python",
+      "port": 8143,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "analytics-service",
+      "path": "backend/services/analytics-service",
+      "runtime": "python",
+      "port": 8144,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "audit-policy-service",
+      "path": "backend/services/audit-policy-service",
+      "runtime": "python",
+      "port": 8145,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "catalog-service",
+      "path": "backend/services/catalog-service",
+      "runtime": "python",
+      "port": 8146,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "checkout-service",
+      "path": "backend/services/checkout-service",
+      "runtime": "python",
+      "port": 8147,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "enterprise-control-service",
+      "path": "backend/services/enterprise-control-service",
+      "runtime": "python",
+      "port": 8148,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "exam-engine",
+      "path": "backend/services/exam-engine",
+      "runtime": "python",
+      "port": 8149,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "feature-flag-service",
+      "path": "backend/services/feature-flag-service",
+      "runtime": "python",
+      "port": 8150,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "financial-ledger-service",
+      "path": "backend/services/financial-ledger-service",
+      "runtime": "python",
+      "port": 8151,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "hr-helpdesk-service",
+      "path": "backend/services/hr-helpdesk-service",
+      "runtime": "python",
+      "port": 8152,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "institution-service",
+      "path": "backend/services/institution-service",
+      "runtime": "python",
+      "port": 8153,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "integration-service",
+      "path": "backend/services/integration-service",
+      "runtime": "python",
+      "port": 8154,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "interaction-layer-service",
+      "path": "backend/services/interaction-layer-service",
+      "runtime": "python",
+      "port": 8155,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "invoice-billing-service",
+      "path": "backend/services/invoice-billing-service",
+      "runtime": "python",
+      "port": 8156,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "media-security-service",
+      "path": "backend/services/media-security-service",
+      "runtime": "python",
+      "port": 8157,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "offline-sync-service",
+      "path": "backend/services/offline-sync-service",
+      "runtime": "python",
+      "port": 8158,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "onboarding-service",
+      "path": "backend/services/onboarding-service",
+      "runtime": "python",
+      "port": 8159,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "operations-os-service",
+      "path": "backend/services/operations-os-service",
+      "runtime": "python",
+      "port": 8160,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "owner-economics-service",
+      "path": "backend/services/owner-economics-service",
+      "runtime": "python",
+      "port": 8161,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "payment-service",
+      "path": "backend/services/payment-service",
+      "runtime": "python",
+      "port": 8162,
+      "app_module": "api:app",
+      "start_command": ""
+    },
+    {
+      "name": "revenue-service",
+      "path": "backend/services/revenue-service",
+      "runtime": "python",
+      "port": 8163,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "review-service",
+      "path": "backend/services/review-service",
+      "runtime": "python",
+      "port": 8164,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "session-service",
+      "path": "backend/services/session-service",
+      "runtime": "python",
+      "port": 8165,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "subscription-service",
+      "path": "backend/services/subscription-service",
+      "runtime": "python",
+      "port": 8166,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "system-economics-service",
+      "path": "backend/services/system-economics-service",
+      "runtime": "python",
+      "port": 8167,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "usage-metering-service",
+      "path": "backend/services/usage-metering-service",
+      "runtime": "python",
+      "port": 8168,
+      "app_module": "app.main:app",
+      "start_command": ""
+    },
+    {
+      "name": "workflow-engine",
+      "path": "backend/services/workflow-engine",
+      "runtime": "python",
+      "port": 8169,
       "app_module": "app.main:app",
       "start_command": ""
     }

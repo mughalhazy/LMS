@@ -1,4 +1,8 @@
-# program-service
+﻿# program-service
+
+## Authentication
+
+JWT required on all routes (pre-existing). Consumers corrected to spec topics (B01-012). EventPublisher wired to shared bus (B01-013).
 
 `program-service` introduces a program container above courses and owns:
 - program lifecycle and metadata

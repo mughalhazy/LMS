@@ -1,6 +1,11 @@
+﻿> NOTE: docs/00_authority/PROJECT_CHARTER.md is the authority for platform identity and architectural principles.
+> docs/00_authority/DOMAIN_MODEL.md is the authority for bounded contexts and service-domain assignments.
+> This document (ARCH_01) provides supporting design detail and Rails heritage context.
+> Last reviewed: 2026-06-22
+
 # ARCH_01 — Core System Architecture (Global Capability Platform)
 
-> **NORMALISATION NOTE (2026-04-04, updated 2026-04-11 — DF-02):** This document was originally authored as "Enterprise LMS V2 Core System Architecture". "Enterprise LMS V2" refers specifically to the heritage Rails runtime layer described in §1–§2. The canonical platform identity is **Global Capability Platform** per Master Spec §0.1. When this doc and the Master Spec conflict, the Master Spec takes precedence. See also Master Spec §0.1 Heritage Statement.
+> **NORMALISATION NOTE (2026-04-04, updated 2026-04-11 — DF-02):** This document was originally authored as "Enterprise LMS V2 Core System Architecture". "Enterprise LMS V2" refers specifically to the heritage Rails runtime layer described in §1–§2. The canonical platform identity is **Global Capability Platform** per docs/00_authority/PROJECT_CHARTER.md. When this document conflicts with PROJECT_CHARTER.md, PROJECT_CHARTER.md takes precedence.
 
 ## 1) Architecture Intent
 Enterprise LMS V2 extends the current Rails LMS runtime model without breaking the operational core. The existing models remain the canonical execution engine for learning lifecycle operations:
@@ -242,7 +247,7 @@ These entities continue to power enrollment, content consumption, completion tra
 ## Architectural Contract: MS-SCALE-01 — Global Scalability (MS§13)
 
 **Contract name:** MS-SCALE-01
-**Source authority:** Master Spec §13 success criterion 9: "system scales globally without modification."
+**Source authority:** workspace/foundation/product-build-spec.md §13 (superseded — see docs/00_authority/PROJECT_CHARTER.md): "system scales globally without modification."
 **Enforcement scope:** Core platform — all services, all domain modules, all integration adapters.
 
 **Rule:** The core platform MUST NEVER require code changes to support a new country or market. Any change that requires modifying core service code to support a new geography is a **platform defect**.

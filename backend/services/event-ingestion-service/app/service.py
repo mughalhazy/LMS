@@ -54,6 +54,48 @@ class EventIngestionService:
 
         return IngestResult(record=record, forward_results=forward_results)
 
+    def replay_events(self, tenant_id: str, event_type: str | None,
+                      from_ts: str | None, to_ts: str | None,
+                      tags: list[str] | None) -> dict:
+        """B15-035: replay stored events matching filter back through forwarding pipeline."""
+        records = self._event_store.query_by_filter(tenant_id, event_type, from_ts, to_ts, tags)
+        replayed, failed = 0, 0
+        for rec in records:
+            try:
+                self._forwarding_pipeline.publish(rec.event)
+                replayed += 1
+            except Exception:
+                failed += 1
+        return {"replayed": replayed, "failed": failed, "tenant_id": tenant_id}
+
+    def validate_event(self, request) -> dict:
+        """B15-036: validate event against canonical envelope contract without persisting."""
+        from .models import EventFamily
+        errors = []
+        required = ["event_id", "tenant_id", "event_type", "source", "timestamp"]
+        for field in required:
+            if not getattr(request, field, None):
+                errors.append(f"missing_required_field:{field}")
+        valid_families = {f.value for f in EventFamily}
+        if hasattr(request, "family") and request.family not in valid_families:
+            errors.append(f"invalid_family:{request.family}")
+        if not errors and not request.event_type.strip():
+            errors.append("event_type_empty")
+        return {"valid": len(errors) == 0, "errors": errors, "event_type": getattr(request, "event_type", "")}
+
+    def ingest_batch(self, requests: list) -> dict:
+        """B15-038: ingest multiple events in a single call."""
+        results = []
+        for req in requests:
+            try:
+                result = self.ingest(req)
+                results.append({"event_id": req.event_id, "status": "ingested",
+                                 "record_id": result.record.record_id})
+            except Exception as exc:
+                results.append({"event_id": getattr(req, "event_id", "unknown"),
+                                 "status": "failed", "error": str(exc)})
+        return {"count": len(results), "results": results}
+
     def health(self) -> dict[str, bool]:
         return {
             "storage_ok": self._event_store.health(),

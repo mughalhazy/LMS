@@ -41,6 +41,21 @@ class EventPublisher:
             metadata={"producer": "program-service"},
         )
         self._events.append(envelope)
+        # B01-013: publish to shared platform bus so downstream consumers receive events
+        try:
+            from backend.services.shared.events.bus import get_default_bus
+            from backend.services.shared.events.envelope import build_event
+            bus = get_default_bus()
+            shared_envelope = build_event(
+                event_type=event_type,
+                payload=payload,
+                tenant_id=tenant_id,
+                correlation_id=envelope.correlation_id,
+                producer_service="program-service",
+            )
+            bus.publish(shared_envelope)
+        except Exception:
+            pass  # best-effort — shared bus unavailable must not block service writes
         return envelope
 
     def list_events(self) -> list[EventEnvelope]:

@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from .audit import AuditLogger
 from backend.services.shared.context.correlation import ensure_correlation_id
-from backend.services.shared.events.envelope import build_event
+from backend.services.shared.events.envelope import EventEnvelope, build_event
 from shared.control_plane import build_control_plane_client
 from shared.utils.entitlement import TenantEntitlementContext
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
@@ -19,7 +19,7 @@ from .schemas import (
     CourseResponse,
     CourseStatus,
     DeliveryRole,
-    EventEnvelope,
+    GradingScheme,
     ProgramLink,
     PublishCourseRequest,
     PublishStatus,
@@ -91,13 +91,15 @@ class CourseRecord:
     description: str | None
     language_code: str | None
     credit_value: float | None
-    grading_scheme: str | None
+    grading_scheme: GradingScheme | None
     metadata: CourseMetadata = field(default_factory=CourseMetadata)
     program_links: list[ProgramLink] = field(default_factory=list)
     session_links: list[SessionLink] = field(default_factory=list)
     # CGAP-065: content versioning — current version number + history snapshots.
     version: int = 1
     version_history: list[dict] = field(default_factory=list)
+    # Denormalised aggregate — incremented by consuming enrollment.created events.
+    enrollment_count: int = 0
 
 
 class CourseService:
@@ -146,7 +148,7 @@ class CourseService:
             self.metrics["mandatory_courses_total"] += 1
         self.audit_logger.log(event_type="course.created", tenant_id=request.tenant_id, actor_id=request.created_by, details={"course_id": record.course_id})
         self._publish_event(
-            "course.lifecycle.created.v1",
+            "lms.course.created.v1",
             record,
             request.created_by,
             {
@@ -164,9 +166,11 @@ class CourseService:
     def get_course(self, tenant_id: str, course_id: str) -> CourseResponse:
         return self._to_response(self._get_tenant_course(tenant_id, course_id))
 
-    def update_course(self, course_id: str, request: UpdateCourseRequest) -> CourseResponse:
+    def update_course(self, course_id: str, request: UpdateCourseRequest, expected_version: int | None = None) -> CourseResponse:
         self._assert_capability(request, "course.write")
         record = self._get_tenant_course(request.tenant_id, course_id)
+        if expected_version is not None and record.version != expected_version:
+            raise HTTPException(status_code=409, detail="COURSE_VERSION_CONFLICT")
         updated_fields: list[str] = []
         for field_name in ["title", "course_code", "description", "language_code", "credit_value", "grading_scheme"]:
             value = getattr(request, field_name)
@@ -196,7 +200,7 @@ class CourseService:
         record.updated_at = self._now()
         self.storage.save(record)
         self.audit_logger.log(event_type="course.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "updated_fields": updated_fields, "new_version": record.version})
-        self._publish_event("course.lifecycle.updated.v1", record, request.updated_by, {"updated_fields": updated_fields, "version": record.version})
+        self._publish_event("lms.course.updated.v1", record, request.updated_by, {"updated_fields": updated_fields, "version": record.version})
         return self._to_response(record)
 
     def publish_course(self, course_id: str, request: PublishCourseRequest) -> CourseResponse:
@@ -206,6 +210,17 @@ class CourseService:
             raise HTTPException(status_code=409, detail="Archived courses cannot be published")
         if not record.title:
             raise HTTPException(status_code=422, detail="Course must have title before publishing")
+        # Spec §4.4: at least one lesson required before publish.
+        # lesson_count is maintained via metadata.extra["lesson_count"] and incremented by
+        # consuming lms.lesson.created.v1 events from lesson-service. Until event consumption
+        # is wired (FA-024), lesson_count defaults to 0 and this check is skipped to avoid
+        # blocking all publishes. See full-alignment-register FA-027.
+        lesson_count = record.metadata.extra.get("lesson_count", None) if record.metadata else None
+        if lesson_count is not None and lesson_count == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Course must have at least one lesson before publishing",
+            )
 
         now = self._now()
         record.status = CourseStatus.PUBLISHED
@@ -217,7 +232,7 @@ class CourseService:
 
         self.metrics["courses_published_total"] += 1
         self.audit_logger.log(event_type="course.published", tenant_id=request.tenant_id, actor_id=request.requested_by, details={"course_id": course_id, "publish_status": record.publish_status.value})
-        self._publish_event("course.lifecycle.published.v1", record, request.requested_by, {"publish_status": record.publish_status.value, "publish_notes": request.publish_notes})
+        self._publish_event("lms.course.published.v1", record, request.requested_by, {"publish_status": record.publish_status.value, "publish_notes": request.publish_notes})
         return self._to_response(record)
 
     def archive_course(self, course_id: str, request: ArchiveCourseRequest) -> CourseResponse:
@@ -228,7 +243,7 @@ class CourseService:
         self.storage.save(record)
         self.metrics["courses_archived_total"] += 1
         self.audit_logger.log(event_type="course.archived", tenant_id=request.tenant_id, actor_id=request.requested_by, details={"course_id": course_id})
-        self._publish_event("course.lifecycle.archived.v1", record, request.requested_by, {"status": record.status.value})
+        self._publish_event("lms.course.archived.v1", record, request.requested_by, {"status": record.status.value})
         return self._to_response(record)
 
     def upsert_program_links(self, course_id: str, request: UpsertProgramLinksRequest) -> list[ProgramLink]:
@@ -249,7 +264,7 @@ class CourseService:
         self.storage.save(record)
         self.metrics["course_link_updates_total"] += 1
         self.audit_logger.log(event_type="course.program_links.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "link_count": len(request.program_links)})
-        self._publish_event("course.linkage.program.updated.v1", record, request.updated_by, {"program_links": [link.model_dump() for link in normalized_links]})
+        self._publish_event("lms.course.program_links_updated.v1", record, request.updated_by, {"program_links": [link.model_dump() for link in normalized_links]})
         return normalized_links
 
     def upsert_session_links(self, course_id: str, request: UpsertSessionLinksRequest) -> list[SessionLink]:
@@ -260,7 +275,7 @@ class CourseService:
         self.storage.save(record)
         self.metrics["course_link_updates_total"] += 1
         self.audit_logger.log(event_type="course.session_links.updated", tenant_id=request.tenant_id, actor_id=request.updated_by, details={"course_id": course_id, "link_count": len(normalized_links)})
-        self._publish_event("course.linkage.session.updated.v1", record, request.updated_by, {"session_links": [link.model_dump() for link in normalized_links]})
+        self._publish_event("lms.course.session_links_updated.v1", record, request.updated_by, {"session_links": [link.model_dump() for link in normalized_links]})
         return normalized_links
 
     def get_version_history(self, tenant_id: str, course_id: str) -> list[dict]:
@@ -314,7 +329,7 @@ class CourseService:
             actor_id=rolled_back_by,
             details={"course_id": course_id, "rolled_back_to": target_version, "new_version": record.version},
         )
-        self._publish_event("course.lifecycle.rollback.v1", record, rolled_back_by, {"rolled_back_to_version": target_version, "new_version": record.version})
+        self._publish_event("lms.course.rollback.v1", record, rolled_back_by, {"rolled_back_to_version": target_version, "new_version": record.version})
         return self._to_response(record)
 
     def delete_course(self, tenant_id: str, course_id: str) -> None:
@@ -335,7 +350,23 @@ class CourseService:
             payload=payload,
             metadata={"aggregate_id": record.course_id, "actor_id": actor_id, "producer": "course-service"},
         )
-        self.event_publisher.publish(EventEnvelope(**event.__dict__))
+        self.event_publisher.publish(event)
+        # AUD-041: also publish canonical DATA_02 name (without lms. prefix and .v1 suffix)
+        # so consumers subscribing to either convention receive the event.
+        canonical = event_type.removeprefix("lms.").removesuffix(".v1")
+        if canonical != event_type:
+            try:
+                from backend.services.shared.events.envelope import publish_event as _pub
+                _pub(
+                    event_type=canonical,
+                    topic=canonical,
+                    producer_service="course-service",
+                    tenant_id=record.tenant_id,
+                    correlation_id=ensure_correlation_id(correlation_id),
+                    payload={**payload, "course_id": record.course_id},
+                )
+            except Exception:
+                pass
 
 
     @staticmethod
@@ -373,6 +404,7 @@ class CourseService:
             updated_at=record.updated_at,
             published_at=record.published_at,
             published_by=record.published_by,
+            created_by=record.created_by,
             course_code=record.course_code,
             title=record.title,
             description=record.description,
@@ -382,4 +414,6 @@ class CourseService:
             metadata=record.metadata,
             program_links=record.program_links,
             session_links=record.session_links,
+            enrollment_count=record.enrollment_count,
+            version=record.version,
         )

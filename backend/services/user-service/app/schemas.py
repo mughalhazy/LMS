@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from .models import AuditLogEntry, UserAggregate, UserLifecycleEvent, UserStatus
+from .models import AuditLogEntry, IdentityLink, UserAggregate, UserLifecycleEvent, UserPreferences, UserStatus
 
 
 class TenantScopedRequest(BaseModel):
@@ -73,6 +73,43 @@ class EventEnvelope(BaseModel):
 
 class EventsResponse(BaseModel):
     events: list[UserLifecycleEvent]
+
+
+class IdentityLinkRequest(BaseModel):
+    tenant_id: str
+    actor_id: str
+    provider: str
+    external_subject_id: str
+
+
+class IdentityUnlinkRequest(BaseModel):
+    tenant_id: str
+    actor_id: str
+    provider: str
+    external_subject_id: str
+
+
+class IdentityLinksResponse(BaseModel):
+    identity_links: list[IdentityLink]
+
+
+class UserPreferencesRequest(BaseModel):
+    tenant_id: str
+    actor_id: str
+    notification_preferences: dict[str, object] | None = None
+    accessibility_preferences: dict[str, object] | None = None
+    language_preference: str | None = None
+
+
+class UserPreferencesResponse(BaseModel):
+    preferences: UserPreferences
+
+
+class LifecycleCommand(BaseModel):
+    tenant_id: str
+    actor_id: str
+    command: str  # terminate | reinstate
+    reason: str
 
 
 class HealthResponse(BaseModel):

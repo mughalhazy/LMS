@@ -3,10 +3,10 @@
 ## Scope
 - Batch 0 capability sets:
   - `docs/specs/B0P04_core_capabilities.json`
-  - `docs/architecture/B0P05_business_capabilities.json`
-  - `docs/architecture/B0P06_communication_capabilities.json`
+  - `docs/architecture/capabilities/B0P05_business_capabilities.json`
+  - `docs/architecture/capabilities/B0P06_communication_capabilities.json`
   - `docs/architecture/capabilities/B0P07_delivery_capabilities.json`
-  - `docs/architecture/B0P08_intelligence_capabilities.json`
+  - `docs/architecture/capabilities/B0P08_intelligence_capabilities.json`
 - Batch 2 registry-service artifacts:
   - `docs/designs/capability-registry-service-design.md`
   - `docs/architecture/schemas/capability_registry.example.json`

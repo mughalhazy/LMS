@@ -13,10 +13,14 @@ Generated single sign-on service for LMS identity boundary.
 - **OIDC**: Authorization Code + PKCE flow
 
 ## API
+
+Scope: SSO provider orchestration — flow management, token exchange, provider config. Auth-service SSO routes (`/api/v1/auth/sso/...`) are the consumer-facing entry point; they delegate flow execution to this service.
+
 - `GET /health`
-- `GET /providers`
-- `POST /sso/initiate`
-- `POST /sso/callback`
+- `GET /metrics`
+- `GET /api/v1/sso/providers`
+- `POST /api/v1/sso/initiate`
+- `POST /api/v1/sso/callback`
 
 ## Run
 ```bash

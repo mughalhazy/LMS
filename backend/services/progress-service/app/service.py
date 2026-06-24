@@ -487,6 +487,8 @@ class ProgressService:
             enrollment_id=row.enrollment_id,
             completion_status=row.completion_status,
             progress_percentage=row.progress_percentage,
+            completed_lessons=row.completed_lessons,
+            total_lessons=row.total_lessons,
             final_score=row.final_score,
             started_at=row.started_at,
             completed_at=row.completed_at,

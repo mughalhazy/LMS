@@ -57,5 +57,5 @@ Authoritative cross-reference mapping all 18 Master Spec §5 capability domains 
 ## References
 
 - Master Spec §5 (all capability domains)
-- `Repo/doc-catalogue.md` (full doc index with service mapping)
+- `docs/governance/doc-catalogue.md` (full doc index with service mapping)
 - `docs/specs/B0P04_core_capabilities.json` (core 7 capabilities — superseded in scope by this doc)

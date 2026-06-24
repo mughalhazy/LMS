@@ -1,16 +1,20 @@
-# Certificate Service (Enterprise LMS V2)
+﻿# Certificate Service (Enterprise LMS V2)
+
+## Authentication
+
+JWT required on all routes (pre-existing). Authorization: Bearer <token>. Date filters added to GET /api/v1/certificates (B01-007).
 
 Production-ready `certificate_service` aligned to the existing Rails LMS `Certificate` runtime model.
 
 ## Service module structure
 
-- `app/main.py` — versioned REST API routes (`/api/v1/...`), tenant context dependency, health/metrics.
-- `app/schemas.py` — request/response contracts.
-- `app/models.py` — domain entities (`Certificate`, `CertificateTemplate`, `VerificationMetadata`, `CompletionRef`, `BadgeExtensionProfile`).
-- `app/service.py` — issuance workflow, lifecycle rules, audit logging integration, observability hooks, lifecycle events.
-- `app/store.py` — storage contract (`CertificateStore`) + in-memory adapter.
-- `src/audit.py` — audit event model and logger.
-- `migrations/0001_create_certificates.sql` — baseline schema for certificate entity.
+- `app/main.py` â€” versioned REST API routes (`/api/v1/...`), tenant context dependency, health/metrics.
+- `app/schemas.py` â€” request/response contracts.
+- `app/models.py` â€” domain entities (`Certificate`, `CertificateTemplate`, `VerificationMetadata`, `CompletionRef`, `BadgeExtensionProfile`).
+- `app/service.py` â€” issuance workflow, lifecycle rules, audit logging integration, observability hooks, lifecycle events.
+- `app/store.py` â€” storage contract (`CertificateStore`) + in-memory adapter.
+- `src/audit.py` â€” audit event model and logger.
+- `migrations/0001_create_certificates.sql` â€” baseline schema for certificate entity.
 
 ## API routes
 

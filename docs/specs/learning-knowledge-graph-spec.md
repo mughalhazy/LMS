@@ -22,6 +22,44 @@ Build a **derived intelligence graph layer** around existing LMS runtime entitie
 
 ---
 
+## Build Status (as of 2026-05-30)
+
+This spec describes the full target architecture. The table below maps each component to its current build state.
+
+### Built
+
+| Component | Service | Detail |
+|---|---|---|
+| Skill subgraph (nodes + edges) | `skill-inference-service` | `SkillGraphNode`, `SkillGraphEdge`; `POST /knowledge-graph/upsert` — implements the skill layer of the full graph schema |
+| Analytics ingestion | `skill-inference-service` | `POST /analytics/ingest` — ingests learner analytics signals that feed skill inference |
+| Skill readiness inference | `skill-inference-service` | `POST /inference/run` — implements `infer_skill_readiness` from the query interface (§8) |
+| Skill progression query | `skill-inference-service` | `GET /learners/{tenant_id}/{learner_id}/progression` — implements skill progression tracking |
+| Recommendation consumers | `recommendation-service` | Full recommendation surface: personalized courses, skill gaps, learning paths, behavioral, integrated — these are the graph consumers defined in §8 |
+
+### Deferred (no code)
+
+| Component | Spec Section | Notes |
+|---|---|---|
+| Concept graph layer | §3, §4, §5 | `ConceptNode`, `LESSON_TEACHES_CONCEPT`, `ASSESSMENT_TESTS_CONCEPT`, `CONCEPT_PREREQUISITE_OF_CONCEPT`, `CONCEPT_RELATES_TO_CONCEPT` edges — not built |
+| Program / Cohort / Session node types | §3, §4 | `ProgramNode`, `CohortNode`, `SessionNode` — not built |
+| Certificate node + skill validation edge | §3, §5 | `CertificateNode`, `CERTIFICATE_VALIDATES_SKILL` — not built |
+| Unified graph interfaces | §9 | `GraphStore`, `GraphUpdater`, `GraphQueryService`, `GraphAuditSink` — not built as standalone interfaces |
+| Full graph update pipeline | §6 | Ingest → normalize → validate → conflict resolve → upsert → audit emit → observability → reconcile — not built |
+| Unified AI query contract | §8 | `get_concept_graph`, `get_lesson_concept_map`, `get_assessment_concept_map`, `get_certificate_skill_map`, `recommend_next_concepts` with full `reasoning_path` explainability payload — not built |
+| Audit stream | §10 | Immutable audit log with before/after hashes, replay support — not built |
+| Observability hooks | §11 | Structured logs, pipeline stage metrics, distributed traces — not built to spec |
+| Test suites | §12 | Schema, pipeline, isolation, query contract, audit, observability, health, migration tests — not built to spec |
+| Migration notes | §13 | Bootstrap strategy, backfill cutover, dual-run, rollback — not documented |
+
+### Partial
+
+| Component | Status |
+|---|---|
+| Graph storage | Implemented within `skill-inference-service` as an in-memory skill graph only; does not cover the full 9-node-type schema |
+| Tenant partitioning | `skill-inference-service` enforces `tenant_id` on all skill graph operations; full isolation spec from §7 is not independently verified across all node/edge types |
+
+---
+
 ## 1) Architecture and boundary rules
 
 ### Hard constraints

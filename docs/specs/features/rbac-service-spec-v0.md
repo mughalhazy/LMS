@@ -1,3 +1,7 @@
+﻿> DEPRECATED — Superseded by: docs/specs/rbac-service-spec.md
+> Reason: v0 was replaced by v1 canonical spec during normalisation.
+> Last reviewed: 2026-06-22
+
 # RBAC Authorization System Specification
 
 ## Roles, Permissions, and Scope

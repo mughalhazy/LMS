@@ -1,3 +1,10 @@
+﻿> NOTE: The "LMS PLATFORM — BEHAVIORAL OPERATING SPEC.md" referenced as source authority has been superseded.
+> Current upstream authorities:
+>   - docs/00_authority/PRODUCT_WORKFLOWS.md (workflow and behavioral authority)
+>   - docs/00_authority/FEATURE_SCOPE.md (feature scope authority)
+> This document remains valid as a supporting reference for named behavioral contracts.
+> Last reviewed: 2026-06-22
+
 # Platform Behavioral Contract
 
 **Type:** Governing Behavioral Specification | **Date:** 2026-04-04 | **BOS§:** §1, §14, §15

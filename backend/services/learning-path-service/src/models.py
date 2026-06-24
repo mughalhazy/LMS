@@ -67,6 +67,17 @@ class PathEdge:
 
 
 @dataclass
+class ElectiveGroup:
+    # B04-002: learning-path-spec.md data model — elective_group entity
+    path_id: str
+    name: str
+    min_select: int
+    max_select: int
+    node_ids: list = field(default_factory=list)
+    group_id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass
 class NodeProgress:
     completed: bool
     score: Optional[float] = None

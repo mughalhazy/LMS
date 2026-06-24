@@ -15,7 +15,7 @@ from shared.utils.entitlement import TenantEntitlementContext
 from shared.models.capability import Capability
 from shared.models.config import ConfigLevel, ConfigOverride, ConfigScope
 from backend.services.shared.utils.tenant_context import tenant_contract_from_inputs
-from .models import AssessmentDefinition, AssessmentStatus, AssessmentType, AttemptRecord, AttemptStatus, SubmissionRecord
+from .models import AssessmentDefinition, AssessmentItem, AssessmentStatus, AssessmentType, AssessmentVersion, AttemptRecord, AttemptStatus, SubmissionRecord
 from .observability import ServiceMetrics
 from .schemas import (
     AssessmentCreateRequest,
@@ -25,8 +25,14 @@ from .schemas import (
     AttemptResponse,
     AttemptStartRequest,
     GradeAttemptRequest,
+    ItemCreateRequest,
+    ItemResponse,
+    ItemUpdateRequest,
     SubmissionCreateRequest,
     SubmissionResponse,
+    VersionCreateRequest,
+    VersionPublishRequest,
+    VersionResponse,
 )
 from .store import AssessmentStore
 
@@ -93,6 +99,7 @@ class AssessmentService:
             title=request.title,
             description=request.description,
             assessment_type=request.assessment_type,
+            assessment_format=request.assessment_format,  # B03-006
             status=AssessmentStatus.DRAFT,
             max_score=request.max_score,
             passing_score=request.passing_score,
@@ -254,6 +261,31 @@ class AssessmentService:
             raise HTTPException(status_code=404, detail="attempt not found")
         return self._to_attempt_response(attempt)
 
+    def get_attempt_results(self, tenant_id: str, attempt_id: str) -> dict[str, object]:
+        attempt = self.store.get_attempt(tenant_id, attempt_id)
+        if not attempt:
+            raise HTTPException(status_code=404, detail="attempt not found")
+        submissions = self.store.list_submissions(tenant_id, attempt_id) if hasattr(self.store, "list_submissions") else []
+        return {
+            "attempt_id": attempt.attempt_id,
+            "tenant_id": attempt.tenant_id,
+            "assessment_id": attempt.assessment_id,
+            "learner_id": attempt.learner_id,
+            "status": attempt.status.value if hasattr(attempt.status, "value") else str(attempt.status),
+            "started_at": attempt.started_at.isoformat() if attempt.started_at else None,
+            "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+            "grading_result_id": attempt.grading_result_id,
+            "submissions": [
+                {
+                    "submission_id": s.submission_id,
+                    "submitted_by": s.submitted_by,
+                    "submitted_at": s.submitted_at.isoformat() if s.submitted_at else None,
+                    "payload": s.payload,
+                }
+                for s in submissions
+            ],
+        }
+
     def list_attempts(self, tenant_id: str, assessment_id: str) -> list[AttemptResponse]:
         attempts = sorted(self.store.list_attempts(tenant_id, assessment_id), key=lambda item: item.started_at)
         return [self._to_attempt_response(item) for item in attempts]
@@ -293,6 +325,142 @@ class AssessmentService:
             add_ons=tuple(tenant.addon_flags),
         )
 
+    def create_version(self, tenant_id: str, assessment_id: str, request: VersionCreateRequest) -> VersionResponse:
+        assessment = self.store.get_assessment(tenant_id, assessment_id)
+        if not assessment:
+            raise HTTPException(status_code=404, detail="assessment not found")
+
+        existing = self.store.list_versions(tenant_id, assessment_id)
+        next_number = max((v.version_number for v in existing), default=0) + 1
+
+        source_items: list[AssessmentItem] = []
+        if request.source_version_number is not None:
+            source = self.store.get_version_by_number(tenant_id, assessment_id, request.source_version_number)
+            if source:
+                source_items = self.store.list_items_for_version(tenant_id, source.version_id)
+
+        version = AssessmentVersion(
+            version_id=str(uuid4()),
+            assessment_id=assessment_id,
+            tenant_id=tenant_id,
+            version_number=next_number,
+            status="draft",
+            created_by=request.actor_id,
+            created_at=self._now(),
+        )
+        saved_version = self.store.save_version(version)
+
+        cloned_item_ids = []
+        for src_item in source_items:
+            cloned = AssessmentItem(
+                item_id=str(uuid4()),
+                assessment_id=assessment_id,
+                version_id=saved_version.version_id,
+                tenant_id=tenant_id,
+                question_text=src_item.question_text,
+                item_type=src_item.item_type,
+                options=list(src_item.options),
+                correct_answer=src_item.correct_answer,
+                points=src_item.points,
+                order=src_item.order,
+                created_at=self._now(),
+                updated_at=self._now(),
+            )
+            self.store.save_item(cloned)
+            cloned_item_ids.append(cloned.item_id)
+
+        saved_version.item_ids = cloned_item_ids
+        self.store.save_version(saved_version)
+        self._event("assessment.version.created", tenant_id, assessment_id, {"version_number": next_number})
+        return self._to_version_response(saved_version)
+
+    def publish_version(self, tenant_id: str, assessment_id: str, version_number: int, request: VersionPublishRequest) -> VersionResponse:
+        version = self.store.get_version_by_number(tenant_id, assessment_id, version_number)
+        if not version:
+            raise HTTPException(status_code=404, detail="version not found")
+        if version.status == "published":
+            raise HTTPException(status_code=409, detail="version already published")
+
+        items = self.store.list_items_for_version(tenant_id, version.version_id)
+        if not items:
+            raise HTTPException(status_code=422, detail="cannot publish version with no items")
+
+        version.status = "published"
+        version.published_at = self._now()
+        version.availability_start = request.availability_start
+        version.availability_end = request.availability_end
+        self.store.save_version(version)
+        self._event("assessment.version.published", tenant_id, assessment_id, {"version_number": version_number, "published_at": version.published_at.isoformat()})
+        return self._to_version_response(version)
+
+    def create_item(self, tenant_id: str, assessment_id: str, version_number: int, request: ItemCreateRequest) -> ItemResponse:
+        version = self.store.get_version_by_number(tenant_id, assessment_id, version_number)
+        if not version:
+            raise HTTPException(status_code=404, detail="version not found")
+        if version.status == "published":
+            raise HTTPException(status_code=409, detail="cannot add items to a published version")
+
+        item = AssessmentItem(
+            item_id=str(uuid4()),
+            assessment_id=assessment_id,
+            version_id=version.version_id,
+            tenant_id=tenant_id,
+            question_text=request.question_text,
+            item_type=request.item_type,
+            options=request.options,
+            correct_answer=request.correct_answer,
+            points=request.points,
+            order=request.order,
+            created_at=self._now(),
+            updated_at=self._now(),
+        )
+        saved = self.store.save_item(item)
+        if saved.item_id not in version.item_ids:
+            version.item_ids.append(saved.item_id)
+            self.store.save_version(version)
+        return self._to_item_response(saved)
+
+    def update_item(self, tenant_id: str, assessment_id: str, version_number: int, item_id: str, request: ItemUpdateRequest) -> ItemResponse:
+        version = self.store.get_version_by_number(tenant_id, assessment_id, version_number)
+        if not version:
+            raise HTTPException(status_code=404, detail="version not found")
+        if version.status == "published":
+            raise HTTPException(status_code=409, detail="cannot update items in a published version")
+
+        item = self.store.get_item(tenant_id, item_id)
+        if not item or item.version_id != version.version_id:
+            raise HTTPException(status_code=404, detail="item not found in this version")
+
+        if request.question_text is not None:
+            item.question_text = request.question_text
+        if request.item_type is not None:
+            item.item_type = request.item_type
+        if request.options is not None:
+            item.options = request.options
+        if request.correct_answer is not None:
+            item.correct_answer = request.correct_answer
+        if request.points is not None:
+            item.points = request.points
+        if request.order is not None:
+            item.order = request.order
+        item.updated_at = self._now()
+        return self._to_item_response(self.store.save_item(item))
+
+    def delete_item(self, tenant_id: str, assessment_id: str, version_number: int, item_id: str) -> None:
+        version = self.store.get_version_by_number(tenant_id, assessment_id, version_number)
+        if not version:
+            raise HTTPException(status_code=404, detail="version not found")
+        if version.status == "published":
+            raise HTTPException(status_code=409, detail="cannot delete items from a published version")
+
+        item = self.store.get_item(tenant_id, item_id)
+        if not item or item.version_id != version.version_id:
+            raise HTTPException(status_code=404, detail="item not found in this version")
+
+        self.store.delete_item(tenant_id, item_id)
+        version.item_ids = [i for i in version.item_ids if i != item_id]
+        self.store.save_version(version)
+
     def _assert_capability(self, tenant_id: str, capability: str) -> None:
         if not self._entitlement_service.is_enabled(self._tenant_context(tenant_id), capability):
             raise HTTPException(status_code=403, detail=f"capability disabled: {capability}")
@@ -308,3 +476,36 @@ class AssessmentService:
     @staticmethod
     def _to_submission_response(record: SubmissionRecord) -> SubmissionResponse:
         return SubmissionResponse(**asdict(record))
+
+    @staticmethod
+    def _to_version_response(record: AssessmentVersion) -> VersionResponse:
+        return VersionResponse(
+            version_id=record.version_id,
+            assessment_id=record.assessment_id,
+            tenant_id=record.tenant_id,
+            version_number=record.version_number,
+            status=record.status,
+            created_by=record.created_by,
+            created_at=record.created_at,
+            published_at=record.published_at,
+            availability_start=record.availability_start,
+            availability_end=record.availability_end,
+            item_ids=record.item_ids,
+        )
+
+    @staticmethod
+    def _to_item_response(record: AssessmentItem) -> ItemResponse:
+        return ItemResponse(
+            item_id=record.item_id,
+            assessment_id=record.assessment_id,
+            version_id=record.version_id,
+            tenant_id=record.tenant_id,
+            question_text=record.question_text,
+            item_type=record.item_type,
+            options=record.options,
+            correct_answer=record.correct_answer,
+            points=record.points,
+            order=record.order,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )

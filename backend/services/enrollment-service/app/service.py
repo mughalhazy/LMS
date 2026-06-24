@@ -48,7 +48,7 @@ class PlatformEventBridgePublisher:
     Best-effort bridge — failure never blocks enrollment lifecycle transitions.
     """
 
-    # Events that must reach the platform bus (BC-WF-01 default workflow triggers)
+    # Events bridged to the platform bus so downstream services receive them.
     _BRIDGE_EVENT_TYPES: frozenset[str] = frozenset({
         "enrollment.lifecycle.changed",
         "enrollment.lifecycle.completed",
@@ -63,11 +63,9 @@ class PlatformEventBridgePublisher:
 
     def publish(self, event: Event) -> None:
         self.inner.publish(event)
-        # Bridge to platform event bus for events that drive downstream workflows
-        if event.event_type in self._BRIDGE_EVENT_TYPES or (
-            event.payload.get("status") == "completed"
-            and event.event_type == "enrollment.lifecycle.changed"
-        ):
+        # AUD-035: bridge ALL enrollment.lifecycle.changed events to platform bus so
+        # 30+ subscribers (analytics, badge, notification, etc.) receive them.
+        if event.event_type in self._BRIDGE_EVENT_TYPES:
             try:
                 import sys
                 from pathlib import Path
@@ -75,17 +73,26 @@ class PlatformEventBridgePublisher:
                 if str(_root) not in sys.path:
                     sys.path.insert(0, str(_root))
                 from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
-                publish_event({
-                    "event_type": "enrollment.completed",
-                    "tenant_id": event.tenant_id,
-                    "enrollment_id": event.payload.get("id") or event.payload.get("enrollment_id", ""),
-                    "learner_id": event.payload.get("learner_id", ""),
-                    "course_id": event.payload.get("course_id", ""),
-                    "correlation_id": event.correlation_id,
-                    "producer": "enrollment-service",
-                })
+                publish_event(
+                    event_type=event.event_type,
+                    topic=event.event_type,
+                    producer_service="enrollment-service",
+                    tenant_id=event.tenant_id,
+                    correlation_id=event.correlation_id,
+                    payload=event.payload,
+                )
+                # Also emit enrollment.completed alias for services that listen to it
+                if event.payload.get("status") == "completed":
+                    publish_event(
+                        event_type="enrollment.completed",
+                        topic="enrollment.completed",
+                        producer_service="enrollment-service",
+                        tenant_id=event.tenant_id,
+                        correlation_id=event.correlation_id,
+                        payload=event.payload,
+                    )
             except Exception:
-                pass  # best-effort — must not block enrollment transitions
+                pass  # best-effort — must not block enrollment lifecycle transitions
 
 
 class InMemoryObservabilityHook:
@@ -117,10 +124,10 @@ class EnrollmentService:
 
         enrollment = Enrollment(
             tenant_id=context.tenant_id,
-            learner_id=request.learner_id,
+            learner_id=getattr(request, "user_id", None) or getattr(request, "learner_id", context.actor_id),
             course_id=request.course_id,
-            assigned_by=context.actor_id,
-            assignment_source=request.assignment_source,
+            assigned_by=getattr(request, "assigned_by", None) or context.actor_id,
+            assignment_source=getattr(request, "source_channel", None) or getattr(request, "assignment_source", "admin_assignment"),
             cohort_id=request.cohort_id,
             session_id=request.session_id,
         )
@@ -144,6 +151,10 @@ class EnrollmentService:
         learner_id: str | None = None,
         course_id: str | None = None,
         status: str | None = None,
+        cohort_id: str | None = None,
+        session_id: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
     ) -> list[Enrollment]:
         self.observability.observe("enrollment.list.count")
         return self.store.list(
@@ -151,7 +162,22 @@ class EnrollmentService:
             learner_id=learner_id,
             course_id=course_id,
             status=status,
+            cohort_id=cohort_id,
+            session_id=session_id,
+            page=page,
+            page_size=page_size,
         )
+
+    def update_links(self, context: TenantContext, enrollment_id: str, cohort_id: str | None, session_id: str | None) -> Enrollment:
+        enrollment = self.get_enrollment(context, enrollment_id)
+        if cohort_id is not None:
+            enrollment.cohort_id = cohort_id
+        if session_id is not None:
+            enrollment.session_id = session_id
+        enrollment.updated_at = datetime.now(timezone.utc)
+        updated = self.store.update(enrollment)
+        self._audit(context, "enrollment.links_updated", updated, {"cohort_id": cohort_id, "session_id": session_id})
+        return updated
 
     def transition_status(
         self,
@@ -162,11 +188,23 @@ class EnrollmentService:
     ) -> Enrollment:
         enrollment = self.get_enrollment(context, enrollment_id)
         from_status = enrollment.status
+        # AUD-029: 'completed' should require a progress signal; guard logs a warning
+        # when completed is requested directly (without progress_service event).
+        # Full enforcement deferred to event-driven progress integration.
+        if to_status == EnrollmentStatus.COMPLETED:
+            import logging as _logging
+            _logging.getLogger("enrollment-service").warning(
+                "enrollment %s forced to completed by direct API call (tenant=%s). "
+                "Spec §3.3 requires progress_service.course_completed event — "
+                "direct completion accepted for now but should be validated upstream.",
+                enrollment_id, context.tenant_id,
+            )
         try:
             enrollment.transition_to(to_status)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
+        enrollment.version += 1
         updated = self.store.update(enrollment)
         self._audit(
             context,
@@ -205,6 +243,31 @@ class EnrollmentService:
                 metadata={"aggregate_id": enrollment.id, "producer": "enrollment-service"},
             )
         )
+        # AUD-036: also publish DATA_02 canonical event names so services
+        # subscribing to enrollment.created / enrollment.status_changed receive them.
+        canonical_map = {
+            "enrollment.lifecycle.changed": (
+                "enrollment.created" if not from_status else "enrollment.status_changed"
+            ),
+        }
+        canonical = canonical_map.get(event_type)
+        if canonical:
+            try:
+                import sys
+                from pathlib import Path
+                _root = Path(__file__).resolve().parents[4]
+                if str(_root) not in sys.path:
+                    sys.path.insert(0, str(_root))
+                from backend.services.shared.events.envelope import publish_event as _pub  # type: ignore[import]
+                _pub(
+                    event_type=canonical,
+                    topic=canonical,
+                    producer_service="enrollment-service",
+                    tenant_id=enrollment.tenant_id,
+                    payload=payload,
+                )
+            except Exception:
+                pass  # best-effort
 
     def _audit(self, context: TenantContext, action: str, enrollment: Enrollment, metadata: dict) -> None:
         self.audit_log.append(

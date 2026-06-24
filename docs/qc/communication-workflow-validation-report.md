@@ -6,7 +6,7 @@
 - Workflow engine
 - Contract and design alignment checks:
   - `docs/contracts/communication-adapter-contract.md`
-  - `docs/architecture/B0P06_communication_capabilities.json`
+  - `docs/architecture/capabilities/B0P06_communication_capabilities.json`
   - `docs/designs/school-engagement-domain-design.md`
 
 ## Workflow Validation

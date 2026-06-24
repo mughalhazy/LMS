@@ -83,6 +83,10 @@ Examples already present in repository routing:
 - `/api/v1/courses/{courseId}/lessons`
 - `/api/v1/integrations/webhooks/events`
 
+### Known v2 Exception: session-service
+
+`backend/services/session-service/app/main.py` uses `/api/v2/sessions` as its base path. This is intentional — session-service is documented as a v2 service, indicating a breaking revision relative to any prior session API. All session-service callers (frontend and service-to-service) must use `/api/v2/sessions/` not `/api/v1/sessions/`. There is no v1 session endpoint. (Confirmed by Phase 2.9 determinability review, 2026-06-23.)
+
 ## 6) QC loop
 
 ### QC pass #1

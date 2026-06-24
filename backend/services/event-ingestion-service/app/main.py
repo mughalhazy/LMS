@@ -16,7 +16,8 @@ from .forwarders import (
     WorkflowForwarder,
 )
 from .observability import MetricsRecorder
-from .schemas import HealthResponse, IngestionRequest, IngestionResponse
+from .schemas import (BatchIngestionRequest, HealthResponse, IngestionRequest,
+                      IngestionResponse, ReplayRequest, ValidateRequest)
 from .service import EventIngestionService
 from .store import InMemoryAuditStorage, InMemoryEventStorage
 
@@ -55,6 +56,20 @@ _ops_os_service = OperationsOSService()
 # ─── Service assembly ─────────────────────────────────────────────────────────
 
 app = FastAPI(title="Event Ingestion Service", version="1.0.0")
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
 service = EventIngestionService(
     event_store=InMemoryEventStorage(),
     audit_store=InMemoryAuditStorage(),
@@ -76,7 +91,8 @@ def require_runtime_context(
     return tenant_id, request_id
 
 
-@app.post("/events/ingest", response_model=IngestionResponse)
+@app.post("/v1/events/ingest", response_model=IngestionResponse)
+@app.post("/events/ingest", response_model=IngestionResponse, include_in_schema=False)
 def ingest_event(
     request: IngestionRequest,
     runtime_context: tuple[str, str] = Depends(require_runtime_context),
@@ -85,6 +101,19 @@ def ingest_event(
     if tenant_id != request.tenant_id:
         raise HTTPException(status_code=400, detail="x_tenant_id_mismatch")
     return IngestionResponse(result=service.ingest(request))
+
+
+@app.post("/v1/events/ingest/batch", status_code=200)
+def ingest_batch(
+    request: BatchIngestionRequest,
+    runtime_context: tuple[str, str] = Depends(require_runtime_context),
+) -> dict:
+    """B15-038: batch ingest — multiple envelopes per call."""
+    tenant_id, _ = runtime_context
+    for ev in request.events:
+        if ev.tenant_id != tenant_id:
+            raise HTTPException(status_code=400, detail=f"tenant_mismatch on event {ev.event_id}")
+    return service.ingest_batch(request.events)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -101,3 +130,26 @@ def health() -> HealthResponse:
 @app.get("/metrics")
 def metrics() -> dict[str, int | str]:
     return {"service": "event-ingestion-service", **service.metrics()}
+
+
+@app.post("/v1/events/replay", status_code=202)
+def replay_events(
+    request: ReplayRequest,
+    runtime_context: tuple[str, str] = Depends(require_runtime_context),
+) -> dict:
+    """B15-035: replay stored events matching filter back through forwarding pipeline."""
+    tenant_id, _ = runtime_context
+    if request.tenant_id != tenant_id:
+        raise HTTPException(status_code=400, detail="x_tenant_id_mismatch")
+    result = service.replay_events(tenant_id, request.event_type, request.from_ts,
+                                   request.to_ts, request.tags)
+    return {"status": "replayed", **result}
+
+
+@app.post("/v1/events/validate", status_code=200)
+def validate_event(
+    request: ValidateRequest,
+    runtime_context: tuple[str, str] = Depends(require_runtime_context),
+) -> dict:
+    """B15-036: validate event schema against canonical envelope contract without persisting."""
+    return service.validate_event(request)

@@ -1,4 +1,9 @@
-# Cohort Service (Enterprise LMS V2)
+﻿# Cohort Service (Enterprise LMS V2)
+
+## Recent changes
+
+- B11-001 (2026-06-01): 4 batch-specific status values added (OPEN, RUNNING, ENDED, CLOSED).
+- B11-002 (2026-06-01): delivery_pattern, seat_limit, max_size, lead_tutor_id fields added to CreateCohortRequest/CohortResponse.
 
 Production-ready service supporting:
 - formal cohorts

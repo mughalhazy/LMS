@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class ReportType(str, Enum):
     COMPLIANCE = "compliance"
     COURSE_COMPLETION = "course_completion"
+    CERTIFICATION_VALIDITY = "certification_validity"
 
 
 class ExportFormat(str, Enum):
@@ -42,6 +43,27 @@ class ComplianceRecord(BaseModel):
     non_compliance_flag: bool = False
     escalation_level: str = "none"
     reminder_status: str = "none"
+
+
+class CertificationValidityRecord(BaseModel):
+    """B15-033: Certification Validity Report row per compliance-reporting-spec."""
+    certification_id: str
+    certification_name: str
+    issuing_authority: str
+    learner_id: str
+    learner_name: str
+    issued_date: date
+    expiry_date: Optional[date]
+    validity_status: str  # valid | expired | expiring_soon | revoked
+    days_until_expiry: Optional[int] = None
+    recertification_required_flag: bool = False
+    recertification_due_date: Optional[date] = None
+    grace_period_end_date: Optional[date] = None
+
+
+class CertificationValidityReport(BaseModel):
+    envelope: "ReportEnvelope"
+    items: List[CertificationValidityRecord]
 
 
 class CourseCompletionRecord(BaseModel):

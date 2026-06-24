@@ -311,6 +311,16 @@ This enables dynamic upgrades without duplicating billing math.
 
 ---
 
+## Auth Exception
+
+**Auth mechanism: HS256 shared-secret** (exception ref: B10-006, env var: `JWT_SHARED_SECRET`). This service deviates from the platform-wide RS256 JWT standard established in FA-004a.
+
+The subscription service was implemented using a shared-secret auth model during initial commerce domain build. Its primary integration paths are system-to-system (billing callbacks, entitlement events) where user-token validation is not the primary concern.
+
+**Impact:** Tenant-facing subscription management APIs (e.g., plan lookup, cancellation) must route through an RS256-validating gateway layer before reaching this service. Tracked for remediation to RS256 in line with FA-004a.
+
+---
+
 ## See also
 - `docs/designs/revenue-service-design.md` � revenue service design
 - `docs/designs/checkout-service-design.md` � checkout service design

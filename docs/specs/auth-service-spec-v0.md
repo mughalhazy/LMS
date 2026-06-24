@@ -1,3 +1,7 @@
+﻿> DEPRECATED — Superseded by: docs/specs/auth-service-spec.md
+> Reason: v0 was replaced by v1 canonical spec during normalisation.
+> Last reviewed: 2026-06-22
+
 > **DEPRECATED** — Superseded by: `docs/specs/auth-service-spec.md`
 > Reason: SPEC_ prefixed doc is the canonical spec. This legacy spec is retained for historical reference only.
 > Last reviewed: 2026-04-04

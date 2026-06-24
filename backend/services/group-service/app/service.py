@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Ensure src/ layer is importable
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+# Add service root so src/ is importable as a package (preserves relative imports in src/)
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-from group_service import GroupService, NotFoundError, ValidationError  # noqa: E402
-from models import (  # noqa: E402
+from src.group_service import GroupService, NotFoundError, ValidationError  # noqa: E402
+from src.models import (  # noqa: E402
     AssignmentTarget,
     AssignmentType,
     Group,

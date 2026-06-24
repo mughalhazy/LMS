@@ -74,4 +74,5 @@ class AttemptHistoryResponse(BaseModel):
     tenant_id: str
     learner_id: str
     assessment_id: str | None = None
+    course_id: str | None = None
     attempts: list[AttemptResponse] = Field(default_factory=list)

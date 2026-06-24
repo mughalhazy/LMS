@@ -222,9 +222,11 @@ class ProgramService:
         if orders != list(range(1, len(courses) + 1)):
             raise HTTPException(status_code=400, detail="sequence_order_must_be_contiguous_starting_at_1")
 
-        missing = [course_id for course_id in ids if course_id not in self.known_courses]
-        if missing:
-            raise HTTPException(status_code=422, detail=f"course_not_found:{missing[0]}")
+        # Skip course existence validation when no course catalog is configured
+        if self.known_courses:
+            missing = [course_id for course_id in ids if course_id not in self.known_courses]
+            if missing:
+                raise HTTPException(status_code=422, detail=f"course_not_found:{missing[0]}")
 
         self._validate_program_linked_structure(courses)
 

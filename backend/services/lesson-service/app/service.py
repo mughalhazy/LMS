@@ -120,6 +120,32 @@ class LessonService:
             )
         )
 
+    def reorder_lessons(self, tenant_id: str, actor_id: str, course_id: str, ordered_ids: list[str]) -> list[dict[str, object]]:
+        """Spec §4 — bulk reorder: assign order_index by position in ordered_ids list."""
+        results = []
+        for idx, lesson_id in enumerate(ordered_ids):
+            lesson = self.get_lesson(tenant_id, lesson_id)
+            if lesson.course_id != course_id:
+                raise ValidationError(f"lesson {lesson_id} does not belong to course {course_id}")
+            lesson.order_index = idx
+            lesson.updated_at = datetime.now(timezone.utc)
+            self.store.update(lesson)
+            results.append({"lesson_id": lesson_id, "order_index": idx})
+        return results
+
+    def snapshot_version(self, tenant_id: str, actor_id: str, lesson_id: str) -> dict[str, object]:
+        """Spec §4 — create an immutable version snapshot of the current lesson state."""
+        lesson = self.get_lesson(tenant_id, lesson_id)
+        from dataclasses import asdict as _asdict
+        snapshot = _asdict(lesson)
+        snapshot["status"] = lesson.status.value
+        return {
+            "lesson_id": lesson_id,
+            "version": lesson.version,
+            "snapshot": snapshot,
+            "snapshotted_by": actor_id,
+        }
+
     def delete_lesson(self, tenant_id: str, actor_id: str, lesson_id: str) -> None:
         _ = self.get_lesson(tenant_id, lesson_id)
         self.store.delete(tenant_id, lesson_id)

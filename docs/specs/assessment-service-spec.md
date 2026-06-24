@@ -284,6 +284,11 @@ Return normalized result payload for downstream consumers.
 - Grade-link operation idempotent by (`attempt_id`, `grade_version`).
 - Per-tenant and per-learner attempt counters are enforced atomically.
 
+### 5.6 Observability routes (internal)
+
+#### GET `/observability/hooks`
+Internal observability endpoint registered by the assessment execution engine. Returns active event hooks and their current status: proctoring session refs, grade pipeline listeners, time-window expiry watchers, and attempt integrity monitors. Not exposed through the tenant API gateway — accessible from trusted internal network only.
+
 ## 6) Events Produced
 
 All events include envelope: `event_id`, `event_type`, `timestamp`, `tenant_id`, `trace_id`, `producer`, `schema_version`.

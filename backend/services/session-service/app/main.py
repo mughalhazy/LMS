@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from app.schemas import (
     CreateSessionRequest,
@@ -11,7 +11,7 @@ from app.schemas import (
     TransitionRequest,
     UpdateSessionRequest,
 )
-from src.repository import InMemorySessionRepository
+from app.store_db import SQLiteSessionRepository
 from src.service import (
     InvalidSessionTransitionError,
     SessionNotFoundError,
@@ -19,9 +19,26 @@ from src.service import (
     SessionServiceError,
     TenantBoundaryError,
 )
+from .security import apply_security_headers, require_jwt
 
-app = FastAPI(title="session-service", version="2.0.0")
-service = SessionService(InMemorySessionRepository())
+# B01-015: spec §7 — authorization context required on all mutating operations
+app = FastAPI(title="session-service", version="2.0.0", dependencies=[Depends(require_jwt)])
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+apply_security_headers(app)
+service = SessionService(SQLiteSessionRepository())
 
 
 @app.get("/health")

@@ -13,11 +13,14 @@ Pakistan payment orchestration service — routes payments through local payment
 
 Routing is handled by `build_pakistan_payment_router()` in `service.py`. Provider selection is based on tenant country code and payment method preference.
 
+## API
+
+- `POST /api/v1/payments/initiate` — initiate a payment; body: `{order_id, user_id, amount, currency, payment_method, tenant_id}`; returns `{payment_id, provider, redirect_url, status}`
+- `POST /api/v1/payments/callback/{provider}` — inbound payment callback from JazzCash / Easypaisa
+
 ## Key classes
 
-- `PaymentOrchestrationService` — top-level coordinator
-- `PaymentCallbackRequest` / `PaymentCallbackResponse` — API models in `api.py`
-
-## Status
-
-Service exists on disk with full implementation. Not yet registered in the API gateway (pending).
+- `PaymentOrchestrationService` — top-level coordinator (`integrations/payments.py`)
+- `PakistanPaymentRouter` — resolves `payment_method` to `jazzcash` | `easypaisa`
+- `PaymentCallbackRequest` / `PaymentCallbackResponse` — callback API models
+- `PaymentInitiateRequest` / `PaymentInitiateResponse` — initiation API models

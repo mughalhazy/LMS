@@ -17,7 +17,7 @@ from .schemas import (
 )
 from .security import apply_security_headers, require_jwt, require_tenant_scope
 from .service import RBACService
-from .store import InMemoryRBACStore
+from .store_db import SQLiteRBACStore
 
 app = FastAPI(
     title="RBAC Authorization Service",
@@ -25,7 +25,21 @@ app = FastAPI(
     dependencies=[Depends(require_jwt), Depends(require_tenant_scope)],
 )
 
-store = InMemoryRBACStore()
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+
+store = SQLiteRBACStore()
 publisher = InMemoryEventPublisher()
 observability = InMemoryObservabilityHook()
 service = RBACService(store, publisher, observability)
@@ -49,6 +63,23 @@ def list_roles(x_tenant_id: str = Header(..., alias="X-Tenant-Id")):
     return service.list_roles(x_tenant_id)
 
 
+@router.get("/roles/{role_id}")
+def get_role(role_id: str, x_tenant_id: str = Header(..., alias="X-Tenant-Id")):
+    role = store.get_role(x_tenant_id, role_id)
+    if role is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="role_not_found")
+    return role
+
+
+@router.delete("/roles/{role_id}", status_code=204)
+def delete_role(role_id: str, x_tenant_id: str = Header(..., alias="X-Tenant-Id")):
+    """Soft-delete: sets role status to disabled. Hard deletion not permitted per spec."""
+    from .schemas import RoleUpdateRequest
+    service.update_role(x_tenant_id, role_id, RoleUpdateRequest(status="disabled"))
+    return Response(status_code=204)
+
+
 @router.patch("/roles/{role_id}")
 def update_role(role_id: str, payload: RoleUpdateRequest, x_tenant_id: str = Header(..., alias="X-Tenant-Id")):
     return service.update_role(x_tenant_id, role_id, payload)
@@ -63,6 +94,15 @@ def replace_permissions(role_id: str, payload: ReplaceRolePermissionsRequest, x_
 @router.get("/permissions")
 def list_permissions():
     return store.list_permissions()
+
+
+@router.get("/permissions/{permission_key}")
+def get_permission(permission_key: str):
+    perms = {p.permission_key: p for p in store.list_permissions()}
+    if permission_key not in perms:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="permission_not_found")
+    return perms[permission_key]
 
 
 @router.post("/assignments", status_code=201)
@@ -88,7 +128,15 @@ def revoke_assignment(assignment_id: str, x_tenant_id: str = Header(..., alias="
 
 @router.get("/subjects/{subject_type}/{subject_id}/effective-permissions")
 def effective_permissions(subject_type: str, subject_id: str, x_tenant_id: str = Header(..., alias="X-Tenant-Id")):
-    return {"permissions": service.effective_permissions(x_tenant_id, subject_type, subject_id)}
+    from datetime import datetime, timezone
+    perm_keys = service.effective_permissions(x_tenant_id, subject_type, subject_id)
+    # Build spec-compliant response: {subject, tenant_id, effective_permissions, computed_at}
+    return {
+        "subject": {"type": subject_type, "id": subject_id},
+        "tenant_id": x_tenant_id,
+        "effective_permissions": [{"permission_key": k} for k in perm_keys],
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.post("/authorize")

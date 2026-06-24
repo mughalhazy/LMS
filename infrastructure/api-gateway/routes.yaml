@@ -292,3 +292,103 @@ routes:
     service: entitlement-service
     rate_limit_policy: internal-control-plane
     strip_prefix: false
+  # Commerce domain
+  - path_prefix: /api/v1/catalog
+    service: catalog-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/checkout
+    service: checkout-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/invoice-billing
+    service: invoice-billing-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/revenue
+    service: revenue-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/owner-economics
+    service: owner-economics-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  # Platform infrastructure
+  - path_prefix: /api/v1/flags
+    service: feature-flag-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/usage
+    service: usage-metering-service
+    rate_limit_policy: event-ingestion-guarded
+    strip_prefix: false
+  - path_prefix: /api/v1/audit
+    service: audit-policy-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/policy
+    service: audit-policy-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  # B15 spec services
+  - path_prefix: /api/v1/workflow
+    service: workflow-engine
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/onboarding
+    service: onboarding-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/enterprise
+    service: enterprise-control-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/ledger
+    service: financial-ledger-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/economics
+    service: system-economics-service
+    rate_limit_policy: internal-control-plane
+    strip_prefix: false
+  - path_prefix: /api/v1/offline
+    service: offline-sync-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/ops
+    service: operations-os-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/interaction
+    service: interaction-layer-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/exam
+    service: exam-engine
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/analytics
+    service: analytics-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  # Previously pending gateway registrations
+  - path_prefix: /api/v1/integration
+    service: integration-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/payment
+    service: payment-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/subscription
+    service: subscription-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/institution
+    service: institution-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false
+  - path_prefix: /api/v1/session
+    service: session-service
+    rate_limit_policy: public-api-standard
+    strip_prefix: false

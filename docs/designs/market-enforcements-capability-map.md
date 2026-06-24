@@ -134,4 +134,4 @@ Map each of the 7 market enforcement requirements from Master Spec §7 to their 
 
 - Master Spec §7
 - `docs/anchors/capability-resolution.md`
-- `Repo/doc-catalogue.md` (quick domain lookup)
+- `docs/governance/doc-catalogue.md` (quick domain lookup)

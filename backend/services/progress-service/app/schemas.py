@@ -68,6 +68,9 @@ class CourseProgressResponse(BaseModel):
     enrollment_id: str
     completion_status: ProgressStatus
     progress_percentage: float
+    # B01-001: spec §4.2 course_progress response requires completed_lessons + total_lessons
+    completed_lessons: int = 0
+    total_lessons: int = 0
     final_score: Optional[float]
     started_at: datetime
     completed_at: Optional[datetime]

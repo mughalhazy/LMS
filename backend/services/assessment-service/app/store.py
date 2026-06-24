@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Protocol
 
-from .models import AssessmentDefinition, AttemptRecord, SubmissionRecord
+from .models import AssessmentDefinition, AssessmentItem, AssessmentVersion, AttemptRecord, SubmissionRecord
 
 
 class AssessmentStore(Protocol):
@@ -37,6 +37,8 @@ class InMemoryAssessmentStore:
         self._assessments: dict[tuple[str, str], AssessmentDefinition] = {}
         self._attempts: dict[tuple[str, str], AttemptRecord] = {}
         self._submissions: dict[tuple[str, str], list[SubmissionRecord]] = {}
+        self._versions: dict[tuple[str, str], AssessmentVersion] = {}  # (tenant_id, version_id)
+        self._items: dict[tuple[str, str], AssessmentItem] = {}  # (tenant_id, item_id)
 
     def create_assessment(self, assessment: AssessmentDefinition) -> AssessmentDefinition:
         key = (assessment.tenant_id, assessment.assessment_id)
@@ -90,3 +92,35 @@ class InMemoryAssessmentStore:
 
     def list_submissions(self, tenant_id: str, attempt_id: str) -> list[SubmissionRecord]:
         return [replace(item) for item in self._submissions.get((tenant_id, attempt_id), [])]
+
+    def save_version(self, version: AssessmentVersion) -> AssessmentVersion:
+        self._versions[(version.tenant_id, version.version_id)] = version
+        return version
+
+    def get_version(self, tenant_id: str, version_id: str) -> AssessmentVersion | None:
+        return self._versions.get((tenant_id, version_id))
+
+    def list_versions(self, tenant_id: str, assessment_id: str) -> list[AssessmentVersion]:
+        return [v for v in self._versions.values() if v.tenant_id == tenant_id and v.assessment_id == assessment_id]
+
+    def get_version_by_number(self, tenant_id: str, assessment_id: str, version_number: int) -> AssessmentVersion | None:
+        for v in self._versions.values():
+            if v.tenant_id == tenant_id and v.assessment_id == assessment_id and v.version_number == version_number:
+                return v
+        return None
+
+    def save_item(self, item: AssessmentItem) -> AssessmentItem:
+        self._items[(item.tenant_id, item.item_id)] = item
+        return item
+
+    def get_item(self, tenant_id: str, item_id: str) -> AssessmentItem | None:
+        return self._items.get((tenant_id, item_id))
+
+    def list_items_for_version(self, tenant_id: str, version_id: str) -> list[AssessmentItem]:
+        return sorted(
+            [i for i in self._items.values() if i.tenant_id == tenant_id and i.version_id == version_id],
+            key=lambda i: i.order,
+        )
+
+    def delete_item(self, tenant_id: str, item_id: str) -> bool:
+        return self._items.pop((tenant_id, item_id), None) is not None

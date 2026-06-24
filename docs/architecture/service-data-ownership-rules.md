@@ -1,3 +1,7 @@
+﻿> NOTE: docs/00_authority/DOMAIN_MODEL.md §4 is the governing authority for service-to-data ownership definitions.
+> This document (ARCH_04) provides detailed ownership matrices. When it conflicts with DOMAIN_MODEL.md, DOMAIN_MODEL.md takes precedence.
+> Last reviewed: 2026-06-22
+
 # ARCH_04 Service Data Ownership Rules
 
 ## Purpose

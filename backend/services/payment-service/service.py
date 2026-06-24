@@ -227,9 +227,16 @@ class PaymentService:
         }
 
         # Emit to platform event bus — best-effort, never blocks payment success
+        # AUD-043: use keyword args not positional dict
         try:
             from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
-            publish_event(entitlement_payload)
+            publish_event(
+                event_type="entitlement.activated",
+                topic="entitlement.activated",
+                producer_service="payment-service",
+                tenant_id=entitlement_payload.get("tenant_id", ""),
+                payload=entitlement_payload,
+            )
         except Exception:
             pass
 
@@ -251,20 +258,28 @@ class PaymentService:
     # ------------------------------------------------------------------ #
 
     def _emit_payment_event(self, record: PaymentRecord) -> None:
-        """CGAP-071: emit payment events to platform event bus (best-effort)."""
+        """CGAP-071: emit payment events to platform event bus (best-effort).
+
+        AUD-043: publish_event() requires keyword args matching EventEnvelope fields,
+        not a positional dict.
+        """
         try:
             from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
-            publish_event({
-                "event_type": f"payment.{record.status}",
-                "payment_id": record.payment_id,
-                "tenant_id": record.tenant_id,
-                "user_id": record.user_id,
-                "order_id": record.order_id,
-                "provider": record.provider,
-                "amount": record.amount,
-                "currency": record.currency,
-                "timestamp": record.updated_at.isoformat(),
-            })
+            publish_event(
+                event_type=f"payment.{record.status}",
+                topic=f"payment.{record.status}",
+                producer_service="payment-service",
+                tenant_id=record.tenant_id,
+                payload={
+                    "payment_id": record.payment_id,
+                    "user_id": record.user_id,
+                    "order_id": record.order_id,
+                    "provider": record.provider,
+                    "amount": record.amount,
+                    "currency": record.currency,
+                    "timestamp": record.updated_at.isoformat(),
+                },
+            )
         except Exception:
             pass  # best-effort
 
@@ -274,9 +289,12 @@ class PaymentService:
             return
         try:
             from backend.services.shared.events.envelope import publish_event  # type: ignore[import]
-            publish_event({
-                "event_type": "payment.reconciliation.discrepancy",
-                **report,
-            })
+            publish_event(
+                event_type="payment.reconciliation.discrepancy",
+                topic="payment.reconciliation.discrepancy",
+                producer_service="payment-service",
+                tenant_id=report.get("tenant_id", ""),
+                payload=report,
+            )
         except Exception:
             pass

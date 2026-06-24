@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from .models import AnalyticsSignal, SkillGraphEdge, SkillGraphNode
 from .schemas import InferenceRequest, IngestAnalyticsRequest, KnowledgeGraphUpsertRequest, ProgressionQuery
+from .security import apply_security_headers, require_jwt
 from .service import SkillInferenceApplicationService
 
-app = FastAPI()
+# B13-001: multi-tenant-isolation-model §2 — JWT required
+app = FastAPI(title="skill-inference-service", version="1.0.0", dependencies=[Depends(require_jwt)])
+
+
+# CAT-004: api-versioning-strategy.md §1 — X-API-Version header required on every response
+@app.middleware("http")
+async def _add_api_version_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    return response
+
+
+# FA-024 / G-24: register event consumers on startup
+from .consumers import register_consumers as _register_consumers
+_register_consumers()
+
+apply_security_headers(app)
 service = SkillInferenceApplicationService()
 
 
@@ -80,21 +97,21 @@ def metrics() -> dict[str, int | str]:
     return {"service": "skill-inference-service", "service_up": 1}
 
 
-@app.post("/knowledge-graph/upsert")
+@app.post("/api/v1/knowledge-graph/upsert")
 def upsert_knowledge_graph(payload: KnowledgeGraphUpsertRequest) -> dict[str, int]:
     return api.upsert_knowledge_graph(payload)
 
 
-@app.post("/analytics/ingest")
+@app.post("/api/v1/analytics/ingest")
 def ingest_analytics(payload: IngestAnalyticsRequest) -> dict[str, object]:
     return api.ingest_analytics(payload)
 
 
-@app.post("/inference/run")
+@app.post("/api/v1/inference/run")
 def run_inference(payload: InferenceRequest) -> dict[str, object]:
     return api.infer(payload)
 
 
-@app.get("/learners/{tenant_id}/{learner_id}/progression")
+@app.get("/api/v1/learners/{tenant_id}/{learner_id}/progression")
 def learner_progression(tenant_id: str, learner_id: str) -> dict[str, object]:
     return api.get_progression(ProgressionQuery(tenant_id=tenant_id, learner_id=learner_id))

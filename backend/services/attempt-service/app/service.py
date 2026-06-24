@@ -168,6 +168,7 @@ class AttemptService:
         tenant_id: str,
         learner_id: str,
         assessment_id: str | None,
+        course_id: str | None = None,
     ) -> AttemptHistoryResponse:
         attempts = [
             attempt
@@ -176,12 +177,15 @@ class AttemptService:
         ]
         if assessment_id:
             attempts = [attempt for attempt in attempts if attempt.assessment_id == assessment_id]
+        if course_id:
+            attempts = [attempt for attempt in attempts if attempt.course_id == course_id]
 
         attempts.sort(key=lambda item: item.started_at)
         return AttemptHistoryResponse(
             tenant_id=tenant_id,
             learner_id=learner_id,
             assessment_id=assessment_id,
+            course_id=course_id,
             attempts=[self._to_response(attempt) for attempt in attempts],
         )
 

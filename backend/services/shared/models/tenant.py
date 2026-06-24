@@ -13,6 +13,14 @@ class TenantContract:
     segment_context: dict[str, Any] = field(default_factory=lambda: {"type": "default", "attributes": {}})
     addon_flags: list[str] = field(default_factory=list)
 
+    @property
+    def segment_type(self) -> str:
+        """CAT-002: canonical anchor field. Reads from segment_context['type'].
+        Anchor tenant-contract.md defines segment_type as a plain string
+        (enterprise|smb|edu|government). segment_context is the internal
+        representation; this property exposes the canonical field name."""
+        return str(self.segment_context.get("type", "default"))
+
     def normalized(self) -> "TenantContract":
         unique_flags = sorted(set(self.addon_flags))
         return TenantContract(

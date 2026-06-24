@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .models import (
     AnalyticsDashboard,
+    CertificationValidityReport,
     ComplianceReport,
     CourseCompletionReport,
     ExportFormat,
@@ -48,6 +49,10 @@ class CourseCompletionReportResponse(BaseModel):
 
 class DashboardResponse(BaseModel):
     dashboard: AnalyticsDashboard
+
+
+class CertificationValidityReportResponse(BaseModel):
+    report: CertificationValidityReport
 
 
 class ExportResponse(BaseModel):

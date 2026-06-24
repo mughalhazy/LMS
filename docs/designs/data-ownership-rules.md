@@ -1,8 +1,12 @@
+﻿> NOTE: docs/00_authority/DOMAIN_MODEL.md §4 is the governing authority for service-to-data ownership.
+> Detailed ownership matrix: docs/architecture/service-data-ownership-rules.md
+> Last reviewed: 2026-06-22
+
 # LMS Data Ownership Rules
 
 **Type:** Architecture Reference | **Last reviewed:** 2026-05-26
 
-> **Canonical doc for data ownership:** `docs/architecture/ARCH_04_data_ownership_matrix.md` — this file is a historical ownership reference. ARCH_04 is authoritative.
+> **Canonical doc for data ownership:** `docs/architecture/architecture/service-data-ownership-rules.md (ARCH_04)` — this file is a historical ownership reference. ARCH_04 is authoritative.
 
 Service-to-entity ownership map. Each service owns the listed entities and their backing tables exclusively.
 

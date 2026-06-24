@@ -51,6 +51,16 @@ The notification service is the platform's communication dispatch layer. It rece
 
 ---
 
+## Auth Exception
+
+**Auth mechanism: HS256 shared-secret** (exception ref: B05-002). This service deviates from the platform-wide RS256 JWT standard established in FA-004a.
+
+The notification service processes internal dispatch commands from trusted domain services over the internal network. It does not validate end-user RS256 tokens directly on its dispatch path. HS256 was used to decouple the dispatch layer from a dependency on the auth-service JWKS endpoint.
+
+**Impact:** External-facing notification routes (e.g., learner inbox retrieval) must pass through an RS256-validating gateway or token-exchange layer before reaching this service. Tracked for remediation to RS256 in line with FA-004a.
+
+---
+
 ## References
 
 - Master Spec §5.7

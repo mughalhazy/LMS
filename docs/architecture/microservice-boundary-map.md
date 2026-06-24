@@ -1,3 +1,7 @@
+﻿> NOTE: docs/00_authority/DOMAIN_MODEL.md is the authoritative bounded context and service-domain assignment document.
+> This document provides supporting design detail. When this document conflicts with DOMAIN_MODEL.md, DOMAIN_MODEL.md takes precedence.
+> Last reviewed: 2026-06-22
+
 # ARCH_02 Microservice Boundary Map (Enterprise LMS V2)
 
 ## Scope and mapping rule

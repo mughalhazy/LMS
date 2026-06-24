@@ -15,15 +15,33 @@ uvicorn app.main:app --reload --port 8080
 ```
 
 ## API Endpoints
-- `POST /organizations`
-- `PATCH /organizations/{organization_id}`
-- `POST /organizations/{organization_id}/deactivate`
-- `GET /organizations/{organization_id}/hierarchy`
-- `POST /departments`
-- `PATCH /departments/{department_id}`
-- `POST /teams`
-- `PATCH /teams/{team_id}`
-- `GET /audit/reparent-events`
+
+Scope: hierarchy view — creation, updates, deactivation, tree traversal, reparent audit. (Operational department lifecycle — cascade deactivate, reparent, membership — lives in `department-service`.)
+
+### Organizations
+- `POST /api/v1/organizations`
+- `GET /api/v1/organizations` — list (optional `?tenant_id=` filter)
+- `GET /api/v1/organizations/{organization_id}`
+- `PATCH /api/v1/organizations/{organization_id}`
+- `POST /api/v1/organizations/{organization_id}/deactivate`
+- `DELETE /api/v1/organizations/{organization_id}`
+- `GET /api/v1/organizations/{organization_id}/hierarchy`
+
+### Departments
+- `POST /api/v1/departments`
+- `GET /api/v1/departments/{department_id}`
+- `PATCH /api/v1/departments/{department_id}`
+- `DELETE /api/v1/departments/{department_id}`
+
+### Teams
+- `POST /api/v1/teams`
+- `GET /api/v1/teams` — list (optional `?department_id=` filter)
+- `GET /api/v1/teams/{team_id}`
+- `PATCH /api/v1/teams/{team_id}`
+- `DELETE /api/v1/teams/{team_id}`
+
+### Audit
+- `GET /api/v1/audit/reparent-events`
 
 ## Domain Rules Enforced
 - Parent existence required for child entities (no orphan departments/teams).

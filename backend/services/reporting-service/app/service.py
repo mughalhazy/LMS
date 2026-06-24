@@ -7,6 +7,8 @@ import json
 
 from .models import (
     AnalyticsDashboard,
+    CertificationValidityRecord,
+    CertificationValidityReport,
     CompletionStatus,
     ComplianceRecord,
     ComplianceReport,
@@ -25,10 +27,9 @@ from .schemas import DashboardRequest, ExportReportRequest, ReportFilterRequest
 
 class ReportingService:
     def __init__(self) -> None:
-        # CGAP-035: replaced hardcoded fixtures with empty lists; use load_* injection
-        # methods to supply real records at runtime (e.g. from store_db or API layer).
         self._compliance_data: list[ComplianceRecord] = []
         self._completion_data: list[CourseCompletionRecord] = []
+        self._certification_data: list[CertificationValidityRecord] = []
         # BC-ANALYTICS-02: prior-period metric snapshots for comparative context.
         # Keys: (tenant_id, period_key) → {metric_name: value}
         self._period_snapshots: dict[tuple[str, str], dict[str, float]] = {}
@@ -40,6 +41,27 @@ class ReportingService:
         reports or dashboard KPIs that depend on compliance data.
         """
         self._compliance_data = list(records)
+
+    def load_certification_records(self, records: list[CertificationValidityRecord]) -> None:
+        self._certification_data = list(records)
+
+    def generate_certification_validity_report(self, req: "ReportFilterRequest") -> CertificationValidityReport:
+        """B15-033: Certification Validity Report per compliance-reporting-spec."""
+        from datetime import date as date_type
+        today = date_type.today()
+        filtered = [
+            r for r in self._certification_data
+            if (req.department is None or True)  # cert records are not dept-filtered
+            and (req.from_date is None or (r.issued_date >= req.from_date))
+            and (req.to_date is None or (r.issued_date <= req.to_date))
+        ]
+        envelope = ReportEnvelope(
+            report_type=ReportType.CERTIFICATION_VALIDITY,
+            tenant_id=req.tenant_id,
+            filters=self._filters(req),
+            row_count=len(filtered),
+        )
+        return CertificationValidityReport(envelope=envelope, items=filtered)
 
     def load_completion_records(self, records: list[CourseCompletionRecord]) -> None:
         """Inject course-completion records for the current reporting context.

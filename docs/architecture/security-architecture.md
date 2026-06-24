@@ -1,3 +1,7 @@
+﻿> NOTE: docs/06_decisions/ADR-001_PROJECT_FOUNDATION.md Decision 5 is the policy authority for authentication token standards (RS256 mandatory; HS256 exceptions list).
+> This document provides implementation design detail. When conflicts arise, ADR-001 Decision 5 governs.
+> Last reviewed: 2026-06-22
+
 # LMS Security Architecture
 
 **Type:** Architecture Reference | **Last reviewed:** 2026-05-26

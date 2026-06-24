@@ -11,6 +11,7 @@ class CohortStatus(str, Enum):
     SCHEDULED = "scheduled"
     ACTIVE = "active"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
     ARCHIVED = "archived"
 
 

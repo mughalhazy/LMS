@@ -1,3 +1,7 @@
+﻿> NOTE: docs/anchors/tenant-contract.md is the canonical authority for the tenant payload (6-field model: tenant_id, name, country_code, segment_type, plan_type, addon_flags).
+> This document provides supporting context. When it conflicts with tenant-contract.md, tenant-contract.md governs.
+> Last reviewed: 2026-06-22
+
 # B2P06 — Tenant Extension Model
 
 ## Purpose

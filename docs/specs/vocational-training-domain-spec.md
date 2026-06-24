@@ -2,7 +2,7 @@
 
 **Type:** Specification | **Date:** 2026-04-14 | **MS§:** §5.19 (Use-case Capability Domain Extension)
 **Gap:** MO-015 | **Source authority:** `workspace/foundation/market-research.md` §3.3 (Vocational segment)
-**Status:** PLANNED — no service built yet
+**Status:** DEFERRED — no service built; implementation depends on SPEC_14 (certificate-service), `learning-path-spec.md`, `assessment-service-spec.md`, and `prerequisite-engine-spec.md`
 
 ---
 

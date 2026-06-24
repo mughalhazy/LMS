@@ -2,6 +2,8 @@
 
 **Location:** `Repo/docs/integrations/lti-provider-spec.md` | **Type:** Integration Spec | **Last reviewed:** 2026-05-26
 
+> **Route base path:** Provider endpoints are served by `lti-service` at `/api/v1/lti/provider/`. This document describes operation semantics; for specific route contracts see `backend/services/lti-service/app/main.py`.
+
 Defines the LMS acting as an LTI 1.3 Advantage Provider (tool), exposing LMS content and services to external platforms.
 
 ## Operations

@@ -1,3 +1,7 @@
+﻿> DEPRECATED — Superseded by: docs/specs/tenant-service-spec.md
+> Reason: v0 was replaced by v1 canonical spec during normalisation.
+> Last reviewed: 2026-06-22
+
 # SPEC_04_tenant_service — Engineering Specification (Enterprise LMS V2)
 
 ## 1) Service Purpose

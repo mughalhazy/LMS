@@ -2,6 +2,8 @@
 
 **Location:** `Repo/docs/integrations/lti-consumer-spec.md` | **Type:** Integration Spec | **Last reviewed:** 2026-05-26
 
+> **Route base path:** Consumer endpoints are served by `lti-service` at `/api/v1/lti/consumer/`. This document describes operation semantics; for specific route contracts see `backend/services/lti-service/app/main.py`.
+
 Describes the three operational phases for the LMS acting as an LTI 1.3 Consumer (platform), integrating external tools.
 
 ---

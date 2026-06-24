@@ -142,4 +142,4 @@ Catalogue all required external adapters per Master Spec §4. All external depen
 
 - Master Spec §4
 - `docs/anchors/country-layer-architecture.md` — adapter binding by country
-- `doc_catalogue.md` Section 15 — Integrations code layer
+- `docs/governance/doc-catalogue.md` §15 — Integrations code layer

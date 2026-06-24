@@ -1,4 +1,8 @@
-# Assessment Service
+﻿# Assessment Service
+
+## Recent changes
+
+- B03-006 (2026-05-31): ssessment_format field added (AssessmentFormat enum: standard_quiz, standard_exam, take_home_assignment, mock_test, board_style).
 
 Production-ready assessment lifecycle service for Enterprise LMS V2.
 
